@@ -85,6 +85,8 @@ Future<void> _prepareWorkspace(Directory root) async {
   await Directory('${root.path}/docs/production-readiness/release-pr-pathspecs')
       .create(recursive: true);
   await File('${root.path}/.audit_highrisk.txt').writeAsString('');
+  await File('${root.path}/docs/production-readiness/highrisk-baseline.txt')
+      .writeAsString('');
   await File(
           '${root.path}/docs/production-readiness/public-release-master-checklist.md')
       .writeAsString('# Public Release Master Checklist\n');
@@ -384,7 +386,8 @@ Future<void> _writeBasePassingArtifacts(Directory root) async {
       .writeAsString('<window />');
   await File(
           '${root.path}/docs/production-readiness/android-emulator-remote-reconnect-smoke-log.txt')
-      .writeAsString('Reconnecting in 1s\nWebSocket connected successfully\n');
+      .writeAsString(
+          'Server-observed mobile WebSocket viewer:\n{"viewers": [{"viewerId": "mobile"}]}\n');
   await _writeJson(
     root,
     'docs/production-readiness/public-release-checklist-audit.json',

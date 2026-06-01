@@ -9,7 +9,7 @@ class NightshadeApi {
     this._baseUrl = '';
     this._authToken = '';
     this._deviceId = '';
-    this._apiVersion = '2.5.0';
+    this._apiVersion = '2.6.0';
     this._requestCounter = 0;
     this._ws = null;
     this._wsReconnectTimer = null;

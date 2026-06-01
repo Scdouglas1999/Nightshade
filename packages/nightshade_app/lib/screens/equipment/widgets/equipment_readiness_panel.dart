@@ -49,6 +49,10 @@ class EquipmentReadinessPanel extends ConsumerWidget {
             showHeader: false,
             outstandingOnly: true,
             maxItems: 3,
+            // Equipment-screen inline panel: let the user ✕ a row (plate
+            // solver, dark library, …) for the session so an item they've
+            // consciously deferred stops nagging until next launch.
+            dismissible: true,
           ),
         ),
       ],

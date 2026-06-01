@@ -229,8 +229,8 @@ fn apply_pan_delta(pose: &mut ViewPose, dx: f32, dy: f32) {
     let d_ra = f64::from(dx) * fov / cos_dec;
     let d_dec = -f64::from(dy) * fov;
     pose.ra_rad = wrap_ra_rad(pose.ra_rad + d_ra);
-    pose.dec_rad = (pose.dec_rad + d_dec)
-        .clamp(-std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2);
+    pose.dec_rad =
+        (pose.dec_rad + d_dec).clamp(-std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2);
 }
 
 fn apply_zoom(pose: &mut ViewPose, factor: f32) -> bool {

@@ -5,19 +5,58 @@
 // Why this file is separate from settings_screen_test.dart: the existing
 // settings test file is large and tightly scoped to a curated set of
 // behaviour assertions. Pack M's tests target the *category routing*
-// (new sidebar entries → correct content widget) and the *new strictness
-// radio* — both are additive and don't interact with the pre-existing
-// scenarios. Keeping them in a separate file keeps blast-radius small
-// for future edits.
+// (sidebar entry → correct content widget) and the *new strictness radio* —
+// both are additive and don't interact with the pre-existing scenarios.
+//
+// Post-consolidation note: the sidebar is now grouped + collapsible. Adaptive
+// Exposure lives in the (collapsed-by-default) "Imaging" group and Pre-flight
+// Checks in "Automation & Safety". These tests expand the owning group header
+// first, then tap the section — exercising the real grouped-navigation path.
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/settings/settings_screen.dart';
 import 'package:nightshade_app/screens/settings/widgets/adaptive_exposure_settings.dart';
 import 'package:nightshade_app/screens/settings/widgets/preflight_settings.dart';
+import 'package:nightshade_app/widgets/tutorial_keys/settings_keys.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/harness.dart';
+
+/// The sidebar's scrollable (the keyed grouped ListView). Targeting it
+/// explicitly avoids grabbing a Scrollable inside the detail pane.
+Finder get _sidebar => find.descendant(
+      of: find.byKey(SettingsTutorialKeys.categories),
+      matching: find.byType(Scrollable),
+    );
+
+/// Brings a sidebar row (built lazily by the grouped ListView) into view by
+/// dragging the sidebar until it appears.
+Future<void> _revealInSidebar(WidgetTester tester, Finder target) async {
+  await tester.scrollUntilVisible(
+    target,
+    100,
+    scrollable: _sidebar,
+  );
+}
+
+/// Expands a collapsed sidebar group by revealing + tapping its (upper-cased)
+/// header. Expanding an earlier group lengthens the list, so a later group's
+/// header can start below the fold.
+Future<void> _expandGroup(WidgetTester tester, String groupTitle) async {
+  final header = find.text(groupTitle.toUpperCase());
+  await _revealInSidebar(tester, header);
+  await tester.tap(header);
+  await tester.pumpAndSettle(const Duration(milliseconds: 300));
+}
+
+/// Selects a section row (after its group is expanded) by revealing + tapping.
+Future<void> _selectSection(WidgetTester tester, String sectionLabel) async {
+  final item = find.text(sectionLabel).first;
+  await _revealInSidebar(tester, item);
+  await tester.tap(item);
+  await tester.pumpAndSettle(const Duration(seconds: 1));
+}
 
 /// In-memory stub of [AppSettingsNotifier] — same pattern as the main
 /// settings_screen_test. Tests inject an initial state and exercise
@@ -46,7 +85,7 @@ void main() {
 
   testWidgets(
       'sidebar_lists_adaptive_exposure_and_preflight_checks: the two new '
-      'Wave 5 categories appear after Image Grading in the sidebar',
+      'Wave 5 categories appear under their groups in the sidebar',
       (tester) async {
     _swallowKnownOverflows();
     await pumpAppScreen(
@@ -60,15 +99,19 @@ void main() {
       ],
     );
 
+    // Both groups start collapsed; expand them and reveal their sections (the
+    // grouped ListView builds rows lazily, so scroll the entry into view).
+    await _expandGroup(tester, 'Imaging');
+    await _revealInSidebar(tester, find.text('Adaptive Exposure'));
     expect(find.text('Adaptive Exposure'), findsOneWidget,
-        reason:
-            'The "Adaptive Exposure" sidebar entry must exist — Wave 5 '
-            'Agent 2 built the widget but Pack M is responsible for the '
-            'routing entry.');
+        reason: 'The "Adaptive Exposure" sidebar entry must exist under the '
+            'Imaging group.');
+
+    await _expandGroup(tester, 'Automation & Safety');
+    await _revealInSidebar(tester, find.text('Pre-flight Checks'));
     expect(find.text('Pre-flight Checks'), findsOneWidget,
-        reason:
-            'The "Pre-flight Checks" sidebar entry must exist — Wave 5 '
-            'Agent 3 added the setting but Pack M owns the UI surface.');
+        reason: 'The "Pre-flight Checks" sidebar entry must exist under the '
+            'Automation & Safety group.');
   });
 
   testWidgets(
@@ -87,10 +130,8 @@ void main() {
       ],
     );
 
-    // Find the sidebar entry — the first match is the sidebar; the
-    // pane has not rendered yet so there is only one.
-    await tester.tap(find.text('Adaptive Exposure').first);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await _expandGroup(tester, 'Imaging');
+    await _selectSection(tester, 'Adaptive Exposure');
 
     expect(find.byType(AdaptiveExposureSettings), findsOneWidget,
         reason:
@@ -115,8 +156,8 @@ void main() {
       ],
     );
 
-    await tester.tap(find.text('Pre-flight Checks').first);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await _expandGroup(tester, 'Automation & Safety');
+    await _selectSection(tester, 'Pre-flight Checks');
 
     expect(find.byType(PreflightSettings), findsOneWidget,
         reason:
@@ -148,8 +189,8 @@ void main() {
       ],
     );
 
-    await tester.tap(find.text('Pre-flight Checks').first);
-    await tester.pumpAndSettle(const Duration(seconds: 1));
+    await _expandGroup(tester, 'Automation & Safety');
+    await _selectSection(tester, 'Pre-flight Checks');
 
     // The Strict option carries a ValueKey we can target deterministically.
     final strictRow = find.byKey(const ValueKey('preflightStrictness_strict'));

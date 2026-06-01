@@ -96,7 +96,6 @@ impl TileResidency {
     }
 
     /// Currently resident tiles (ascending HEALPix id).
-    #[must_use]
     pub fn resident_ids(&self) -> impl Iterator<Item = HealpixId> + '_ {
         self.residents.keys().copied()
     }

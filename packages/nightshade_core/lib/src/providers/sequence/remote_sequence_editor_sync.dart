@@ -10,8 +10,6 @@ import '../../services/logging_service.dart';
 import '../../services/sequence_repository.dart';
 import '../backend_provider.dart';
 import '../sequence_provider.dart';
-import 'sequence_catalog_sync.dart';
-import 'sequence_editor.dart';
 
 const _logSource = 'RemoteSequenceEditorSync';
 

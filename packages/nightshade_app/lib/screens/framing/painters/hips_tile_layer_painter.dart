@@ -174,8 +174,22 @@ class HipsTileLayerPainter extends CustomPainter {
 
     final nbTilesPerLine = _allskyTilesPerLine(allskyOrder);
     if (nbTilesPerLine <= 0) return;
+    // The HiPS Allsky (IVOA HiPS 1.0 §4.6) packs the `12 * 4^k` order-k tiles into
+    // a grid that is `nbTilesPerLine` cells WIDE but
+    // `ceil(numberOfTiles / nbTilesPerLine)` cells TALL — it is NOT square,
+    // because `nbTilesPerLine = floor(sqrt(numberOfTiles))` rarely divides the
+    // tile count evenly (e.g. order 3: 768 tiles -> 27 wide x 29 tall, last row
+    // partly empty). The cells themselves are square. Deriving the cell HEIGHT
+    // from the true row count (not `nbTilesPerLine`) is essential: dividing the
+    // image height by `nbTilesPerLine` instead would make every cell ~7% too tall
+    // and drift the sampled row-origin downward by `row * (excess)` px, so a
+    // high-row tile's coarse base samples the wrong sky and the Allsky mosaic
+    // appears shifted (up-and-to-the-side) from the registered sharp tiles and
+    // the FOV overlay.
+    final nbRows = _allskyRows(allskyOrder, nbTilesPerLine);
+    if (nbRows <= 0) return;
     final cellW = allsky.width / nbTilesPerLine;
-    final cellH = allsky.height / nbTilesPerLine;
+    final cellH = allsky.height / nbRows;
     if (cellW <= 0 || cellH <= 0) return;
 
     final shift = 2 * (selectedNorder - allskyOrder);
@@ -206,6 +220,15 @@ class HipsTileLayerPainter extends CustomPainter {
   static int _allskyTilesPerLine(int order) {
     final numberOfTiles = 12 * (1 << (2 * order));
     return math.sqrt(numberOfTiles).floor();
+  }
+
+  /// `ceil(numberOfTiles / nbTilesPerLine)` — the Allsky grid HEIGHT in cells at
+  /// [order]. The packed Allsky grid is [nbTilesPerLine] wide but this many rows
+  /// tall (the last row may be partly empty), so the cell height must be derived
+  /// from this row count, not from [nbTilesPerLine] (the grid is not square).
+  static int _allskyRows(int order, int nbTilesPerLine) {
+    final numberOfTiles = 12 * (1 << (2 * order));
+    return (numberOfTiles + nbTilesPerLine - 1) ~/ nbTilesPerLine;
   }
 
   /// Warps the sub-cell of a coarse ancestor [image] that the sharp child
@@ -367,9 +390,44 @@ class HipsTileLayerPainter extends CustomPainter {
   /// Writes one mesh vertex's screen position and (inset) pixel texture
   /// coordinate into [positions]/[texCoords] at float index [p], returning the
   /// next float index. The texture coordinate is in *image pixels* (what the
-  /// [ui.ImageShader] samples in), mapping the vertex's normalized uv onto the
+  /// [ui.ImageShader] samples in), mapping the vertex's mesh `(u, v)` onto the
   /// `[texOriginX, texOriginX + texSpanX] x [texOriginY, texOriginY + texSpanY]`
   /// sampled sub-rectangle with the edge inset folded in.
+  ///
+  /// ## HiPS tile-image orientation (the mesh-`(u,v)` -> image-`(x,y)` rotation)
+  ///
+  /// The mesh's `(u, v)` lattice runs `u` with the HEALPix intra-face `ix` axis
+  /// and `v` with the `iy` axis (see [HipsTileSelection]'s `_buildMesh`), so its
+  /// four corners are `(u,v)=(0,0)`->south, `(1,0)`->east, `(0,1)`->west,
+  /// `(1,1)`->north (the [HealpixNested.boundaries] corner labelling).
+  ///
+  /// A HiPS tile *image* is NOT a naive top-left raster of that `(ix, iy)`
+  /// lattice — but the precise pixel convention had to be derived AGAINST REAL
+  /// TILE CONTENT, not the IVOA spec text (an earlier spec-text reading produced
+  /// a spurious vertical flip that left visible diagonal seams across an extended
+  /// object and made stars look sheared/oval, worst at high declination). The
+  /// decisive test is seam continuity: two HEALPix diamonds that share a sky edge
+  /// must show byte-identical content along it. Measuring the edge-content
+  /// correlation of the committed real DSS2 tiles across every candidate
+  /// `(u,v) -> (tx,ty)` map (see the painter's `SEAM CONTINUITY` /
+  /// `STAR COINCIDENCE` tests) ranks
+  ///
+  ///   tx = v,   ty = u
+  ///
+  /// far above all others — i.e. a pure transpose (swap the mesh axes, NO flip).
+  /// At the four corners that places south -> `(x=0,y=0)` (top-left),
+  /// east -> `(x=0,y=w)` (bottom-left), west -> `(x=w,y=0)` (top-right),
+  /// north -> `(x=w,y=w)` (bottom-right). Rendering the real M31 fixture under
+  /// this map yields a continuous, seam-free galaxy with round stars and M32/M110
+  /// at their correct positions; the previous `ty = 1 - u` flip split the disk
+  /// along the tile diagonals.
+  ///
+  /// Sampling with `tx = u, ty = v` instead transposes the other way (a 90°
+  /// rotation), and any of the flipped variants leaves the content discontinuous
+  /// at tile edges. Applying the correct transpose here — in the single shared
+  /// sampling primitive — fixes the primary, coarse-fallback and packed-Allsky
+  /// meshes identically (they all route through [_drawMesh] -> this method), so
+  /// the whole mosaic reads as one continuous field.
   int _emitVertex(
     Float32List positions,
     Float32List texCoords,
@@ -385,14 +443,22 @@ class HipsTileLayerPainter extends CustomPainter {
     positions[p] = vtx.screen.dx;
     positions[p + 1] = vtx.screen.dy;
 
-    // Map normalized uv in [0,1] to the inset [inset, 1-inset] band, then onto
-    // the sampled sub-rectangle in image pixels. This nudges sampling away from
-    // the very edge texel to avoid neighbour bleed while keeping interior
-    // sampling exact.
-    final u = uInset + vtx.u * (1.0 - 2.0 * uInset);
-    final v = vInset + vtx.v * (1.0 - 2.0 * vInset);
-    texCoords[p] = texOriginX + u * texSpanX;
-    texCoords[p + 1] = texOriginY + v * texSpanY;
+    // Transpose mesh (u, v) into the HiPS tile-image axes (see method doc):
+    // image-x runs with mesh v, image-y runs with mesh u. This is the convention
+    // that makes adjacent real DSS2 tiles join seamlessly (verified by the seam-
+    // continuity test); any flip of it re-opens the diagonal content seams.
+    final tx = vtx.v;
+    final ty = vtx.u;
+
+    // Map the rotated [0,1] coordinate onto the inset [inset, 1-inset] band of
+    // its own image axis, then onto the sampled sub-rectangle in image pixels.
+    // The inset is applied per *image* axis (uInset on x, vInset on y) so it
+    // nudges sampling away from the very edge texel to avoid neighbour bleed
+    // while keeping interior sampling exact.
+    final ix = uInset + tx * (1.0 - 2.0 * uInset);
+    final iy = vInset + ty * (1.0 - 2.0 * vInset);
+    texCoords[p] = texOriginX + ix * texSpanX;
+    texCoords[p + 1] = texOriginY + iy * texSpanY;
 
     return p + 2;
   }

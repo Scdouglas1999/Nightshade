@@ -45,7 +45,8 @@ class MountControlCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     final mountState = ref.watch(mountStateProvider);
-    final isConnected = mountState.connectionState == DeviceConnectionState.connected;
+    final isConnected =
+        mountState.connectionState == DeviceConnectionState.connected;
     // Offer only the tracking rates the mount actually supports (fall back to
     // all rates when capabilities are unknown). The current rate is always kept
     // selectable so the dropdown value stays valid.
@@ -62,8 +63,10 @@ class MountControlCard extends ConsumerWidget {
     }
 
     final raText = mountState.ra != null ? _formatRa(mountState.ra!) : '---';
-    final decText = mountState.dec != null ? _formatDec(mountState.dec!) : '---';
-    final pierText = isConnected ? (mountState.sideOfPier?.toUpperCase() ?? '---') : '---';
+    final decText =
+        mountState.dec != null ? _formatDec(mountState.dec!) : '---';
+    final pierText =
+        isConnected ? (mountState.sideOfPier?.toUpperCase() ?? '---') : '---';
 
     // Status with color
     final (statusText, statusColor) = mountState.isSlewing
@@ -78,7 +81,6 @@ class MountControlCard extends ConsumerWidget {
 
     return DashboardGlassCard(
       colors: colors,
-      padding: const EdgeInsets.all(12),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final isExpanded = constraints.maxWidth >= _expandedThreshold;
@@ -88,36 +90,20 @@ class MountControlCard extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Header
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: NightshadeDecorations.tintedBadge(
-                      mountState.isTracking ? colors.success : colors.info,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Icon(
-                      LucideIcons.move3d,
-                      size: 14,
-                      color: mountState.isTracking ? colors.success : colors.info,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(l10n.text('mount'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colors.textPrimary)),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: NightshadeDecorations.statusChip(
-                      statusColor,
-                      borderRadius: BorderRadius.circular(10),
-                      bordered: false,
-                    ),
-                    child: Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: statusColor)),
-                  ),
-                ],
+              DashboardCardHeader(
+                colors: colors,
+                icon: LucideIcons.move3d,
+                title: l10n.text('mount'),
+                accent: mountState.isTracking ? colors.success : colors.info,
+                trailing: DashboardStatusChip(
+                  colors: colors,
+                  label: statusText,
+                  active: true,
+                  activeColor: statusColor,
+                ),
               ),
 
-              const SizedBox(height: 8),
+              const SizedBox(height: DashboardCardStyle.headerGap),
 
               // Coordinates - NINA style
               Container(
@@ -132,8 +118,15 @@ class MountControlCard extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(l10n.text('ra'), style: TextStyle(fontSize: 9, color: colors.textMuted)),
-                          Text(raText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary, fontFamily: 'monospace')),
+                          Text(l10n.text('ra'),
+                              style: TextStyle(
+                                  fontSize: 9, color: colors.textMuted)),
+                          Text(raText,
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.textPrimary,
+                                  fontFamily: 'monospace')),
                         ],
                       ),
                     ),
@@ -141,16 +134,29 @@ class MountControlCard extends ConsumerWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(l10n.text('dec'), style: TextStyle(fontSize: 9, color: colors.textMuted)),
-                          Text(decText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary, fontFamily: 'monospace')),
+                          Text(l10n.text('dec'),
+                              style: TextStyle(
+                                  fontSize: 9, color: colors.textMuted)),
+                          Text(decText,
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: colors.textPrimary,
+                                  fontFamily: 'monospace')),
                         ],
                       ),
                     ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.end,
                       children: [
-                        Text(l10n.text('pier'), style: TextStyle(fontSize: 9, color: colors.textMuted)),
-                        Text(pierText, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: colors.textPrimary)),
+                        Text(l10n.text('pier'),
+                            style: TextStyle(
+                                fontSize: 9, color: colors.textMuted)),
+                        Text(pierText,
+                            style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: colors.textPrimary)),
                       ],
                     ),
                   ],
@@ -175,7 +181,9 @@ class MountControlCard extends ConsumerWidget {
                 // Tracking rate selector
                 Row(
                   children: [
-                    Text('${l10n.text('rate')}:', style: TextStyle(fontSize: 10, color: colors.textMuted)),
+                    Text('${l10n.text('rate')}:',
+                        style:
+                            TextStyle(fontSize: 10, color: colors.textMuted)),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Container(
@@ -184,24 +192,31 @@ class MountControlCard extends ConsumerWidget {
                         decoration: BoxDecoration(
                           color: colors.surfaceAlt,
                           borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: colors.border.withValues(alpha: 0.5)),
+                          border: Border.all(
+                              color: colors.border.withValues(alpha: 0.5)),
                         ),
                         child: DropdownButtonHideUnderline(
                           child: DropdownButton<TrackingRate>(
                             value: mountState.trackingRate,
                             isDense: true,
                             isExpanded: true,
-                            style: TextStyle(fontSize: 11, color: colors.textPrimary),
+                            style: TextStyle(
+                                fontSize: 11, color: colors.textPrimary),
                             dropdownColor: colors.surface,
-                            icon: Icon(LucideIcons.chevronDown, size: 12, color: colors.textMuted),
-                            items: trackingRateOptions.map((rate) => DropdownMenuItem(
-                              value: rate,
-                              child: Text(_trackingRateLabel(rate)),
-                            )).toList(),
+                            icon: Icon(LucideIcons.chevronDown,
+                                size: 12, color: colors.textMuted),
+                            items: trackingRateOptions
+                                .map((rate) => DropdownMenuItem(
+                                      value: rate,
+                                      child: Text(_trackingRateLabel(rate)),
+                                    ))
+                                .toList(),
                             onChanged: mountState.canSetTrackingRate
                                 ? (rate) {
                                     if (rate != null) {
-                                      ref.read(deviceServiceProvider).setMountTrackingRate(rate.index);
+                                      ref
+                                          .read(deviceServiceProvider)
+                                          .setMountTrackingRate(rate.index);
                                     }
                                   }
                                 : null,
@@ -220,21 +235,34 @@ class MountControlCard extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: NightshadeButton(
-                      label: mountState.isParked ? l10n.text('unpark') : l10n.text('park'),
+                      label: mountState.isParked
+                          ? l10n.text('unpark')
+                          : l10n.text('park'),
                       icon: LucideIcons.parkingCircle,
                       variant: ButtonVariant.outline,
                       size: ButtonSize.small,
-                      onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).togglePark() : null,
+                      onPressed: isConnected
+                          ? () =>
+                              ref.read(mountCommandServiceProvider).togglePark()
+                          : null,
                     ),
                   ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: NightshadeButton(
-                      label: mountState.isTracking ? l10n.text('stop') : l10n.text('track'),
+                      label: mountState.isTracking
+                          ? l10n.text('stop')
+                          : l10n.text('track'),
                       icon: LucideIcons.activity,
-                      variant: mountState.isTracking ? ButtonVariant.primary : ButtonVariant.outline,
+                      variant: mountState.isTracking
+                          ? ButtonVariant.primary
+                          : ButtonVariant.outline,
                       size: ButtonSize.small,
-                      onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).toggleTracking() : null,
+                      onPressed: isConnected
+                          ? () => ref
+                              .read(mountCommandServiceProvider)
+                              .toggleTracking()
+                          : null,
                     ),
                   ),
                 ],
@@ -248,7 +276,10 @@ class MountControlCard extends ConsumerWidget {
                     icon: LucideIcons.xCircle,
                     variant: ButtonVariant.outline,
                     size: ButtonSize.small,
-                    onPressed: isConnected ? () => ref.read(mountCommandServiceProvider).abortSlew() : null,
+                    onPressed: isConnected
+                        ? () =>
+                            ref.read(mountCommandServiceProvider).abortSlew()
+                        : null,
                   ),
                 ),
               ],

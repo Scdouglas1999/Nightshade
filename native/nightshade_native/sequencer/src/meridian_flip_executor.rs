@@ -687,8 +687,7 @@ impl MeridianFlipExecutor {
         // pattern. Bounded so an instantaneous slew (already on target) or a
         // driver that never asserts Slewing does not stall.
         {
-            let start_deadline =
-                tokio::time::Instant::now() + std::time::Duration::from_secs(15);
+            let start_deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(15);
             loop {
                 if self.is_cancelled(ctx) {
                     if let Err(e) = self.device_ops.mount_abort_slew(mount_id).await {

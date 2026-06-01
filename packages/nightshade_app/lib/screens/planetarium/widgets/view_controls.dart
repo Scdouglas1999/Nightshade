@@ -71,6 +71,51 @@ class ViewControls extends ConsumerWidget {
             onTap: onToggleFOV,
             tooltip: 'Toggle FOV indicator',
           ),
+          const SizedBox(height: 4),
+          // FOV reference rings (Telrad + finder) toggle
+          Consumer(
+            builder: (context, ref, _) {
+              return ViewControlButton(
+                icon: LucideIcons.target,
+                isActive: ref.watch(showFovRingsProvider),
+                onTap: () {
+                  final notifier = ref.read(showFovRingsProvider.notifier);
+                  notifier.state = !notifier.state;
+                },
+                tooltip: 'Toggle FOV rings (Telrad / finder)',
+              );
+            },
+          ),
+          const SizedBox(height: 4),
+          // Night-vision (red) mode toggle
+          Consumer(
+            builder: (context, ref, _) {
+              return ViewControlButton(
+                icon: LucideIcons.moon,
+                isActive: ref.watch(nightVisionModeProvider),
+                onTap: () {
+                  final notifier = ref.read(nightVisionModeProvider.notifier);
+                  notifier.state = !notifier.state;
+                },
+                tooltip: 'Toggle night-vision (red) mode',
+              );
+            },
+          ),
+          const SizedBox(height: 4),
+          // Performance HUD toggle (UI-thread ms / GPU-raster ms / FPS).
+          Consumer(
+            builder: (context, ref, _) {
+              return ViewControlButton(
+                icon: LucideIcons.activity,
+                isActive: ref.watch(showPerfHudProvider),
+                onTap: () {
+                  final notifier = ref.read(showPerfHudProvider.notifier);
+                  notifier.state = !notifier.state;
+                },
+                tooltip: 'Toggle performance HUD',
+              );
+            },
+          ),
           const Divider(height: 16, color: Colors.white24),
           // Compass HUD toggle - wrapped in Consumer to scope rebuilds
           Consumer(

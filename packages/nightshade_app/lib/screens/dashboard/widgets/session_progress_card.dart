@@ -41,7 +41,8 @@ class SessionProgressCard extends ConsumerWidget {
     final targetName = sessionState.targetName ?? 'No target';
 
     // Format exposure count
-    final exposureText = '${sessionState.completedExposures}/${sessionState.totalExposures}';
+    final exposureText =
+        '${sessionState.completedExposures}/${sessionState.totalExposures}';
 
     // Format integration time
     final integrationText = sessionState.totalIntegrationSecs > 0
@@ -55,7 +56,10 @@ class SessionProgressCard extends ConsumerWidget {
 
     // Calculate remaining time
     String remainingText = '---';
-    if (isActive && progressValue > 0 && progressValue < 1.0 && sessionState.startTime != null) {
+    if (isActive &&
+        progressValue > 0 &&
+        progressValue < 1.0 &&
+        sessionState.startTime != null) {
       final elapsed = DateTime.now().difference(sessionState.startTime!);
       final estimatedTotal = Duration(
         milliseconds: (elapsed.inMilliseconds / progressValue).round(),
@@ -67,67 +71,40 @@ class SessionProgressCard extends ConsumerWidget {
     }
 
     // Current exposure info
-    final currentExpText = '${exposureSettings.exposureTime}s ${exposureSettings.filter ?? "L"}';
+    final currentExpText =
+        '${exposureSettings.exposureTime}s ${exposureSettings.filter ?? "L"}';
 
     return DashboardGlassCard(
       colors: colors,
-      padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           // Header with target name
-          Row(
-            children: [
-              Icon(
-                LucideIcons.target,
-                size: 14,
-                color: isActive ? colors.success : colors.textMuted,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  isActive ? targetName : 'Sequence',
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
+          DashboardCardHeader(
+            colors: colors,
+            icon: LucideIcons.target,
+            title: isActive ? targetName : 'Sequence',
+            accent: isActive ? colors.success : null,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isActive)
+                  Text(
+                    currentExpText,
+                    style: TextStyle(fontSize: 10, color: colors.textSecondary),
                   ),
-                  overflow: TextOverflow.ellipsis,
+                if (isActive) const SizedBox(width: 8),
+                DashboardStatusChip(
+                  colors: colors,
+                  label: isActive ? 'Running' : 'Idle',
+                  active: isActive,
                 ),
-              ),
-              if (isActive)
-                Text(
-                  currentExpText,
-                  style: TextStyle(fontSize: 10, color: colors.textSecondary),
-                ),
-              const SizedBox(width: 8),
-              // Status badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: isActive
-                    ? NightshadeDecorations.statusChip(
-                        colors.success,
-                        borderRadius: BorderRadius.circular(8),
-                        bordered: false,
-                      )
-                    : BoxDecoration(
-                        color: colors.surfaceAlt,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                child: Text(
-                  isActive ? 'Running' : 'Idle',
-                  style: TextStyle(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w600,
-                    color: isActive ? colors.success : colors.textMuted,
-                  ),
-                ),
-              ),
-            ],
+              ],
+            ),
           ),
 
-          const SizedBox(height: 6),
+          const SizedBox(height: DashboardCardStyle.headerGap),
 
           // Progress bar with percentage
           Row(
@@ -186,9 +163,14 @@ class SessionProgressCard extends ConsumerWidget {
             child: Row(
               children: [
                 _CompactStat(label: 'Frm', value: exposureText, colors: colors),
-                _CompactStat(label: 'Int', value: integrationText, colors: colors),
+                _CompactStat(
+                    label: 'Int', value: integrationText, colors: colors),
                 _CompactStat(label: 'Elap', value: elapsedText, colors: colors),
-                _CompactStat(label: 'Rem', value: remainingText, colors: colors, highlight: isActive),
+                _CompactStat(
+                    label: 'Rem',
+                    value: remainingText,
+                    colors: colors,
+                    highlight: isActive),
               ],
             ),
           ),
@@ -254,7 +236,8 @@ class _ExposureProgressRow extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: Container(
                   decoration: BoxDecoration(
-                    color: progress.isDownloading ? colors.info : colors.primary,
+                    color:
+                        progress.isDownloading ? colors.info : colors.primary,
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),

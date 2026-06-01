@@ -2,9 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/settings/settings_screen.dart';
 import 'package:nightshade_app/screens/settings/widgets/adaptive_conditions_settings.dart';
+import 'package:nightshade_app/widgets/tutorial_keys/settings_keys.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../harness/harness.dart';
+
+/// The sidebar's scrollable (the keyed grouped ListView).
+Finder get _sidebar => find.descendant(
+      of: find.byKey(SettingsTutorialKeys.categories),
+      matching: find.byType(Scrollable),
+    );
 
 class _StubAppSettingsNotifier extends AppSettingsNotifier {
   _StubAppSettingsNotifier(this._initial);
@@ -16,12 +23,23 @@ class _StubAppSettingsNotifier extends AppSettingsNotifier {
 }
 
 Future<void> _openAdaptiveConditions(WidgetTester tester) async {
-  await tester.scrollUntilVisible(
-    find.text('Adaptive Conditions'),
-    240,
-    scrollable: find.byType(Scrollable).first,
-  );
-  await tester.tap(find.text('Adaptive Conditions').first);
+  // The sidebar is grouped + collapsible; Adaptive Conditions lives in the
+  // (collapsed-by-default) "Automation & Safety" group. Expand the group, then
+  // select the section. ensureVisible scrolls each target fully into the
+  // sidebar viewport so the tap lands inside its hit-test box.
+  final groupHeader = find.text('AUTOMATION & SAFETY');
+  await tester.scrollUntilVisible(groupHeader, 100, scrollable: _sidebar);
+  await tester.tap(groupHeader);
+  await tester.pumpAndSettle(const Duration(milliseconds: 300));
+
+  final sectionItem = find.text('Adaptive Conditions').first;
+  await tester.scrollUntilVisible(sectionItem, 100, scrollable: _sidebar);
+  // scrollUntilVisible stops as soon as the row is partially visible (often
+  // pinned to the viewport edge); ensureVisible fully reveals it so the tap
+  // lands inside its hit-test box.
+  await tester.ensureVisible(sectionItem);
+  await tester.pumpAndSettle(const Duration(milliseconds: 200));
+  await tester.tap(sectionItem);
   await tester.pumpAndSettle(const Duration(seconds: 1));
 }
 

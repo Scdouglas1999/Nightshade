@@ -88,6 +88,26 @@ Response contentResponse(
   );
 }
 
+Response streamResponse(
+  Object? body, {
+  required String contentType,
+  Map<String, String>? headers,
+  Map<String, Object>? context,
+}) {
+  return Response.ok(
+    body,
+    headers: {
+      'content-type': contentType,
+      if (headers != null) ...headers,
+    },
+    context: context,
+  );
+}
+
+Response noContentResponse({Map<String, String>? headers}) {
+  return Response(204, headers: headers);
+}
+
 Response attachmentResponse(
   Object? body, {
   required String fileName,
@@ -131,7 +151,8 @@ Response partialContentResponse(
       'content-length': sliceLength.toString(),
       'content-range': 'bytes $start-$end/$totalLength',
       'accept-ranges': 'bytes',
-      if (fileName != null) 'content-disposition': attachmentDisposition(fileName),
+      if (fileName != null)
+        'content-disposition': attachmentDisposition(fileName),
       if (headers != null) ...headers,
     },
   );
@@ -140,8 +161,7 @@ Response partialContentResponse(
 /// 416 Requested Range Not Satisfiable per RFC 7233 §4.4. The
 /// `content-range: bytes */N` header tells the client the resource size
 /// so they can re-issue a valid range request.
-Response rangeNotSatisfiableResponse(int totalLength,
-    {String? reason}) {
+Response rangeNotSatisfiableResponse(int totalLength, {String? reason}) {
   return Response(
     416,
     body: jsonEncode({

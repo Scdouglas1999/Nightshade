@@ -31,17 +31,32 @@ class CameraTemperaturePoller {
     required Ref ref,
     required NightshadeBackend backend,
     Duration interval = const Duration(seconds: 5),
+    Duration idleInterval = const Duration(seconds: 30),
   })  : _ref = ref,
         _backend = backend,
-        _interval = interval;
+        _interval = interval,
+        _idleInterval = idleInterval;
 
   final Ref _ref;
   final NightshadeBackend _backend;
+
+  /// Poll cadence while the cooler is actively running — the sensor temperature
+  /// is moving, so the UI wants frequent updates.
   final Duration _interval;
+
+  /// Slower cadence while the cooler is off — with no active cooling the sensor
+  /// only drifts slowly toward ambient, so frequent polling just spams the
+  /// device bus (USB contention with the camera) and the debug log for no gain.
+  final Duration _idleInterval;
 
   Timer? _timer;
   String? _connectedCameraId;
   int _generation = 0;
+
+  /// Whether the last reading showed the cooler running. Drives the adaptive
+  /// poll cadence; assumed true at start so the poller begins responsive and
+  /// relaxes to [_idleInterval] only once it confirms the cooler is off.
+  bool _coolerActive = true;
 
   /// Identifier of the camera currently being polled, if any.
   String? get connectedCameraId => _connectedCameraId;
@@ -51,12 +66,23 @@ class CameraTemperaturePoller {
     _connectedCameraId = deviceId;
     final generation = ++_generation;
     _timer?.cancel();
-    _timer = Timer.periodic(_interval, (_) async {
-      await _poll(deviceId, generation);
-    });
-    // Poll immediately on start so the UI does not need to wait one tick
-    // for the first sample.
-    unawaited(_poll(deviceId, generation));
+    // Begin responsive (active cadence) until the first reading reports the
+    // cooler state; thereafter [_pollThenReschedule] adapts the cadence.
+    _coolerActive = true;
+    // Poll immediately so the UI does not wait one tick for the first sample,
+    // then schedule the next tick at the cadence matching the cooler state.
+    unawaited(_pollThenReschedule(deviceId, generation));
+  }
+
+  /// Poll once, then — if still the active generation — schedule the next poll
+  /// at [_interval] when the cooler is running or [_idleInterval] when it is
+  /// off. A self-rescheduling timer (not [Timer.periodic]) so the cadence can
+  /// change with the cooler state between ticks.
+  Future<void> _pollThenReschedule(String deviceId, int generation) async {
+    await _poll(deviceId, generation);
+    if (_connectedCameraId != deviceId || _generation != generation) return;
+    final delay = _coolerActive ? _interval : _idleInterval;
+    _timer = Timer(delay, () => _pollThenReschedule(deviceId, generation));
   }
 
   /// Stop polling. Subsequent timer ticks (if any are mid-flight) are
@@ -129,6 +155,10 @@ class CameraTemperaturePoller {
             targetTemp ?? _ref.read(cameraStateProvider).targetTemp;
         final coolerPower = power ?? 0.0;
         final isCooling = power != null && power > 0.0;
+        // Drive the adaptive poll cadence: frequent while cooling, relaxed when
+        // the cooler is off. (Only updated on a real reading; a null/errored
+        // poll leaves the cadence unchanged.)
+        _coolerActive = isCooling;
         final isAtTarget = isCooling &&
             targetTemp != null &&
             (temp - targetTemp).abs() <= _atTargetToleranceC;

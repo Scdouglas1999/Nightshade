@@ -29,6 +29,17 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// Owning the timer in the widget means it is cancelled synchronously when the
 /// tree is torn down, so it never leaks past disposal (an autoDispose periodic
 /// stream did, tripping the widget-test pending-timer assertion).
+/// Session-scoped record of the severity at which the operator dismissed the
+/// meridian-flip banner. The banner stays hidden while the live severity is at
+/// or below this level, and re-appears the moment the flip escalates to a more
+/// urgent tone (info → warning → imminent) — so dismissing the calm "flip in
+/// 5h" status can never suppress the attention-grade "imminent" one. Holds the
+/// dismissed [NightshadeAlertSeverity.index]; `null` means "not dismissed". It
+/// resets to `null` whenever the flip disarms so a fresh arm cycle shows again,
+/// and is deliberately NOT persisted (a new night starts clean).
+final meridianBannerDismissedSeverityProvider =
+    StateProvider<int?>((ref) => null);
+
 class MeridianFlipCountdownBanner extends ConsumerStatefulWidget {
   const MeridianFlipCountdownBanner({super.key});
 
@@ -68,11 +79,29 @@ class _MeridianFlipCountdownBannerState
 
   @override
   Widget build(BuildContext context) {
+    // Reset the operator's dismissal whenever the flip disarms, so a fresh arm
+    // cycle (a new night, or the next flip after this one completes) surfaces
+    // the banner again instead of staying silenced forever.
+    ref.listen<MeridianCountdownState>(meridianCountdownProvider, (prev, next) {
+      if (!next.isArmed &&
+          ref.read(meridianBannerDismissedSeverityProvider) != null) {
+        ref.read(meridianBannerDismissedSeverityProvider.notifier).state = null;
+      }
+    });
+
     // The projection is synchronous and always present; when nothing is armed it
     // resolves to a not-armed state and [_MeridianFlipCountdownView] renders
     // nothing. The banner is ambient status, never a blocker.
     final state = ref.watch(meridianCountdownProvider);
-    return _MeridianFlipCountdownView(state: state);
+    final dismissedSeverityIndex =
+        ref.watch(meridianBannerDismissedSeverityProvider);
+    return _MeridianFlipCountdownView(
+      state: state,
+      dismissedSeverityIndex: dismissedSeverityIndex,
+      onDismiss: (severityIndex) => ref
+          .read(meridianBannerDismissedSeverityProvider.notifier)
+          .state = severityIndex,
+    );
   }
 }
 
@@ -80,9 +109,21 @@ class _MeridianFlipCountdownBannerState
 /// presentation logic is unit-testable in isolation and the [ConsumerWidget]
 /// stays a thin provider adapter.
 class _MeridianFlipCountdownView extends StatelessWidget {
-  const _MeridianFlipCountdownView({required this.state});
+  const _MeridianFlipCountdownView({
+    required this.state,
+    required this.dismissedSeverityIndex,
+    required this.onDismiss,
+  });
 
   final MeridianCountdownState state;
+
+  /// The [NightshadeAlertSeverity.index] the operator last dismissed at, or
+  /// `null` if not dismissed. The banner hides while the live severity is at or
+  /// below this; an escalation above it re-surfaces the banner.
+  final int? dismissedSeverityIndex;
+
+  /// Invoked with the current severity index when the operator dismisses.
+  final void Function(int severityIndex) onDismiss;
 
   @override
   Widget build(BuildContext context) {
@@ -93,6 +134,14 @@ class _MeridianFlipCountdownView extends StatelessWidget {
     // common idle case (mount disconnected, flip disabled, parked, etc.); the
     // banner must not editorialize about a disabled feature.
     if (spec == null) {
+      return const SizedBox.shrink();
+    }
+
+    // Dismissed at this severity or a more urgent one: stay hidden until the
+    // flip escalates beyond what was dismissed (so silencing the calm "in 5h"
+    // status never swallows the attention-grade "imminent" banner).
+    if (dismissedSeverityIndex != null &&
+        spec.severity.index <= dismissedSeverityIndex!) {
       return const SizedBox.shrink();
     }
 
@@ -151,7 +200,41 @@ class _MeridianFlipCountdownView extends StatelessWidget {
             const SizedBox(width: NightshadeTokens.spaceMd),
             _PierSideChip(sideOfPier: state.sideOfPier!),
           ],
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          // Dismiss the ambient status. This is NOT a manual flip action (the
+          // flip stays fully automatic) — it only silences the banner, and an
+          // escalation re-surfaces it.
+          _DismissButton(
+            color: colors.textMuted,
+            onTap: () => onDismiss(spec.severity.index),
+          ),
         ],
+      ),
+    );
+  }
+}
+
+/// Compact close affordance for the ambient meridian-flip banner. A bordered
+/// `InkResponse` rather than a full-padding [IconButton] so it reads as a quiet
+/// "dismiss this status" control, not a primary action.
+class _DismissButton extends StatelessWidget {
+  const _DismissButton({required this.color, required this.onTap});
+
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: 'Dismiss',
+      child: InkResponse(
+        onTap: onTap,
+        radius: NightshadeTokens.iconMd,
+        containedInkWell: true,
+        child: Padding(
+          padding: const EdgeInsets.all(NightshadeTokens.spaceXs),
+          child: Icon(LucideIcons.x, size: NightshadeTokens.iconSm, color: color),
+        ),
       ),
     );
   }

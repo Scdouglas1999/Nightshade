@@ -37,7 +37,8 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          dashboardLayoutProvider.overrideWith(() => _TestDashboardLayoutNotifier()),
+          dashboardLayoutProvider
+              .overrideWith(() => _TestDashboardLayoutNotifier()),
         ],
         child: MaterialApp(
           theme: NightshadeTheme.dark,
@@ -59,7 +60,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     final widgetsButton = find.byWidgetPredicate(
-      (widget) => widget is NightshadeButton && widget.icon == LucideIcons.layoutGrid,
+      (widget) =>
+          widget is NightshadeButton && widget.icon == LucideIcons.layoutGrid,
     );
     expect(widgetsButton, findsOneWidget);
 

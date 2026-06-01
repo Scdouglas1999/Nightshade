@@ -84,8 +84,8 @@ class ThumbnailStripPrefs {
 
 const _thumbnailStripPrefsKey = 'thumbnail_strip_prefs_v1';
 
-/// Persisted thumbnail-strip preferences. Backed by the same
-/// `settingsDaoProvider` pattern as `runDashboardPrefsProvider`. Errors
+/// Persisted thumbnail-strip preferences. Backed by the
+/// `settingsDaoProvider` persistence pattern. Errors
 /// during read/write surface through the AsyncValue rather than being
 /// swallowed — silent fallbacks hide bugs (CLAUDE.md rule).
 final thumbnailStripPrefsProvider =

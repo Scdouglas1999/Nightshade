@@ -16,7 +16,7 @@ jobs:
   linux-release-build:
     name: Build Linux Release Artifact
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 45
 
     steps:
       - name: Checkout code

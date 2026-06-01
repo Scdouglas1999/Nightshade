@@ -211,6 +211,23 @@ void main() {
       expect(issues.single.affectedNodeId, t.id);
     });
 
+    test('does not fire for a 0° rotation (no-op, no rotator needed)', () {
+      // Auto-built targets request no rotation but carry a spurious 0.0;
+      // a 0° rotation never needs a rotator, so it must not warn.
+      final container = _container();
+      final rule = RotatorRotationConflictRule();
+      final t = TargetHeaderNode(
+        targetName: 'M31',
+        raHours: 0,
+        decDegrees: 0,
+        rotation: 0,
+      );
+      final s = _sequenceWith([t]);
+      final issues = _withRef(
+          container, (ref) => rule.validate(s, ValidationContext(ref)));
+      expect(issues, isEmpty);
+    });
+
     test('clean when rotator is connected', () {
       final container =
           _container(rotator: DeviceConnectionState.connected);

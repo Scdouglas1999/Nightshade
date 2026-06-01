@@ -158,6 +158,48 @@ void main() {
       );
     });
 
+    test('produces distinct, correctly-ordered subs per filter category', () {
+      // Dark sky + small fast scope so broadband sky-limited lengths rise above
+      // the floor and the per-channel ordering is observable end-to-end.
+      ExposureRecommendation forFilter(String name) => calculator.recommend(
+            asi2600(
+              bortleClass: 3,
+              filter: FilterExposureSpec.fromName(name),
+              floorSeconds: 30,
+              userCapSeconds: 600,
+              fullWellE: 50000,
+            ),
+          );
+
+      final l = forFilter('L').seconds;
+      final r = forFilter('R').seconds;
+      final g = forFilter('G').seconds;
+      final b = forFilter('B').seconds;
+      final ha = forFilter('Ha').seconds;
+      final oiii = forFilter('OIII').seconds;
+      final sii = forFilter('SII').seconds;
+
+      // Luminance sees the most sky flux, so it is the shortest broadband sub.
+      expect(l, lessThan(r), reason: 'L should be shorter than R');
+      expect(l, lessThan(g), reason: 'L should be shorter than G');
+      expect(l, lessThan(b), reason: 'L should be shorter than B');
+
+      // Green sees the brightest color-band sky (Na/Hg LP + airglow), blue the
+      // darkest, so the canonical LRGB ordering is G <= R < B.
+      expect(g, lessThanOrEqualTo(r), reason: 'G sky brighter than R');
+      expect(r, lessThan(b), reason: 'Blue sees darkest sky -> longest sub');
+
+      // Narrowband is darker still than any broadband channel.
+      expect(ha, greaterThan(b), reason: 'Narrowband Ha longer than blue');
+      // Same narrow bandwidth -> same recommendation across Ha/OIII/SII.
+      expect(oiii, equals(ha));
+      expect(sii, equals(ha));
+
+      // The whole point of the fix: broadband channels are NOT all identical.
+      expect({l, r, g, b}.length, greaterThan(1),
+          reason: 'broadband channels must not collapse to one value');
+    });
+
     test('target SNR scales sky-limited recommendations', () {
       final lowerTarget = calculator.recommend(
         asi2600(

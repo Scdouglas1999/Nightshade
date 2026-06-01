@@ -201,8 +201,7 @@ enum LiveStackingThumbnailSize {
         LiveStackingThumbnailSize.large => 'large',
       };
 
-  static LiveStackingThumbnailSize fromStorageKey(String? key) =>
-      switch (key) {
+  static LiveStackingThumbnailSize fromStorageKey(String? key) => switch (key) {
         'small' => LiveStackingThumbnailSize.small,
         'large' => LiveStackingThumbnailSize.large,
         _ => LiveStackingThumbnailSize.medium,
@@ -294,23 +293,23 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
             await settingsDao.getSetting('livestacking_default_port') ??
                 '8081') ??
         8081;
-    final livestackingPublic = (await settingsDao
-            .getSetting('livestacking_public_by_default')) ==
-        'true';
-    final livestackingStackMethodKey = await settingsDao
-            .getSetting('livestacking_default_stack_method') ??
-        'average';
+    final livestackingPublic =
+        (await settingsDao.getSetting('livestacking_public_by_default')) ==
+            'true';
+    final livestackingStackMethodKey =
+        await settingsDao.getSetting('livestacking_default_stack_method') ??
+            'average';
     final livestackingStackMethod =
         LiveStackingMethod.fromStorageKey(livestackingStackMethodKey);
     final livestackingWatermark =
         await settingsDao.getSetting('livestacking_default_watermark');
-    final livestackingThumbnailKey = await settingsDao
-        .getSetting('livestacking_default_thumbnail_size');
+    final livestackingThumbnailKey =
+        await settingsDao.getSetting('livestacking_default_thumbnail_size');
     final livestackingThumbnail =
         LiveStackingThumbnailSize.fromStorageKey(livestackingThumbnailKey);
-    final livestackingDisableAll = (await settingsDao
-            .getSetting('livestacking_disable_everywhere')) ==
-        'true';
+    final livestackingDisableAll =
+        (await settingsDao.getSetting('livestacking_disable_everywhere')) ==
+            'true';
 
     state = SequencerDefaults(
       autofocusStepSize: stepSize,
@@ -372,7 +371,8 @@ class SequencerDefaultsNotifier extends StateNotifier<SequencerDefaults> {
     if (defaultStackMethod != null) {
       updates['livestacking_default_stack_method'] =
           defaultStackMethod.storageKey;
-      state = state.copyWith(livestackingDefaultStackMethod: defaultStackMethod);
+      state =
+          state.copyWith(livestackingDefaultStackMethod: defaultStackMethod);
     }
     if (defaultWatermark != _sentinel) {
       final value = defaultWatermark as String?;

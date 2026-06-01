@@ -290,8 +290,7 @@ impl DeviceManager {
                     .await?
             }
             DeviceType::Weather => {
-                probe_ascom_metadata(&self.ascom_weather, device_id, "observing conditions")
-                    .await?
+                probe_ascom_metadata(&self.ascom_weather, device_id, "observing conditions").await?
             }
             _ => {
                 return Err(format!(
@@ -365,6 +364,8 @@ impl DeviceManager {
                 }
             }
             DeviceType::Focuser => {
+                // Single probe; the retry for transient focuser/wheel failures
+                // lives in the perform_health_check wrapper (driver parity).
                 let focusers = self.ascom_focusers.read().await;
                 if let Some(focuser) = focusers.get(device_id) {
                     match focuser.read().await.heartbeat().await {

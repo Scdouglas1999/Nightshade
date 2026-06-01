@@ -1,11 +1,10 @@
 /// Provider layer that decides which first-real-use action step (if any) to
 /// surface to the user once their rig is ready to image.
 ///
-/// Where [readinessReportProvider] answers "is the rig *ready*?" and the
-/// first-launch coach answers "does the user still need the setup walkthrough?",
-/// this layer answers the next question: "now that you're ready, what should
-/// you *do* first?" It walks [kNextUseSteps] in teaching order and surfaces the
-/// first action the user has neither completed nor explicitly dismissed.
+/// Where [readinessReportProvider] answers "is the rig *ready*?", this layer
+/// answers the next question: "now that you're ready, what should you *do*
+/// first?" It walks [kNextUseSteps] in teaching order and surfaces the first
+/// action the user has neither completed nor explicitly dismissed.
 ///
 /// ## Pure core + thin wiring
 ///
@@ -31,7 +30,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/onboarding/next_use_steps.dart';
 import '../models/readiness/readiness_models.dart';
 import 'database_provider.dart';
-import 'first_launch_coach_provider.dart';
 import 'readiness_provider.dart';
 import 'session_provider.dart';
 import 'smart_night_draft_provider.dart';
@@ -43,7 +41,7 @@ import 'tutorial_provider.dart' show tutorialProgressDaoProvider;
 /// Dismissals reuse the existing contextual-prompt mechanism rather than
 /// introducing a new table: each dismissed step is stored under the category
 /// `'next_use.<actionId>'`. The prefix is intentionally distinct from any
-/// tutorial/coach category so next-use dismissals never collide with them.
+/// tutorial category so next-use dismissals never collide with them.
 const String kNextUsePromptScreenIdPrefix = 'next_use.';
 
 /// Builds the stable persistence screen id for [id]'s dismissal row.
@@ -57,8 +55,8 @@ String nextUsePromptScreenId(NextUseActionId id) =>
 /// Parses a [NextUseActionId] from a persisted dismissal screen id, or returns
 /// `null` if [screenId] is not a next-use dismissal row.
 ///
-/// Rows in `tutorial_progress` are a shared namespace: tutorial categories,
-/// coach categories, and contextual-prompt screen ids all live there. This
+/// Rows in `tutorial_progress` are a shared namespace: tutorial categories
+/// and contextual-prompt screen ids all live there. This
 /// function ignores anything that does not carry the [kNextUsePromptScreenIdPrefix]
 /// prefix, and ignores a next-use-prefixed id whose suffix does not name a
 /// known [NextUseActionId] (e.g. a step that was removed in a later release).
@@ -80,14 +78,11 @@ NextUseActionId? nextUseActionIdFromScreenId(String screenId) {
 /// Pure decision function: selects the next first-real-use step to surface, or
 /// `null` when none should be shown.
 ///
-/// Eligibility gate (both must hold, else returns `null`):
+/// Eligibility gate (must hold, else returns `null`):
 /// 1. [readiness] reports the rig is ready to image
 ///    ([ReadinessReport.isReadyToImage], i.e. overall is not
 ///    [ReadinessLevel.blocked]). We do not nudge the user toward "frame a
 ///    target" while their camera is disconnected.
-/// 2. The first-launch coach is no longer pending ([coachPending] is `false`).
-///    The coach owns the screen until the user finishes or dismisses it; we
-///    never stack a next-use prompt on top of an active coach.
 ///
 /// When eligible, walks [kNextUseSteps] in order and returns the first step
 /// whose action is in neither [completedActions] nor [dismissedActions].
@@ -98,14 +93,10 @@ NextUseActionId? nextUseActionIdFromScreenId(String screenId) {
 /// derives them from live signals; tests drive them directly.
 NextUseStep? selectNextUseStep({
   required ReadinessReport readiness,
-  required bool coachPending,
   required Set<NextUseActionId> completedActions,
   required Set<NextUseActionId> dismissedActions,
 }) {
   if (!readiness.isReadyToImage) {
-    return null;
-  }
-  if (coachPending) {
     return null;
   }
   for (final step in kNextUseSteps) {
@@ -224,23 +215,17 @@ final _smartNightDraftCountProvider = FutureProvider<int>((ref) async {
 
 /// The next first-real-use step to surface, or `null` when none should show.
 ///
-/// Wires the live readiness / coach / completion / dismissal signals into the
-/// pure [selectNextUseStep]. Fail-closed: while the coach status or the
-/// dismissed-actions stream is still loading (or has errored), this collapses
-/// to `null` (not eligible) — matching [readinessReportProvider]'s stance that
-/// unknown evidence must resolve to the conservative outcome.
+/// Wires the live readiness / completion / dismissal signals into the pure
+/// [selectNextUseStep]. Fail-closed: while the dismissed-actions stream is
+/// still loading (or has errored), this collapses to `null` (not eligible) —
+/// matching [readinessReportProvider]'s stance that unknown evidence must
+/// resolve to the conservative outcome.
 ///
 /// Because every input is itself reactive, this recomputes automatically when
-/// readiness changes, the coach is finished/dismissed, a step is completed, or
-/// a step is dismissed — there is no manual invalidation to maintain.
+/// readiness changes, a step is completed, or a step is dismissed — there is no
+/// manual invalidation to maintain.
 final nextUsePromptProvider = Provider<NextUseStep?>((ref) {
   final readiness = ref.watch(readinessReportProvider);
-
-  // Coach status is async. Until it resolves we cannot prove the coach is
-  // finished, so fail closed to "coach still pending" (suppresses the prompt).
-  final coachStatus = ref.watch(firstLaunchCoachStatusProvider).valueOrNull;
-  final coachPending = coachStatus != FirstLaunchCoachStatus.completed &&
-      coachStatus != FirstLaunchCoachStatus.dismissed;
 
   final completedActions = ref.watch(nextUseCompletedActionsProvider);
 
@@ -256,7 +241,6 @@ final nextUsePromptProvider = Provider<NextUseStep?>((ref) {
 
   return selectNextUseStep(
     readiness: readiness,
-    coachPending: coachPending,
     completedActions: completedActions,
     dismissedActions: dismissedActions,
   );

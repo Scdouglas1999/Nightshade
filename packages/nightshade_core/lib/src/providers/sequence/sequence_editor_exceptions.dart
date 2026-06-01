@@ -116,8 +116,7 @@ class CrossParentReorderException extends SequenceEditorException {
 /// the user exactly what to fix, then offer a "Force export anyway" path
 /// via `forceExport: true`.
 class SequenceValidationFailedException extends SequenceEditorException {
-  SequenceValidationFailedException(this.issues)
-      : super(_buildMessage(issues));
+  SequenceValidationFailedException(this.issues) : super(_buildMessage(issues));
 
   final List<ValidationIssue> issues;
 

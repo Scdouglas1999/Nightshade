@@ -336,7 +336,7 @@ class WebRtcLiveViewHandlers {
           source: 'WebRtcLiveView',
         );
       }
-      return Response(204);
+      return noContentResponse();
     }
     if (candidateRaw is! Map) {
       return jsonBadRequest({
@@ -363,7 +363,7 @@ class WebRtcLiveViewHandlers {
           sdpMLineIndex is num ? sdpMLineIndex.toInt() : null,
         ),
       );
-      return Response(204);
+      return noContentResponse();
     } catch (e) {
       _logger.warning(
         '/api/webrtc/live-view/ice: addCandidate failed for '
@@ -414,7 +414,9 @@ class WebRtcLiveViewHandlers {
         },
         onError: (Object e, _) {
           // Sanitized SSE error: don't leak the raw exception to the client.
-          write('event: error\ndata: ${jsonEncode({"message": "stream_error"})}\n\n');
+          write('event: error\ndata: ${jsonEncode({
+                "message": "stream_error"
+              })}\n\n');
         },
         onDone: () {
           if (!controller.isClosed) controller.close();
@@ -436,10 +438,10 @@ class WebRtcLiveViewHandlers {
       sub = null;
     };
 
-    return Response.ok(
+    return streamResponse(
       controller.stream,
+      contentType: 'text/event-stream; charset=utf-8',
       headers: {
-        'content-type': 'text/event-stream; charset=utf-8',
         'cache-control': 'no-cache, no-transform',
         'connection': 'keep-alive',
         'x-accel-buffering': 'no',
@@ -458,7 +460,7 @@ class WebRtcLiveViewHandlers {
       });
     }
     await _destroySession(sessionId, reason: 'client_delete');
-    return Response(204);
+    return noContentResponse();
   }
 
   // ---------------------------------------------------------------------------
@@ -508,7 +510,8 @@ class WebRtcLiveViewHandlers {
     return session;
   }
 
-  Future<void> _destroySession(String sessionId, {required String reason}) async {
+  Future<void> _destroySession(String sessionId,
+      {required String reason}) async {
     final session = _sessions.remove(sessionId);
     if (session == null) return;
     _logger.info(

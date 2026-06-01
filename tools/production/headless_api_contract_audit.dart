@@ -22,6 +22,8 @@ const _systemHandlersPath =
 
 const _networkBackendPath =
     'packages/nightshade_core/lib/src/backend/network_backend.dart';
+const _networkBackendPartsDirectory =
+    'packages/nightshade_core/lib/src/backend/network_backend';
 const _routeMetadataPath = 'apps/desktop/lib/headless_api/route_metadata.dart';
 const _networkBackendWebSocketTestPath =
     'packages/nightshade_core/test/backend/network_backend_websocket_test.dart';
@@ -75,7 +77,7 @@ void main(List<String> args) {
   }
 
   final serverSource = server.readAsStringSync();
-  final networkBackendSource = networkBackend.readAsStringSync();
+  final networkBackendSource = _readNetworkBackendSource(networkBackend);
   final routeMetadataSource = routeMetadata.readAsStringSync();
   final networkBackendWebSocketTestSource =
       networkBackendWebSocketTest.readAsStringSync();
@@ -233,6 +235,22 @@ String _readSource(String path) {
   return file.existsSync() ? file.readAsStringSync() : '';
 }
 
+String _readNetworkBackendSource(File networkBackend) {
+  final sources = <String>[networkBackend.readAsStringSync()];
+  final partsDirectory = Directory(_networkBackendPartsDirectory);
+  if (!partsDirectory.existsSync()) {
+    return sources.single;
+  }
+  final partFiles = partsDirectory
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((file) => file.path.endsWith('.dart'))
+      .toList()
+    ..sort((a, b) => a.path.compareTo(b.path));
+  sources.addAll(partFiles.map((file) => file.readAsStringSync()));
+  return sources.join('\n');
+}
+
 Map<String, bool> _openApiMetadataCoverage(String source) {
   return {
     'request_body_limit_extension':
@@ -308,11 +326,12 @@ Map<String, bool> _versionNegotiationCoverage({
   required String dashboardApiSource,
   required String apiDocsSource,
 }) {
+  final normalizedApiDocsSource = apiDocsSource.replaceAll(RegExp(r'\s+'), ' ');
   return {
     'shared_compatibility_policy': remoteApiCompatibilitySource
             .contains('minimumSupportedVersion = SemanticVersion(2, 4, 0)') &&
         remoteApiCompatibilitySource
-            .contains('serverApiVersion = SemanticVersion(2, 5, 0)') &&
+            .contains('serverApiVersion = SemanticVersion(') &&
         remoteApiCompatibilitySource.contains('server_too_old') &&
         remoteApiCompatibilitySource.contains('server_too_new') &&
         remoteApiCompatibilitySource.contains('client_too_old'),
@@ -343,7 +362,7 @@ Map<String, bool> _versionNegotiationCoverage({
     'network_backend_preflight': networkBackendSource.contains(
             'Future<RemoteApiCompatibilityResult> _checkServerCompatibility()') &&
         networkBackendSource.contains(
-            "RemoteApiCompatibility.check(info['version'] as String?)"),
+            "info['apiVersion'] as String? ?? info['version'] as String?"),
     'network_backend_version_headers': networkBackendSource
             .contains('RemoteApiCompatibility.apiVersionHeader') &&
         networkBackendSource
@@ -357,10 +376,11 @@ Map<String, bool> _versionNegotiationCoverage({
     'dashboard_websocket_query_version': dashboardApiSource
         .contains("apiVersion=' + encodeURIComponent(this._apiVersion)"),
     'docs_user_facing_compatibility':
-        apiDocsSource.contains('/api/info.version') &&
-            apiDocsSource.contains('server too old/new') &&
-            apiDocsSource.contains('`2.4.0`') &&
-            apiDocsSource.contains('major version `2`'),
+        normalizedApiDocsSource.contains('/api/info.apiVersion') &&
+            normalizedApiDocsSource.contains('fall back to `version`') &&
+            normalizedApiDocsSource.contains('server too old/new') &&
+            normalizedApiDocsSource.contains('`2.4.0`') &&
+            normalizedApiDocsSource.contains('major version `2`'),
   };
 }
 

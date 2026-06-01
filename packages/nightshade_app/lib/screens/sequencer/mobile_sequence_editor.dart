@@ -241,7 +241,8 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
   // stale subtree in memory.
   // ---------------------------------------------------------------------------
 
-  void _deleteWithUndo(BuildContext context, Sequence sequence, SequenceNode node) {
+  void _deleteWithUndo(
+      BuildContext context, Sequence sequence, SequenceNode node) {
     final snapshot = _captureSubtree(sequence, node.id);
     if (snapshot == null) return;
 
@@ -287,6 +288,7 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
         collect(c);
       }
     }
+
     collect(rootId);
 
     return _SubtreeSnapshot(
@@ -304,7 +306,8 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
     // splice the root back into the same slot.
     final rootNode = snap.nodes.first;
     try {
-      notifier.addNode(rootNode, parentId: snap.parentId, index: snap.indexInParent);
+      notifier.addNode(rootNode,
+          parentId: snap.parentId, index: snap.indexInParent);
       for (var i = 1; i < snap.nodes.length; i++) {
         final child = snap.nodes[i];
         final parentId = child.parentId;
@@ -333,7 +336,7 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
       isScrollControlled: true,
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
       ),
       builder: (sheetCtx) => DraggableScrollableSheet(
         expand: false,
@@ -366,7 +369,7 @@ class _MobileSequenceEditorState extends ConsumerState<MobileSequenceEditor> {
       isScrollControlled: true,
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
       ),
       builder: (sheetCtx) => DraggableScrollableSheet(
         expand: false,
@@ -402,6 +405,7 @@ class _NodeRow {
 class _SubtreeSnapshot {
   final String parentId;
   final int indexInParent;
+
   /// DFS-ordered list; element 0 is the subtree root.
   final List<SequenceNode> nodes;
   const _SubtreeSnapshot({
@@ -664,8 +668,7 @@ class _SequencerRecoveryActionsBannerState
           scrollDirection: Axis.horizontal,
           child: Row(
             children: [
-              Icon(LucideIcons.alertTriangle,
-                  size: 16, color: colors.error),
+              Icon(LucideIcons.alertTriangle, size: 16, color: colors.error),
               const SizedBox(width: 8),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 140),
@@ -841,7 +844,7 @@ class _RecoveryActionsState extends State<_RecoveryActions> {
               variant: ButtonVariant.destructive,
               size: ButtonSize.small,
               isLoading: _abortBusy,
-              onPressed: () {},
+              onPressed: _abort,
             ),
           ),
         ),

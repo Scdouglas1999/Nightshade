@@ -76,8 +76,7 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
       OnboardingStep(
         id: 'welcome',
         title: 'Welcome to Nightshade',
-        body:
-            'Nightshade is your imaging assistant. Three things to set up '
+        body: 'Nightshade is your imaging assistant. Three things to set up '
             'first: equipment, a profile, and a sequence. The next few '
             'steps will show you where each lives.',
         targetKey: () => null,
@@ -85,8 +84,7 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
       OnboardingStep(
         id: 'equipment',
         title: 'Connect your gear',
-        body:
-            'Connect your camera, mount, and filter wheel here. Nightshade '
+        body: 'Connect your camera, mount, and filter wheel here. Nightshade '
             'supports ASCOM, INDI, Alpaca, and 12 vendor SDKs natively, so '
             'most drivers work without any setup.',
         targetKey: () => TutorialKeys.navEquipment,
@@ -94,8 +92,7 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
       OnboardingStep(
         id: 'profiles',
         title: 'Save it as a profile',
-        body:
-            'A profile saves your full equipment + framing + filter offset '
+        body: 'A profile saves your full equipment + framing + filter offset '
             'setup so you can switch between scopes in one click. Profiles '
             'live inside the Equipment screen.',
         targetKey: () => TutorialKeys.navEquipment,
@@ -103,8 +100,7 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
       OnboardingStep(
         id: 'sequencer',
         title: 'Build a sequence',
-        body:
-            'Build automated imaging sequences here. v2.5.0 ships sample '
+        body: 'Build automated imaging sequences here. v2.6.0 ships sample '
             'sequences for narrowband, LRGB, mosaics, and lunar work — '
             'load one and customize.',
         targetKey: () => TutorialKeys.navSequencer,
@@ -112,8 +108,7 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
       OnboardingStep(
         id: 'scheduler',
         title: 'Let the scheduler pick targets',
-        body:
-            'Plan Tonight has a new Target Queue tab — give it your '
+        body: 'Plan Tonight has a new Target Queue tab — give it your '
             'imaging goals and the scheduler picks which target to image '
             'next based on altitude, moon separation, time remaining '
             'tonight, and your integration goals.',
@@ -122,8 +117,7 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
       OnboardingStep(
         id: 'plate_solving',
         title: 'Set up plate solving',
-        body:
-            'Plate solving needs ASTAP or Astrometry.net installed. Set it '
+        body: 'Plate solving needs ASTAP or Astrometry.net installed. Set it '
             'up under Settings → Plate Solving — Nightshade auto-detects '
             'standard install paths.',
         targetKey: () => TutorialKeys.navSettings,
@@ -131,8 +125,7 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
       OnboardingStep(
         id: 'completion',
         title: "You're set",
-        body:
-            'Run the tour again any time from Settings → Help & Tutorials. '
+        body: 'Run the tour again any time from Settings → Help & Tutorials. '
             'Defect maps are also worth a look if you have hot pixels — '
             'see the optional step below.',
         targetKey: () => null,
@@ -144,8 +137,7 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
       OnboardingStep(
         id: 'defect_maps',
         title: 'Defect maps and calibration',
-        body:
-            "Open the Imaging screen's Image Calibration section to build "
+        body: "Open the Imaging screen's Image Calibration section to build "
             'a defect map. Nightshade flags hot, cold, and stuck pixels '
             'from a stack of bias frames so they get masked at capture '
             'time instead of polluting your stack.',
@@ -159,7 +151,8 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
     final box = key!.currentContext!.findRenderObject() as RenderBox?;
     if (box == null || !box.attached) return null;
     final topLeft = box.localToGlobal(Offset.zero);
-    return Rect.fromLTWH(topLeft.dx, topLeft.dy, box.size.width, box.size.height);
+    return Rect.fromLTWH(
+        topLeft.dx, topLeft.dy, box.size.width, box.size.height);
   }
 
   KeyEventResult _handleKey(FocusNode node, KeyEvent event) {

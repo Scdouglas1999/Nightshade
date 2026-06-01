@@ -308,7 +308,7 @@ class _RecoveryActionButtonsState extends State<_RecoveryActionButtons> {
               variant: ButtonVariant.destructive,
               size: ButtonSize.small,
               isLoading: _abortBusy,
-              onPressed: () {},
+              onPressed: _abort,
             ),
           ),
         ),
@@ -328,9 +328,8 @@ String extractRecoveryActionError(String prefix, Object error) {
     return '$prefix: ${error.userMessage}';
   }
   final raw = error.toString();
-  final cleaned = raw.startsWith('Exception: ')
-      ? raw.substring('Exception: '.length)
-      : raw;
+  final cleaned =
+      raw.startsWith('Exception: ') ? raw.substring('Exception: '.length) : raw;
   return '$prefix: $cleaned';
 }
 

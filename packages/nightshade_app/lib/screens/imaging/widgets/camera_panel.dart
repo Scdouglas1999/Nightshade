@@ -10,7 +10,14 @@ import 'panel_widgets.dart';
 class CameraPanel extends ConsumerStatefulWidget {
   final NightshadeColors colors;
 
-  const CameraPanel({super.key, required this.colors});
+  /// When false, the panel renders its content without its own
+  /// [SingleChildScrollView] so a parent can host a single unified scroll —
+  /// e.g. the Camera tab stacks this panel above the calibration section in one
+  /// scroll view, so the Cooling controls keep their natural height instead of
+  /// being squeezed into a cramped region above a pinned calibration card.
+  final bool scrollable;
+
+  const CameraPanel({super.key, required this.colors, this.scrollable = true});
 
   @override
   ConsumerState<CameraPanel> createState() => _CameraPanelState();
@@ -80,7 +87,7 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
         ? exposureSettings.binning
         : binningOptions.first;
 
-    return SingleChildScrollView(
+    final content = Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -455,6 +462,8 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
         ],
       ),
     );
+    if (!widget.scrollable) return content;
+    return SingleChildScrollView(child: content);
   }
 }
 

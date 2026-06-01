@@ -27,7 +27,9 @@ class WidgetPickerDialog extends ConsumerWidget {
       ),
       title: Text(
         'Dashboard Widgets',
-        style: TextStyle(color: colors.textPrimary, fontSize: screenSize.width < 400 ? 16 : 20),
+        style: TextStyle(
+            color: colors.textPrimary,
+            fontSize: screenSize.width < 400 ? 16 : 20),
       ),
       content: ConstrainedBox(
         constraints: BoxConstraints(

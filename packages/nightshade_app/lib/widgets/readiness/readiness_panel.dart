@@ -5,6 +5,15 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+/// Session-scoped set of readiness items the user has dismissed (✕) from an
+/// inline checklist. Reset on app restart so a still-unresolved item reappears
+/// next launch — matching the "dismiss for this session" contract. Only honored
+/// when [ReadinessPanel.dismissible] is true (the equipment-screen inline
+/// panel); the full "View all" dialog ignores it so nothing is ever truly
+/// hidden from the authoritative list.
+final dismissedReadinessItemsProvider =
+    StateProvider<Set<ReadinessItemId>>((ref) => <ReadinessItemId>{});
+
 /// Maps a [ReadinessLevel] onto the design system's semantic colors.
 ///
 /// Resolved through [NightshadeColors] so the red-night palette (where
@@ -124,12 +133,20 @@ class ReadinessPanel extends ConsumerWidget {
   /// short screens regardless of how many items are outstanding.
   final int? maxItems;
 
+  /// When true, each not-ready row gains a ✕ that adds the item to
+  /// [dismissedReadinessItemsProvider] (session-scoped). Dismissed items are
+  /// filtered out, and a "Show N dismissed" footer lets the user restore them.
+  /// Off by default so the shared dialog/chip usages stay non-dismissable —
+  /// only the equipment-screen inline panel opts in.
+  final bool dismissible;
+
   const ReadinessPanel({
     super.key,
     this.onFixTapped,
     this.showHeader = true,
     this.outstandingOnly = false,
     this.maxItems,
+    this.dismissible = false,
   });
 
   @override
@@ -140,9 +157,18 @@ class ReadinessPanel extends ConsumerWidget {
     // In outstanding-only mode, list blocked items first (they gate first
     // light), then caution items; drop the ready ones. Blocked + caution are
     // exactly the rows that carry a Fix action.
-    final allItems = outstandingOnly
+    final baseItems = outstandingOnly
         ? [...report.blockedItems, ...report.cautionItems]
         : report.items;
+
+    // Session-dismissed items are filtered out only in dismissible mode. We
+    // keep the count so the footer can offer to restore them.
+    final dismissed =
+        dismissible ? ref.watch(dismissedReadinessItemsProvider) : null;
+    final allItems = dismissed == null
+        ? baseItems
+        : baseItems.where((i) => !dismissed.contains(i.id)).toList();
+    final dismissedVisible = baseItems.length - allItems.length;
 
     final cap = maxItems;
     final overflowing = cap != null && allItems.length > cap;
@@ -161,13 +187,21 @@ class ReadinessPanel extends ConsumerWidget {
           ),
           const SizedBox(height: NightshadeTokens.spaceLg),
         ],
-        if (outstandingOnly && items.isEmpty)
+        // "Ready for first light" only when there is genuinely nothing
+        // outstanding — not when the list is empty merely because every row
+        // was dismissed (that would falsely claim all checks passed).
+        if (outstandingOnly && items.isEmpty && dismissedVisible == 0)
           _AllSetRow(colors: colors)
         else
           for (var i = 0; i < items.length; i++) ...[
             _ReadinessRow(
               item: items[i],
               onFixTapped: onFixTapped,
+              onDismiss: dismissible
+                  ? () => ref
+                      .read(dismissedReadinessItemsProvider.notifier)
+                      .update((s) => {...s, items[i].id})
+                  : null,
             ),
             if (i != items.length - 1)
               Divider(
@@ -187,6 +221,27 @@ class ReadinessPanel extends ConsumerWidget {
               variant: ButtonVariant.ghost,
               size: ButtonSize.small,
               onPressed: () => showReadinessDialog(context),
+            ),
+          ),
+        ],
+        if (dismissedVisible > 0) ...[
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: NightshadeButton(
+              label: 'Show $dismissedVisible dismissed',
+              icon: LucideIcons.eye,
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: () => ref
+                  .read(dismissedReadinessItemsProvider.notifier)
+                  .update((s) {
+                final restored = {...s};
+                for (final item in baseItems) {
+                  restored.remove(item.id);
+                }
+                return restored;
+              }),
             ),
           ),
         ],
@@ -267,9 +322,13 @@ class _ReadinessRow extends StatelessWidget {
   final ReadinessItem item;
   final VoidCallback? onFixTapped;
 
+  /// When non-null, renders a trailing ✕ that hides this row for the session.
+  final VoidCallback? onDismiss;
+
   const _ReadinessRow({
     required this.item,
     required this.onFixTapped,
+    this.onDismiss,
   });
 
   @override
@@ -332,6 +391,18 @@ class _ReadinessRow extends StatelessWidget {
               context.go(item.fixRoute!);
               onFixTapped?.call();
             },
+          ),
+        ],
+        if (onDismiss != null) ...[
+          const SizedBox(width: NightshadeTokens.spaceXs),
+          IconButton(
+            onPressed: onDismiss,
+            icon: const Icon(LucideIcons.x, size: NightshadeTokens.iconSm),
+            color: colors.textMuted,
+            tooltip: 'Dismiss for this session',
+            visualDensity: VisualDensity.compact,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           ),
         ],
       ],

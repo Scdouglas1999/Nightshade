@@ -8,6 +8,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 
+part 'observation_report_service/statistics.dart';
+
 /// Generates comprehensive PDF observation reports from session and science data.
 class ObservationReportService {
   final SessionsDao _sessionsDao;
@@ -44,18 +46,13 @@ class ObservationReportService {
     }
 
     final images = await _imagesDao.getImagesForSession(sessionId);
-    final photometry =
-        await _scienceDao.getPhotometryForSession(sessionId);
-    final calibrations =
-        await _scienceDao.getCalibrationsForSession(sessionId);
-    final transparency =
-        await _scienceDao.getTransparencyForSession(sessionId);
-    final psfTiles =
-        await _scienceDao.getPsfTilesForSession(sessionId);
+    final photometry = await _scienceDao.getPhotometryForSession(sessionId);
+    final calibrations = await _scienceDao.getCalibrationsForSession(sessionId);
+    final transparency = await _scienceDao.getTransparencyForSession(sessionId);
+    final psfTiles = await _scienceDao.getPsfTilesForSession(sessionId);
     final frameMetrics =
         await _scienceDao.getFrameQualityMetricsForSession(sessionId);
-    final residuals =
-        await _scienceDao.getResidualsForSession(sessionId);
+    final residuals = await _scienceDao.getResidualsForSession(sessionId);
     final movingObjects =
         await _scienceDao.getMovingObjectsForSession(sessionId);
 
@@ -147,8 +144,7 @@ class ObservationReportService {
     return filePath;
   }
 
-  pw.Widget _buildPageHeader(
-      ImagingSession session, DateFormat dateFormat) {
+  pw.Widget _buildPageHeader(ImagingSession session, DateFormat dateFormat) {
     return pw.Container(
       padding: const pw.EdgeInsets.only(bottom: 8),
       decoration: const pw.BoxDecoration(
@@ -246,23 +242,19 @@ class ObservationReportService {
           child: pw.Column(
             crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              if (observerName != null)
-                _headerRow('Observer', observerName),
-              _headerRow('Date',
-                  dateFormat.format(session.startTime)),
+              if (observerName != null) _headerRow('Observer', observerName),
+              _headerRow('Date', dateFormat.format(session.startTime)),
               if (session.endTime != null)
-                _headerRow('End Time',
-                    dateFormat.format(session.endTime!)),
+                _headerRow('End Time', dateFormat.format(session.endTime!)),
               _headerRow('Duration',
                   _formatDuration(session.startTime, session.endTime)),
               _headerRow('Status', session.status.toUpperCase()),
-              if (locationName != null)
-                _headerRow('Location', locationName),
+              if (locationName != null) _headerRow('Location', locationName),
               if (latitude != null && longitude != null)
                 _headerRow(
                   'Coordinates',
                   '${latitude.toStringAsFixed(4)}, ${longitude.toStringAsFixed(4)}'
-                  '${elevation != null ? " (${elevation.toStringAsFixed(0)}m)" : ""}',
+                      '${elevation != null ? " (${elevation.toStringAsFixed(0)}m)" : ""}',
                 ),
               if (equipmentSummary != null)
                 _headerRow('Equipment', equipmentSummary),
@@ -360,10 +352,8 @@ class ObservationReportService {
       return pw.SizedBox.shrink();
     }
 
-    final List<double> hfrValues = images
-        .where((i) => i.hfr != null)
-        .map<double>((i) => i.hfr!)
-        .toList();
+    final List<double> hfrValues =
+        images.where((i) => i.hfr != null).map<double>((i) => i.hfr!).toList();
     final List<double> guidingValues = images
         .where((i) => i.guidingRmsTotal != null)
         .map<double>((i) => i.guidingRmsTotal!)
@@ -383,10 +373,10 @@ class ObservationReportService {
           children: [
             if (hfrValues.isNotEmpty)
               pw.TableRow(children: [
-                _statCell('HFR Min',
-                    '${_listMin(hfrValues).toStringAsFixed(2)} px'),
-                _statCell('HFR Max',
-                    '${_listMax(hfrValues).toStringAsFixed(2)} px'),
+                _statCell(
+                    'HFR Min', '${_listMin(hfrValues).toStringAsFixed(2)} px'),
+                _statCell(
+                    'HFR Max', '${_listMax(hfrValues).toStringAsFixed(2)} px'),
                 _statCell('HFR Mean',
                     '${_listMean(hfrValues).toStringAsFixed(2)} px'),
                 _statCell('HFR Median',
@@ -497,8 +487,10 @@ class ObservationReportService {
               ),
             ]),
             pw.TableRow(children: [
-              _statCell('Low Clip', '${latest.lowClipPercent.toStringAsFixed(2)}%'),
-              _statCell('High Clip', '${latest.highClipPercent.toStringAsFixed(2)}%'),
+              _statCell(
+                  'Low Clip', '${latest.lowClipPercent.toStringAsFixed(2)}%'),
+              _statCell(
+                  'High Clip', '${latest.highClipPercent.toStringAsFixed(2)}%'),
               _statCell('Background', latest.background.toStringAsFixed(1)),
               _statCell('Noise', latest.noise.toStringAsFixed(1)),
             ]),
@@ -510,8 +502,7 @@ class ObservationReportService {
 
   pw.Widget _buildPhotometricCalibrationSection(
       List<FramePhotometricCalibrationRow> calibrations) {
-    final calibrated =
-        calibrations.where((c) => c.isCalibrated).toList();
+    final calibrated = calibrations.where((c) => c.isCalibrated).toList();
     if (calibrated.isEmpty) {
       return pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -519,15 +510,19 @@ class ObservationReportService {
           _sectionTitle('Photometric Calibration'),
           pw.Text(
             '${calibrations.length} frames processed, none successfully calibrated.',
-            style: const pw.TextStyle(fontSize: 10, color: PdfColors.blueGrey700),
+            style:
+                const pw.TextStyle(fontSize: 10, color: PdfColors.blueGrey700),
           ),
         ],
       );
     }
 
-    final List<double> zpValues = calibrated.map<double>((c) => c.zeroPoint ?? 0.0).toList();
-    final List<double> limMagValues =
-        calibrated.where((c) => c.limitingMag5Sigma != null).map<double>((c) => c.limitingMag5Sigma!).toList();
+    final List<double> zpValues =
+        calibrated.map<double>((c) => c.zeroPoint ?? 0.0).toList();
+    final List<double> limMagValues = calibrated
+        .where((c) => c.limitingMag5Sigma != null)
+        .map<double>((c) => c.limitingMag5Sigma!)
+        .toList();
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -552,7 +547,9 @@ class ObservationReportService {
               ),
               _statCell(
                 'Avg RMS',
-                _listMean(calibrated.map<double>((c) => c.calibrationRms).toList())
+                _listMean(calibrated
+                        .map<double>((c) => c.calibrationRms)
+                        .toList())
                     .toStringAsFixed(3),
               ),
               _statCell(
@@ -568,9 +565,9 @@ class ObservationReportService {
     );
   }
 
-  pw.Widget _buildTransparencySection(
-      List<TransparencySampleRow> samples) {
-    final List<double> values = samples.map<double>((s) => s.transparencyPercent).toList();
+  pw.Widget _buildTransparencySection(List<TransparencySampleRow> samples) {
+    final List<double> values =
+        samples.map<double>((s) => s.transparencyPercent).toList();
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -665,24 +662,18 @@ class ObservationReportService {
         .where((p) => p.differentialMagnitude != null)
         .map((p) => p.differentialMagnitude!)
         .toList();
-    final snrValues = points
-        .where((p) => p.snr != null)
-        .map((p) => p.snr!)
-        .toList();
+    final snrValues =
+        points.where((p) => p.snr != null).map((p) => p.snr!).toList();
     final outliers = points.where((p) => p.isOutlier).length;
 
     return pw.TableRow(children: [
       _tableCell(objectId),
       _tableCell('${points.length}'),
       _tableCell(
-        magValues.isNotEmpty
-            ? _listMean(magValues).toStringAsFixed(3)
-            : '-',
+        magValues.isNotEmpty ? _listMean(magValues).toStringAsFixed(3) : '-',
       ),
       _tableCell(
-        snrValues.isNotEmpty
-            ? _listMean(snrValues).toStringAsFixed(1)
-            : '-',
+        snrValues.isNotEmpty ? _listMean(snrValues).toStringAsFixed(1) : '-',
       ),
       _tableCell('$outliers'),
     ]);
@@ -694,8 +685,10 @@ class ObservationReportService {
       return pw.SizedBox.shrink();
     }
 
-    final List<double> fwhmValues = validTiles.map<double>((t) => t.medianFwhm).toList();
-    final List<double> eccValues = validTiles.map<double>((t) => t.medianEccentricity).toList();
+    final List<double> fwhmValues =
+        validTiles.map<double>((t) => t.medianFwhm).toList();
+    final List<double> eccValues =
+        validTiles.map<double>((t) => t.medianEccentricity).toList();
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
@@ -732,7 +725,8 @@ class ObservationReportService {
 
   pw.Widget _buildResidualsSection(
       List<AstrometryResidualVectorRow> residuals) {
-    final List<double> magnitudes = residuals.map<double>((r) => r.magnitudeArcsec).toList();
+    final List<double> magnitudes =
+        residuals.map<double>((r) => r.magnitudeArcsec).toList();
     final rms = _rms(magnitudes);
 
     return pw.Column(
@@ -765,8 +759,7 @@ class ObservationReportService {
     );
   }
 
-  pw.Widget _buildMovingObjectsSection(
-      List<MovingObjectCandidateRow> objects) {
+  pw.Widget _buildMovingObjectsSection(List<MovingObjectCandidateRow> objects) {
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.start,
       children: [
@@ -801,7 +794,8 @@ class ObservationReportService {
                 _tableCell(obj.objectName ?? obj.candidateId),
                 _tableCell(obj.raDegrees.toStringAsFixed(4)),
                 _tableCell(obj.decDegrees.toStringAsFixed(4)),
-                _tableCell('${obj.motionArcsecPerMinute.toStringAsFixed(2)}"/m'),
+                _tableCell(
+                    '${obj.motionArcsecPerMinute.toStringAsFixed(2)}"/m'),
                 _tableCell('${(obj.confidence * 100).toStringAsFixed(0)}%'),
               ]),
           ],
@@ -954,54 +948,10 @@ class ObservationReportService {
   }
 
   String _filterGroupAvgHfr(List<DbCapturedImage> images) {
-    final List<double> hfrValues = images
-        .where((i) => i.hfr != null)
-        .map<double>((i) => i.hfr!)
-        .toList();
+    final List<double> hfrValues =
+        images.where((i) => i.hfr != null).map<double>((i) => i.hfr!).toList();
     if (hfrValues.isEmpty) return '-';
     return '${_listMean(hfrValues).toStringAsFixed(2)} px';
-  }
-
-  double _listMin(List<double> values) {
-    var min = values.first;
-    for (final v in values) {
-      if (v < min) min = v;
-    }
-    return min;
-  }
-
-  double _listMax(List<double> values) {
-    var max = values.first;
-    for (final v in values) {
-      if (v > max) max = v;
-    }
-    return max;
-  }
-
-  double _listMean(List<double> values) {
-    if (values.isEmpty) return 0.0;
-    var sum = 0.0;
-    for (final v in values) {
-      sum += v;
-    }
-    return sum / values.length;
-  }
-
-  double _listMedian(List<double> values) {
-    if (values.isEmpty) return 0.0;
-    final sorted = List<double>.from(values)..sort();
-    final mid = sorted.length ~/ 2;
-    if (sorted.length.isOdd) return sorted[mid];
-    return (sorted[mid - 1] + sorted[mid]) / 2.0;
-  }
-
-  double _rms(List<double> values) {
-    if (values.isEmpty) return 0.0;
-    var sumSq = 0.0;
-    for (final v in values) {
-      sumSq += v * v;
-    }
-    return math.sqrt(sumSq / values.length);
   }
 
   Future<Directory> _getExportDirectory() async {

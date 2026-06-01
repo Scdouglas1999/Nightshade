@@ -54,11 +54,55 @@ pub fn api_get_plate_solver_path() -> Option<String> {
     nightshade_imaging::get_solver_path().map(|p| p.to_string_lossy().to_string())
 }
 
+/// Apply the persisted plate-solver preference to the imaging crate's
+/// process-global before each solve. This ensures that paths saved in
+/// Settings → Plate Solving are honoured even if the app was restarted
+/// or `set_solver_preference` was never called at startup.
+///
+/// Why call it here rather than only at `api_platesolve_set_config` time:
+/// the imaging crate is a separate compilation unit; its global resets to
+/// "no override" on every cold launch. Calling this here makes each solve
+/// self-healing without requiring a separate startup hook.
+fn apply_saved_preference_to_imaging() {
+    // If storage is not initialised (headless / test mode), treat as no-op.
+    let pref = match crate::state::get_platesolver_preference() {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!(
+                "Could not load plate-solver preference before solve (storage not ready?): {}",
+                e
+            );
+            return;
+        }
+    };
+    nightshade_imaging::set_solver_preference(
+        if pref.astap_path.is_empty() {
+            None
+        } else {
+            Some(pref.astap_path.as_str())
+        },
+        if pref.astrometry_path.is_empty() {
+            None
+        } else {
+            Some(pref.astrometry_path.as_str())
+        },
+        if pref.catalog_path.is_empty() {
+            None
+        } else {
+            Some(pref.catalog_path.as_str())
+        },
+    );
+}
+
 /// Plate solve an image file (blind solve)
 pub async fn api_plate_solve_blind(file_path: String) -> Result<PlateSolveResult, NightshadeError> {
     use std::path::Path;
 
     tracing::info!("Blind plate solving: {}", file_path);
+
+    // Ensure the imaging crate sees the user's configured paths before
+    // PlateSolverConfig::default() is called inside blind_solve.
+    apply_saved_preference_to_imaging();
 
     let path = Path::new(&file_path);
     if !path.exists() {
@@ -99,6 +143,10 @@ pub async fn api_plate_solve_near(
         hint_dec,
         file_path
     );
+
+    // Ensure the imaging crate sees the user's configured paths before
+    // PlateSolverConfig::default() is called inside solve_near.
+    apply_saved_preference_to_imaging();
 
     let path = Path::new(&file_path);
     if !path.exists() {
@@ -284,11 +332,35 @@ pub fn api_platesolve_get_config() -> Result<PlateSolverConfigPayload, Nightshad
     Ok(pref.into())
 }
 
-/// Persist a new plate-solver configuration. Invalidates the solver
-/// availability cache so the next `api_is_plate_solver_available()` call
-/// re-probes the filesystem with the new paths.
+/// Persist a new plate-solver configuration. Immediately propagates the new
+/// paths into the imaging crate's process-global so subsequent solves (blind
+/// or near, from any call site including the sequencer) use the updated paths
+/// without requiring a restart. Also invalidates the solver availability
+/// cache so the next `api_is_plate_solver_available()` call re-probes the
+/// filesystem with the new paths.
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_platesolve_set_config(config: PlateSolverConfigPayload) -> Result<(), NightshadeError> {
+    // Push the new paths into the imaging crate before saving, so the
+    // preference is live immediately even if the subsequent storage write
+    // fails (the user just configured the paths; honour them in this session).
+    nightshade_imaging::set_solver_preference(
+        if config.astap_path.is_empty() {
+            None
+        } else {
+            Some(config.astap_path.as_str())
+        },
+        if config.astrometry_path.is_empty() {
+            None
+        } else {
+            Some(config.astrometry_path.as_str())
+        },
+        if config.catalog_path.is_empty() {
+            None
+        } else {
+            Some(config.catalog_path.as_str())
+        },
+    );
+
     let pref = config.into_pref();
     crate::state::save_platesolver_preference(&pref).map_err(NightshadeError::OperationFailed)?;
     nightshade_imaging::invalidate_solver_availability_cache();

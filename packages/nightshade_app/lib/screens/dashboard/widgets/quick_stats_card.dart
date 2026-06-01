@@ -16,17 +16,26 @@ class QuickStatsCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     // Use select() to only rebuild when specific fields change
-    final cameraConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
-    final cameraTemp = ref.watch(cameraStateProvider.select((s) => s.temperature));
+    final cameraConnected =
+        ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
+    final cameraTemp =
+        ref.watch(cameraStateProvider.select((s) => s.temperature));
 
-    final guiderConnected = ref.watch(guiderStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
-    final guiderIsGuiding = ref.watch(guiderStateProvider.select((s) => s.isGuiding));
+    final guiderConnected =
+        ref.watch(guiderStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
+    final guiderIsGuiding =
+        ref.watch(guiderStateProvider.select((s) => s.isGuiding));
     final guiderRms = ref.watch(guiderStateProvider.select((s) => s.rmsTotal));
 
     final hfr = ref.watch(lastImageStatsProvider.select((s) => s?.hfr));
 
-    final focuserConnected = ref.watch(focuserStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
-    final focuserPosition = ref.watch(focuserStateProvider.select((s) => s.position));
+    final focuserConnected =
+        ref.watch(focuserStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
+    final focuserPosition =
+        ref.watch(focuserStateProvider.select((s) => s.position));
 
     // Format temperature (same logic as Imaging tab)
     String tempValue = '---';

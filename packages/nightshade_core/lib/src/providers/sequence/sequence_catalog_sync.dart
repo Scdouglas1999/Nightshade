@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../backend/network_backend.dart';
 import '../../backend/nightshade_backend.dart';
-import '../../models/backend/event_types.dart';
 import '../../models/sequence/sequence_models.dart';
 import '../../models/backend/host_mutation_event.dart';
 import '../../services/sequence_repository.dart';
@@ -100,8 +99,8 @@ final sequenceLibrarySyncProvider = Provider<void>((ref) {
   void attachBus() {
     busSub?.cancel();
     busSub = ref.read(sequenceCatalogUpdateBusProvider).stream.listen(
-      onCatalogUpdate,
-    );
+          onCatalogUpdate,
+        );
   }
 
   void attachBackendEvents(NightshadeBackend backend) {
@@ -275,4 +274,3 @@ String _hostMutationActionForCatalogAction(String action) {
       return HostMutationAction.updated;
   }
 }
-

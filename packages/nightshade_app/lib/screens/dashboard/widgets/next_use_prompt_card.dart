@@ -282,11 +282,9 @@ final _smartNightPromptEligibleProvider = Provider<bool>((ref) {
   final equipmentReady = ref.watch(smartNightEquipmentReadyProvider);
   if (!equipmentReady) return false;
 
-  final autoPromptEnabled = ref
-          .watch(appSettingsProvider)
-          .valueOrNull
-          ?.smartNightAutoPromptEnabled ??
-      false;
+  final autoPromptEnabled =
+      ref.watch(appSettingsProvider).valueOrNull?.smartNightAutoPromptEnabled ??
+          false;
   if (!autoPromptEnabled) return false;
 
   final sequenceActive =

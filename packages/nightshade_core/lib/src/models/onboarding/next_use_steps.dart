@@ -1,10 +1,10 @@
 /// First-real-use action steps, surfaced *after* the readiness checklist is
 /// green.
 ///
-/// Where [FirstLaunchCoachStep] teaches the user how to make the rig *ready*
-/// (connect hardware, set location, install a solver, …), these steps nudge the
-/// user toward their first *productive* actions once readiness is satisfied:
-/// plan a night, frame a target, capture first light, and so on.
+/// Where the readiness checklist tracks how to make the rig *ready* (connect
+/// hardware, set location, install a solver, …), these steps nudge the user
+/// toward their first *productive* actions once readiness is satisfied: plan a
+/// night, frame a target, capture first light, and so on.
 ///
 /// This model is intentionally pure Dart — no Flutter, no Riverpod, no
 /// go_router types — so it can be unit-tested in isolation and reused by any

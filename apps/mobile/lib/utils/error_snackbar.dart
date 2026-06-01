@@ -50,8 +50,8 @@ void showApiError(BuildContext context, Object error) {
   if (error is ServerError) {
     text = '${error.message} (${error.code})';
     if (error.isClientError) {
-      background = colors?.warning ?? Colors.amber.shade700;
-      foreground = colors?.background ?? Colors.black;
+      background = colors?.warning ?? const Color(0xFFFFA000);
+      foreground = colors?.background ?? const Color(0xFF000000);
       duration = const Duration(seconds: 4);
     } else {
       background = colors?.error ?? theme.colorScheme.error;
@@ -122,8 +122,7 @@ void showApiErrorWithPrefix(
   if (messenger == null) return;
   messenger.hideCurrentSnackBar();
   messenger.showSnackBar(SnackBar(
-    backgroundColor:
-        colors?.error ?? Theme.of(context).colorScheme.error,
+    backgroundColor: colors?.error ?? Theme.of(context).colorScheme.error,
     content: Text(
       '$prefix: $error',
       style: TextStyle(color: Theme.of(context).colorScheme.onError),

@@ -34,17 +34,27 @@ pub(crate) enum HeartbeatEventKind {
 /// Pure decision for one failed heartbeat poll.
 ///
 /// Given the previous one-shot Degraded latch (`prev_was_degraded`), the
-/// post-increment `consecutive_failures`, and the configured `threshold`,
-/// returns the events to publish for this poll and the new latch value.
+/// post-increment `consecutive_failures`, the configured `threshold`, and
+/// whether this device type escalates a sustained heartbeat loss to a real
+/// disconnect (`escalate_to_disconnect`), returns the events to publish for
+/// this poll and the new latch value.
 ///
 /// Invariants this encodes (and that the unit tests pin):
 /// * below threshold + latch clear  -> exactly one `Degraded`, latch set;
 /// * below threshold + latch set     -> no events, latch stays set;
-/// * at/above threshold              -> exactly one `DisconnectedAndError`
+/// * at/above threshold + escalate   -> exactly one `DisconnectedAndError`
 ///   (never a standalone Degraded *and* a disconnect on the same poll, and
 ///   never a standalone `Disconnected` event — that was the duplicate toast
 ///   removed in the polish pass). The latch value is irrelevant past the
 ///   threshold because the loop terminates after a disconnect.
+/// * at/above threshold + NOT escalate -> at most one `Degraded` (latched), and
+///   NEVER a disconnect. The slow auxiliary devices (focuser/filter wheel/
+///   rotator) keep their connection and keep being monitored; a failed
+///   liveness poll on them almost never means "gone", so we only latch a
+///   UI-badgeable "stale" status and let the next real operation surface a
+///   genuine failure. Once latched the latch stays set, so a device stuck
+///   degraded does not re-emit Degraded every poll (no toast spam); recovery
+///   re-arms it in the loop's `Ok(true)` arm.
 ///
 /// Note: this function does NOT decide healthy/recovery transitions; those
 /// re-arm the latch (`was_degraded = false`) directly in the loop's `Ok(true)`
@@ -53,8 +63,9 @@ pub(crate) fn heartbeat_events_for_poll(
     prev_was_degraded: bool,
     consecutive_failures: u32,
     threshold: u32,
+    escalate_to_disconnect: bool,
 ) -> (Vec<HeartbeatEventKind>, bool) {
-    if consecutive_failures >= threshold {
+    if consecutive_failures >= threshold && escalate_to_disconnect {
         // Crossing (or already past) the threshold disconnects the device.
         // The latch is meaningless here since the loop breaks afterward, but
         // we report it unchanged for determinism.
@@ -64,11 +75,15 @@ pub(crate) fn heartbeat_events_for_poll(
         )
     } else if !prev_was_degraded {
         // First failing poll of this degradation episode: announce Degraded
-        // once and arm the latch so subsequent sub-threshold failures stay
-        // quiet.
+        // once and arm the latch so subsequent failures stay quiet. For a
+        // non-escalating device this is the terminal state — it stays Degraded
+        // (connected + monitored) until it recovers or a real operation fails.
         (vec![HeartbeatEventKind::Degraded], true)
     } else {
-        // Already degraded and still below threshold: emit nothing.
+        // Already degraded: emit nothing. For escalating devices this is the
+        // sub-threshold quiet window; for non-escalating devices this is the
+        // steady "stale" state past the threshold (still connected, no toast
+        // spam).
         (Vec::new(), true)
     }
 }
@@ -96,13 +111,58 @@ impl DeviceManager {
         }
     }
 
-    /// Perform a health check for a specific device
-    /// Returns Ok(true) if healthy, Ok(false) if not responding, Err for connection errors
+    /// Perform a health check for a specific device, with a single retry for
+    /// the slow, contention-prone device types (focuser, filter wheel).
+    ///
+    /// Returns Ok(true) if healthy, Ok(false) if not responding, Err for
+    /// connection errors.
+    ///
+    /// ## Why the retry lives here (driver parity)
+    ///
+    /// Focusers and filter wheels routinely share a USB path or serial hub with
+    /// the camera (ZWO EAF/EFW behind the ASI camera, a Pegasus focuser behind
+    /// the mount, …). A frame download or a momentary bus hiccup makes a single
+    /// status read fail while the device is perfectly healthy, which — without a
+    /// retry — marches an idle device toward a spurious disconnect/reconnect.
+    ///
+    /// Applying the retry ONCE here, above the per-driver dispatch, gives ASCOM,
+    /// Native, INDI and Alpaca identical behavior by construction (the user
+    /// asked for parity across all four). The alternative — duplicating the
+    /// retry inside each driver's focuser/wheel arm — is eight copies that drift
+    /// out of parity. Camera/mount/etc. poll fast, reliable properties and are
+    /// checked once. A genuinely-gone device fails the retry too and is still
+    /// escalated by the surrounding loop.
     ///
     /// Visibility note: `pub(super)` so the in-module tests in
-    /// `device_manager::tests` (one level up) can call it directly to verify
-    /// the Simulator branch without spinning up the full heartbeat task.
+    /// `device_manager::tests` (one level up) can call it directly.
     pub(super) async fn perform_health_check(
+        &self,
+        device_id: &str,
+        device_type: &DeviceType,
+        driver_type: &DriverType,
+    ) -> Result<bool, String> {
+        let first = self
+            .perform_health_check_once(device_id, device_type, driver_type)
+            .await;
+
+        // Healthy first try, or a device type we don't retry → done.
+        if matches!(first, Ok(true))
+            || !matches!(device_type, DeviceType::Focuser | DeviceType::FilterWheel)
+        {
+            return first;
+        }
+
+        // Transient focuser/filter-wheel failure: settle briefly, then re-probe
+        // once before letting the failure count toward a disconnect.
+        tokio::time::sleep(Duration::from_millis(750)).await;
+        self.perform_health_check_once(device_id, device_type, driver_type)
+            .await
+    }
+
+    /// Single (no-retry) dispatch to the driver-specific health check. The
+    /// retry policy lives in the [`Self::perform_health_check`] wrapper so it is
+    /// applied uniformly across all driver types.
+    pub(super) async fn perform_health_check_once(
         &self,
         device_id: &str,
         device_type: &DeviceType,
@@ -355,6 +415,37 @@ impl DeviceManager {
             // Wait for interval
             tokio::time::sleep(current_interval).await;
 
+            // Skip the poll while a blocking operation (e.g. a focuser move) is
+            // in flight for this device. A status read contended with the
+            // operation can block, queue behind it on the single ASCOM STA
+            // thread, or be rejected by the driver, and must not be miscounted
+            // as a heartbeat failure that escalates to a spurious disconnect.
+            // We neither succeed nor fail this tick — just wait for the next
+            // poll at the base cadence so monitoring stays responsive once the
+            // operation completes.
+            if manager.is_operation_active(&device_id_clone) {
+                current_interval = Duration::from_secs(config.base_interval_secs);
+                continue;
+            }
+
+            // Skip the poll for a USB-contention-prone auxiliary device
+            // (focuser/filter wheel/rotator) while a camera exposure/download
+            // window is open. On shared-USB rigs (a ZWO EAF/EFW behind an ASI
+            // camera) the camera saturates the bus during frame download, so a
+            // status read for the focuser/wheel/rotator loses the race and
+            // returns a transient failure — the real cause of the spurious
+            // disconnects. We must not count that as a heartbeat failure. Same
+            // "neither succeed nor fail this tick" semantics as an active
+            // operation: just wait for the next poll at the base cadence. The
+            // camera's and mount's own heartbeats are deliberately NOT
+            // suppressed (the camera is the one we most need to keep watching).
+            if DeviceManager::device_type_suppressed_by_usb_contention(&device_type)
+                && manager.is_usb_contended()
+            {
+                current_interval = Duration::from_secs(config.base_interval_secs);
+                continue;
+            }
+
             // Perform health check using the actual driver-specific implementation
             let health_check_result = manager
                 .perform_health_check(&device_id_clone, &device_type, &driver_type)
@@ -429,6 +520,7 @@ impl DeviceManager {
                         was_degraded,
                         consecutive_failures,
                         config.failure_threshold,
+                        config.escalate_to_disconnect,
                     );
                     was_degraded = new_was_degraded;
 
@@ -667,12 +759,16 @@ mod heartbeat_event_tests {
     use super::{heartbeat_events_for_poll, HeartbeatEventKind};
 
     const THRESHOLD: u32 = 5;
+    // Most existing tests describe an escalating device (camera/mount), where
+    // crossing the threshold disconnects. The non-escalating (focuser/filter
+    // wheel/rotator) behavior is pinned by the dedicated tests below.
+    const ESCALATE: bool = true;
 
     /// (a) The first failing poll of an episode emits exactly one Degraded
     /// and arms the latch.
     #[test]
     fn first_failure_below_threshold_emits_one_degraded() {
-        let (events, was_degraded) = heartbeat_events_for_poll(false, 1, THRESHOLD);
+        let (events, was_degraded) = heartbeat_events_for_poll(false, 1, THRESHOLD, ESCALATE);
         assert_eq!(events, vec![HeartbeatEventKind::Degraded]);
         assert!(was_degraded, "latch must arm after first Degraded");
     }
@@ -682,7 +778,8 @@ mod heartbeat_event_tests {
     #[test]
     fn subsequent_failures_below_threshold_emit_nothing() {
         for failures in 2..THRESHOLD {
-            let (events, was_degraded) = heartbeat_events_for_poll(true, failures, THRESHOLD);
+            let (events, was_degraded) =
+                heartbeat_events_for_poll(true, failures, THRESHOLD, ESCALATE);
             assert!(
                 events.is_empty(),
                 "failure {failures} should emit no event while latched"
@@ -697,14 +794,14 @@ mod heartbeat_event_tests {
     #[test]
     fn recovery_re_arms_latch_so_next_episode_emits_degraded() {
         // Episode 1: first failure -> Degraded, latch set.
-        let (events1, latch1) = heartbeat_events_for_poll(false, 1, THRESHOLD);
+        let (events1, latch1) = heartbeat_events_for_poll(false, 1, THRESHOLD, ESCALATE);
         assert_eq!(events1, vec![HeartbeatEventKind::Degraded]);
         assert!(latch1);
 
         // ... recovery happens in the loop: was_degraded reset to false ...
 
         // Episode 2: first failure again -> Degraded emitted again.
-        let (events2, latch2) = heartbeat_events_for_poll(false, 1, THRESHOLD);
+        let (events2, latch2) = heartbeat_events_for_poll(false, 1, THRESHOLD, ESCALATE);
         assert_eq!(events2, vec![HeartbeatEventKind::Degraded]);
         assert!(latch2);
     }
@@ -718,7 +815,8 @@ mod heartbeat_event_tests {
         // From an unlatched state (e.g. threshold == 1) and from a latched
         // state (the normal case) the result is identical.
         for prev_latched in [false, true] {
-            let (events, _) = heartbeat_events_for_poll(prev_latched, THRESHOLD, THRESHOLD);
+            let (events, _) =
+                heartbeat_events_for_poll(prev_latched, THRESHOLD, THRESHOLD, ESCALATE);
             assert_eq!(
                 events,
                 vec![HeartbeatEventKind::DisconnectedAndError],
@@ -735,7 +833,7 @@ mod heartbeat_event_tests {
     /// the function must remain correct if called with a higher count).
     #[test]
     fn above_threshold_still_emits_disconnect_only() {
-        let (events, _) = heartbeat_events_for_poll(true, THRESHOLD + 3, THRESHOLD);
+        let (events, _) = heartbeat_events_for_poll(true, THRESHOLD + 3, THRESHOLD, ESCALATE);
         assert_eq!(events, vec![HeartbeatEventKind::DisconnectedAndError]);
     }
 
@@ -744,7 +842,81 @@ mod heartbeat_event_tests {
     /// first-failure branch.
     #[test]
     fn threshold_of_one_disconnects_on_first_failure() {
-        let (events, _) = heartbeat_events_for_poll(false, 1, 1);
+        let (events, _) = heartbeat_events_for_poll(false, 1, 1, ESCALATE);
         assert_eq!(events, vec![HeartbeatEventKind::DisconnectedAndError]);
+    }
+
+    // -------------------------------------------------------------------------
+    // Non-escalating device types (focuser / filter wheel / rotator):
+    // crossing the threshold must NEVER disconnect. It latches a single
+    // Degraded "stale" status and keeps the device connected + monitored.
+    // -------------------------------------------------------------------------
+
+    /// At the threshold, a non-escalating device emits a Degraded (the
+    /// healthy->degraded transition) and NEVER a DisconnectedAndError.
+    #[test]
+    fn at_threshold_non_escalating_emits_degraded_not_disconnect() {
+        // Unlatched at threshold: first time we cross, announce Degraded once.
+        let (events, latch) = heartbeat_events_for_poll(false, THRESHOLD, THRESHOLD, false);
+        assert_eq!(
+            events,
+            vec![HeartbeatEventKind::Degraded],
+            "non-escalating device must latch Degraded, not disconnect, at threshold"
+        );
+        assert!(latch, "Degraded latch must arm");
+        assert!(
+            !events.contains(&HeartbeatEventKind::DisconnectedAndError),
+            "non-escalating device must NEVER emit a disconnect"
+        );
+    }
+
+    /// Well past the threshold, a non-escalating device that has already
+    /// latched Degraded stays quiet (no toast spam) and still never
+    /// disconnects.
+    #[test]
+    fn above_threshold_non_escalating_stays_degraded_quietly() {
+        for failures in THRESHOLD..(THRESHOLD + 5) {
+            let (events, latch) = heartbeat_events_for_poll(true, failures, THRESHOLD, false);
+            assert!(
+                events.is_empty(),
+                "latched non-escalating device must stay quiet at failure {failures}"
+            );
+            assert!(latch, "latch stays set");
+        }
+    }
+
+    /// A threshold of 1 on a non-escalating device: the very first failure
+    /// latches Degraded (not a disconnect), because the escalation branch is
+    /// gated off.
+    #[test]
+    fn threshold_of_one_non_escalating_degrades_not_disconnects() {
+        let (events, latch) = heartbeat_events_for_poll(false, 1, 1, false);
+        assert_eq!(events, vec![HeartbeatEventKind::Degraded]);
+        assert!(latch);
+    }
+
+    /// The full failure sequence for a non-escalating device never produces a
+    /// disconnect at any count: exactly one Degraded on the first failure,
+    /// silence thereafter.
+    #[test]
+    fn non_escalating_never_disconnects_across_full_sequence() {
+        let mut latch = false;
+        let mut degraded_count = 0;
+        for failures in 1..(THRESHOLD * 3) {
+            let (events, new_latch) = heartbeat_events_for_poll(latch, failures, THRESHOLD, false);
+            latch = new_latch;
+            assert!(
+                !events.contains(&HeartbeatEventKind::DisconnectedAndError),
+                "non-escalating device disconnected at failure {failures}"
+            );
+            degraded_count += events
+                .iter()
+                .filter(|&&e| e == HeartbeatEventKind::Degraded)
+                .count();
+        }
+        assert_eq!(
+            degraded_count, 1,
+            "exactly one Degraded should fire across the whole episode (latched after)"
+        );
     }
 }

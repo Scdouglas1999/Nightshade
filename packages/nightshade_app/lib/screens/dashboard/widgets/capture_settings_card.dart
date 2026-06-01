@@ -54,11 +54,17 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
 
     return DashboardGlassCard(
       colors: colors,
-      padding: const EdgeInsets.all(12),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          DashboardCardHeader(
+            colors: colors,
+            icon: LucideIcons.camera,
+            title: 'Capture',
+            accent: colors.primary,
+          ),
+          const SizedBox(height: DashboardCardStyle.headerGap),
           // Settings - use Wrap for responsive layout
           Wrap(
             spacing: 12,

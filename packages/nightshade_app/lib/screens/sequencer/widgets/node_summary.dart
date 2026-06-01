@@ -383,13 +383,47 @@ List<SummaryFragment> nodeSummary(SequenceNode node) {
         StaticFragment(shutterOnly ? 'shutter only' : 'park dome'),
       ],
 
-    // Smart exposure — a multi-row plan; describe shape, never editable here.
-    SmartExposureNode(plans: final plans, rotateFilters: final rotate) =>
-      <SummaryFragment>[
-        StaticFragment(
-          '${plans.length} filters · ${rotate ? 'rotate' : 'drain'}',
-        ),
-      ],
+    // Smart exposure — a multi-row plan. Per-filter editing is panel-grade
+    // (each row carries count/duration/gain/binning/dither), so the fragments
+    // are read-only chips rather than inline editors — but we still surface the
+    // actual per-filter capture spec (filter · count×duration) instead of a
+    // bare "N filters", so the user sees at a glance what each filter will
+    // shoot (and e.g. that L/R/G/B carry different exposures).
+    SmartExposureNode(
+      plans: final plans,
+      rotateFilters: final rotate,
+      loopUntilStopped: final loop,
+    ) =>
+      plans.isEmpty
+          ? const <SummaryFragment>[
+              StaticFragment('No filters configured'),
+            ]
+          // Loop-until-stopped ignores per-filter counts — show
+          // "L·R·G·B · 1 each · looping" rather than the (irrelevant) fixed
+          // counts so the tree summary matches the actual round-robin-forever
+          // behaviour.
+          : loop
+              ? <SummaryFragment>[
+                  StaticFragment(
+                    plans
+                        .map((p) => p.filterName.isEmpty
+                            ? '#${(p.filterIndex ?? 0) + 1}'
+                            : p.filterName)
+                        .join('·'),
+                    emphasized: true,
+                  ),
+                  const StaticFragment('1 each'),
+                  const StaticFragment('looping'),
+                ]
+              : <SummaryFragment>[
+                  for (final plan in plans)
+                    StaticFragment(
+                      '${plan.filterName.isEmpty ? '#${(plan.filterIndex ?? 0) + 1}' : plan.filterName}'
+                      ' ${plan.count}×${_fmtSecs(plan.durationSecs)}s',
+                      emphasized: true,
+                    ),
+                  StaticFragment(rotate ? 'rotate' : 'drain'),
+                ],
 
     // Polar alignment — hemisphere + start altitude summary; static.
     PolarAlignmentNode(

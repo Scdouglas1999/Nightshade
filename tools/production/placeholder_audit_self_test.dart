@@ -63,6 +63,32 @@ Future<void> main() async {
     );
     _expect(baselinePass.exitCode == 0, 'matching baseline should pass');
 
+    await _writeFile(
+      temp,
+      'apps/desktop/lib/bad.dart',
+      '''
+
+void unsafeRuntimeStub() {
+  throw UnimplementedError('release blocker');
+}
+''',
+    );
+    final shiftedBaselinePass = await _runAudit(
+      script,
+      temp,
+      outHits: '.audit_hits.txt',
+      outHighRisk: '.audit_highrisk.txt',
+      extraArgs: const [
+        '--compare-highrisk-baseline',
+        'baseline/highrisk.txt',
+        '--fail-on-new-highrisk',
+      ],
+    );
+    _expect(
+      shiftedBaselinePass.exitCode == 0,
+      'baseline comparison should ignore harmless line-number drift',
+    );
+
     await File('${temp.path}/baseline/highrisk.txt').writeAsString('');
     final baselineFail = await _runAudit(
       script,

@@ -1,0 +1,542 @@
+// ignore_for_file: unused_element, unused_field
+
+part of '../sky_renderer.dart';
+
+class _PaintCache {
+  // ===== Cached MaskFilters (expensive to create) =====
+  static final Map<double, MaskFilter> _blurFilters = {};
+  static const int _maxBlurFilterEntries = 64;
+
+  // ===== Reusable Paint objects for common operations =====
+  // These are created once and reused by updating their properties
+  static final Paint _fillPaint = Paint();
+  static final Paint _strokePaint = Paint()..style = PaintingStyle.stroke;
+  static final Paint _dimStarPaint = Paint()
+    ..strokeWidth = 1.5
+    ..strokeCap = StrokeCap.round;
+  static final Paint _gridPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 0.5;
+  static final Paint _constellationPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeWidth = 1.5
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
+
+  // Additional cached paints for various rendering operations
+  static final Paint _horizonPaint = Paint()
+    ..strokeWidth = 1.5
+    ..style = PaintingStyle.stroke;
+  static final Paint _eclipticPaint = Paint()
+    ..strokeWidth = 1.5
+    ..style = PaintingStyle.stroke;
+  static final Paint _galacticPlanePaint = Paint()
+    ..strokeWidth = 1.5
+    ..style = PaintingStyle.stroke;
+  static final Paint _meridianPaint = Paint()
+    ..strokeWidth = 1.5
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round;
+  static final Paint _altAzPaint = Paint()
+    ..strokeWidth = 0.5
+    ..style = PaintingStyle.stroke;
+  static final Paint _zenithCrossPaint = Paint()..strokeWidth = 1.0;
+  static final Paint _groundPaint = Paint()..style = PaintingStyle.fill;
+  static final Paint _backgroundPaint = Paint();
+
+  // Cached background gradient (only recreate when size changes)
+  static Size? _lastBackgroundSize;
+  static ui.Shader? _cachedDarkBackgroundShader;
+  static ui.Shader? _cachedTwilightVerticalShader;
+  static ui.Shader? _cachedTwilightRadialShader;
+  static double? _lastSunAltitude;
+
+  /// Get a fill paint with specified color (reuses single instance)
+  static Paint getFillPaint(Color color) {
+    _fillPaint.color = color;
+    _fillPaint.shader = null;
+    _fillPaint.maskFilter = null;
+    return _fillPaint;
+  }
+
+  /// Get a stroke paint with specified color and width (reuses single instance)
+  static Paint getStrokePaint(Color color, double strokeWidth) {
+    _strokePaint.color = color;
+    _strokePaint.strokeWidth = strokeWidth;
+    _strokePaint.shader = null;
+    _strokePaint.maskFilter = null;
+    return _strokePaint;
+  }
+
+  /// Get the dim star paint (for batched point rendering)
+  static Paint getDimStarPaint(Color color) {
+    _dimStarPaint.color = color;
+    return _dimStarPaint;
+  }
+
+  /// Get grid paint with specified color
+  static Paint getGridPaint(Color color) {
+    _gridPaint.color = color;
+    return _gridPaint;
+  }
+
+  /// Get constellation line paint
+  static Paint getConstellationPaint(Color color) {
+    _constellationPaint.color = color;
+    return _constellationPaint;
+  }
+
+  /// Get or create a cached MaskFilter for blur effects
+  static MaskFilter getBlurFilter(double sigma) {
+    final roundedSigma = (sigma * 2).round() / 2;
+    var filter = _blurFilters[roundedSigma];
+    if (filter == null) {
+      if (_blurFilters.length >= _maxBlurFilterEntries) {
+        _blurFilters.remove(_blurFilters.keys.first);
+      }
+      filter = MaskFilter.blur(BlurStyle.normal, roundedSigma);
+      _blurFilters[roundedSigma] = filter;
+    }
+    return filter;
+  }
+
+  // Cached blur paints with various sigma values
+  static final Map<double, Paint> _blurPaints = {};
+  static const int _maxBlurPaintEntries = 64;
+
+  /// Get or create a Paint with blur filter at the specified sigma
+  /// This caches the Paint object with MaskFilter to avoid recreation
+  static Paint getBlurPaint(double sigma, Color color, {double alpha = 1.0}) {
+    // Round sigma to reduce cache size (blur differences < 0.5 are imperceptible)
+    final roundedSigma = (sigma * 2).round() / 2;
+
+    var paint = _blurPaints[roundedSigma];
+    if (paint == null) {
+      if (_blurPaints.length >= _maxBlurPaintEntries) {
+        _blurPaints.remove(_blurPaints.keys.first);
+      }
+      paint = Paint()
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, roundedSigma);
+      _blurPaints[roundedSigma] = paint;
+    }
+    // Update color (Paint objects can have color changed without recreation)
+    paint.color = color.withValues(alpha: alpha);
+    return paint;
+  }
+
+  /// Get horizon paint with specified color
+  static Paint getHorizonPaint(Color color) {
+    _horizonPaint.color = color;
+    return _horizonPaint;
+  }
+
+  /// Get ecliptic paint with specified color
+  static Paint getEclipticPaint(Color color) {
+    _eclipticPaint.color = color;
+    return _eclipticPaint;
+  }
+
+  /// Get galactic plane paint with specified color
+  static Paint getGalacticPlanePaint(Color color) {
+    _galacticPlanePaint.color = color;
+    return _galacticPlanePaint;
+  }
+
+  /// Get meridian paint with specified color
+  static Paint getMeridianPaint(Color color) {
+    _meridianPaint.color = color;
+    return _meridianPaint;
+  }
+
+  /// Get alt-az grid paint with specified color
+  static Paint getAltAzPaint(Color color) {
+    _altAzPaint.color = color;
+    return _altAzPaint;
+  }
+
+  /// Get zenith cross paint with specified color
+  static Paint getZenithCrossPaint(Color color) {
+    _zenithCrossPaint.color = color;
+    return _zenithCrossPaint;
+  }
+
+  /// Get ground plane paint with specified color
+  static Paint getGroundPaint(Color color) {
+    _groundPaint.color = color;
+    _groundPaint.shader = null;
+    return _groundPaint;
+  }
+
+  /// Get background paint with shader
+  static Paint getBackgroundPaint(ui.Shader shader) {
+    _backgroundPaint.shader = shader;
+    return _backgroundPaint;
+  }
+
+  /// Get or create dark background shader (cached per size)
+  static ui.Shader getDarkBackgroundShader(Size size) {
+    if (_lastBackgroundSize != size || _cachedDarkBackgroundShader == null) {
+      _cachedDarkBackgroundShader = const RadialGradient(
+        center: Alignment.center,
+        radius: 1.5,
+        colors: [
+          Color(0xFF0A0A1A),
+          Color(0xFF050510),
+          Color(0xFF020208),
+        ],
+      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+      _lastBackgroundSize = size;
+    }
+    return _cachedDarkBackgroundShader!;
+  }
+
+  /// Clear caches (call when memory pressure is high)
+  static void clearCaches() {
+    _blurFilters.clear();
+    _blurPaints.clear();
+    _TextCache.clear();
+    _ShaderCache.clear();
+    _lastBackgroundSize = null;
+    _cachedDarkBackgroundShader = null;
+    _cachedTwilightVerticalShader = null;
+    _cachedTwilightRadialShader = null;
+    _lastSunAltitude = null;
+    // Clear global rendering caches
+    _constellationLineCache.clear();
+    _milkyWayCache.clear();
+    _backgroundGradientCache.clear();
+    _starPsfShaderCache.clear();
+    SkyCanvasPainter.disposeSpriteAtlas();
+  }
+}
+
+/// Cache for TextPainter objects to avoid expensive text layout every frame
+/// TextPainter creation and layout() are CPU-intensive operations
+class _TextCache {
+  static final Map<String, TextPainter> _cache = {};
+  static const int _maxCacheSize = 500;
+
+  /// Get or create a TextPainter for the given text and style
+  /// The TextPainter is cached and reused across frames
+  static TextPainter get(String text, TextStyle style) {
+    final key =
+        '${text}_${style.fontSize}_${style.color?.toARGB32() ?? 0}_${style.fontWeight?.index ?? 0}';
+
+    var painter = _cache[key];
+    if (painter == null) {
+      // Evict old entries if cache is full
+      if (_cache.length >= _maxCacheSize) {
+        // Remove oldest 100 entries
+        final keysToRemove = _cache.keys.take(100).toList();
+        for (final k in keysToRemove) {
+          _cache[k]?.dispose();
+          _cache.remove(k);
+        }
+      }
+
+      painter = TextPainter(
+        text: TextSpan(text: text, style: style),
+        textDirection: ui.TextDirection.ltr,
+      );
+      painter.layout();
+      _cache[key] = painter;
+    }
+    return painter;
+  }
+
+  static void clear() {
+    for (final painter in _cache.values) {
+      painter.dispose();
+    }
+    _cache.clear();
+  }
+}
+
+/// Cache for gradient shaders to avoid recreating them every frame
+/// Shader creation involves GPU resource allocation
+class _ShaderCache {
+  static final Map<String, ui.Shader> _radialShaders = {};
+  static final Map<String, ui.Shader> _linearShaders = {};
+  static const int _maxCacheSize = 512;
+
+  /// Get or create a radial gradient shader
+  static ui.Shader getRadialShader(
+    Offset center,
+    double radius,
+    List<Color> colors,
+    List<double>? stops,
+  ) {
+    // Create a key based on the parameters (rounded for cache efficiency)
+    final cx = (center.dx / 10).round() * 10;
+    final cy = (center.dy / 10).round() * 10;
+    final r = (radius / 5).round() * 5;
+    final colorKey = colors.map((c) => c.toARGB32()).join('_');
+    final key = 'r_${cx}_${cy}_${r}_$colorKey';
+
+    var shader = _radialShaders[key];
+    if (shader == null) {
+      if (_radialShaders.length >= _maxCacheSize) {
+        _radialShaders.clear(); // Simple eviction
+      }
+      shader = RadialGradient(colors: colors, stops: stops).createShader(
+        Rect.fromCircle(center: center, radius: radius),
+      );
+      _radialShaders[key] = shader;
+    }
+    return shader;
+  }
+
+  static void clear() {
+    _radialShaders.clear();
+    _linearShaders.clear();
+  }
+}
+
+final StarPsfShaderCache _starPsfShaderCache = StarPsfShaderCache();
+
+/// Cached constellation line rendering.
+/// Since constellation lines don't change unless the view moves significantly,
+/// we record them into a ui.Picture and replay it each frame.
+/// Cache invalidates when view center moves >0.5 degrees or zoom changes >5%.
+class _ConstellationLineCache {
+  ui.Picture? _picture;
+  double _cachedCenterRA = double.nan;
+  double _cachedCenterDec = double.nan;
+  double _cachedFOV = double.nan;
+  Size _cachedSize = Size.zero;
+  int _cachedConstellationCount = 0;
+
+  bool isValid(double centerRA, double centerDec, double fov, Size size,
+      int constellationCount) {
+    if (_picture == null) return false;
+    if (size != _cachedSize) return false;
+    if (constellationCount != _cachedConstellationCount) return false;
+
+    final raDelta = (centerRA - _cachedCenterRA).abs();
+    final decDelta = (centerDec - _cachedCenterDec).abs();
+    final fovRatio = _cachedFOV > 0 ? (fov / _cachedFOV) : 0.0;
+
+    // RA wraps at 24h
+    final raWrapped = raDelta > 12 ? 24 - raDelta : raDelta;
+    final raDeg = raWrapped * 15.0;
+
+    return raDeg < 0.5 && decDelta < 0.5 && fovRatio > 0.95 && fovRatio < 1.05;
+  }
+
+  void store(ui.Picture picture, double centerRA, double centerDec, double fov,
+      Size size, int constellationCount) {
+    _picture?.dispose();
+    _picture = picture;
+    _cachedCenterRA = centerRA;
+    _cachedCenterDec = centerDec;
+    _cachedFOV = fov;
+    _cachedSize = size;
+    _cachedConstellationCount = constellationCount;
+  }
+
+  ui.Picture? get picture => _picture;
+
+  void clear() {
+    _picture?.dispose();
+    _picture = null;
+  }
+}
+
+/// Cached Milky Way rendering using the same view-invalidation strategy.
+class _MilkyWayCache {
+  ui.Picture? _picture;
+  double _cachedCenterRA = double.nan;
+  double _cachedCenterDec = double.nan;
+  double _cachedFOV = double.nan;
+  Size _cachedSize = Size.zero;
+
+  bool isValid(double centerRA, double centerDec, double fov, Size size) {
+    if (_picture == null) return false;
+    if (size != _cachedSize) return false;
+
+    final raDelta = (centerRA - _cachedCenterRA).abs();
+    final decDelta = (centerDec - _cachedCenterDec).abs();
+    final fovRatio = _cachedFOV > 0 ? (fov / _cachedFOV) : 0.0;
+
+    final raWrapped = raDelta > 12 ? 24 - raDelta : raDelta;
+    final raDeg = raWrapped * 15.0;
+
+    return raDeg < 0.5 && decDelta < 0.5 && fovRatio > 0.95 && fovRatio < 1.05;
+  }
+
+  void store(ui.Picture picture, double centerRA, double centerDec, double fov,
+      Size size) {
+    _picture?.dispose();
+    _picture = picture;
+    _cachedCenterRA = centerRA;
+    _cachedCenterDec = centerDec;
+    _cachedFOV = fov;
+    _cachedSize = size;
+  }
+
+  ui.Picture? get picture => _picture;
+
+  void clear() {
+    _picture?.dispose();
+    _picture = null;
+  }
+}
+
+// Global caches (persist across painter instances since they're recreated each frame)
+final _constellationLineCache = _ConstellationLineCache();
+final _milkyWayCache = _MilkyWayCache();
+
+/// Cached background gradient shader keyed by sun altitude bucket.
+/// The twilight gradient only changes meaningfully when the sun moves ~2 degrees.
+class _BackgroundGradientCache {
+  ui.Shader? _verticalShader;
+  ui.Shader? _radialShader;
+  int _sunAltBucket = -999;
+  Size _size = Size.zero;
+
+  /// Check if cache is valid for the given sun altitude and size.
+  /// Sun altitude is bucketed to nearest 2 degrees.
+  bool isValid(double sunAlt, Size size) {
+    final bucket = (sunAlt / 2).round();
+    return _verticalShader != null &&
+        _radialShader != null &&
+        bucket == _sunAltBucket &&
+        size == _size;
+  }
+
+  void store(ui.Shader vertical, ui.Shader radial, double sunAlt, Size size) {
+    _verticalShader = vertical;
+    _radialShader = radial;
+    _sunAltBucket = (sunAlt / 2).round();
+    _size = size;
+  }
+
+  ui.Shader? get verticalShader => _verticalShader;
+  ui.Shader? get radialShader => _radialShader;
+
+  void clear() {
+    _verticalShader = null;
+    _radialShader = null;
+    _sunAltBucket = -999;
+  }
+}
+
+final _backgroundGradientCache = _BackgroundGradientCache();
+
+/// Per-paint culling context.
+///
+/// Built once at the top of [SkyCanvasPainter.paint] from the current view
+/// state and canvas size. Holds the unit vector of the view center plus a
+/// cosine threshold so an object can be rejected with a single dot product
+/// (cull-BEFORE-project) instead of running the full projection trig and then
+/// discarding off-screen results.
+class _CullContext {
+  /// Unit vector (x,y,z) of the view-center direction in equatorial frame.
+  final double cx;
+  final double cy;
+  final double cz;
+
+  /// Cosine of the cull half-angle. An object whose direction has a dot
+  /// product with the center direction LESS than this is outside the cull
+  /// cone and can be skipped. Computed from the FOV plus a generous margin so
+  /// objects whose glow/label spills onscreen from just outside are kept.
+  final double cosCullRadius;
+
+  const _CullContext(this.cx, this.cy, this.cz, this.cosCullRadius);
+
+  /// Build a cull context for the given view state and canvas size.
+  factory _CullContext.build(SkyViewState viewState, Size size) {
+    final raRad = viewState.centerRA * 15 * (math.pi / 180);
+    final decRad = viewState.centerDec * (math.pi / 180);
+    final cosDec = math.cos(decRad);
+    final cx = cosDec * math.cos(raRad);
+    final cy = cosDec * math.sin(raRad);
+    final cz = math.sin(decRad);
+
+    // The visible radius is half the diagonal FOV. The on-screen scale uses
+    // min(width,height); the diagonal can therefore reach further than
+    // fieldOfView/2 by the aspect diagonal ratio. Add a fixed angular margin
+    // (and a relative one) so off-screen glows/labels that bleed in are kept.
+    final minSide = math.min(size.width, size.height);
+    final diag = math.sqrt(size.width * size.width + size.height * size.height);
+    final diagonalFovHalf =
+        viewState.fieldOfView / 2 * (minSide > 0 ? diag / minSide : 1.4142);
+    // Margin: 25% of the FOV plus 3 degrees, capped so very wide fields still
+    // cull the far hemisphere.
+    var cullRadiusDeg = diagonalFovHalf * 1.25 + 3.0;
+    if (cullRadiusDeg > 175.0) cullRadiusDeg = 175.0;
+    final cosCullRadius = math.cos(cullRadiusDeg * (math.pi / 180));
+    return _CullContext(cx, cy, cz, cosCullRadius);
+  }
+
+  /// True if the given equatorial coordinate is outside the cull cone and can
+  /// be skipped before projection. [raDeg] in degrees, [decDeg] in degrees.
+  bool isCulled(double raDeg, double decDeg) {
+    final raRad = raDeg * (math.pi / 180);
+    final decRad = decDeg * (math.pi / 180);
+    final cosD = math.cos(decRad);
+    final ox = cosD * math.cos(raRad);
+    final oy = cosD * math.sin(raRad);
+    final oz = math.sin(decRad);
+    final dot = ox * cx + oy * cy + oz * cz;
+    return dot < cosCullRadius;
+  }
+}
+
+/// Per-pose projected-position cache.
+///
+/// Maps a catalog object to its projected screen [Offset] for a single pose
+/// (centerRA, centerDec, FOV, rotation, projection, canvas size). When the
+/// pose is unchanged between paints the cached offsets are reused, so the
+/// overlay's bright-star pass and momentum frames avoid recomputing the
+/// projection trig.
+///
+/// The cache is keyed by the object reference itself. Star/DeepSkyObject use
+/// identity equality, so the underlying map resolves any hash-bucket
+/// collisions via `identical` — there is no risk of one object reading
+/// another's cached offset.
+class _ProjectionCache {
+  final Map<Object, Offset?> _entries = <Object, Offset?>{};
+
+  double _centerRA = double.nan;
+  double _centerDec = double.nan;
+  double _fov = double.nan;
+  double _rotation = double.nan;
+  SkyProjection _projection = SkyProjection.stereographic;
+  Size _size = Size.zero;
+  bool _valid = false;
+
+  /// Ensure the cache matches the given pose; clear it if the pose changed.
+  void ensurePose(SkyViewState viewState, Size size) {
+    if (_valid &&
+        _centerRA == viewState.centerRA &&
+        _centerDec == viewState.centerDec &&
+        _fov == viewState.fieldOfView &&
+        _rotation == viewState.rotation &&
+        _projection == viewState.projection &&
+        _size == size) {
+      return;
+    }
+    _entries.clear();
+    _centerRA = viewState.centerRA;
+    _centerDec = viewState.centerDec;
+    _fov = viewState.fieldOfView;
+    _rotation = viewState.rotation;
+    _projection = viewState.projection;
+    _size = size;
+    _valid = true;
+  }
+
+  bool contains(Object key) => _entries.containsKey(key);
+  Offset? get(Object key) => _entries[key];
+  void put(Object key, Offset? value) {
+    _entries[key] = value;
+  }
+
+  void clear() {
+    _entries.clear();
+    _valid = false;
+  }
+}
+
+/// Enhanced sky rendering painter

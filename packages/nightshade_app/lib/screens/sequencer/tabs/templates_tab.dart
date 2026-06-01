@@ -18,10 +18,12 @@ import '../widgets/quick_start_wizard_dialog.dart';
 // ---------------------------------------------------------------------------
 
 part 'templates_tab_parts/_builtin_templates.dart';
+part 'templates_tab_parts/_builtin_core_nodes.dart';
+part 'templates_tab_parts/_builtin_advanced_nodes.dart';
+part 'templates_tab_parts/_builtin_specialty_nodes.dart';
 part 'templates_tab_parts/_header_and_filters.dart';
 part 'templates_tab_parts/_template_card.dart';
 part 'templates_tab_parts/_save_template_dialog.dart';
-
 
 /// Provider for templates list - loads from database with built-in fallbacks
 // autoDispose: list is only consumed by TemplatesTab; refetching the DB on
@@ -146,8 +148,10 @@ class TemplatesTab extends ConsumerWidget {
                 if (filtered.isEmpty) {
                   final hasSearch = searchQuery.isNotEmpty;
                   return EmptyState(
-                    icon: hasSearch ? LucideIcons.searchX : LucideIcons.fileStack,
-                    title: hasSearch ? 'No templates found' : 'No templates yet',
+                    icon:
+                        hasSearch ? LucideIcons.searchX : LucideIcons.fileStack,
+                    title:
+                        hasSearch ? 'No templates found' : 'No templates yet',
                     body: hasSearch
                         ? 'Try a different search term'
                         : 'Save your sequences as templates for easy reuse',

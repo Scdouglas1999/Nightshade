@@ -65,10 +65,8 @@ pub fn sky_clear_color(scene: &Scene) -> wgpu::Color {
         scene.astro_time,
     ) {
         Ok((ra, dec)) => {
-            let chain = crate::astrometry::frames::FrameChain::r#for(
-                scene.astro_time,
-                scene.observer,
-            );
+            let chain =
+                crate::astrometry::frames::FrameChain::r#for(scene.astro_time, scene.observer);
             let cd = dec.cos();
             let dir = glam::DVec3::new(cd * ra.cos(), cd * ra.sin(), dec.sin());
             let enu = chain.icrs_to_horizontal() * dir;

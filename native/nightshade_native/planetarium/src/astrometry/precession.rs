@@ -54,7 +54,7 @@ fn fukushima_williams_angles_rad(t: f64) -> (f64, f64, f64, f64) {
 /// Post-multiply `r` by an x-rotation (SOFA `eraRx` / `eraRz` convention).
 fn postrotate_x(r: &mut [[f64; 3]; 3], angle: f64) {
     let (s, c) = angle.sin_cos();
-    for j in 0..3 {
+    for j in [0, 1, 2] {
         let a10 = c * r[1][j] + s * r[2][j];
         let a20 = -s * r[1][j] + c * r[2][j];
         r[1][j] = a10;
@@ -65,7 +65,7 @@ fn postrotate_x(r: &mut [[f64; 3]; 3], angle: f64) {
 /// Post-multiply `r` by a z-rotation (SOFA `eraRz`).
 fn postrotate_z(r: &mut [[f64; 3]; 3], angle: f64) {
     let (s, c) = angle.sin_cos();
-    for j in 0..3 {
+    for j in [0, 1, 2] {
         let a00 = c * r[0][j] + s * r[1][j];
         let a10 = -s * r[0][j] + c * r[1][j];
         r[0][j] = a00;

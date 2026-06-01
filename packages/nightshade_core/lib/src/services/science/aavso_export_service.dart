@@ -119,7 +119,7 @@ class AavsoExportService {
     // === Header ===
     buffer.writeln('#TYPE=Extended');
     buffer.writeln('#OBSCODE=$observerCode');
-    buffer.writeln('#SOFTWARE=Nightshade 2.5.0');
+    buffer.writeln('#SOFTWARE=Nightshade 2.6.0');
     buffer.writeln('#DELIM=,');
     buffer.writeln('#DATE=JD');
     buffer.writeln('#OBSTYPE=CCD');
@@ -157,7 +157,8 @@ class AavsoExportService {
                 row.role == 'comparison' &&
                 row.capturedImageId == m.capturedImageId)
             .toList();
-        if (compForFrame.isNotEmpty && compForFrame.first.differentialMagnitude != null) {
+        if (compForFrame.isNotEmpty &&
+            compForFrame.first.differentialMagnitude != null) {
           cmag = compForFrame.first.differentialMagnitude!.toStringAsFixed(4);
         }
       }
@@ -167,10 +168,10 @@ class AavsoExportService {
       if (checkStars.isNotEmpty) {
         final checkForFrame = measurements
             .where((row) =>
-                row.role == 'check' &&
-                row.capturedImageId == m.capturedImageId)
+                row.role == 'check' && row.capturedImageId == m.capturedImageId)
             .toList();
-        if (checkForFrame.isNotEmpty && checkForFrame.first.differentialMagnitude != null) {
+        if (checkForFrame.isNotEmpty &&
+            checkForFrame.first.differentialMagnitude != null) {
           kmag = checkForFrame.first.differentialMagnitude!.toStringAsFixed(4);
         }
       }
@@ -181,16 +182,14 @@ class AavsoExportService {
       // Falls back to 'na' if no altitude is available.
       String amass = 'na';
       if (m.capturedImageId != null) {
-        final capturedImage =
-            await _imagesDao.getImageById(m.capturedImageId!);
+        final capturedImage = await _imagesDao.getImageById(m.capturedImageId!);
         if (capturedImage != null &&
             capturedImage.mountAltitude != null &&
             capturedImage.mountAltitude! > 0) {
           final altDeg = capturedImage.mountAltitude!;
           final altRad = altDeg * math.pi / 180.0;
           // Pickering (2002) refraction-corrected airmass formula
-          final correctionDeg =
-              244.0 / (165.0 + 47.0 * math.pow(altDeg, 1.1));
+          final correctionDeg = 244.0 / (165.0 + 47.0 * math.pow(altDeg, 1.1));
           final effectiveAltRad = altRad + correctionDeg * math.pi / 180.0;
           final sinAlt = math.sin(effectiveAltRad);
           if (sinAlt > 0) {
@@ -232,7 +231,8 @@ class AavsoExportService {
     final content = buffer.toString();
 
     // Validate we produced at least one data line (header is 6 lines)
-    final lineCount = content.split('\n').where((l) => l.trim().isNotEmpty).length;
+    final lineCount =
+        content.split('\n').where((l) => l.trim().isNotEmpty).length;
     if (lineCount <= 6) {
       throw const AavsoExportError(
         'No exportable measurements found. All target measurements lack '

@@ -67,7 +67,6 @@ class RecoveryNodeConfigRule implements SequenceValidator {
               'the recovery action to a built-in (Retry, Pause, etc.).',
         ));
       }
-
     }
     return issues;
   }
@@ -154,8 +153,7 @@ class CloudTriggerConfigRule implements SequenceValidator {
               severity: ValidationSeverity.error,
               category: ValidationCategory.structure,
               title: 'Invalid Cloud Lead Time',
-              description:
-                  'Recovery node "${node.name}" has a non-positive '
+              description: 'Recovery node "${node.name}" has a non-positive '
                   'minutes-before value (${node.cloudMinutesBefore}).',
               affectedNodeId: node.id,
               resolutionHint: 'Set Minutes Before to a positive value.',
@@ -168,8 +166,7 @@ class CloudTriggerConfigRule implements SequenceValidator {
               severity: ValidationSeverity.error,
               category: ValidationCategory.structure,
               title: 'Invalid Cloud Lead Time',
-              description:
-                  'Recovery node "${node.name}" has a non-positive '
+              description: 'Recovery node "${node.name}" has a non-positive '
                   'minutes-before value (${node.cloudMinutesBefore}).',
               affectedNodeId: node.id,
               resolutionHint: 'Set Minutes Before to a positive value.',
@@ -258,8 +255,7 @@ class ConditionalNodeEmptyBranchRule implements SequenceValidator {
         severity: ValidationSeverity.warning,
         category: ValidationCategory.structure,
         title: 'Conditional Has No Branch',
-        description:
-            'Conditional "${node.name}" has no child nodes. It will '
+        description: 'Conditional "${node.name}" has no child nodes. It will '
             'evaluate its condition but never execute anything.',
         affectedNodeId: node.id,
         resolutionHint:
@@ -352,8 +348,7 @@ class LoopUnreachableTerminationRule implements SequenceValidator {
                 'but its target is ${target ?? "unset"}. The loop will '
                 'exit on the first accounting tick.',
             affectedNodeId: node.id,
-            resolutionHint:
-                'Set integrationTimeTarget to a positive number of '
+            resolutionHint: 'Set integrationTimeTarget to a positive number of '
                 'seconds (or hours, depending on the UI).',
           ));
         }

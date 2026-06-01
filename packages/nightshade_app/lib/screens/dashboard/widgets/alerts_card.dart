@@ -25,7 +25,8 @@ class AlertsCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notifications = ref.watch(uiNotificationProvider);
     final hasOperation = ref.watch(hasActiveOperationProvider);
-    final recent = notifications.reversed.take(2).toList(); // Show fewer in compact
+    final recent =
+        notifications.reversed.take(2).toList(); // Show fewer in compact
 
     return DashboardGlassCard(
       colors: colors,
@@ -33,44 +34,24 @@ class AlertsCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: NightshadeDecorations.tintedBadge(
-                  colors.warning,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  LucideIcons.bell,
-                  size: 16,
-                  color: colors.warning,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  'Alerts',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              if (notifications.isNotEmpty)
-                NightshadeButton(
-                  onPressed: () => ref
-                      .read(uiNotificationProvider.notifier)
-                      .clearAll(),
-                  label: 'Clear',
-                  variant: ButtonVariant.ghost,
-                  size: ButtonSize.small,
-                ),
-            ],
+          DashboardCardHeader(
+            colors: colors,
+            icon: LucideIcons.bell,
+            title: 'Alerts',
+            accent: hasOperation || notifications.isNotEmpty
+                ? colors.warning
+                : null,
+            trailing: notifications.isNotEmpty
+                ? NightshadeButton(
+                    onPressed: () =>
+                        ref.read(uiNotificationProvider.notifier).clearAll(),
+                    label: 'Clear',
+                    variant: ButtonVariant.ghost,
+                    size: ButtonSize.small,
+                  )
+                : null,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: DashboardCardStyle.headerGap),
           if (hasOperation) ...[
             const OperationStatusBar(),
             const SizedBox(height: 8),

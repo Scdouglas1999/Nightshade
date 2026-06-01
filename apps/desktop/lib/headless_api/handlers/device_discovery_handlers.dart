@@ -1,4 +1,4 @@
-﻿/// Device-discovery HTTP handlers for the headless API.
+/// Device-discovery HTTP handlers for the headless API.
 ///
 /// Owns the read-only catalog endpoints under `/api/devices/*`:
 ///   * `GET /api/devices` â€” enumerate every discoverable device, optionally
@@ -34,8 +34,8 @@ class DeviceDiscoveryHandlers {
 
   LoggingService get _logger => container.read(loggingServiceProvider);
 
-  void _logWarning(String message, {Map<String, Object?>? fields}) =>
-      _logger.warning(message, source: 'DeviceDiscoveryHandlers', fields: fields);
+  void _logWarning(String message, {Map<String, Object?>? fields}) => _logger
+      .warning(message, source: 'DeviceDiscoveryHandlers', fields: fields);
   void _logInfo(String message) =>
       _logger.info(message, source: 'DeviceDiscoveryHandlers');
   void _logError(String message) =>
@@ -66,8 +66,7 @@ class DeviceDiscoveryHandlers {
           try {
             allDevices = await backend.discoverDevices(deviceType);
           } catch (e, stackTrace) {
-            // Sanitized for the wire; full cause/stack is logged below.
-            discoveryErrors[deviceType.name] = 'Discovery failed';
+            discoveryErrors[deviceType.name] = _sanitizeDiscoveryError(e);
             _logWarning(
               '[API][$requestId] Discovery failed for ${deviceType.name}: $e',
               fields: {
@@ -96,13 +95,11 @@ class DeviceDiscoveryHandlers {
         // without a lock: Dart's event loop is single-threaded, so each future's
         // catch body runs to completion as one atomic turn — there is no
         // interleaving that could drop or clobber a sibling's entry.
-        final futures =
-            DeviceType.values.map((dt) async {
+        final futures = DeviceType.values.map((dt) async {
           try {
             return MapEntry(dt, await backend.discoverDevices(dt));
           } catch (e, stackTrace) {
-            // Sanitized for the wire; full cause/stack is logged below.
-            discoveryErrors[dt.name] = 'Discovery failed';
+            discoveryErrors[dt.name] = _sanitizeDiscoveryError(e);
             _logWarning(
               '[API][$requestId] Discovery failed for ${dt.name}: $e',
               fields: {
@@ -148,6 +145,14 @@ class DeviceDiscoveryHandlers {
       _logError('[API][$requestId] Get devices error: $e\n$stackTrace');
       return jsonInternalServerError({"error": "Internal server error"});
     }
+  }
+
+  String _sanitizeDiscoveryError(Object error) {
+    final raw = error.toString();
+    if (raw.startsWith('Exception: ')) {
+      return raw.substring('Exception: '.length);
+    }
+    return raw;
   }
 
   /// `GET /api/devices/discover-indi?host=&port=` â€” point-source INDI

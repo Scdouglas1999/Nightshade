@@ -15,6 +15,7 @@ export 'equipment/focuser_state_provider.dart';
 export 'equipment/focuser_temp_compensation_provider.dart';
 export 'equipment/guider_state_provider.dart';
 export 'equipment/mount_state_provider.dart';
+export 'equipment/profile_connection_status_provider.dart';
 export 'equipment/rotator_state_provider.dart';
 export 'equipment/safety_monitor_state_provider.dart';
 export 'equipment/switch_state_provider.dart';

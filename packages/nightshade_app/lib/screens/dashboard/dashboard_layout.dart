@@ -33,6 +33,28 @@ extension DashboardZoneX on DashboardZone {
   /// Get the default zone for a widget ID (used for migration from v2 layouts)
   static DashboardZone defaultForWidget(DashboardWidgetId widgetId) {
     return switch (widgetId) {
+      // Merged cockpit tiles live in the hero column.
+      DashboardWidgetId.cockpitNowImaging => DashboardZone.primary,
+      DashboardWidgetId.cockpitFrames => DashboardZone.primary,
+
+      // Cockpit panels (live monitoring): hero column up top, supporting
+      // telemetry down the right rail, opt-in extras stay in their natural
+      // home so enabling them via Edit Dashboard lands them sensibly.
+      DashboardWidgetId.cockpitTargetHeader => DashboardZone.primary,
+      DashboardWidgetId.cockpitLiveFrame => DashboardZone.primary,
+      DashboardWidgetId.cockpitExposureProgress => DashboardZone.primary,
+      DashboardWidgetId.cockpitRecentFrames => DashboardZone.primary,
+      DashboardWidgetId.cockpitFilterIntegration => DashboardZone.secondary,
+      DashboardWidgetId.cockpitEquipmentTelemetry => DashboardZone.secondary,
+      DashboardWidgetId.cockpitGuiding => DashboardZone.secondary,
+      DashboardWidgetId.cockpitWeatherSafety => DashboardZone.secondary,
+      DashboardWidgetId.cockpitSessionWarnings => DashboardZone.secondary,
+      DashboardWidgetId.cockpitTriggerFeed => DashboardZone.secondary,
+      DashboardWidgetId.cockpitScheduler => DashboardZone.secondary,
+      DashboardWidgetId.cockpitCloudMotion => DashboardZone.secondary,
+      DashboardWidgetId.cockpitAdaptiveConditions => DashboardZone.secondary,
+      DashboardWidgetId.cockpitLightCurve => DashboardZone.secondary,
+
       // Primary zone: main content area (hero widgets)
       DashboardWidgetId.livePreview => DashboardZone.primary,
       DashboardWidgetId.captureSettings => DashboardZone.primary,
@@ -56,6 +78,30 @@ extension DashboardZoneX on DashboardZone {
 }
 
 enum DashboardWidgetId {
+  // Merged cockpit tiles (density pass 2026-06-01). These supersede the four
+  // individual panels below and are the enabled-by-default monitoring surface.
+  cockpitNowImaging,
+  cockpitFrames,
+
+  // Cockpit panels (transplanted from the Sequencer Run dashboard). These are
+  // the live monitoring surface and are enabled by default (see defaultLayout).
+  cockpitTargetHeader,
+  cockpitLiveFrame,
+  cockpitExposureProgress,
+  cockpitRecentFrames,
+  cockpitFilterIntegration,
+  cockpitEquipmentTelemetry,
+  cockpitGuiding,
+  cockpitWeatherSafety,
+  cockpitSessionWarnings,
+  cockpitTriggerFeed,
+  cockpitScheduler,
+  cockpitCloudMotion,
+  cockpitAdaptiveConditions,
+  cockpitLightCurve,
+
+  // Legacy control/info cards. Kept for migration + power users, but disabled
+  // by default now that the cockpit panels own the dashboard.
   livePreview,
   captureSettings,
   sequenceStatus,
@@ -74,6 +120,24 @@ enum DashboardWidgetId {
 extension DashboardWidgetIdX on DashboardWidgetId {
   String get storageKey {
     return switch (this) {
+      DashboardWidgetId.cockpitNowImaging => 'cockpitNowImaging',
+      DashboardWidgetId.cockpitFrames => 'cockpitFrames',
+      DashboardWidgetId.cockpitTargetHeader => 'cockpitTargetHeader',
+      DashboardWidgetId.cockpitLiveFrame => 'cockpitLiveFrame',
+      DashboardWidgetId.cockpitExposureProgress => 'cockpitExposureProgress',
+      DashboardWidgetId.cockpitRecentFrames => 'cockpitRecentFrames',
+      DashboardWidgetId.cockpitFilterIntegration => 'cockpitFilterIntegration',
+      DashboardWidgetId.cockpitEquipmentTelemetry =>
+        'cockpitEquipmentTelemetry',
+      DashboardWidgetId.cockpitGuiding => 'cockpitGuiding',
+      DashboardWidgetId.cockpitWeatherSafety => 'cockpitWeatherSafety',
+      DashboardWidgetId.cockpitSessionWarnings => 'cockpitSessionWarnings',
+      DashboardWidgetId.cockpitTriggerFeed => 'cockpitTriggerFeed',
+      DashboardWidgetId.cockpitScheduler => 'cockpitScheduler',
+      DashboardWidgetId.cockpitCloudMotion => 'cockpitCloudMotion',
+      DashboardWidgetId.cockpitAdaptiveConditions =>
+        'cockpitAdaptiveConditions',
+      DashboardWidgetId.cockpitLightCurve => 'cockpitLightCurve',
       DashboardWidgetId.livePreview => 'livePreview',
       DashboardWidgetId.captureSettings => 'captureSettings',
       DashboardWidgetId.sequenceStatus => 'sequenceStatus',
@@ -92,6 +156,24 @@ extension DashboardWidgetIdX on DashboardWidgetId {
 
   static DashboardWidgetId fromStorageKey(String value) {
     return switch (value) {
+      'cockpitNowImaging' => DashboardWidgetId.cockpitNowImaging,
+      'cockpitFrames' => DashboardWidgetId.cockpitFrames,
+      'cockpitTargetHeader' => DashboardWidgetId.cockpitTargetHeader,
+      'cockpitLiveFrame' => DashboardWidgetId.cockpitLiveFrame,
+      'cockpitExposureProgress' => DashboardWidgetId.cockpitExposureProgress,
+      'cockpitRecentFrames' => DashboardWidgetId.cockpitRecentFrames,
+      'cockpitFilterIntegration' => DashboardWidgetId.cockpitFilterIntegration,
+      'cockpitEquipmentTelemetry' =>
+        DashboardWidgetId.cockpitEquipmentTelemetry,
+      'cockpitGuiding' => DashboardWidgetId.cockpitGuiding,
+      'cockpitWeatherSafety' => DashboardWidgetId.cockpitWeatherSafety,
+      'cockpitSessionWarnings' => DashboardWidgetId.cockpitSessionWarnings,
+      'cockpitTriggerFeed' => DashboardWidgetId.cockpitTriggerFeed,
+      'cockpitScheduler' => DashboardWidgetId.cockpitScheduler,
+      'cockpitCloudMotion' => DashboardWidgetId.cockpitCloudMotion,
+      'cockpitAdaptiveConditions' =>
+        DashboardWidgetId.cockpitAdaptiveConditions,
+      'cockpitLightCurve' => DashboardWidgetId.cockpitLightCurve,
       'livePreview' => DashboardWidgetId.livePreview,
       'captureSettings' => DashboardWidgetId.captureSettings,
       'sequenceStatus' => DashboardWidgetId.sequenceStatus,
@@ -243,14 +325,21 @@ class DashboardTileConfig {
 
 @immutable
 class DashboardLayout {
-  /// Layout version 3: Zone-based architecture
+  /// Layout version 5: Dense cockpit default
   /// - Version 1: Initial layout
   /// - Version 2: Added tile ordering
   /// - Version 3: Zone-based architecture (primary/secondary/tertiary)
-  static const int currentVersion = 3;
+  /// - Version 4: Monitoring-first cockpit default (Run dashboard panels
+  ///   transplanted in; legacy control cards retained but disabled by default)
+  /// - Version 5: Density pass — merged `cockpitNowImaging` (target header +
+  ///   exposure progress) and `cockpitFrames` (capped live frame + recent
+  ///   strip) supersede their four individual panels (now disabled by default)
+  ///   to fit both columns with little-to-no scrolling.
+  static const int currentVersion = 5;
 
   final int version;
   final List<DashboardTileConfig> tiles;
+
   /// Width of the secondary zone as a fraction of available space (0.25 to 0.5)
   final double secondaryZoneWidth;
 
@@ -286,20 +375,19 @@ class DashboardLayout {
     final secondaryZoneWidth = json['secondaryZoneWidth'];
 
     if (version is! int) {
-      throw const FormatException('Dashboard layout version must be an integer.');
+      throw const FormatException(
+          'Dashboard layout version must be an integer.');
     }
     if (tiles is! List) {
       throw const FormatException('Dashboard layout tiles must be a list.');
     }
 
-    final parsedTiles = tiles
-        .map((entry) {
-          if (entry is! Map<String, dynamic>) {
-            throw const FormatException('Dashboard tile entry must be an object.');
-          }
-          return DashboardTileConfig.fromJson(entry);
-        })
-        .toList();
+    final parsedTiles = tiles.map((entry) {
+      if (entry is! Map<String, dynamic>) {
+        throw const FormatException('Dashboard tile entry must be an object.');
+      }
+      return DashboardTileConfig.fromJson(entry);
+    }).toList();
 
     return DashboardLayout(
       version: version,
@@ -315,7 +403,8 @@ class DashboardLayout {
     final ids = <DashboardWidgetId>{};
     for (final tile in sorted) {
       if (!ids.add(tile.widgetId)) {
-        throw FormatException('Duplicate dashboard tile: ${tile.widgetId.storageKey}');
+        throw FormatException(
+            'Duplicate dashboard tile: ${tile.widgetId.storageKey}');
       }
     }
     final normalized = <DashboardTileConfig>[];
@@ -354,104 +443,230 @@ class DashboardLayout {
 
   static DashboardLayout defaultLayout() {
     final tiles = <DashboardTileConfig>[
-      // Primary zone: hero content (live preview takes focus)
+      // ===================================================================
+      // Merged cockpit tiles — the dense default monitoring surface.
+      // ===================================================================
+
+      // Primary zone (hero column): the compact "now imaging" status strip,
+      // the capped live frame + recent-strip tile, then guiding.
       const DashboardTileConfig(
-        widgetId: DashboardWidgetId.livePreview,
+        widgetId: DashboardWidgetId.cockpitNowImaging,
         size: DashboardTileSize.large,
         enabled: true,
         order: 0,
         zone: DashboardZone.primary,
       ),
       const DashboardTileConfig(
-        widgetId: DashboardWidgetId.captureSettings,
-        size: DashboardTileSize.medium,
+        widgetId: DashboardWidgetId.cockpitFrames,
+        size: DashboardTileSize.large,
         enabled: true,
         order: 1,
         zone: DashboardZone.primary,
       ),
-
-      // Secondary zone: supporting info and controls
       const DashboardTileConfig(
-        widgetId: DashboardWidgetId.sequenceStatus,
+        widgetId: DashboardWidgetId.cockpitGuiding,
         size: DashboardTileSize.medium,
         enabled: true,
         order: 2,
-        zone: DashboardZone.secondary,
+        zone: DashboardZone.primary,
       ),
+
+      // Secondary zone (right rail): supporting telemetry.
       const DashboardTileConfig(
-        widgetId: DashboardWidgetId.guiding,
+        widgetId: DashboardWidgetId.cockpitEquipmentTelemetry,
         size: DashboardTileSize.medium,
         enabled: true,
         order: 3,
         zone: DashboardZone.secondary,
       ),
       const DashboardTileConfig(
-        widgetId: DashboardWidgetId.equipmentStatus,
-        size: DashboardTileSize.small,
+        widgetId: DashboardWidgetId.cockpitWeatherSafety,
+        size: DashboardTileSize.medium,
         enabled: true,
         order: 4,
         zone: DashboardZone.secondary,
       ),
-
-      // Tertiary zone: compact status widgets (max 3-4 for clean row)
       const DashboardTileConfig(
-        widgetId: DashboardWidgetId.mountControl,
-        size: DashboardTileSize.small,
+        widgetId: DashboardWidgetId.cockpitTriggerFeed,
+        size: DashboardTileSize.medium,
         enabled: true,
         order: 5,
-        zone: DashboardZone.tertiary,
+        zone: DashboardZone.secondary,
       ),
+
+      // ===================================================================
+      // Superseded cockpit panels — the four individual panels the merged
+      // tiles replace. Present (so power users can re-enable) but disabled.
+      // ===================================================================
       const DashboardTileConfig(
-        widgetId: DashboardWidgetId.focus,
-        size: DashboardTileSize.small,
-        enabled: true,
+        widgetId: DashboardWidgetId.cockpitTargetHeader,
+        size: DashboardTileSize.large,
+        enabled: false,
         order: 6,
-        zone: DashboardZone.tertiary,
+        zone: DashboardZone.primary,
       ),
       const DashboardTileConfig(
-        widgetId: DashboardWidgetId.weather,
-        size: DashboardTileSize.small,
-        enabled: true,
+        widgetId: DashboardWidgetId.cockpitLiveFrame,
+        size: DashboardTileSize.large,
+        enabled: false,
         order: 7,
-        zone: DashboardZone.tertiary,
+        zone: DashboardZone.primary,
       ),
       const DashboardTileConfig(
-        widgetId: DashboardWidgetId.tonight,
-        size: DashboardTileSize.small,
-        enabled: true,
+        widgetId: DashboardWidgetId.cockpitExposureProgress,
+        size: DashboardTileSize.medium,
+        enabled: false,
         order: 8,
-        zone: DashboardZone.tertiary,
+        zone: DashboardZone.primary,
       ),
-      // Disabled by default - can be enabled via Edit Dashboard
       const DashboardTileConfig(
-        widgetId: DashboardWidgetId.alerts,
-        size: DashboardTileSize.small,
+        widgetId: DashboardWidgetId.cockpitRecentFrames,
+        size: DashboardTileSize.large,
         enabled: false,
         order: 9,
-        zone: DashboardZone.tertiary,
+        zone: DashboardZone.primary,
+      ),
+
+      // ===================================================================
+      // Other cockpit panels disabled by default — opt-in via Edit Dashboard.
+      // ===================================================================
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitSessionWarnings,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 10,
+        zone: DashboardZone.secondary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitFilterIntegration,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 11,
+        zone: DashboardZone.secondary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitScheduler,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 12,
+        zone: DashboardZone.secondary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitCloudMotion,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 13,
+        zone: DashboardZone.secondary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitAdaptiveConditions,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 14,
+        zone: DashboardZone.secondary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitLightCurve,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 15,
+        zone: DashboardZone.secondary,
+      ),
+
+      // ===================================================================
+      // Legacy control/info cards — retained for power users + migration,
+      // disabled by default now that the cockpit panels own the dashboard.
+      // ===================================================================
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.livePreview,
+        size: DashboardTileSize.large,
+        enabled: false,
+        order: 16,
+        zone: DashboardZone.primary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.captureSettings,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 17,
+        zone: DashboardZone.primary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.sequenceStatus,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 18,
+        zone: DashboardZone.secondary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.guiding,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 19,
+        zone: DashboardZone.secondary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.equipmentStatus,
+        size: DashboardTileSize.small,
+        enabled: false,
+        order: 20,
+        zone: DashboardZone.secondary,
       ),
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.quickActions,
         size: DashboardTileSize.medium,
         enabled: false,
-        order: 10,
+        order: 21,
         zone: DashboardZone.secondary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.mountControl,
+        size: DashboardTileSize.small,
+        enabled: false,
+        order: 22,
+        zone: DashboardZone.tertiary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.focus,
+        size: DashboardTileSize.small,
+        enabled: false,
+        order: 23,
+        zone: DashboardZone.tertiary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.weather,
+        size: DashboardTileSize.small,
+        enabled: false,
+        order: 24,
+        zone: DashboardZone.tertiary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.tonight,
+        size: DashboardTileSize.small,
+        enabled: false,
+        order: 25,
+        zone: DashboardZone.tertiary,
+      ),
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.alerts,
+        size: DashboardTileSize.small,
+        enabled: false,
+        order: 26,
+        zone: DashboardZone.tertiary,
       ),
       // Quick Stats disabled - redundant with Command Bar stats
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.quickStats,
         size: DashboardTileSize.small,
         enabled: false,
-        order: 11,
+        order: 27,
         zone: DashboardZone.tertiary,
       ),
-      // Storage tile: free space + projected run size. Enabled by default
-      // so disk surprises don't blow up a multi-hour run at 3 AM (F3 polish).
       const DashboardTileConfig(
         widgetId: DashboardWidgetId.storage,
         size: DashboardTileSize.small,
-        enabled: true,
-        order: 12,
+        enabled: false,
+        order: 28,
         zone: DashboardZone.tertiary,
       ),
     ];

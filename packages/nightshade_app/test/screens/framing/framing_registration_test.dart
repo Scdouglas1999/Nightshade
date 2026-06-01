@@ -207,6 +207,13 @@ void main() {
           profileName: 'Test Profile',
         ),
       ),
+      // FramingCanvas now composes the GPU HiPS tile layer (above the survey
+      // snapshot, under the FOV reticle). This registration/golden test is about
+      // the survey-image <-> FOV-reticle co-registration, so the tile layer is
+      // gated off to keep the canvas hermetic (no real properties fetch) and the
+      // golden stable; the HiPS layer's own registration is covered by the C8/C10
+      // HiPS suites.
+      hipsFramingEnabledProvider.overrideWith((ref) => false),
     ];
   }
 

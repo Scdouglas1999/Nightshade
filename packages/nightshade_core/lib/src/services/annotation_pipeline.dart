@@ -4,6 +4,35 @@ part of 'annotation_service.dart';
 // Annotation pipeline: plate solve -> catalog search -> merge logic
 // ==========================================================================
 
+/// Thrown when a catalog/DB query inside the annotation pipeline genuinely
+/// fails (the query threw, the underlying file/DB read errored, etc.).
+///
+/// Errors are a feature: previously each catalog query site caught its own
+/// exception, logged it, and continued with a partial/empty object list. That
+/// made a genuinely BROKEN query (corrupt catalog file, I/O error, malformed
+/// row) indistinguishable from a legitimate "0 objects in this frame" result —
+/// the user just saw "0 objects found".
+///
+/// A query that succeeds but matches nothing is NOT a failure and must NOT
+/// throw this; it simply contributes no objects. This exception is reserved
+/// for real failures so they propagate to [AnnotationPipeline.processNewImage],
+/// which surfaces them as [AnnotationState.error] (a status the UI renders with
+/// an error icon + actionable hint) instead of a silent empty success.
+class AnnotationCatalogQueryException implements Exception {
+  /// Which catalog was being queried, e.g. `'annotation'`, `'DSO'`, `'star'`.
+  /// Used to compose log lines and the user-visible error message.
+  final String catalog;
+
+  /// The original error that the catalog query threw.
+  final Object cause;
+
+  const AnnotationCatalogQueryException(this.catalog, this.cause);
+
+  @override
+  String toString() =>
+      'Failed to query the $catalog catalog: $cause';
+}
+
 extension AnnotationPipeline on AnnotationService {
   /// Process a new image through the full annotation pipeline:
   /// plate solve -> catalog search -> object merge -> state update.
@@ -353,9 +382,15 @@ extension AnnotationPipeline on AnnotationService {
           final dedupeKey = _deduplicationKey(annotation);
           deduplicatedById[dedupeKey] = annotation;
         }
-      } catch (e) {
-        _logger.error('Error querying annotation catalog: $e',
+      } catch (e, stackTrace) {
+        // Genuine failure (corrupt catalog, I/O error, malformed row) — surface
+        // it instead of silently returning a partial list. Re-throwing routes
+        // it to processNewImage's error path. (An empty-but-successful query
+        // never reaches here.)
+        _logger.error(
+            'Error querying annotation catalog: $e\nStack trace: $stackTrace',
             source: 'Annotation');
+        throw AnnotationCatalogQueryException('annotation', e);
       }
     }
 
@@ -414,8 +449,13 @@ extension AnnotationPipeline on AnnotationService {
               _mergeAnnotationObjects(existing, annotation);
         }
       }
-    } catch (e) {
-      _logger.error('Error querying DSO catalog: $e', source: 'Annotation');
+    } catch (e, stackTrace) {
+      // Genuine failure — surface it. A DSO catalog that simply isn't installed
+      // returns an empty list (handled inside searchDsoNearby), so reaching
+      // this catch means the query itself broke.
+      _logger.error('Error querying DSO catalog: $e\nStack trace: $stackTrace',
+          source: 'Annotation');
+      throw AnnotationCatalogQueryException('DSO', e);
     }
 
     annotations.addAll(deduplicatedById.values);
@@ -459,8 +499,11 @@ extension AnnotationPipeline on AnnotationService {
             magnitude: star.magnitude,
           ));
         }
-      } catch (e) {
-        _logger.error('Error querying star catalog: $e', source: 'Annotation');
+      } catch (e, stackTrace) {
+        // Genuine failure — surface it rather than dropping stars silently.
+        _logger.error('Error querying star catalog: $e\nStack trace: $stackTrace',
+            source: 'Annotation');
+        throw AnnotationCatalogQueryException('star', e);
       }
     }
 

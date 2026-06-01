@@ -514,7 +514,8 @@ List<NodePaletteCategory> _buildPluginPaletteCategories(
   // Stable ordering: categories alphabetically, items by display name.
   final orderedCategories = grouped.keys.toList()..sort();
   return orderedCategories.map((categoryName) {
-    final items = grouped[categoryName]!..sort((a, b) => a.name.compareTo(b.name));
+    final items = grouped[categoryName]!
+      ..sort((a, b) => a.name.compareTo(b.name));
     return NodePaletteCategory(
       name: 'Plugins / $categoryName',
       icon: 'puzzle',

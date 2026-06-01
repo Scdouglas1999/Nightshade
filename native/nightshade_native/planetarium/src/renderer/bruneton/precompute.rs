@@ -190,8 +190,8 @@ pub fn precompute_bruneton_luts_with_config(
         multiple_scattering,
         irradiance_view: view_2d(&irradiance),
         irradiance,
-        combined_scattering_view: view_3d(&combined_scattering),
-        combined_scattering,
+        _combined_scattering_view: view_3d(&combined_scattering),
+        _combined_scattering: combined_scattering,
     })
 }
 
@@ -325,6 +325,7 @@ impl PrecomputeContext {
         self.queue.write_buffer(&self.uniform_buf, 0, &bytes);
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn draw_2d(
         &self,
         target: &wgpu::Texture,
@@ -343,6 +344,7 @@ impl PrecomputeContext {
         self.render_pass(&[&view], pipeline, &bind_group, width, height, false)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn draw_2d_multi(
         &self,
         targets: &[&wgpu::Texture],
@@ -362,6 +364,7 @@ impl PrecomputeContext {
         self.render_pass(&view_refs, pipeline, &bind_group, width, height, blend)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn draw_3d_layer(
         &self,
         targets: &[&wgpu::Texture],
@@ -391,6 +394,7 @@ impl PrecomputeContext {
         self.render_3d_layer_to_scratch(targets, pipeline, &bind_group, layer, false)
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn draw_3d_layer_multi(
         &self,
         targets: &[&wgpu::Texture],

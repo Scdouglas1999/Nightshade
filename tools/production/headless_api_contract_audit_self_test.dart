@@ -110,6 +110,21 @@ List<String> _getAvailableEndpoints() {
   );
   await _writeFile(
     root,
+    'apps/desktop/lib/headless_api/handlers/system_handlers.dart',
+    r'''
+List<String> availableHeadlessEndpoints() {
+  return const [
+    'GET /api/info',
+    'POST /api/devices/connect',
+    'GET /api/targets/{id}',
+    'WS /api/ws',
+    'WS /events',
+  ];
+}
+''',
+  );
+  await _writeFile(
+    root,
     'packages/nightshade_core/lib/src/backend/network_backend.dart',
     r'''
 void calls() {
@@ -117,7 +132,9 @@ void calls() {
   _post('devices/connect');
   _get('targets/$id');
   Future<RemoteApiCompatibilityResult> _checkServerCompatibility() async {}
-  RemoteApiCompatibility.check(info['version'] as String?);
+  RemoteApiCompatibility.check(
+    info['apiVersion'] as String? ?? info['version'] as String?,
+  );
   headers[RemoteApiCompatibility.apiVersionHeader] =
       RemoteApiCompatibility.clientApiVersion.format();
   queryParameters['apiVersion'] =
@@ -143,6 +160,17 @@ void start() {
 
 List<String> _getAvailableEndpoints() {
   return [
+    'GET /api/info',
+  ];
+}
+''',
+  );
+  await _writeFile(
+    root,
+    'apps/desktop/lib/headless_api/handlers/system_handlers.dart',
+    r'''
+List<String> availableHeadlessEndpoints() {
+  return const [
     'GET /api/info',
   ];
 }
@@ -282,6 +310,9 @@ void main() {
   'OpenAPI spec advertises every HTTP route from the route table';
   buildOpenApiSpec;
   'WebSocket endpoints are advertised in /api/info';
+  paths[path];
+  contains(method);
+  'OpenAPI must include advertised route';
 }
 ''',
   );
@@ -294,7 +325,7 @@ Future<void> _writePassingVersionNegotiationFixtures(Directory root) async {
     r'''
 class RemoteApiCompatibility {
   static const minimumSupportedVersion = SemanticVersion(2, 4, 0);
-  static const serverApiVersion = SemanticVersion(2, 5, 0);
+  static const serverApiVersion = SemanticVersion(2, 6, 0);
   void codes() {
     print('server_too_old');
     print('server_too_new');
@@ -349,9 +380,10 @@ class NightshadeApi {
     root,
     'docs/api/web-server-api.md',
     r'''
-Remote clients use `/api/info.version` for API compatibility checks. The
-current client accepts server API versions `2.4.0` and newer within major version `2`.
-Incompatible versions show server too old/new guidance.
+Remote clients use `/api/info.apiVersion` for API compatibility checks and
+fall back to `version` for older servers. The current client accepts server API
+versions `2.4.0` and newer within major version `2`. Incompatible versions show
+server too old/new guidance.
 ''',
   );
 }

@@ -1,3 +1,5 @@
+import 'package:nightshade_core/nightshade_core.dart';
+
 /// Format a device ID into a user-friendly display name.
 ///
 /// Handles the following formats:
@@ -6,6 +8,12 @@
 /// - Alpaca: `alpaca:host:port:device_number`
 /// - PHD2 identifiers
 /// - INDI: `indi:host:port:device_name`
+///
+/// This is the rich UI display formatter (vendor capitalization, indexing).
+/// It is intentionally distinct from `friendlyNameFromDeviceId` in
+/// nightshade_core (the no-discovery fallback used by `DeviceService`); the
+/// canonical PHD2 recognition, however, is shared via [isPhd2DeviceId] so the
+/// strict id forms are classified identically everywhere.
 String formatDeviceId(String id) {
   final lowerId = id.toLowerCase();
 
@@ -55,8 +63,12 @@ String formatDeviceId(String id) {
     return 'Alpaca: $alpacaPart';
   }
 
-  // Handle PHD2
-  if (lowerId.contains('phd2') || lowerId.contains('phd 2')) {
+  // Handle PHD2. Strict id forms (phd2 / phd2_guider / phd2:… / phd2://…)
+  // go through the shared canonical recognizer; the looser `contains` checks
+  // remain so display still labels free-form "PHD 2"-style names.
+  if (isPhd2DeviceId(id) ||
+      lowerId.contains('phd2') ||
+      lowerId.contains('phd 2')) {
     return 'PHD2';
   }
 

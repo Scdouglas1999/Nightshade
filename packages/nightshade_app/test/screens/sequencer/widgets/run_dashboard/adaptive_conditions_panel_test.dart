@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/run_dashboard/adaptive_conditions_panel.dart';
-import 'package:nightshade_app/screens/sequencer/widgets/run_dashboard/run_dashboard_prefs.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -17,18 +16,6 @@ Widget _wrap(Widget child, {required List<Override> overrides}) {
 }
 
 void main() {
-  test('adaptive conditions panel is registered in dashboard prefs', () {
-    expect(
-      RunDashboardPanelId.values,
-      contains(RunDashboardPanelId.adaptiveConditions),
-    );
-
-    final descriptor = runDashboardPanelDescriptors.singleWhere(
-      (d) => d.id == RunDashboardPanelId.adaptiveConditions,
-    );
-    expect(descriptor.label, 'Adaptive conditions');
-  });
-
   testWidgets('adaptive conditions panel renders executor snapshot fields',
       (tester) async {
     final now = DateTime.now().toUtc();

@@ -72,7 +72,8 @@ impl SequenceExecutor {
     /// site short-circuits before allocating an event. Wired to the
     /// `decisionLoggingEnabled` app setting.
     pub fn set_decision_logging_enabled(&self, enabled: bool) {
-        self.decision_logging_enabled.store(enabled, Ordering::Relaxed);
+        self.decision_logging_enabled
+            .store(enabled, Ordering::Relaxed);
     }
 
     /// Read the runtime toggle. Cheap atomic load — safe to call from

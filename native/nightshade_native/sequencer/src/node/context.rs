@@ -376,6 +376,21 @@ pub struct ExecutionContext {
     /// scheduler-runtime fields on this struct (`skip_to_node`,
     /// `adaptive_swap_state`).
     pub scheduler_filter_cycle_override: Arc<parking_lot::RwLock<Option<crate::FilterCycleMode>>>,
+    /// Active target's effective `end_when` stop trigger, installed by
+    /// `TargetHeader` for the duration of its child subtree and cleared on
+    /// exit. The parent only *probes* `end_when` at child boundaries, so a
+    /// child that loops internally (e.g. a SmartExposure node in
+    /// `loop_until_stopped` mode) would never give the parent a boundary to
+    /// probe. Exposing the trigger here lets such a node poll the target
+    /// window itself between sub-exposure batches and terminate cleanly when
+    /// the window closes — without the parent having to spawn a per-target
+    /// background watcher.
+    ///
+    /// `None` outside a TargetHeader subtree, or when the active target has
+    /// no end condition. Same lock flavour and install/restore discipline as
+    /// [`Self::scheduler_filter_cycle_override`].
+    pub active_target_end_trigger:
+        Arc<parking_lot::RwLock<Option<crate::scheduling::TargetTrigger>>>,
 }
 
 /// Wave 8 — runtime adaptive-swap accounting. Hot-mutated by the
@@ -580,6 +595,7 @@ impl ExecutionContext {
             // TargetScheduler installs one for the duration of its
             // dispatch.
             scheduler_filter_cycle_override: Arc::new(parking_lot::RwLock::new(None)),
+            active_target_end_trigger: Arc::new(parking_lot::RwLock::new(None)),
         }
     }
 
@@ -776,6 +792,68 @@ impl ExecutionContext {
     /// the consumer site).
     pub fn scheduler_filter_cycle_override(&self) -> Option<crate::FilterCycleMode> {
         *self.scheduler_filter_cycle_override.read()
+    }
+
+    /// Install the active target's `end_when` stop trigger for the duration
+    /// of a TargetHeader child subtree. Returns the prior value so the
+    /// caller can restore it on exit. Callers MUST restore on every exit
+    /// path so the trigger does not leak into sibling subtrees (the same
+    /// install/restore discipline as
+    /// [`Self::install_scheduler_filter_cycle_override`]).
+    pub fn install_active_target_end_trigger(
+        &self,
+        trigger: Option<crate::scheduling::TargetTrigger>,
+    ) -> Option<crate::scheduling::TargetTrigger> {
+        let mut slot = self.active_target_end_trigger.write();
+        let prior = slot.take();
+        *slot = trigger;
+        prior
+    }
+
+    /// Read the active target's `end_when` stop trigger, if a surrounding
+    /// TargetHeader installed one. Used by internally-looping instruction
+    /// nodes (SmartExposure `loop_until_stopped`) to detect the target
+    /// window closing between sub-exposure batches.
+    pub fn active_target_end_trigger(&self) -> Option<crate::scheduling::TargetTrigger> {
+        self.active_target_end_trigger.read().clone()
+    }
+
+    /// Evaluate the active target's `end_when` trigger against the current
+    /// observer/target snapshot. Returns:
+    ///   * `Some(true)`  — a trigger is installed and is satisfied right now
+    ///     (the target window has closed; the loop should stop);
+    ///   * `Some(false)` — a trigger is installed but not yet satisfied;
+    ///   * `None`        — no trigger is installed, OR an altitude-bearing
+    ///     trigger cannot be evaluated because observer/target coordinates
+    ///     are missing. `None` is deliberately distinct from `Some(false)`
+    ///     so callers can tell "no bound" apart from "bounded, not yet met"
+    ///     and refuse to enter an unbounded infinite loop.
+    pub fn active_target_end_trigger_satisfied(&self) -> Option<bool> {
+        let trigger = self.active_target_end_trigger.read().clone()?;
+        let (ra, dec) = match (self.target_ra, self.target_dec) {
+            (Some(ra), Some(dec)) => (ra, dec),
+            _ => {
+                // Time-based triggers don't need coordinates; altitude/HA
+                // ones do. Only bail when the trigger actually references
+                // altitude (or hour angle) and we lack the coordinates to
+                // evaluate it.
+                if trigger.references_altitude() {
+                    return None;
+                }
+                (0.0, 0.0)
+            }
+        };
+        if trigger.references_altitude() && (self.latitude.is_none() || self.longitude.is_none()) {
+            return None;
+        }
+        let ctx = crate::scheduling::TriggerObserverContext {
+            latitude_deg: self.latitude.unwrap_or(0.0),
+            longitude_deg: self.longitude.unwrap_or(0.0),
+            target_ra_hours: ra,
+            target_dec_degrees: dec,
+            now: self.clock.now_utc(),
+        };
+        Some(trigger.is_satisfied(&ctx))
     }
 
     /// Trust-patch §7: read the current SkipToNode target, if any.

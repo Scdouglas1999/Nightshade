@@ -67,8 +67,7 @@ class TargetSchedulerNonTargetChildRule implements SequenceValidator {
             severity: ValidationSeverity.error,
             category: ValidationCategory.structure,
             title: 'Target Scheduler has a non-target child',
-            description:
-                'Target Scheduler "${node.name}" contains a '
+            description: 'Target Scheduler "${node.name}" contains a '
                 '"${child.nodeType}" child ("${child.name}"). The scheduler '
                 'requires every child to be a Target Header — the Rust '
                 'executor will refuse to run an invalid tree.',

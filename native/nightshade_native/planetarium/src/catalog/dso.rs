@@ -150,6 +150,7 @@ pub struct DsoRecord {
 impl DsoRecord {
     /// Construct a record from equatorial coordinates (radians) and catalog fields.
     #[must_use]
+    #[allow(clippy::too_many_arguments)]
     pub fn from_radec(
         ra_rad: f32,
         dec_rad: f32,

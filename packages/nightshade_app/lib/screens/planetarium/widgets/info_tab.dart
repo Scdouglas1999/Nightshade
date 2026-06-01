@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -10,6 +11,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import '../../../services/mount_command_service.dart';
 import '../../../utils/plan_tonight_sequencer_helper.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../framing/add_target_to_sequence_flow.dart';
 import 'sidebar_shared_widgets.dart';
 
 class InfoTab extends ConsumerWidget {
@@ -66,6 +68,49 @@ class InfoTab extends ConsumerWidget {
           onGoTo: () {
             final coords = obj.coordinates;
             ref.read(mountCommandServiceProvider).slewTo(coords.ra, coords.dec);
+          },
+          onFrameTarget: () async {
+            // Open the Framing screen for this object. Reuse the same handoff
+            // the rest of the planetarium uses: build the rich target
+            // suggestion (so Framing can round-trip into Smart Night), set it
+            // on the framing provider, then route to the Framing screen.
+            final coords = obj.coordinates;
+            final visibility = ref.read(selectedObjectProvider).visibility;
+            final meta = celestialObjectMetadata(obj);
+            final target = await catalogTargetSuggestion(
+              ref: ref,
+              targetName: obj.name,
+              raHours: coords.ra,
+              decDegrees: coords.dec,
+              catalogId: meta.catalogId,
+              objectType: meta.objectType,
+              magnitude: obj.magnitude,
+              sizeArcmin: meta.sizeArcmin,
+              constellation: meta.constellation,
+              visibility: visibility,
+            );
+            if (!context.mounted) return;
+            ref.read(framingProvider.notifier).setTargetSuggestion(target);
+            context.goNamed('framing');
+          },
+          onAddToSequence: () async {
+            // Drop this object into a sequence the user picks (or a new one)
+            // via the shared add-to-sequence flow — a bare target header, no
+            // auto-generated instruction tree.
+            final coords = obj.coordinates;
+            final framingTarget = FramingTarget(
+              name: obj.name,
+              raHours: coords.ra,
+              decDegrees: coords.dec,
+            );
+            final added = await addFramedTargetToExistingSequence(
+              context: context,
+              ref: ref,
+              target: framingTarget,
+            );
+            if (added && context.mounted) {
+              context.showSuccessSnackBar('Added ${obj.name} to sequence');
+            }
           },
           onAddToTargets: () async {
             final coords = obj.coordinates;

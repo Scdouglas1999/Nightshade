@@ -131,7 +131,8 @@ fn collect_star_labels(
                 // First time at capacity: switch to max-mag eviction. Sort
                 // ascending by magnitude so worst (faintest, highest mag)
                 // is at the end.
-                shortlist.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+                shortlist
+                    .sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
             }
             continue;
         }
@@ -143,7 +144,10 @@ fn collect_star_labels(
         // Insert in sorted order, pop the worst.
         let pos = shortlist
             .binary_search_by(|probe| {
-                probe.0.partial_cmp(&mag).unwrap_or(std::cmp::Ordering::Equal)
+                probe
+                    .0
+                    .partial_cmp(&mag)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             })
             .unwrap_or_else(|e| e);
         shortlist.insert(pos, (mag, hit.star.hip_id, hit.star.icrs_dir));
@@ -358,15 +362,15 @@ fn art_scale_for_fov(fov_rad: f32) -> f32 {
 }
 
 const fn constellation_object_id(index: usize) -> u64 {
-    0xC0_00_0000 | (index as u64)
+    0xC000_0000 | (index as u64)
 }
 
 const fn body_object_id(body: BodyId) -> u64 {
-    0xB0_00_0000 | (body as u64)
+    0xB000_0000 | (body as u64)
 }
 
 fn variable_star_object_id(name: &str) -> u64 {
-    let mut hash = 0xD0_00_0000_u64;
+    let mut hash = 0xD000_0000_u64;
     for b in name.bytes() {
         hash = hash.wrapping_mul(31).wrapping_add(u64::from(b));
     }

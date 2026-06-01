@@ -35,10 +35,13 @@ class DashboardCommandBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionState = ref.watch(sessionStateProvider);
-    final exposurePercent = ref.watch(exposureProgressProvider.select((s) => s.percent));
-    final isDownloading = ref.watch(exposureProgressProvider.select((s) => s.isDownloading));
+    final exposurePercent =
+        ref.watch(exposureProgressProvider.select((s) => s.percent));
+    final isDownloading =
+        ref.watch(exposureProgressProvider.select((s) => s.isDownloading));
 
-    final isCapturing = sessionState.isCapturing || exposurePercent > 0 || isDownloading;
+    final isCapturing =
+        sessionState.isCapturing || exposurePercent > 0 || isDownloading;
     final targetName = sessionState.targetName ?? 'No Target';
 
     return LayoutBuilder(
@@ -150,8 +153,10 @@ class _SessionStatusIndicator extends StatelessWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: isCapturing
-                    ? colors.success.withValues(alpha: 0.4 + pulseController.value * 0.4)
-                    : colors.textMuted.withValues(alpha: 0.4 + pulseController.value * 0.3),
+                    ? colors.success
+                        .withValues(alpha: 0.4 + pulseController.value * 0.4)
+                    : colors.textMuted
+                        .withValues(alpha: 0.4 + pulseController.value * 0.3),
               ),
             );
           },
@@ -197,22 +202,28 @@ class _QuickStatsStrip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = context.l10n;
     // Camera temperature
-    final cameraConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
-        DeviceConnectionState.connected;
-    final cameraTemp = ref.watch(cameraStateProvider.select((s) => s.temperature));
+    final cameraConnected =
+        ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
+    final cameraTemp =
+        ref.watch(cameraStateProvider.select((s) => s.temperature));
 
     // Focuser position
-    final focuserConnected = ref.watch(focuserStateProvider.select((s) => s.connectionState)) ==
-        DeviceConnectionState.connected;
-    final focuserPosition = ref.watch(focuserStateProvider.select((s) => s.position));
+    final focuserConnected =
+        ref.watch(focuserStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
+    final focuserPosition =
+        ref.watch(focuserStateProvider.select((s) => s.position));
 
     // HFR from last image
     final hfr = ref.watch(lastImageStatsProvider.select((s) => s?.hfr));
 
     // Guiding RMS
-    final guiderConnected = ref.watch(guiderStateProvider.select((s) => s.connectionState)) ==
-        DeviceConnectionState.connected;
-    final guiderIsGuiding = ref.watch(guiderStateProvider.select((s) => s.isGuiding));
+    final guiderConnected =
+        ref.watch(guiderStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
+    final guiderIsGuiding =
+        ref.watch(guiderStateProvider.select((s) => s.isGuiding));
     final guiderRms = ref.watch(guiderStateProvider.select((s) => s.rmsTotal));
 
     // Format values
@@ -334,18 +345,24 @@ class CompactDashboardCommandBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final sessionState = ref.watch(sessionStateProvider);
-    final exposurePercent = ref.watch(exposureProgressProvider.select((s) => s.percent));
-    final isDownloading = ref.watch(exposureProgressProvider.select((s) => s.isDownloading));
+    final exposurePercent =
+        ref.watch(exposureProgressProvider.select((s) => s.percent));
+    final isDownloading =
+        ref.watch(exposureProgressProvider.select((s) => s.isDownloading));
 
-    final isCapturing = sessionState.isCapturing || exposurePercent > 0 || isDownloading;
+    final isCapturing =
+        sessionState.isCapturing || exposurePercent > 0 || isDownloading;
     final targetName = sessionState.targetName ?? 'No Target';
 
     // Quick stats for mobile (only when capturing or has data)
-    final cameraConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
-        DeviceConnectionState.connected;
-    final cameraTemp = ref.watch(cameraStateProvider.select((s) => s.temperature));
+    final cameraConnected =
+        ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
+    final cameraTemp =
+        ref.watch(cameraStateProvider.select((s) => s.temperature));
     final hfr = ref.watch(lastImageStatsProvider.select((s) => s?.hfr));
-    final guiderIsGuiding = ref.watch(guiderStateProvider.select((s) => s.isGuiding));
+    final guiderIsGuiding =
+        ref.watch(guiderStateProvider.select((s) => s.isGuiding));
     final guiderRms = ref.watch(guiderStateProvider.select((s) => s.rmsTotal));
 
     final l10n = context.l10n;
@@ -374,7 +391,8 @@ class CompactDashboardCommandBar extends ConsumerWidget {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isCapturing
-                          ? colors.success.withValues(alpha: 0.4 + pulseController.value * 0.4)
+                          ? colors.success.withValues(
+                              alpha: 0.4 + pulseController.value * 0.4)
                           : colors.textMuted.withValues(alpha: 0.4),
                     ),
                   );
@@ -392,7 +410,8 @@ class CompactDashboardCommandBar extends ConsumerWidget {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w500,
-                        color: isCapturing ? colors.success : colors.textSecondary,
+                        color:
+                            isCapturing ? colors.success : colors.textSecondary,
                       ),
                     ),
                     if (isCapturing)
@@ -410,8 +429,10 @@ class CompactDashboardCommandBar extends ConsumerWidget {
               // Edit button
               NightshadeButton(
                 label: isEditing ? 'Done' : 'Edit',
-                icon: isEditing ? LucideIcons.check : LucideIcons.layoutDashboard,
-                variant: isEditing ? ButtonVariant.primary : ButtonVariant.ghost,
+                icon:
+                    isEditing ? LucideIcons.check : LucideIcons.layoutDashboard,
+                variant:
+                    isEditing ? ButtonVariant.primary : ButtonVariant.ghost,
                 size: ButtonSize.small,
                 onPressed: onToggleEdit,
               ),

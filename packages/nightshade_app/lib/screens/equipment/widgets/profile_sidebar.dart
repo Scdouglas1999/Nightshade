@@ -48,32 +48,20 @@ class ProfileSidebar extends ConsumerWidget {
     final colors = NightshadeColors.of(context);
     final profiles = ref.watch(sortedProfilesProvider);
 
-    // Watch device connection states
-    final cameraState = ref.watch(cameraStateProvider);
-    final mountState = ref.watch(mountStateProvider);
-    final focuserState = ref.watch(focuserStateProvider);
-    final filterWheelState = ref.watch(filterWheelStateProvider);
-    final guiderState = ref.watch(guiderStateProvider);
-    final rotatorState = ref.watch(rotatorStateProvider);
-
     // Find selected profile
     final selectedProfile = selectedProfileId != null
         ? profiles.where((p) => p.id == selectedProfileId).firstOrNull
         : null;
 
-    // Determine if there are connected/disconnected devices for the selected profile
-    final (hasConnectedDevices, hasDisconnectedDevices) =
-        selectedProfile != null
-            ? _getProfileDeviceStatus(
-                selectedProfile,
-                cameraState,
-                mountState,
-                focuserState,
-                filterWheelState,
-                guiderState,
-                rotatorState,
-              )
-            : (false, false);
+    // Determine if there are connected/disconnected devices for the selected
+    // profile. The per-device connection matrix is computed once, canonically,
+    // by `profileConnectionStatusProvider` (the single source of truth) rather
+    // than re-derived here.
+    final selectedStatus = selectedProfile != null
+        ? ref.watch(profileConnectionStatusProvider(selectedProfile))
+        : null;
+    final hasConnectedDevices = selectedStatus?.hasConnectedCore ?? false;
+    final hasDisconnectedDevices = selectedStatus?.hasDisconnectedCore ?? false;
 
     return Container(
       decoration: BoxDecoration(
@@ -97,12 +85,6 @@ class ProfileSidebar extends ConsumerWidget {
                     ref,
                     profiles,
                     colors,
-                    cameraState,
-                    mountState,
-                    focuserState,
-                    filterWheelState,
-                    guiderState,
-                    rotatorState,
                   ),
           ),
 
@@ -228,12 +210,6 @@ class ProfileSidebar extends ConsumerWidget {
     WidgetRef ref,
     List<EquipmentProfileModel> profiles,
     NightshadeColors colors,
-    CameraStateSnapshot cameraState,
-    MountState mountState,
-    FocuserState focuserState,
-    FilterWheelState filterWheelState,
-    GuiderState guiderState,
-    RotatorState rotatorState,
   ) {
     return ReorderableListView.builder(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -262,28 +238,13 @@ class ProfileSidebar extends ConsumerWidget {
         final profile = profiles[index];
         final isSelected = profile.id == selectedProfileId;
 
-        // Calculate connection state for each device
-        final deviceStates = _getDeviceConnectionStates(
-          profile,
-          cameraState,
-          mountState,
-          focuserState,
-          filterWheelState,
-          guiderState,
-          rotatorState,
-        );
-
-        // Count connected and total devices
-        int connectedCount = 0;
-        int totalCount = 0;
-        for (final entry in deviceStates.entries) {
-          if (entry.value != null) {
-            totalCount++;
-            if (entry.value == DeviceConnectionState.connected) {
-              connectedCount++;
-            }
-          }
-        }
+        // Per-device connection state comes from the canonical
+        // `profileConnectionStatusProvider`, the single source of truth for
+        // the "is device X connected for profile Y" matrix.
+        final status = ref.watch(profileConnectionStatusProvider(profile));
+        final deviceStates = _toDeviceStateMap(status);
+        final connectedCount = status.coreConnectedCount;
+        final totalCount = status.coreTotalCount;
 
         return _ProfileCard(
           key: ValueKey(profile.id),
@@ -489,218 +450,27 @@ class ProfileSidebar extends ConsumerWidget {
     );
   }
 
-  /// Get device connection states for a profile
-  Map<_DeviceType, DeviceConnectionState?> _getDeviceConnectionStates(
-    EquipmentProfileModel profile,
-    CameraStateSnapshot cameraState,
-    MountState mountState,
-    FocuserState focuserState,
-    FilterWheelState filterWheelState,
-    GuiderState guiderState,
-    RotatorState rotatorState,
+  /// Adapt the canonical [ProfileConnectionStatus] core-slot states onto this
+  /// widget's local [_DeviceType] keys for the connection-dot row. Only
+  /// assigned core slots are present; the dot builder filters on non-null, so
+  /// unassigned slots are simply absent (matching the prior behavior where
+  /// `_getDeviceConnectionStates` produced `null` for unassigned devices).
+  Map<_DeviceType, DeviceConnectionState?> _toDeviceStateMap(
+    ProfileConnectionStatus status,
   ) {
+    DeviceConnectionState? stateFor(ProfileDeviceSlot slot) {
+      final conn = status[slot];
+      return conn.isAssigned ? conn.profileState : null;
+    }
+
     return {
-      _DeviceType.camera: profile.cameraId != null
-          ? _getDeviceConnectionState(
-              profile.cameraId,
-              cameraState.deviceId,
-              cameraState.connectionState,
-            )
-          : null,
-      _DeviceType.mount: profile.mountId != null
-          ? _getDeviceConnectionState(
-              profile.mountId,
-              mountState.deviceId,
-              mountState.connectionState,
-            )
-          : null,
-      _DeviceType.focuser: profile.focuserId != null
-          ? _getDeviceConnectionState(
-              profile.focuserId,
-              focuserState.deviceId,
-              focuserState.connectionState,
-            )
-          : null,
-      _DeviceType.filterWheel: profile.filterWheelId != null
-          ? _getDeviceConnectionState(
-              profile.filterWheelId,
-              filterWheelState.deviceId,
-              filterWheelState.connectionState,
-            )
-          : null,
-      _DeviceType.guider: profile.guiderId != null
-          ? _getDeviceConnectionState(
-              profile.guiderId,
-              guiderState.deviceId,
-              guiderState.connectionState,
-            )
-          : null,
-      _DeviceType.rotator: profile.rotatorId != null
-          ? _getDeviceConnectionState(
-              profile.rotatorId,
-              rotatorState.deviceId,
-              rotatorState.connectionState,
-            )
-          : null,
+      _DeviceType.camera: stateFor(ProfileDeviceSlot.camera),
+      _DeviceType.mount: stateFor(ProfileDeviceSlot.mount),
+      _DeviceType.focuser: stateFor(ProfileDeviceSlot.focuser),
+      _DeviceType.filterWheel: stateFor(ProfileDeviceSlot.filterWheel),
+      _DeviceType.guider: stateFor(ProfileDeviceSlot.guider),
+      _DeviceType.rotator: stateFor(ProfileDeviceSlot.rotator),
     };
-  }
-
-  /// Determine the connection state for a specific device
-  DeviceConnectionState _getDeviceConnectionState(
-    String? profileDeviceId,
-    String? connectedDeviceId,
-    DeviceConnectionState connectedState,
-  ) {
-    if (profileDeviceId == null) return DeviceConnectionState.disconnected;
-
-    // If no device is connected at all, treat as disconnected
-    if (connectedDeviceId == null ||
-        connectedState == DeviceConnectionState.disconnected) {
-      return DeviceConnectionState.disconnected;
-    }
-
-    // If connected device matches profile device (flexible matching)
-    if (_deviceIdsMatch(profileDeviceId, connectedDeviceId)) {
-      return connectedState;
-    }
-
-    // Device is connected but doesn't match profile - treat as disconnected for this profile
-    return DeviceConnectionState.disconnected;
-  }
-
-  /// Flexible device ID matching - handles different ID formats
-  bool _deviceIdsMatch(String profileId, String connectedId) {
-    final p = profileId.trim().toLowerCase();
-    final c = connectedId.trim().toLowerCase();
-
-    // Direct match
-    if (p == c) return true;
-
-    // Normalize by removing all non-alphanumeric characters
-    final normP = p.replaceAll(RegExp(r'[^a-z0-9]'), '');
-    final normC = c.replaceAll(RegExp(r'[^a-z0-9]'), '');
-    if (normP == normC) return true;
-
-    // One contains the other (handles "ZWO EAF" containing "eaf")
-    if (normP.contains(normC) || normC.contains(normP)) return true;
-
-    // Extract model identifiers - alphanumeric sequences containing numbers
-    final modelPattern = RegExp(r'[a-z]*\d+[a-z0-9]*|[a-z]{2,}');
-
-    final profileModels =
-        modelPattern.allMatches(normP).map((m) => m.group(0)!).toSet();
-    final connectedModels =
-        modelPattern.allMatches(normC).map((m) => m.group(0)!).toSet();
-
-    // Find models that contain numbers (most distinguishing)
-    final profileNumberedModels =
-        profileModels.where((m) => RegExp(r'\d').hasMatch(m)).toSet();
-    final connectedNumberedModels =
-        connectedModels.where((m) => RegExp(r'\d').hasMatch(m)).toSet();
-
-    // If both have numbered model identifiers, they must share at least one
-    if (profileNumberedModels.isNotEmpty &&
-        connectedNumberedModels.isNotEmpty) {
-      if (profileNumberedModels
-          .intersection(connectedNumberedModels)
-          .isNotEmpty) {
-        return true;
-      }
-      // Check if one model contains another
-      for (final pm in profileNumberedModels) {
-        for (final cm in connectedNumberedModels) {
-          if (pm.contains(cm) || cm.contains(pm)) return true;
-        }
-      }
-      return false;
-    }
-
-    // Token-based matching
-    final pTokens = p
-        .split(RegExp(r'[_\-\s:]+'))
-        .where((t) => t.length >= 2)
-        .map((t) => t.replaceAll(RegExp(r'[^a-z0-9]'), ''))
-        .where((t) => t.isNotEmpty)
-        .toSet();
-    final cTokens = c
-        .split(RegExp(r'[_\-\s:]+'))
-        .where((t) => t.length >= 2)
-        .map((t) => t.replaceAll(RegExp(r'[^a-z0-9]'), ''))
-        .where((t) => t.isNotEmpty)
-        .toSet();
-
-    if (pTokens.isEmpty || cTokens.isEmpty) return false;
-
-    int matches = 0;
-    for (final pt in pTokens) {
-      for (final ct in cTokens) {
-        if (pt == ct || pt.contains(ct) || ct.contains(pt)) {
-          matches++;
-          break;
-        }
-        if (pt.length >= 4 && ct.length >= 4) {
-          int commonLen = 0;
-          final minLen = pt.length < ct.length ? pt.length : ct.length;
-          for (int i = 0; i < minLen; i++) {
-            if (pt[i] == ct[i]) {
-              commonLen++;
-            } else {
-              break;
-            }
-          }
-          if (commonLen >= 4) {
-            matches++;
-            break;
-          }
-        }
-      }
-    }
-
-    final minTokens =
-        pTokens.length < cTokens.length ? pTokens.length : cTokens.length;
-    return matches >= (minTokens * 0.5).ceil();
-  }
-
-  /// Get connected/disconnected status for footer buttons
-  (bool hasConnected, bool hasDisconnected) _getProfileDeviceStatus(
-    EquipmentProfileModel profile,
-    CameraStateSnapshot cameraState,
-    MountState mountState,
-    FocuserState focuserState,
-    FilterWheelState filterWheelState,
-    GuiderState guiderState,
-    RotatorState rotatorState,
-  ) {
-    bool hasConnected = false;
-    bool hasDisconnected = false;
-
-    void checkDevice(
-        String? profileId, String? connectedId, DeviceConnectionState state) {
-      if (profileId == null) return;
-
-      if (connectedId != null &&
-          _deviceIdsMatch(profileId, connectedId) &&
-          state == DeviceConnectionState.connected) {
-        hasConnected = true;
-      } else {
-        hasDisconnected = true;
-      }
-    }
-
-    checkDevice(
-        profile.cameraId, cameraState.deviceId, cameraState.connectionState);
-    checkDevice(
-        profile.mountId, mountState.deviceId, mountState.connectionState);
-    checkDevice(
-        profile.focuserId, focuserState.deviceId, focuserState.connectionState);
-    checkDevice(profile.filterWheelId, filterWheelState.deviceId,
-        filterWheelState.connectionState);
-    checkDevice(
-        profile.guiderId, guiderState.deviceId, guiderState.connectionState);
-    checkDevice(
-        profile.rotatorId, rotatorState.deviceId, rotatorState.connectionState);
-
-    return (hasConnected, hasDisconnected);
   }
 }
 

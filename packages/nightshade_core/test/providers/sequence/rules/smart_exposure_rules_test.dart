@@ -194,4 +194,98 @@ void main() {
       );
     });
   });
+
+  group('SmartExposureUnboundedLoopRule', () {
+    SmartExposureNode loopNode({
+      required double budgetSecs,
+      String parentId = 'root',
+    }) {
+      return SmartExposureNode(
+        id: 'smart-1',
+        parentId: parentId,
+        loopUntilStopped: true,
+        integrationBudgetSecs: budgetSecs,
+        plans: const [FilterPlan(filterName: 'L', durationSecs: 60)],
+      );
+    }
+
+    test('loop mode with no budget and no target window = error', () {
+      final node = loopNode(budgetSecs: 0);
+      final issues =
+          SmartExposureUnboundedLoopRule().validate(_sequenceWith(node));
+      expect(issues, hasLength(1));
+      expect(issues.single.severity, ValidationSeverity.error);
+      expect(issues.single.title, 'SmartExposure loop is unbounded');
+    });
+
+    test('loop mode with a positive integration budget = no issue', () {
+      final node = loopNode(budgetSecs: 7200);
+      expect(
+        SmartExposureUnboundedLoopRule().validate(_sequenceWith(node)),
+        isEmpty,
+      );
+    });
+
+    test('loop mode under a target with endWhen = no issue', () {
+      final target = TargetHeaderNode(
+        id: 'target',
+        targetName: 'M51',
+        raHours: 13.5,
+        decDegrees: 47.2,
+        childIds: const ['smart-1'],
+        endWhen: const TargetTrigger.altitudeBelow(20),
+      );
+      final node = loopNode(budgetSecs: 0, parentId: 'target');
+      final sequence = Sequence.create(
+        id: 'seq',
+        name: 'test',
+        nodes: {target.id: target, node.id: node},
+        rootNodeId: target.id,
+      );
+      expect(
+        SmartExposureUnboundedLoopRule().validate(sequence),
+        isEmpty,
+      );
+    });
+
+    test('loop mode under a target with endBefore = no issue', () {
+      final target = TargetHeaderNode(
+        id: 'target',
+        targetName: 'M51',
+        raHours: 13.5,
+        decDegrees: 47.2,
+        childIds: const ['smart-1'],
+        endBefore: DateTime.utc(2030, 1, 1, 6),
+      );
+      final node = loopNode(budgetSecs: 0, parentId: 'target');
+      final sequence = Sequence.create(
+        id: 'seq',
+        name: 'test',
+        nodes: {target.id: target, node.id: node},
+        rootNodeId: target.id,
+      );
+      expect(
+        SmartExposureUnboundedLoopRule().validate(sequence),
+        isEmpty,
+      );
+    });
+
+    test('non-loop SmartExposure is never flagged by this rule', () {
+      final node = SmartExposureNode(
+        id: 'smart-1',
+        plans: const [FilterPlan(filterName: 'L', count: 10, durationSecs: 60)],
+      );
+      expect(
+        SmartExposureUnboundedLoopRule().validate(_sequenceWith(node)),
+        isEmpty,
+      );
+    });
+
+    test('rule is wired into defaultSequenceValidators', () {
+      expect(
+        defaultSequenceValidators.whereType<SmartExposureUnboundedLoopRule>(),
+        hasLength(1),
+      );
+    });
+  });
 }

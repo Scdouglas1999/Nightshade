@@ -223,6 +223,50 @@ final weatherRadarFramesProvider =
   }
 });
 
+/// Attribution + freshness info for the currently displayed radar frames.
+///
+/// Carries the human-readable name of the provider that produced the frames
+/// (e.g. "GOES Satellite", "NOAA NEXRAD") and the instant they were fetched,
+/// so the UI can show the operator where the imagery came from and how fresh
+/// it is. Null fields mean the data isn't available yet.
+class RadarSourceInfo {
+  /// Display name of the active radar/satellite provider, or null if unknown.
+  final String? providerName;
+
+  /// When the frames were fetched, or null if no successful fetch yet.
+  final DateTime? fetchedAt;
+
+  /// Number of frames in the active set (1 means a single static frame, which
+  /// the UI uses to decide whether animation controls are meaningful).
+  final int frameCount;
+
+  const RadarSourceInfo({
+    this.providerName,
+    this.fetchedAt,
+    this.frameCount = 0,
+  });
+}
+
+/// Provider exposing the source/freshness of the current radar frames.
+///
+/// Watches [weatherRadarFramesProvider] so it stays in lockstep with the
+/// frames currently rendered, then reads the producing provider's name and
+/// fetch time from the radar service's cached result.
+final radarSourceInfoProvider = Provider<RadarSourceInfo>((ref) {
+  // Re-read whenever the frames change so attribution tracks the live data.
+  final framesAsync = ref.watch(weatherRadarFramesProvider);
+  final frames = framesAsync.valueOrNull ?? const [];
+
+  final radarService = ref.watch(weatherRadarServiceProvider);
+  final result = radarService.lastResult;
+
+  return RadarSourceInfo(
+    providerName: result != null && result.isSuccess ? result.providerName : null,
+    fetchedAt: result?.fetchedAt,
+    frameCount: frames.length,
+  );
+});
+
 /// Stream provider for weather alerts
 ///
 /// Broadcasts weather alerts as conditions change. Alerts are debounced

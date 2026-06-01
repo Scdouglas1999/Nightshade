@@ -26,8 +26,9 @@ final smartNightEquipmentReadyProvider = Provider<bool>((ref) {
   final focalLength = profile.focalLength > 0
       ? profile.focalLength
       : (profile.telescopeFocalLength ?? 0);
-  final aperture =
-      profile.aperture > 0 ? profile.aperture : (profile.telescopeAperture ?? 0);
+  final aperture = profile.aperture > 0
+      ? profile.aperture
+      : (profile.telescopeAperture ?? 0);
   return focalLength > 0 && aperture > 0;
 });
 

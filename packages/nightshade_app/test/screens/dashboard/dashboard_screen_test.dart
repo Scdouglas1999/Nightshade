@@ -127,7 +127,8 @@ class _SelectiveDashboardLayoutNotifier extends DashboardLayoutNotifier {
   Future<DashboardLayout> build() async {
     final tiles = DashboardLayout.defaultLayout()
         .tiles
-        .map((tile) => tile.copyWith(enabled: enabledIds.contains(tile.widgetId)))
+        .map((tile) =>
+            tile.copyWith(enabled: enabledIds.contains(tile.widgetId)))
         .toList();
     return DashboardLayout(
       version: DashboardLayout.currentVersion,
@@ -194,8 +195,7 @@ void main() {
     await _drainAsyncFrames(tester);
 
     expect(tester.takeException(), isNull,
-        reason:
-            'Initial DashboardScreen pump under the default harness should '
+        reason: 'Initial DashboardScreen pump under the default harness should '
             'not surface any uncaught exceptions.');
 
     // The harness wraps every pumped screen in a Scaffold; if the
@@ -240,14 +240,18 @@ void main() {
         dashboardLayoutProvider.overrideWith(
           () => _SelectiveDashboardLayoutNotifier(enabled),
         ),
+        // Completed sessions show the cockpit grid without introducing active
+        // run-control dependencies. Idle sessions intentionally show standby.
+        sequenceExecutionStateProvider.overrideWith(
+          (ref) => SequenceExecutionState.completed,
+        ),
       ],
     );
     await _drainAsyncFrames(tester);
 
     final dashboardTiles = find.byType(DashboardTile);
     expect(dashboardTiles, findsNWidgets(enabled.length),
-        reason:
-            'Exactly ${enabled.length} tiles were enabled in the layout '
+        reason: 'Exactly ${enabled.length} tiles were enabled in the layout '
             'override; the screen must render the matching number of '
             'DashboardTile widgets — no more (would mean a hard-coded tile '
             'leaked into the layout) and no fewer (would mean a tile was '
@@ -286,8 +290,7 @@ void main() {
             'class; the screen falls back to CompactDashboardCommandBar only '
             'below breakpointTablet (< 768).');
     expect(find.byType(CompactDashboardCommandBar), findsNothing,
-        reason:
-            'CompactDashboardCommandBar is exclusive to the < 768 mobile '
+        reason: 'CompactDashboardCommandBar is exclusive to the < 768 mobile '
             'branch; rendering it at 800 wide would mean the responsive '
             'switch lost its breakpointTablet guard.');
   });
@@ -320,8 +323,7 @@ void main() {
             'the full command bar leaks down here the responsive switch in '
             '_ZoneBasedDashboard.build is broken.');
     expect(find.byType(DashboardCommandBar), findsNothing,
-        reason:
-            'The full DashboardCommandBar must not appear below '
+        reason: 'The full DashboardCommandBar must not appear below '
             'breakpointTablet; rendering it on a phone-width surface would '
             'overflow the row and trip the wide-only DashboardClockWidget.');
   });
@@ -346,6 +348,11 @@ void main() {
       extraOverrides: [
         dashboardLayoutProvider.overrideWith(
           () => _SelectiveDashboardLayoutNotifier(enabled),
+        ),
+        // Completed sessions show the cockpit grid without introducing active
+        // run-control dependencies. Idle sessions intentionally show standby.
+        sequenceExecutionStateProvider.overrideWith(
+          (ref) => SequenceExecutionState.completed,
         ),
         // Drive only the camera into connected; the other four subsystems
         // (mount, guider, focuser, filter wheel) stay disconnected via

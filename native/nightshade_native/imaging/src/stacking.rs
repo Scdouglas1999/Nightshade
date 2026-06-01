@@ -149,7 +149,12 @@ pub fn debayer_cfa_to_rgb(
     // (w/2)*(h/2)*3 samples — a short buffer that panics or silently corrupts
     // downstream luminance/detection passes.
     let rgb = debayer_u16(&raw, cfa.width, cfa.height, pattern, algorithm);
-    Ok(ImageData::from_u16(rgb.width, rgb.height, 3, &rgb.to_rgb16()))
+    Ok(ImageData::from_u16(
+        rgb.width,
+        rgb.height,
+        3,
+        &rgb.to_rgb16(),
+    ))
 }
 
 /// Build a single-channel U16 luminance proxy from a 3-channel interleaved RGB
@@ -1938,15 +1943,8 @@ mod tests {
 
     /// Translate a star field by a (whole-pixel) offset so the mono and RGB
     /// "second frame" share an identical geometric shift.
-    fn shift_field(
-        field: &[(f64, f64, f64)],
-        dx: f64,
-        dy: f64,
-    ) -> Vec<(f64, f64, f64)> {
-        field
-            .iter()
-            .map(|&(x, y, b)| (x + dx, y + dy, b))
-            .collect()
+    fn shift_field(field: &[(f64, f64, f64)], dx: f64, dy: f64) -> Vec<(f64, f64, f64)> {
+        field.iter().map(|&(x, y, b)| (x + dx, y + dy, b)).collect()
     }
 
     /// (1) Regression: the mono two-frame stack is unchanged by this work.
@@ -2142,7 +2140,10 @@ mod tests {
         let mut outlier = [1000.0; 6];
         outlier[0] = 60000.0; // pixel 0, R channel
         let rejected = stacker.accumulate_pixels(&outlier);
-        assert_eq!(rejected, 1, "exactly one pixel (R of px0) should be rejected");
+        assert_eq!(
+            rejected, 1,
+            "exactly one pixel (R of px0) should be rejected"
+        );
 
         // R slot of pixel 0 (index 0) stayed at count 3 (outlier clipped);
         // every other slot advanced to count 4.
@@ -2182,8 +2183,7 @@ mod tests {
         let px = proxy.as_u16().expect("proxy is u16");
         assert_eq!(px.len(), 1);
 
-        let expected =
-            (0.299 * 10000.0 + 0.587 * 20000.0 + 0.114 * 30000.0_f64).round() as u16;
+        let expected = (0.299 * 10000.0 + 0.587 * 20000.0 + 0.114 * 30000.0_f64).round() as u16;
         // 2990 + 11740 + 3420 = 18150
         assert_eq!(expected, 18150, "hand-computed luma weight");
         assert_eq!(
@@ -2195,7 +2195,10 @@ mod tests {
         let rgb2 = ImageData::from_u16(2, 1, 3, &[255, 255, 255, 0, 100, 0]);
         let proxy2 = luminance_proxy(&rgb2);
         let px2 = proxy2.as_u16().unwrap();
-        assert_eq!(px2[0], 255, "equal RGB collapses to that value (weights sum to 1)");
+        assert_eq!(
+            px2[0], 255,
+            "equal RGB collapses to that value (weights sum to 1)"
+        );
         let expected2 = (0.587 * 100.0_f64).round() as u16; // 59
         assert_eq!(px2[1], expected2, "pure-green pixel uses the green weight");
     }
@@ -2207,13 +2210,15 @@ mod tests {
     fn debayer_cfa_to_rgb_validates_and_expands() {
         // Wrong channel count.
         let rgb_in = ImageData::from_u16(2, 2, 3, &[0u16; 12]);
-        assert!(debayer_cfa_to_rgb(&rgb_in, BayerPattern::RGGB, DebayerAlgorithm::Bilinear)
-            .is_err());
+        assert!(
+            debayer_cfa_to_rgb(&rgb_in, BayerPattern::RGGB, DebayerAlgorithm::Bilinear).is_err()
+        );
 
         // Wrong pixel type.
         let f32_in = ImageData::from_f32(2, 2, 1, &[0.0f32; 4]);
-        assert!(debayer_cfa_to_rgb(&f32_in, BayerPattern::RGGB, DebayerAlgorithm::Bilinear)
-            .is_err());
+        assert!(
+            debayer_cfa_to_rgb(&f32_in, BayerPattern::RGGB, DebayerAlgorithm::Bilinear).is_err()
+        );
 
         // Happy path: a 4x4 CFA expands to 4x4x3 under full-resolution Bilinear.
         let cfa = ImageData::from_u16(4, 4, 1, &[1234u16; 16]);

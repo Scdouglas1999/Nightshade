@@ -151,8 +151,7 @@ class IntegrationBudgetEmptyRule implements SequenceValidator {
         severity: ValidationSeverity.error,
         category: ValidationCategory.targets,
         title: 'Empty Integration Budget',
-        description:
-            'Target "${target.targetName}" has an integration budget '
+        description: 'Target "${target.targetName}" has an integration budget '
             'enabled but no total time or per-filter caps configured.',
         affectedNodeId: target.id,
         resolutionHint:
@@ -178,7 +177,8 @@ class IntegrationBudgetRatioZeroSumRule implements SequenceValidator {
     for (final target in sequence.targetHeaders) {
       final budget = target.integrationBudget;
       if (budget == null || !budget.isActive) continue;
-      final hasAbsolute = budget.perFilter.values.any((e) => e.isAbsolute && e.value > 0);
+      final hasAbsolute =
+          budget.perFilter.values.any((e) => e.isAbsolute && e.value > 0);
       if (hasAbsolute) continue;
       final hasRatio = budget.perFilter.values.any((e) => e.isRatio);
       if (!hasRatio) continue;
@@ -371,8 +371,7 @@ class TargetTriggerStartEndContradictionRule implements SequenceValidator {
         severity: ValidationSeverity.error,
         category: ValidationCategory.targets,
         title: 'End Trigger Already Satisfied',
-        description:
-            'Target "${target.targetName}" waits until its startWhen '
+        description: 'Target "${target.targetName}" waits until its startWhen '
             '(TimeAfter), then immediately satisfies endWhen (TimeBefore). '
             'The target will be skipped as soon as it starts.',
         affectedNodeId: target.id,
@@ -394,8 +393,9 @@ class TargetTriggerStartEndContradictionRule implements SequenceValidator {
         for (final child in children) {
           final childTime = _guaranteedStartTimeAfter(child);
           if (childTime == null) continue;
-          latest =
-              latest == null ? childTime : (childTime > latest ? childTime : latest);
+          latest = latest == null
+              ? childTime
+              : (childTime > latest ? childTime : latest);
         }
         return latest;
       case OrTrigger(children: final children):
@@ -424,8 +424,9 @@ class TargetTriggerStartEndContradictionRule implements SequenceValidator {
         for (final child in children) {
           final childTime = _endTimeBefore(child);
           if (childTime == null) continue;
-          latest =
-              latest == null ? childTime : (childTime > latest ? childTime : latest);
+          latest = latest == null
+              ? childTime
+              : (childTime > latest ? childTime : latest);
         }
         return latest;
       default:
@@ -444,9 +445,8 @@ class NoTargetForExposuresRule implements SequenceValidator {
     final targets = sequence.targetHeaders;
     if (targets.isNotEmpty) return const [];
 
-    final hasEnabledExposures = sequence.nodes.values
-        .whereType<ExposureNode>()
-        .any((n) => n.isEnabled);
+    final hasEnabledExposures =
+        sequence.nodes.values.whereType<ExposureNode>().any((n) => n.isEnabled);
     if (!hasEnabledExposures) return const [];
 
     return const [

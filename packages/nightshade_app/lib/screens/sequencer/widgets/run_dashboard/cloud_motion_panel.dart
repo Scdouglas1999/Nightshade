@@ -14,8 +14,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 ///   * Predicted opening (clear-sky window) time, if currently overcast.
 ///   * Last-update freshness so the user can tell if the panel has stale data.
 ///
-/// The opt-in toggle lives on the Run dashboard customize menu under
-/// `RunDashboardPanelId.cloudMotion`.
+/// This panel is opt-in: it is disabled by default in the dashboard layout
+/// and can be enabled via Edit Dashboard.
 class RunDashboardCloudMotionPanel extends ConsumerWidget {
   const RunDashboardCloudMotionPanel({super.key});
 

@@ -1,0 +1,762 @@
+// ignore_for_file: unused_element, unused_field
+
+part of '../sky_renderer.dart';
+
+extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
+  void _drawStars(Canvas canvas, Size size, Offset center, double scale) {
+    // Ultra-minimal mode: ALL stars as raw points, no circles, no PSF.
+    // Minimal mode has no twinkle, so the entire star field belongs to the
+    // base layer; the overlay layer draws nothing (avoids a double-draw).
+    if (qualityConfig.quality == RenderQuality.minimal) {
+      if (_drawBase) {
+        _drawStarsMinimal(canvas, size, center, scale);
+      }
+      return;
+    }
+
+    // Respect quality config limits. The star list is already pre-filtered by
+    // the dynamic magnitude provider (fovFilteredStarsProvider) based on FOV,
+    // so we only apply the quality config's render count cap here. We use the
+    // quality config's magnitude limit as an additional safeguard rather than
+    // the static SkyRenderConfig.starMagnitudeLimit, which is a UI default
+    // that doesn't account for zoom level.
+    final maxStars = qualityConfig.maxStarsToRender;
+    final magLimit = qualityConfig.starMagnitudeLimit;
+
+    // Twinkle animation enabled in quality mode
+    final doTwinkle =
+        qualityConfig.animateStarTwinkle && animationPhase != null;
+
+    // Pre-calculate LST for atmospheric extinction (computed once, not per-star)
+    final doExtinction = qualityConfig.enableAtmosphericExtinction;
+    final lst = doExtinction
+        ? AstronomyCalculations.localSiderealTime(observationTime, longitude)
+        : 0.0;
+
+    // Parallax effect: offset dim stars during pan for depth illusion
+    final doParallax = qualityConfig.enableParallax &&
+        parallaxPanDelta != null &&
+        parallaxPanDelta!.distance > 0.5;
+
+    // GPU-batched star field via drawRawAtlas. Every star is encoded as one
+    // textured quad of the baked white PSF sprite, tinted per-star by its color
+    // (atlas BlendMode.modulate) and composited additively (BlendMode.plus).
+    // The whole field draws in ONE drawRawAtlas call per sprite variant per
+    // layer — no per-star blur, saveLayer or gradient shader.
+    //
+    // Layer split (preserved): the base layer batches dim + medium stars (plain
+    // sprite); the overlay layer batches bright stars (spiked sprite if the tier
+    // enables it) with twinkle applied as a per-star scale/alpha modulation in
+    // the transform/color it builds.
+    final atlas = _atlas(_devicePixelRatio);
+    final spriteSize = atlas.starSpriteSize;
+    final spriteHalf = spriteSize / 2;
+    // Sprite px-radius of the bright core. We scale the whole sprite so this
+    // core maps onto the star's screen radius; the surrounding halo then scales
+    // with it, reproducing the old PSF where glow grew with the star.
+    final coreSpritePx = spriteHalf * SkySpriteAtlas.starCoreFraction;
+
+    // Base-layer batch (dim + medium, plain sprite) lives in the primary
+    // scratch buffers; overlay-layer batch (bright, spiked) in the secondary.
+    var baseCount = 0;
+    var brightCount = 0;
+    final srcRect = atlas.starSrcRect;
+
+    var starsProcessed = 0;
+
+    for (final star in stars) {
+      if (starsProcessed >= maxStars) break;
+      final rawMag = star.magnitude ?? 99;
+      // The catalog query returns stars magnitude-sorted (brightest first), so
+      // once we pass the magnitude limit every remaining star is fainter and
+      // can be skipped — break instead of scanning the whole list.
+      if (rawMag > magLimit) break;
+
+      // Cull BEFORE projecting: reject stars outside the view cone with a cheap
+      // dot product, and reuse the per-pose projected offset when available.
+      var offset = _projectObjectCulled(
+        star,
+        star.coordinates.raDegrees,
+        star.coordinates.dec,
+        center,
+        scale,
+      );
+      if (offset == null || !_isInView(offset, size)) continue;
+
+      final magnitude = star.magnitude ?? 5.0;
+
+      // Render-scope split: the base layer owns dim + medium stars; the overlay
+      // layer owns the bright-star (twinkle) pass. Skip the work that this
+      // layer doesn't own so each star is drawn exactly once across the two
+      // layers. Bright threshold matches the bucketing below (mag < 1.5).
+      final isBright = magnitude < 1.5;
+      if (isBright && !_drawOverlay) continue;
+      if (!isBright && !_drawBase) continue;
+
+      // Apply parallax offset to dim stars (mag > 4)
+      if (doParallax && magnitude > 4.0) {
+        final parallaxFactor = ((magnitude - 4.0) / 6.0).clamp(0.0, 1.0) * 0.02;
+        offset = Offset(
+          offset.dx + parallaxPanDelta!.dx * parallaxFactor,
+          offset.dy + parallaxPanDelta!.dy * parallaxFactor,
+        );
+      }
+
+      var radius = _magnitudeToRadius(magnitude);
+      var brightness = _magnitudeToBrightness(magnitude);
+
+      // Apply twinkle effect for brighter stars (mag < 4)
+      if (doTwinkle && magnitude < 4.0) {
+        final starPhase =
+            (star.coordinates.ra * 1000 + star.coordinates.dec * 100) % 1.0;
+        final twinklePhase = (animationPhase! + starPhase) % 1.0;
+        final twinkleFactor = magnitude < 2.0 ? 0.15 : 0.08;
+        final twinkleValue =
+            math.sin(twinklePhase * 2 * math.pi) * twinkleFactor;
+        brightness = (brightness + twinkleValue).clamp(0.0, 1.0);
+        if (magnitude < 1.5) {
+          radius *= 1.0 + twinkleValue * 0.3;
+        }
+      }
+
+      // Star color
+      var color = _spectralTypeToColor(star.spectralType ?? 'G');
+      color = _getEnhancedStarColor(color, magnitude);
+
+      // Atmospheric extinction for bright stars only - uses precomputed LUT
+      if (doExtinction && magnitude < 3.0) {
+        final (alt, _) = AstronomyCalculations.equatorialToHorizontal(
+          raDeg: star.coordinates.raDegrees,
+          decDeg: star.coordinates.dec,
+          latitudeDeg: latitude,
+          lstHours: lst,
+        );
+        if (alt < 30) {
+          final (extinctionFactor, redShift) =
+              AtmosphericExtinctionLUT.lookup(alt);
+          brightness *= extinctionFactor;
+          color = Color.lerp(color, const Color(0xFFFFAA88), redShift)!;
+        }
+      }
+
+      // Sprite scale so the baked core maps onto the star's screen radius. Dim
+      // stars are tiny; a hard floor keeps even the faintest star a visible
+      // dot (the sprite core is ~21px at 128px so the floor stays sub-pixel).
+      final spriteScale = (radius / coreSpritePx).clamp(0.02, 4.0);
+
+      // Per-star tint: the sprite is white, so the atlas color IS the star color
+      // with alpha = brightness. modulate multiplies white*color -> color, and
+      // the additive composite sums overlaps.
+      final tint = color.withValues(alpha: brightness.clamp(0.0, 1.0));
+      final argb = tint.toARGB32();
+
+      if (isBright) {
+        SkyCanvasPainter._ensureAtlasScratch2(brightCount + 1);
+        _writeStarTransform(
+          SkyCanvasPainter._atlasTransforms2,
+          SkyCanvasPainter._atlasRects2,
+          SkyCanvasPainter._atlasColors2,
+          brightCount,
+          spriteScale,
+          spriteHalf,
+          offset,
+          srcRect,
+          argb,
+        );
+        brightCount++;
+      } else {
+        SkyCanvasPainter._ensureAtlasScratch(baseCount + 1);
+        _writeStarTransform(
+          SkyCanvasPainter._atlasTransforms,
+          SkyCanvasPainter._atlasRects,
+          SkyCanvasPainter._atlasColors,
+          baseCount,
+          spriteScale,
+          spriteHalf,
+          offset,
+          srcRect,
+          argb,
+        );
+        baseCount++;
+      }
+
+      starsProcessed++;
+    }
+
+    // BASE LAYER: one drawRawAtlas for the dim + medium plain-sprite field.
+    if (baseCount > 0) {
+      canvas.drawRawAtlas(
+        atlas.starPlain,
+        Float32List.sublistView(
+            SkyCanvasPainter._atlasTransforms, 0, baseCount * 4),
+        Float32List.sublistView(SkyCanvasPainter._atlasRects, 0, baseCount * 4),
+        Int32List.sublistView(SkyCanvasPainter._atlasColors, 0, baseCount),
+        BlendMode.modulate,
+        null,
+        SkyCanvasPainter._starAtlasPaint,
+      );
+    }
+
+    // OVERLAY LAYER: one drawRawAtlas for the bright (twinkle) field, using the
+    // spiked sprite when the tier enables diffraction spikes.
+    if (brightCount > 0) {
+      canvas.drawRawAtlas(
+        qualityConfig.useDiffractionSpikes ? atlas.starSpiked : atlas.starPlain,
+        Float32List.sublistView(
+            SkyCanvasPainter._atlasTransforms2, 0, brightCount * 4),
+        Float32List.sublistView(
+            SkyCanvasPainter._atlasRects2, 0, brightCount * 4),
+        Int32List.sublistView(SkyCanvasPainter._atlasColors2, 0, brightCount),
+        BlendMode.modulate,
+        null,
+        SkyCanvasPainter._starAtlasPaint,
+      );
+    }
+
+    // Bright-star labels are drawn on the overlay layer (where the bright pass
+    // lives) so they stay with their stars. The atlas pass already placed the
+    // glyphs; here we only lay out text. Low tiers suppress these labels.
+    if (_drawOverlay && !qualityConfig.reduceLabels) {
+      _drawBrightStarLabels(canvas, size, center, scale, maxStars, magLimit);
+    }
+  }
+
+  /// Encode one star sprite into the atlas scratch buffers at slot [i].
+  ///
+  /// RSTransform (rotation 0) is encoded directly: with scos=scale, ssin=0 and
+  /// the sprite centered at [offset], the translate components fold in the
+  /// anchor at the sprite center so the sprite is centered on the star.
+  ///   tx = offset.dx - scale * spriteHalf
+  ///   ty = offset.dy - scale * spriteHalf
+  /// The source rect is the whole sprite; the color tints it via modulate.
+  void _writeStarTransform(
+    Float32List transforms,
+    Float32List rects,
+    Int32List colors,
+    int i,
+    double scale,
+    double spriteHalf,
+    Offset offset,
+    Rect srcRect,
+    int argb,
+  ) {
+    final t = i * 4;
+    transforms[t] = scale; // scos
+    transforms[t + 1] = 0.0; // ssin
+    transforms[t + 2] = offset.dx - scale * spriteHalf; // tx
+    transforms[t + 3] = offset.dy - scale * spriteHalf; // ty
+
+    rects[t] = srcRect.left;
+    rects[t + 1] = srcRect.top;
+    rects[t + 2] = srcRect.right;
+    rects[t + 3] = srcRect.bottom;
+
+    colors[i] = argb;
+  }
+
+  /// Lay out and paint bright-star name labels. Separated from the atlas pass so
+  /// the hot sprite loop stays allocation-free; this walks the (short) prefix of
+  /// the magnitude-sorted list down to mag 2.0 and places non-overlapping names.
+  void _drawBrightStarLabels(Canvas canvas, Size size, Offset center,
+      double scale, int maxStars, double magLimit) {
+    var processed = 0;
+    for (final star in stars) {
+      if (processed >= maxStars) break;
+      final magnitude = star.magnitude ?? 5.0;
+      if (magnitude > magLimit) break;
+      // Labels are only drawn for the brightest stars (the overlay pass owns
+      // mag < 1.5; we extend labels to mag < 2.0 to match the old behaviour).
+      if (magnitude >= 2.0) break;
+      if (star.name.isEmpty) {
+        processed++;
+        continue;
+      }
+
+      final offset = _projectObjectCulled(
+        star,
+        star.coordinates.raDegrees,
+        star.coordinates.dec,
+        center,
+        scale,
+      );
+      if (offset == null || !_isInView(offset, size)) {
+        processed++;
+        continue;
+      }
+
+      final radius = _magnitudeToRadius(magnitude);
+      final fontSize = _getLabelFontSize(magnitude, 'star');
+      final fontWeight = _getLabelFontWeight(magnitude);
+      final textStyle = TextStyle(
+        color: Colors.white.withValues(alpha: 0.6),
+        fontSize: fontSize,
+        fontWeight: fontWeight,
+      );
+      final textPainter = _TextCache.get(star.name, textStyle);
+
+      final preferredPos = offset + Offset(radius + 3, -textPainter.height / 2);
+      final labelPos = _labelManager.findPlacement(
+        preferredPos,
+        Size(textPainter.width, textPainter.height),
+        size,
+      );
+      if (labelPos != null) {
+        textPainter.paint(canvas, labelPos);
+      }
+      processed++;
+    }
+  }
+
+  /// Ultra-minimal star rendering: all stars as raw points in a single draw call.
+  /// No circles, no PSF, no glow. Designed for Raspberry Pi at 30fps.
+  void _drawStarsMinimal(
+      Canvas canvas, Size size, Offset center, double scale) {
+    final maxStars = qualityConfig.maxStarsToRender;
+    final magLimit = qualityConfig.starMagnitudeLimit;
+
+    // Collect all visible star positions into a single Float32List
+    final points = <double>[];
+    var starsProcessed = 0;
+
+    for (final star in stars) {
+      if (starsProcessed >= maxStars) break;
+      // Magnitude-sorted list: stop once past the limit instead of scanning on.
+      if ((star.magnitude ?? 99) > magLimit) break;
+
+      final offset = _projectObjectCulled(
+        star,
+        star.coordinates.raDegrees,
+        star.coordinates.dec,
+        center,
+        scale,
+      );
+      if (offset == null || !_isInView(offset, size)) continue;
+
+      points.add(offset.dx);
+      points.add(offset.dy);
+      starsProcessed++;
+    }
+
+    if (points.isEmpty) return;
+
+    // Single draw call for ALL stars as points
+    final paint = Paint()
+      ..color = Colors.white.withValues(alpha: 0.8)
+      ..strokeWidth = 2.0
+      ..strokeCap = StrokeCap.round;
+    canvas.drawRawPoints(
+        ui.PointMode.points, Float32List.fromList(points), paint);
+
+    // Draw labels for only the very brightest stars (mag < 1.0) even in minimal
+    // mode. The list is magnitude-sorted, so stop at the first star >= mag 1.0.
+    // When the tier requests reduced labels, skip them entirely.
+    if (qualityConfig.reduceLabels) return;
+    for (final star in stars) {
+      final mag = star.magnitude ?? 99.0;
+      if (mag >= 1.0) break;
+      if (star.name.isEmpty) continue;
+
+      final offset = _projectObjectCulled(
+        star,
+        star.coordinates.raDegrees,
+        star.coordinates.dec,
+        center,
+        scale,
+      );
+      if (offset == null || !_isInView(offset, size)) continue;
+
+      final textStyle = TextStyle(
+        color: Colors.white.withValues(alpha: 0.5),
+        fontSize: 9,
+        fontWeight: FontWeight.w500,
+      );
+      final textPainter = _TextCache.get(star.name, textStyle);
+      textPainter.paint(canvas, offset + Offset(4, -textPainter.height / 2));
+    }
+  }
+
+  /// Calculate surface brightness for a DSO.
+  /// SB = mag + 2.5 * log10(area_arcsec2)
+  double? _surfaceBrightness(DeepSkyObject dso) {
+    final mag = dso.magnitude;
+    final majorAxis = dso.sizeArcMin;
+    if (mag == null || majorAxis == null || majorAxis <= 0) return null;
+    final minorAxis = dso.minorAxisArcMin ?? majorAxis;
+    final areaArcmin2 = math.pi * (majorAxis / 2) * (minorAxis / 2);
+    final areaArcsec2 = areaArcmin2 * 3600;
+    if (areaArcsec2 <= 0) return null;
+    return mag + 2.5 * (math.log(areaArcsec2) / math.ln10);
+  }
+
+  /// Map surface brightness to opacity multiplier.
+  double _surfaceBrightnessOpacity(double? sb) {
+    if (sb == null) return 0.7;
+    if (sb <= 22.0) return 1.0;
+    if (sb >= 26.5) return 0.15;
+    return 1.0 - (sb - 22.0) / (26.5 - 22.0) * 0.85;
+  }
+
+  void _drawDSOs(Canvas canvas, Size size, Offset center, double scale) {
+    // Respect quality config limits. DSO list is pre-filtered by the dynamic
+    // magnitude provider (fovFilteredDsosProvider), so we use the quality
+    // config's limit as a safeguard rather than the static SkyRenderConfig default.
+    var dsosDrawn = 0;
+    final maxDsos = qualityConfig.maxDsosToRender;
+    final magLimit = qualityConfig.dsoMagnitudeLimit;
+
+    // Calculate pop-in animation values
+    // Phase goes from 0 to 1; use easeOutCubic for smooth deceleration
+    final popinPhase = dsoPopinAnimationPhase ?? 1.0;
+    final easedPhase =
+        Curves.easeOutCubic.transform(popinPhase.clamp(0.0, 1.0));
+    // Scale from 80% to 100%
+    final popinScale = 0.8 + 0.2 * easedPhase;
+    // Alpha from 0 to 1
+    final popinAlpha = easedPhase;
+    final animating =
+        dsoPopinAnimationPhase != null && dsoPopinAnimationPhase! < 1.0;
+
+    // GPU-batched DSO field via drawRawAtlas. Each DSO is one textured quad of
+    // its baked white type-glyph (from the DSO glyph sheet), tinted by its type
+    // color × surface-brightness alpha (atlas BlendMode.modulate) and rotated by
+    // its position angle. The whole field draws in ONE drawRawAtlas call — no
+    // per-DSO blur, saveLayer or gradient shader. Source-over composite so
+    // overlapping glyphs don't blow out to white.
+    final atlas = _atlas(_devicePixelRatio);
+    final glyphSize = atlas.dsoGlyphSize;
+    final glyphHalf = glyphSize / 2;
+
+    var dsoCount = 0;
+
+    // Unified rendering: every visible DSO becomes one atlas quad. Tiny DSOs
+    // (below the old batch threshold) simply scale the glyph down — they no
+    // longer need a separate point-batch path because the atlas already batches
+    // everything into one call.
+    for (final dso in dsos) {
+      if (dsosDrawn >= maxDsos) break;
+      final dsoMag = dso.magnitude ?? 99.0;
+      // DSO list is magnitude-sorted (brightest first), so stop once past the
+      // limit instead of scanning the remaining (all-fainter) entries.
+      if (dsoMag > magLimit) break;
+
+      // Cull BEFORE projecting and reuse the per-pose projected offset.
+      final offset = _projectObjectCulled(
+        dso,
+        dso.coordinates.raDegrees,
+        dso.coordinates.dec,
+        center,
+        scale,
+      );
+      if (offset == null || !_isInView(offset, size)) continue;
+
+      final dsoSize = (dso.sizeArcMin ?? 5) / 60 * scale;
+      // Minimum 6px radius so every DSO is visible. Brighter = bigger.
+      // Magnitude scaling: mag 0 -> 20px, mag 6 -> 14px, mag 10 -> 10px, mag 14 -> 6px
+      final magSizeBonus = ((14.0 - dsoMag) / 14.0 * 14.0).clamp(0.0, 14.0);
+      var displaySize = dsoSize.clamp(6.0 + magSizeBonus, 40.0);
+
+      // Surface brightness opacity scaling
+      final sb = _surfaceBrightness(dso);
+      final sbOpacity = _surfaceBrightnessOpacity(sb);
+
+      // Effective alpha (include pop-in if animating)
+      final effectiveAlpha = animating ? popinAlpha * sbOpacity : sbOpacity;
+
+      // Apply pop-in scale animation by shrinking the glyph (the old code did a
+      // canvas.scale around the DSO center; scaling displaySize is equivalent
+      // for a centered sprite and stays inside the single batched call).
+      if (animating) {
+        displaySize *= popinScale;
+      }
+
+      // Glyph scale: the glyph art fills the cell (with a small margin), so a
+      // scale of displaySize/glyphSize makes the visible glyph ~displaySize px,
+      // matching the old per-type shapes which drew within displaySize.
+      final glyphScale = (displaySize / glyphSize).clamp(0.01, 4.0);
+
+      // Position angle rotation (galaxies/nebulae). Negative because the canvas
+      // Y axis is flipped, matching the old `canvas.rotate(-paRad)`.
+      final paRad = -((dso.positionAngle ?? 0) * SkyCanvasPainter._deg2rad);
+      final cosR = math.cos(paRad);
+      final sinR = math.sin(paRad);
+
+      // Per-DSO tint: glyph is white, so the atlas color is the DSO's body
+      // color with alpha = effectiveAlpha. The old shapes filled at ~0.5*alpha
+      // for their bodies; the baked glyph already carries that internal
+      // falloff, so we pass the full effective alpha here. `_dsoTintColor`
+      // reproduces the old per-subtype nebula colors (emission red, reflection
+      // blue, dark grey, planetary teal) that the deleted shape methods used.
+      final tint = _dsoTintColor(dso.type)
+          .withValues(alpha: effectiveAlpha.clamp(0.0, 1.0));
+      final argb = tint.toARGB32();
+
+      final srcRect = atlas.dsoSrcRect(dso.type);
+
+      SkyCanvasPainter._ensureAtlasScratch(dsoCount + 1);
+      _writeDsoTransform(
+        SkyCanvasPainter._atlasTransforms,
+        SkyCanvasPainter._atlasRects,
+        SkyCanvasPainter._atlasColors,
+        dsoCount,
+        glyphScale,
+        cosR,
+        sinR,
+        glyphHalf,
+        offset,
+        srcRect,
+        argb,
+      );
+      dsoCount++;
+
+      // Draw label. For bright DSOs (mag < 10), ALWAYS show the label so users
+      // can find imaging targets. For fainter DSOs, show labels when zoomed in
+      // enough that the object is > 10px on screen. Low tiers suppress DSO
+      // labels entirely to save per-frame text work.
+      if (config.showDSOLabels && !qualityConfig.reduceLabels) {
+        final showLabel = dsoMag < 10.0 || displaySize > 10.0;
+        if (showLabel) {
+          final labelText = _dsoLabelText(dso);
+          final fontSize = _getLabelFontSize(dsoMag, 'dso');
+          final fontWeight = _getLabelFontWeight(dsoMag);
+          final labelAlpha = dsoMag < 10.0
+              ? 0.85 * effectiveAlpha // Bright DSOs get prominent labels
+              : 0.6 * effectiveAlpha; // Fainter DSOs get subtler labels
+          final textStyle = TextStyle(
+            color: _dsoTypeColor(dso.type).withValues(alpha: labelAlpha),
+            fontSize: fontSize,
+            fontWeight: fontWeight,
+          );
+          final textPainter = _TextCache.get(labelText, textStyle);
+
+          // Find non-overlapping placement
+          final preferredPos =
+              offset + Offset(displaySize / 2 + 3, -textPainter.height / 2);
+          final labelPos = _labelManager.findPlacement(
+            preferredPos,
+            Size(textPainter.width, textPainter.height),
+            size,
+          );
+          if (labelPos != null) {
+            textPainter.paint(canvas, labelPos);
+          }
+        }
+      }
+
+      // Draw observed marker if this DSO has been logged
+      if (observedObjectIds.isNotEmpty && _isDsoObserved(dso)) {
+        _drawObservedMarker(canvas, offset, displaySize);
+      }
+
+      // Draw listed marker if this DSO is in an observing list
+      if (listedObjectIds.isNotEmpty && _isDsoListed(dso)) {
+        _drawListedMarker(canvas, offset, displaySize);
+      }
+
+      dsosDrawn++;
+    }
+
+    // ONE drawRawAtlas for the whole DSO field, source-over so overlaps blend
+    // rather than blow out.
+    if (dsoCount > 0) {
+      canvas.drawRawAtlas(
+        atlas.dsoSheet,
+        Float32List.sublistView(
+            SkyCanvasPainter._atlasTransforms, 0, dsoCount * 4),
+        Float32List.sublistView(SkyCanvasPainter._atlasRects, 0, dsoCount * 4),
+        Int32List.sublistView(SkyCanvasPainter._atlasColors, 0, dsoCount),
+        BlendMode.modulate,
+        null,
+        SkyCanvasPainter._dsoAtlasPaint,
+      );
+    }
+  }
+
+  /// Encode one DSO glyph into the atlas scratch buffers at slot [i].
+  ///
+  /// The RSTransform carries the position-angle rotation. With a uniform
+  /// [scale] and rotation (cos,sin), the standard RSTransform components are:
+  ///   scos = scale*cos, ssin = scale*sin
+  /// and the translate folds in the anchor at the glyph center so the glyph is
+  /// centered and rotated about [offset]:
+  ///   tx = offset.dx - (scos*half - ssin*half)
+  ///   ty = offset.dy - (ssin*half + scos*half)
+  void _writeDsoTransform(
+    Float32List transforms,
+    Float32List rects,
+    Int32List colors,
+    int i,
+    double scale,
+    double cosR,
+    double sinR,
+    double half,
+    Offset offset,
+    Rect srcRect,
+    int argb,
+  ) {
+    final scos = scale * cosR;
+    final ssin = scale * sinR;
+    final t = i * 4;
+    transforms[t] = scos;
+    transforms[t + 1] = ssin;
+    transforms[t + 2] = offset.dx - (scos * half - ssin * half);
+    transforms[t + 3] = offset.dy - (ssin * half + scos * half);
+
+    rects[t] = srcRect.left;
+    rects[t + 1] = srcRect.top;
+    rects[t + 2] = srcRect.right;
+    rects[t + 3] = srcRect.bottom;
+
+    colors[i] = argb;
+  }
+
+  /// Build label text for a DSO. Uses common name for bright objects,
+  /// otherwise catalog designation.
+  /// Examples: "M31 - Andromeda Galaxy", "NGC 7000 - North America Nebula", "IC 1396"
+  String _dsoLabelText(DeepSkyObject dso) {
+    // Primary designation: prefer Messier, then NGC/IC, then raw name
+    String designation;
+    final messier = dso.messierNumber;
+    if (messier != null) {
+      designation = messier;
+    } else {
+      final ngcIc = dso.ngcIcDesignation;
+      designation = ngcIc ?? dso.name;
+    }
+
+    // Append common name if available and different from designation
+    if (dso.commonNames != null && dso.commonNames!.isNotEmpty) {
+      final firstName = dso.commonNames!.split(',').first.trim();
+      if (firstName.isNotEmpty && firstName != designation) {
+        return '$designation - $firstName';
+      }
+    }
+
+    return designation;
+  }
+
+  /// Check if a DSO matches any listed catalog ID or object name.
+  bool _isDsoListed(DeepSkyObject dso) {
+    if (listedObjectIds.contains(dso.id)) return true;
+    if (listedObjectIds.contains(dso.name)) return true;
+    if (dso.isMessier) {
+      final messier = dso.messierNumber;
+      if (messier != null && listedObjectIds.contains(messier)) return true;
+    }
+    final ngcIc = dso.ngcIcDesignation;
+    if (ngcIc != null && listedObjectIds.contains(ngcIc)) return true;
+    return false;
+  }
+
+  /// Draw a small amber bookmark marker at the top-right of a DSO.
+  void _drawListedMarker(Canvas canvas, Offset dsoCenter, double dsoSize) {
+    final markerSize = math.max(4.0, dsoSize * 0.3);
+    final markerPos = dsoCenter +
+        Offset(dsoSize / 2 + markerSize * 0.5, -dsoSize / 2 - markerSize * 0.5);
+
+    final fillPaint = Paint()
+      ..color = const Color(0xFFFFA726).withValues(alpha: 0.9)
+      ..style = PaintingStyle.fill;
+    final borderPaint = Paint()
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 0.8;
+
+    // Draw a small bookmark shape
+    final bookmarkPath = Path()
+      ..moveTo(markerPos.dx - markerSize * 0.4, markerPos.dy - markerSize * 0.5)
+      ..lineTo(markerPos.dx + markerSize * 0.4, markerPos.dy - markerSize * 0.5)
+      ..lineTo(markerPos.dx + markerSize * 0.4, markerPos.dy + markerSize * 0.4)
+      ..lineTo(markerPos.dx, markerPos.dy + markerSize * 0.15)
+      ..lineTo(markerPos.dx - markerSize * 0.4, markerPos.dy + markerSize * 0.4)
+      ..close();
+
+    canvas.drawPath(bookmarkPath, fillPaint);
+    canvas.drawPath(bookmarkPath, borderPaint);
+  }
+
+  /// Check if a DSO matches any observed catalog ID or object name.
+  bool _isDsoObserved(DeepSkyObject dso) {
+    if (observedObjectIds.contains(dso.id)) return true;
+    if (observedObjectIds.contains(dso.name)) return true;
+    if (dso.isMessier) {
+      final messier = dso.messierNumber;
+      if (messier != null && observedObjectIds.contains(messier)) return true;
+    }
+    final ngcIc = dso.ngcIcDesignation;
+    if (ngcIc != null && observedObjectIds.contains(ngcIc)) return true;
+    return false;
+  }
+
+  /// Draw a small green "observed" indicator at the bottom-right of a DSO.
+  void _drawObservedMarker(Canvas canvas, Offset dsoCenter, double dsoSize) {
+    final markerRadius = math.max(3.0, dsoSize * 0.25);
+    final markerPos =
+        dsoCenter + Offset(dsoSize / 2 + markerRadius, dsoSize / 2);
+
+    final fillPaint = Paint()
+      ..color = const Color(0xFF4CAF50).withValues(alpha: 0.9)
+      ..style = PaintingStyle.fill;
+    final borderPaint = Paint()
+      ..color = const Color(0xFFFFFFFF).withValues(alpha: 0.6)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+
+    canvas.drawCircle(markerPos, markerRadius, fillPaint);
+    canvas.drawCircle(markerPos, markerRadius, borderPaint);
+
+    if (markerRadius >= 3.5) {
+      final checkPaint = Paint()
+        ..color = Colors.white
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.2
+        ..strokeCap = StrokeCap.round;
+      final checkPath = Path()
+        ..moveTo(markerPos.dx - markerRadius * 0.35, markerPos.dy)
+        ..lineTo(markerPos.dx - markerRadius * 0.05,
+            markerPos.dy + markerRadius * 0.3)
+        ..lineTo(markerPos.dx + markerRadius * 0.35,
+            markerPos.dy - markerRadius * 0.3);
+      canvas.drawPath(checkPath, checkPaint);
+    }
+  }
+
+  /// Body tint for the baked DSO glyph. Differs from [_dsoTypeColor] (used for
+  /// labels) by reproducing the per-subtype nebula colors that the old
+  /// procedural shapes painted directly: emission/HII red, reflection blue,
+  /// dark-nebula blue-grey, planetary-nebula teal. Other types fall through to
+  /// the label color.
+  Color _dsoTintColor(DsoType type) {
+    switch (type) {
+      case DsoType.emissionNebula:
+      case DsoType.hiiRegion:
+        return const Color(0xFFFF1744); // Pink/red emission
+      case DsoType.reflectionNebula:
+        return const Color(0xFF448AFF); // Blue reflection
+      case DsoType.darkNebula:
+        return const Color(0xFF78909C); // Blue-grey dark nebula
+      case DsoType.planetaryNebula:
+        return const Color(0xFF26A69A); // Teal (old planetary ring color)
+      default:
+        return _dsoTypeColor(type);
+    }
+  }
+
+  Color _dsoTypeColor(DsoType type) {
+    switch (type) {
+      case DsoType.galaxy:
+        return const Color(0xFF64B5F6); // Blue
+      case DsoType.nebula:
+        return const Color(0xFFE91E63); // Pink
+      case DsoType.planetaryNebula:
+        return const Color(0xFF4CAF50); // Green
+      case DsoType.openCluster:
+        return const Color(0xFFFFEB3B); // Yellow
+      case DsoType.globularCluster:
+        return const Color(0xFFFF9800); // Orange
+      case DsoType.supernova:
+        return const Color(0xFFF44336); // Red
+      default:
+        return const Color(0xFFFFFFFF); // White
+    }
+  }
+}

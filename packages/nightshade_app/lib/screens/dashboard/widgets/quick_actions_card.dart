@@ -63,7 +63,8 @@ class QuickActionsCard extends ConsumerWidget {
         onTap: isMountConnected
             ? () async {
                 if (!mountState.canPark) {
-                  context.showErrorSnackBar('Mount driver does not support parking');
+                  context.showErrorSnackBar(
+                      'Mount driver does not support parking');
                   return;
                 }
                 try {
@@ -81,16 +82,14 @@ class QuickActionsCard extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Quick Actions',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+          DashboardCardHeader(
+            colors: colors,
+            icon: LucideIcons.zap,
+            title: 'Quick Actions',
+            accent: colors.primary,
           ),
 
-          const SizedBox(height: 16),
+          const SizedBox(height: DashboardCardStyle.headerGap),
 
           // Responsive button layout
           LayoutBuilder(
@@ -376,53 +375,54 @@ class _ActionButtonState extends State<_ActionButton> {
       child: FocusRing(
         borderRadius: BorderRadius.circular(8),
         child: GestureDetector(
-        onTap: isEnabled ? widget.onTap : null,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-          decoration: BoxDecoration(
-            color: isActiveHover
-                ? widget.colors.primary.withValues(alpha: 0.1)
-                : widget.colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color:
-                  isActiveHover ? widget.colors.primary : widget.colors.border,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                widget.icon,
-                size: 16,
-                color: isEnabled
-                    ? (isActiveHover
-                        ? widget.colors.primary
-                        : widget.colors.textSecondary)
-                    : widget.colors.textMuted,
+          onTap: isEnabled ? widget.onTap : null,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+            decoration: BoxDecoration(
+              color: isActiveHover
+                  ? widget.colors.primary.withValues(alpha: 0.1)
+                  : widget.colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isActiveHover
+                    ? widget.colors.primary
+                    : widget.colors.border,
               ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  widget.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: isEnabled
-                        ? (isActiveHover
-                            ? widget.colors.primary
-                            : widget.colors.textSecondary)
-                        : widget.colors.textMuted,
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  widget.icon,
+                  size: 16,
+                  color: isEnabled
+                      ? (isActiveHover
+                          ? widget.colors.primary
+                          : widget.colors.textSecondary)
+                      : widget.colors.textMuted,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    widget.label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                      color: isEnabled
+                          ? (isActiveHover
+                              ? widget.colors.primary
+                              : widget.colors.textSecondary)
+                          : widget.colors.textMuted,
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
-      ),
       ),
     );
   }
@@ -572,7 +572,8 @@ class _CenteringDialogState extends State<_CenteringDialog> {
           int pollCount = 0;
           while (pollCount < 120 && _isRunning) {
             try {
-              final status = await backend.getMountStatus(mountNotifierState.deviceId!);
+              final status =
+                  await backend.getMountStatus(mountNotifierState.deviceId!);
               if (!status.slewing) {
                 break;
               }

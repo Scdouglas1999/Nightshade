@@ -14,6 +14,40 @@ import '../../../utils/preview_transform.dart';
 /// Whether the delete-annotation tool is active.
 final _deleteToolActiveProvider = StateProvider<bool>((ref) => false);
 
+/// Whether the docked drawing palette is open.
+///
+/// This is the user-facing "enter annotate mode" switch: the off-canvas
+/// preview toolbar flips it, and the docked [CustomAnnotationToolbar] only
+/// renders while it (or an active tool) is set. Closing it clears any active
+/// tool so the canvas returns to plain pan/zoom.
+final annotationDrawPaletteOpenProvider = StateProvider<bool>((ref) => false);
+
+/// True whenever the docked drawing palette should be shown — the palette is
+/// explicitly open, or a tool/delete mode is currently active (so the palette
+/// never vanishes out from under an in-progress draw).
+///
+/// Exposed publicly so the live-preview layout can gate the docked drawing
+/// toolbar's visibility on it, instead of permanently floating it over the
+/// image.
+final customAnnotationDrawModeActiveProvider = Provider<bool>((ref) {
+  final paletteOpen = ref.watch(annotationDrawPaletteOpenProvider);
+  final tool = ref.watch(customAnnotationToolProvider);
+  final deleteActive = ref.watch(_deleteToolActiveProvider);
+  return paletteOpen || tool != null || deleteActive;
+});
+
+/// Toggle the docked drawing palette. When closing, any active draw/delete
+/// tool is cleared so a stale tool can't keep capturing canvas gestures after
+/// the palette is dismissed.
+void toggleAnnotationDrawPalette(WidgetRef ref) {
+  final open = ref.read(annotationDrawPaletteOpenProvider);
+  if (open) {
+    ref.read(customAnnotationToolProvider.notifier).state = null;
+    ref.read(_deleteToolActiveProvider.notifier).state = false;
+  }
+  ref.read(annotationDrawPaletteOpenProvider.notifier).state = !open;
+}
+
 // ---------------------------------------------------------------------------
 // Custom annotation painter
 // ---------------------------------------------------------------------------
@@ -148,7 +182,8 @@ class CustomAnnotationPainter extends CustomPainter {
     double alpha,
   ) {
     final start = _toScreen(annotation.x, annotation.y);
-    final end = _toScreen(annotation.x2 ?? annotation.x, annotation.y2 ?? annotation.y);
+    final end =
+        _toScreen(annotation.x2 ?? annotation.x, annotation.y2 ?? annotation.y);
 
     final paint = Paint()
       ..color = color.withValues(alpha: alpha)
@@ -186,8 +221,8 @@ class CustomAnnotationPainter extends CustomPainter {
     // Label at the midpoint above the line
     if (annotation.label.isNotEmpty) {
       final mid = Offset((start.dx + end.dx) / 2, (start.dy + end.dy) / 2);
-      _drawLabel(canvas, annotation.label, Offset(mid.dx, mid.dy - 12), color,
-          alpha);
+      _drawLabel(
+          canvas, annotation.label, Offset(mid.dx, mid.dy - 12), color, alpha);
     }
   }
 
@@ -350,8 +385,7 @@ class _CustomAnnotationDrawingLayerState
     );
   }
 
-  String _nextId() =>
-      'custom_${DateTime.now().microsecondsSinceEpoch}';
+  String _nextId() => 'custom_${DateTime.now().microsecondsSinceEpoch}';
 
   // --- Circle drawing ---
 
@@ -420,8 +454,10 @@ class _CustomAnnotationDrawingLayerState
 
   void _onArrowPanEnd(DragEndDetails details) {
     if (_activeAnnotation == null) return;
-    final dx = (_activeAnnotation!.x2 ?? _activeAnnotation!.x) - _activeAnnotation!.x;
-    final dy = (_activeAnnotation!.y2 ?? _activeAnnotation!.y) - _activeAnnotation!.y;
+    final dx =
+        (_activeAnnotation!.x2 ?? _activeAnnotation!.x) - _activeAnnotation!.x;
+    final dy =
+        (_activeAnnotation!.y2 ?? _activeAnnotation!.y) - _activeAnnotation!.y;
     if (math.sqrt(dx * dx + dy * dy) < 5) {
       // Too short, discard
       setState(() => _activeAnnotation = null);
@@ -534,11 +570,10 @@ class _CustomAnnotationDrawingLayerState
             style: const TextStyle(color: Colors.white),
             decoration: InputDecoration(
               hintText: required ? 'Enter text...' : 'Optional label...',
-              hintStyle:
-                  TextStyle(color: Colors.white.withValues(alpha: 0.4)),
+              hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.4)),
               enabledBorder: UnderlineInputBorder(
-                borderSide: BorderSide(
-                    color: Colors.white.withValues(alpha: 0.3)),
+                borderSide:
+                    BorderSide(color: Colors.white.withValues(alpha: 0.3)),
               ),
               focusedBorder: const UnderlineInputBorder(
                 borderSide: BorderSide(color: Color(0xFF00E676)),
@@ -551,8 +586,7 @@ class _CustomAnnotationDrawingLayerState
               onPressed: () => Navigator.of(ctx).pop(null),
               child: Text(
                 'Cancel',
-                style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.7)),
+                style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
               ),
             ),
             TextButton(
@@ -645,9 +679,8 @@ class _CustomAnnotationDrawingLayerState
 
     // Show a custom cursor to indicate drawing mode
     return MouseRegion(
-      cursor: deleteTool
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.precise,
+      cursor:
+          deleteTool ? SystemMouseCursors.click : SystemMouseCursors.precise,
       child: gestureChild,
     );
   }
@@ -772,8 +805,7 @@ class CustomAnnotationToolbar extends ConsumerWidget {
             onPressed: () => Navigator.of(ctx).pop(false),
             child: Text(
               'Cancel',
-              style:
-                  TextStyle(color: Colors.white.withValues(alpha: 0.7)),
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.7)),
             ),
           ),
           TextButton(
@@ -840,8 +872,7 @@ class _ToolButtonState extends State<_ToolButton> {
               borderRadius: BorderRadius.circular(5),
               border: widget.isActive
                   ? Border.all(
-                      color:
-                          const Color(0xFF00E676).withValues(alpha: 0.5))
+                      color: const Color(0xFF00E676).withValues(alpha: 0.5))
                   : null,
             ),
             child: Icon(

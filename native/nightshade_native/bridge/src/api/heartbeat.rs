@@ -116,6 +116,12 @@ pub async fn api_start_device_heartbeat_with_config(
         auto_reconnect,
         max_reconnect_attempts,
         reconnect_delay_secs: 5,
+        // This FFI surface lets the caller hand-tune timing but not the
+        // escalation policy; inherit the fail-loud default (escalate on loss).
+        // The per-device-type opt-outs (focuser/filter wheel/rotator) are
+        // applied by `get_heartbeat_config`, which is the path device connects
+        // actually use.
+        ..crate::device_manager::HeartbeatConfig::default()
     };
 
     get_device_manager()

@@ -11,6 +11,10 @@ class DashboardTile extends StatelessWidget {
   final bool isEditing;
   final CardVariant cardVariant;
   final bool isHero;
+
+  /// When true, the wrapped panel provides its own chrome, so the frame skips
+  /// its resting border/background (see DashboardWidgetDefinition.selfChromed).
+  final bool selfChromed;
   final void Function(DashboardWidgetId dragged, DashboardWidgetId target)
       onReorder;
   final void Function(DashboardWidgetId id) onResize;
@@ -28,6 +32,7 @@ class DashboardTile extends StatelessWidget {
     required this.onToggleEnabled,
     this.cardVariant = CardVariant.standard,
     this.isHero = false,
+    this.selfChromed = false,
   });
 
   @override
@@ -47,6 +52,7 @@ class DashboardTile extends StatelessWidget {
           size: tile.size,
           cardVariant: cardVariant,
           isHero: isHero,
+          selfChromed: selfChromed,
           onResize: () => onResize(tile.widgetId),
           onHide: () => onToggleEnabled(tile.widgetId, false),
           child: child,
@@ -71,6 +77,7 @@ class DashboardTile extends StatelessWidget {
                   size: tile.size,
                   cardVariant: cardVariant,
                   isHero: isHero,
+                  selfChromed: selfChromed,
                   onResize: () {},
                   onHide: () {},
                   child: child,
@@ -97,6 +104,11 @@ class DashboardTileFrame extends StatelessWidget {
   final Widget child;
   final CardVariant cardVariant;
   final bool isHero;
+
+  /// When true, the wrapped panel provides its own border/background. The frame
+  /// then draws a border only to signal an active highlight state (editing,
+  /// drop-target, or hero), and is fully transparent at rest.
+  final bool selfChromed;
   final VoidCallback onResize;
   final VoidCallback onHide;
 
@@ -111,18 +123,24 @@ class DashboardTileFrame extends StatelessWidget {
     required this.onHide,
     this.cardVariant = CardVariant.standard,
     this.isHero = false,
+    this.selfChromed = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Border with hero accent and edit mode highlight
-    final borderColor = isDropTarget
-        ? colors.primary.withValues(alpha: 0.7)
-        : isEditing
-            ? colors.primary.withValues(alpha: 0.3)
-            : isHero
-                ? colors.primary.withValues(alpha: 0.2)
-                : colors.border;
+    // Border with hero accent and edit mode highlight. Self-chromed panels draw
+    // no resting border (their own card supplies it); they still get the
+    // highlight border so editing/drop-target/hero states read correctly.
+    final Color? borderColor;
+    if (isDropTarget) {
+      borderColor = colors.primary.withValues(alpha: 0.7);
+    } else if (isEditing) {
+      borderColor = colors.primary.withValues(alpha: 0.3);
+    } else if (isHero) {
+      borderColor = colors.primary.withValues(alpha: 0.2);
+    } else {
+      borderColor = selfChromed ? null : colors.border;
+    }
 
     return Stack(
       children: [
@@ -131,10 +149,12 @@ class DashboardTileFrame extends StatelessWidget {
           duration: NightshadeTokens.durationNormal,
           decoration: BoxDecoration(
             borderRadius: NightshadeTokens.borderRadiusMd,
-            border: Border.all(
-              color: borderColor,
-              width: isDropTarget ? 2 : (isHero ? 1.5 : 1),
-            ),
+            border: borderColor == null
+                ? null
+                : Border.all(
+                    color: borderColor,
+                    width: isDropTarget ? 2 : (isHero ? 1.5 : 1),
+                  ),
           ),
           child: ClipRRect(
             borderRadius: NightshadeTokens.borderRadiusMd,

@@ -106,7 +106,7 @@ export 'src/models/onboarding/onboarding_state.dart';
 // Quick Wins Bundle (C1/C2) — post-onboarding "next use" nudge surface.
 //   * next_use_steps.dart            - pure-Dart action-step catalog
 //     (NextUseActionId / NextUseStep / kNextUseSteps / stepFor).
-//   * next_use_prompt_provider.dart  - readiness/coach/completion/dismissal
+//   * next_use_prompt_provider.dart  - readiness/completion/dismissal
 //     wiring + the pure selectNextUseStep decision and the
 //     nextUsePromptProvider the dashboard prompt card watches.
 export 'src/models/onboarding/next_use_steps.dart';
@@ -197,7 +197,6 @@ export 'src/providers/annotation_settings_provider.dart';
 export 'src/providers/annotation_presets_provider.dart'
     hide AnnotationPreset, annotationPresetsProvider, AnnotationPresetsNotifier;
 export 'src/providers/tutorial_provider.dart';
-export 'src/providers/first_launch_coach_provider.dart';
 export 'src/providers/filter_offset_provider.dart';
 export 'src/providers/camera_presets_provider.dart';
 export 'src/providers/weather_providers.dart';
@@ -275,6 +274,17 @@ export 'src/models/sequencer/recovery_status.dart';
 export 'src/services/device_service.dart';
 export 'src/services/device_exceptions.dart';
 export 'src/utils/device_id_utils.dart' show isValidDeviceIdFormat;
+// Single source of truth for device-identity logic: parsing, canonicalization,
+// matching, and id-pattern friendly-name fallback.
+export 'src/utils/device_id.dart'
+    show
+        DeviceId,
+        DeviceDriverKind,
+        canonicalGuiderId,
+        isPhd2DeviceId,
+        deviceIdsMatch,
+        friendlyNameFromDeviceId,
+        kPhd2CanonicalId;
 export 'src/services/phd2_status_poll.dart';
 export 'src/services/device_matching_service.dart';
 export 'src/services/imaging_service.dart';

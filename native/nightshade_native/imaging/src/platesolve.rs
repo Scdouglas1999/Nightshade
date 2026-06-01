@@ -118,6 +118,11 @@ pub struct PlateSolverConfig {
     pub astap_path: Option<PathBuf>,
     /// Path to local astrometry.net solve-field
     pub astrometry_path: Option<PathBuf>,
+    /// Directory containing ASTAP star catalog (.290 / .1476 files).
+    /// Passed to ASTAP as `-d <dir>`. When `None` ASTAP must find the
+    /// catalog in its own install directory; if it can't, it will fail
+    /// with "no star database found".
+    pub catalog_path: Option<PathBuf>,
     /// Search radius in degrees (0 = blind solve)
     pub search_radius: f64,
     /// Downsample factor for faster solving
@@ -128,14 +133,76 @@ pub struct PlateSolverConfig {
 
 impl Default for PlateSolverConfig {
     fn default() -> Self {
+        // Consult the process-global preference (set by `set_solver_preference`)
+        // so every call site — blind_solve, solve_near, the sequencer, the
+        // imaging auto-solve — honours whatever the user configured in Settings
+        // → Plate Solving without any caller needing to pass the config
+        // explicitly.
+        let (configured_astap, configured_astrometry, configured_catalog) = {
+            let pref = ACTIVE_SOLVER_PREF.read().expect("solver-pref RwLock");
+            (
+                pref.astap_path.clone(),
+                pref.astrometry_path.clone(),
+                pref.catalog_path.clone(),
+            )
+        };
+
+        let astap_path = find_astap_with_override(configured_astap.as_deref());
+        let astrometry_path = find_astrometry_with_override(configured_astrometry.as_deref());
+
         Self {
-            astap_path: find_astap(),
-            astrometry_path: find_astrometry(),
+            astap_path,
+            astrometry_path,
+            catalog_path: configured_catalog,
             search_radius: 10.0,
             downsample: 2,
             timeout_secs: 60,
         }
     }
+}
+
+/// Process-global solver preference set by `set_solver_preference()`.
+///
+/// Why a global: every call site that reaches `PlateSolverConfig::default()`
+/// (`blind_solve`, `solve_near`, the sequencer centering, the imaging
+/// auto-solve) lives deep in the call stack where there is no natural place to
+/// thread a config parameter. A process-global is the established pattern for
+/// this kind of cross-cutting preference (see `SOLVER_AVAILABLE_CACHE`
+/// below). The `RwLock` permits concurrent reads (the common case) and
+/// serialises the rare write.
+#[derive(Default)]
+struct SolverPref {
+    astap_path: Option<PathBuf>,
+    astrometry_path: Option<PathBuf>,
+    catalog_path: Option<PathBuf>,
+}
+
+static ACTIVE_SOLVER_PREF: std::sync::RwLock<SolverPref> = std::sync::RwLock::new(SolverPref {
+    astap_path: None,
+    astrometry_path: None,
+    catalog_path: None,
+});
+
+/// Update the process-global solver preference from the persisted user
+/// settings. Must be called:
+///   1. At startup, after loading `platesolver.json`.
+///   2. Immediately after `api_platesolve_set_config` saves a new preference.
+///
+/// Empty strings in the input are treated as "no override" (auto-detect).
+/// `catalog_path` is set directly — if the user left it blank the field is
+/// `None` and no `-d` flag is passed to ASTAP (ASTAP then looks next to its
+/// own binary, which is the correct behaviour when the catalog is co-located).
+pub fn set_solver_preference(
+    astap_path: Option<&str>,
+    astrometry_path: Option<&str>,
+    catalog_path: Option<&str>,
+) {
+    let to_path =
+        |s: Option<&str>| -> Option<PathBuf> { s.filter(|p| !p.is_empty()).map(PathBuf::from) };
+    let mut pref = ACTIVE_SOLVER_PREF.write().expect("solver-pref RwLock");
+    pref.astap_path = to_path(astap_path);
+    pref.astrometry_path = to_path(astrometry_path);
+    pref.catalog_path = to_path(catalog_path);
 }
 
 /// Find ASTAP installation by probing every well-known install path *plus*
@@ -165,11 +232,15 @@ pub fn find_astap_with_override(configured: Option<&Path>) -> Option<PathBuf> {
         .map(PathBuf::from)
 }
 
-/// Find ASTAP installation using only the platform default candidate list
-/// (no user override). Used by the legacy `PlateSolverConfig::default()`
-/// path that has no access to settings.
+/// Find ASTAP by first consulting the process-global preference (set by
+/// `set_solver_preference`), then falling back to the standard candidate
+/// list. This is the path used by `is_solver_available()` and
+/// `get_solver_path()`.
 fn find_astap() -> Option<PathBuf> {
-    find_astap_with_override(None)
+    let pref = ACTIVE_SOLVER_PREF.read().expect("solver-pref RwLock");
+    let configured = pref.astap_path.clone();
+    drop(pref);
+    find_astap_with_override(configured.as_deref())
 }
 
 /// Find local astrometry.net installation. See `find_astap_with_override`
@@ -189,7 +260,10 @@ pub fn find_astrometry_with_override(configured: Option<&Path>) -> Option<PathBu
 }
 
 fn find_astrometry() -> Option<PathBuf> {
-    find_astrometry_with_override(None)
+    let pref = ACTIVE_SOLVER_PREF.read().expect("solver-pref RwLock");
+    let configured = pref.astrometry_path.clone();
+    drop(pref);
+    find_astrometry_with_override(configured.as_deref())
 }
 
 /// Resolve the user's home directory from the platform-appropriate env var.
@@ -441,45 +515,78 @@ impl AstapSolver {
             }
         };
 
-        // Build ASTAP command
+        // Build ASTAP command.
+        //
+        // Flag reference: https://www.hnsky.org/astap.htm#command_line
+        //   -f <file>        : input FITS file (required)
+        //   -r <deg>         : search radius in degrees (only with -ra/-spd)
+        //   -ra <hours>      : hint RA in hours
+        //   -spd <deg>       : hint south-pole distance = Dec + 90°
+        //   -z <factor>      : downsample factor (default 0 = auto)
+        //   -d <dir>         : star catalog directory (REQUIRED when catalog is
+        //                      not co-located with the ASTAP binary)
+        //   -wcs             : write WCS solution to a sibling .wcs FITS file
+        //                      (used instead of -update which modifies the
+        //                      input file and only writes .ini, not .wcs)
+        //
+        // IMPORTANT: ASTAP exits 0 even on a failed solve. The actual result
+        // is only in PLTSOLVD inside the .ini file. Do NOT gate on exit status.
         let mut cmd = Command::new(astap_path);
 
         // Input file
         cmd.arg("-f").arg(image_path);
 
-        // Search radius
-        if hint_ra.is_some() && hint_dec.is_some() && self.config.search_radius > 0.0 {
-            cmd.arg("-r").arg(format!("{}", self.config.search_radius));
-        }
-
-        // Hint coordinates
+        // Hint coordinates — only add when provided (near solve)
         if let (Some(ra), Some(dec)) = (hint_ra, hint_dec) {
-            cmd.arg("-ra").arg(format!("{}", ra / 15.0)); // Convert to hours
-            cmd.arg("-spd").arg(format!("{}", dec + 90.0)); // Convert to SPD
+            cmd.arg("-ra").arg(format!("{:.6}", ra / 15.0)); // hours
+            cmd.arg("-spd").arg(format!("{:.6}", dec + 90.0)); // south-pole distance
+                                                               // Search radius only makes sense alongside a position hint
+            if self.config.search_radius > 0.0 {
+                cmd.arg("-r")
+                    .arg(format!("{:.2}", self.config.search_radius));
+            }
         }
 
-        // Hint scale
+        // hint_scale: ASTAP expects -fov in degrees (field of view), not
+        // arcsec/pixel. We don't have sensor pixel size here, so skip it.
         if hint_scale.is_some() {
-            // ASTAP expects focal-length-style hints here, which require a known pixel size.
-            // Do not synthesize focal length from an assumed pixel size.
             tracing::debug!(
-                "Plate-solve scale hint provided without pixel size; skipping ASTAP focal-length hint"
+                "Plate-solve scale hint provided without pixel size; skipping ASTAP -fov hint"
             );
         }
 
-        // Downsample
+        // Downsample: 0 means auto; send explicit value when configured > 1
         if self.config.downsample > 1 {
             cmd.arg("-z").arg(format!("{}", self.config.downsample));
         }
 
-        // Output (don't update FITS, just solve)
-        cmd.arg("-update");
+        // Catalog directory: required when the catalog is not in the ASTAP
+        // install directory. Without this flag ASTAP reports "no star database
+        // found" and PLTSOLVD=F.
+        if let Some(cat_dir) = &self.config.catalog_path {
+            cmd.arg("-d").arg(cat_dir);
+        }
 
-        // Run solver
+        // Request a standalone WCS output file (.wcs) alongside the input.
+        // This does NOT modify the input FITS file (unlike -update which
+        // writes the solution into the FITS header). The .wcs file is a
+        // FITS file containing CRVAL1/2, CD-matrix keywords; our
+        // parse_wcs_file_inner parser reads exactly these.
+        //
+        // -update is explicitly avoided: it writes only .ini (not .wcs),
+        // and modifying the user's capture file as a side effect is
+        // undesirable. The .ini file is also produced alongside -wcs, so
+        // both parsers remain available.
+        cmd.arg("-wcs");
+
         tracing::info!("Running ASTAP: {:?}", cmd);
 
-        let output = match cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).output() {
-            Ok(o) => o,
+        // Enforce timeout using spawn + wait_timeout. Command::output()
+        // blocks forever; a stuck ASTAP process (e.g. hung on a network
+        // catalog lookup) would stall the sequencer indefinitely.
+        let timeout = std::time::Duration::from_secs(u64::from(self.config.timeout_secs));
+        let child = match cmd.stdout(Stdio::piped()).stderr(Stdio::piped()).spawn() {
+            Ok(c) => c,
             Err(e) => {
                 return PlateSolveResult {
                     ra: 0.0,
@@ -489,16 +596,94 @@ impl AstapSolver {
                     field_width: 0.0,
                     field_height: 0.0,
                     success: false,
-                    error: Some(format!("Failed to run ASTAP: {}", e)),
+                    error: Some(format!("Failed to launch ASTAP at {:?}: {}", astap_path, e)),
                     solve_time_secs: start.elapsed().as_secs_f64(),
                 }
             }
         };
 
+        // Run wait on a background thread so we can honour timeout without
+        // blocking the calling thread. `wait_with_output` is the right call
+        // here because the child was spawned with piped stdout/stderr — it
+        // reads both streams until EOF (i.e. process exit) and returns the
+        // combined result.
+        let child_id = child.id();
+        let timeout_secs = self.config.timeout_secs;
+        let (tx, rx) = std::sync::mpsc::channel::<std::io::Result<std::process::Output>>();
+        std::thread::spawn(move || {
+            let _ = tx.send(child.wait_with_output());
+        });
+
+        let output = match rx.recv_timeout(timeout) {
+            Ok(result) => match result {
+                Ok(o) => o,
+                Err(e) => {
+                    return PlateSolveResult {
+                        ra: 0.0,
+                        dec: 0.0,
+                        pixel_scale: 0.0,
+                        rotation: 0.0,
+                        field_width: 0.0,
+                        field_height: 0.0,
+                        success: false,
+                        error: Some(format!("ASTAP I/O error: {}", e)),
+                        solve_time_secs: start.elapsed().as_secs_f64(),
+                    }
+                }
+            },
+            Err(_) => {
+                // The child thread still holds the process handle. The
+                // process will be reaped by the OS when the thread
+                // eventually finishes or the process exits on its own.
+                // There is no clean way to kill it here without unsafe
+                // platform calls, but a timeout on a solver that's
+                // genuinely hung is an operator alert, not a silent
+                // fallback.
+                tracing::error!(
+                    "ASTAP (pid {}) timed out after {} seconds",
+                    child_id,
+                    timeout_secs
+                );
+                return PlateSolveResult {
+                    ra: 0.0,
+                    dec: 0.0,
+                    pixel_scale: 0.0,
+                    rotation: 0.0,
+                    field_width: 0.0,
+                    field_height: 0.0,
+                    success: false,
+                    error: Some(format!("ASTAP timed out after {} seconds", timeout_secs)),
+                    solve_time_secs: start.elapsed().as_secs_f64(),
+                };
+            }
+        };
+
         let solve_time = start.elapsed().as_secs_f64();
 
+        // Capture ASTAP stdout + stderr for use in failure messages.
+        // IMPORTANT: ASTAP exits 0 even when a solve fails. A non-zero exit
+        // indicates a launch / argument error (e.g. bad flag, missing file),
+        // which is worth surfacing separately. A zero exit with PLTSOLVD=F
+        // in the .ini is the normal "not enough stars" failure path.
+        let stdout_text = String::from_utf8_lossy(&output.stdout).to_string();
+        let stderr_text = String::from_utf8_lossy(&output.stderr).to_string();
+        let exit_code = output.status.code().unwrap_or(-1);
+
         if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+            // Non-zero exit = argument/launch error, not a solve failure.
+            // Surface ASTAP's output verbatim so the user can diagnose.
+            let detail = if !stderr_text.trim().is_empty() {
+                stderr_text.trim().to_string()
+            } else if !stdout_text.trim().is_empty() {
+                stdout_text.trim().to_string()
+            } else {
+                format!("(no output, exit code {})", exit_code)
+            };
+            tracing::error!(
+                "ASTAP exited with non-zero status {}: {}",
+                exit_code,
+                detail
+            );
             return PlateSolveResult {
                 ra: 0.0,
                 dec: 0.0,
@@ -507,46 +692,148 @@ impl AstapSolver {
                 field_width: 0.0,
                 field_height: 0.0,
                 success: false,
-                error: Some(format!("ASTAP failed: {}", stderr)),
+                error: Some(format!(
+                    "ASTAP exited with status {}: {}",
+                    exit_code, detail
+                )),
                 solve_time_secs: solve_time,
             };
         }
 
-        // Parse ASTAP output - it writes a .wcs file alongside the input
+        // Parse ASTAP output artifacts. With -wcs, ASTAP writes:
+        //   <image>.wcs  — FITS WCS header (CRVAL1/2, CD-matrix)
+        //   <image>.ini  — key=value result including PLTSOLVD=T/F
+        //
+        // The .ini is the authoritative success/failure indicator.
+        // The .wcs contains the actual WCS coordinates we need.
+        // Parse in this order:
+        //   1. Try .ini first to check PLTSOLVD and get an error reason.
+        //   2. If PLTSOLVD=T, parse .wcs for the full CD-matrix solution.
+        //   3. Fall back to .ini coordinates if .wcs is missing.
+
+        let ini_path = image_path.with_extension("ini");
         let wcs_path = image_path.with_extension("wcs");
-        if !wcs_path.exists() {
-            // Also try .ini file
-            let ini_path = image_path.with_extension("ini");
-            if ini_path.exists() {
-                return self.parse_astap_ini(&ini_path, solve_time);
-            }
 
-            return PlateSolveResult {
-                ra: 0.0,
-                dec: 0.0,
-                pixel_scale: 0.0,
-                rotation: 0.0,
-                field_width: 0.0,
-                field_height: 0.0,
-                success: false,
-                error: Some("No solution file found".to_string()),
-                solve_time_secs: solve_time,
-            };
+        // Check .ini for PLTSOLVD flag — gives us the ASTAP-side result
+        // and any error information before attempting to parse coordinates.
+        if ini_path.exists() {
+            // Read ini to check PLTSOLVD and extract any error message
+            match fs::read_to_string(&ini_path) {
+                Ok(ini_content) => {
+                    let solved = ini_content
+                        .lines()
+                        .any(|l| l.trim().eq_ignore_ascii_case("PLTSOLVD=T"));
+
+                    if !solved {
+                        // Extract ASTAP's error reason from the ini file and
+                        // from the stdout/stderr for a diagnostic message.
+                        let ini_reason = ini_content
+                            .lines()
+                            .find(|l| {
+                                let u = l.to_ascii_uppercase();
+                                u.starts_with("ERROR") || u.starts_with("REASON")
+                            })
+                            .unwrap_or("PLTSOLVD=F")
+                            .trim()
+                            .to_string();
+
+                        let extra = [stdout_text.trim(), stderr_text.trim()]
+                            .iter()
+                            .filter(|s| !s.is_empty())
+                            .cloned()
+                            .collect::<Vec<_>>()
+                            .join(" | ");
+
+                        let msg = if extra.is_empty() {
+                            format!("ASTAP could not solve: {}", ini_reason)
+                        } else {
+                            format!("ASTAP could not solve: {} | {}", ini_reason, extra)
+                        };
+
+                        tracing::warn!("{}", msg);
+                        // Clean up artifacts
+                        let _ = fs::remove_file(&ini_path);
+                        let _ = fs::remove_file(&wcs_path);
+                        return PlateSolveResult {
+                            ra: 0.0,
+                            dec: 0.0,
+                            pixel_scale: 0.0,
+                            rotation: 0.0,
+                            field_width: 0.0,
+                            field_height: 0.0,
+                            success: false,
+                            error: Some(msg),
+                            solve_time_secs: solve_time,
+                        };
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!("Could not read ASTAP .ini at {:?}: {}", ini_path, e);
+                    // Fall through and attempt .wcs anyway
+                }
+            }
         }
 
-        match self.parse_wcs_file(&wcs_path, solve_time) {
-            Ok(result) => result,
-            Err(err) => PlateSolveResult {
-                ra: 0.0,
-                dec: 0.0,
-                pixel_scale: 0.0,
-                rotation: 0.0,
-                field_width: 0.0,
-                field_height: 0.0,
-                success: false,
-                error: Some(err.to_string()),
-                solve_time_secs: solve_time,
-            },
+        // PLTSOLVD=T (or no .ini yet — proceed optimistically).
+        // Parse the .wcs file for the full CD-matrix solution.
+        if wcs_path.exists() {
+            let result = match self.parse_wcs_file(&wcs_path, solve_time) {
+                Ok(r) => r,
+                Err(err) => {
+                    let msg = format!(
+                        "ASTAP reported success but .wcs parse failed: {} | stdout: {} | stderr: {}",
+                        err,
+                        stdout_text.trim(),
+                        stderr_text.trim()
+                    );
+                    tracing::error!("{}", msg);
+                    PlateSolveResult {
+                        ra: 0.0,
+                        dec: 0.0,
+                        pixel_scale: 0.0,
+                        rotation: 0.0,
+                        field_width: 0.0,
+                        field_height: 0.0,
+                        success: false,
+                        error: Some(msg),
+                        solve_time_secs: solve_time,
+                    }
+                }
+            };
+            // Clean up artifacts
+            let _ = fs::remove_file(&ini_path);
+            let _ = fs::remove_file(&wcs_path);
+            return result;
+        }
+
+        // No .wcs — fall back to .ini coordinates (produced by -update;
+        // also present with -wcs for some ASTAP versions).
+        if ini_path.exists() {
+            let result = self.parse_astap_ini(&ini_path, solve_time);
+            let _ = fs::remove_file(&ini_path);
+            return result;
+        }
+
+        // No output artifacts at all — ASTAP produced neither .wcs nor .ini.
+        // This typically means ASTAP was given a non-FITS file or the image
+        // path contains characters ASTAP can't handle.
+        let msg = format!(
+            "ASTAP produced no output artifacts (.wcs / .ini missing). \
+             stdout: {} | stderr: {}",
+            stdout_text.trim(),
+            stderr_text.trim()
+        );
+        tracing::error!("{}", msg);
+        PlateSolveResult {
+            ra: 0.0,
+            dec: 0.0,
+            pixel_scale: 0.0,
+            rotation: 0.0,
+            field_width: 0.0,
+            field_height: 0.0,
+            success: false,
+            error: Some(msg),
+            solve_time_secs: solve_time,
         }
     }
 
@@ -2126,5 +2413,162 @@ mod tests {
         // A 50-megapixel-class frame (ZWO ASI6200, full chip) clamps to the
         // upper bound rather than running away to absurd radii.
         assert_eq!(super::plate_solve_min_separation(9576, 6388), 8.0);
+    }
+
+    // =========================================================================
+    // Bug-fix regression tests: global preference wiring + catalog -d flag
+    // =========================================================================
+
+    /// Setting the global solver preference via `set_solver_preference` must
+    /// make `PlateSolverConfig::default()` resolve the configured ASTAP path
+    /// rather than falling through to the system candidate list.
+    ///
+    /// This is the root bug: before the fix, `blind_solve` / `solve_near`
+    /// called `PlateSolverConfig::default()` which called `find_astap()` with
+    /// no access to the persisted user preference, so a custom install path
+    /// set in Settings → Plate Solving was silently ignored.
+    #[test]
+    fn set_solver_preference_makes_default_config_resolve_configured_path() {
+        use super::{set_solver_preference, PlateSolverConfig};
+
+        // Use a unique non-existent path so the candidate list cannot
+        // accidentally match a real ASTAP install on the test machine.
+        let fake_astap = std::env::temp_dir().join(format!(
+            "fake-astap-{}-{}.exe",
+            std::process::id(),
+            "pref-test"
+        ));
+        // Write a zero-byte file so `Path::exists()` returns true.
+        std::fs::write(&fake_astap, b"").expect("write fake astap");
+
+        let fake_catalog = std::env::temp_dir().join(format!(
+            "fake-catalog-{}-{}",
+            std::process::id(),
+            "pref-test"
+        ));
+        std::fs::create_dir_all(&fake_catalog).expect("create fake catalog dir");
+
+        set_solver_preference(
+            Some(fake_astap.to_str().unwrap()),
+            None,
+            Some(fake_catalog.to_str().unwrap()),
+        );
+
+        let config = PlateSolverConfig::default();
+        assert_eq!(
+            config.astap_path.as_deref(),
+            Some(fake_astap.as_path()),
+            "PlateSolverConfig::default() must resolve the configured ASTAP path"
+        );
+        assert_eq!(
+            config.catalog_path.as_deref(),
+            Some(fake_catalog.as_path()),
+            "PlateSolverConfig::default() must include the configured catalog path"
+        );
+
+        // Reset global to avoid polluting other tests.
+        set_solver_preference(None, None, None);
+        let _ = std::fs::remove_file(&fake_astap);
+        let _ = std::fs::remove_dir_all(&fake_catalog);
+    }
+
+    /// After `set_solver_preference` is called with an empty string for all
+    /// fields (Settings cleared / reset to auto), `PlateSolverConfig::default()`
+    /// must not retain the old configured path.
+    #[test]
+    fn clear_solver_preference_reverts_to_auto_detect() {
+        use super::{set_solver_preference, PlateSolverConfig};
+
+        // Set something, then clear it.
+        set_solver_preference(Some("/tmp/fake-astap-clear-test"), None, None);
+        // Clear by passing empty / None
+        set_solver_preference(None, None, None);
+
+        let config = PlateSolverConfig::default();
+        // The path `/tmp/fake-astap-clear-test` does not exist, so after
+        // clearing, the config should NOT have that path (the candidate list
+        // won't find it either since it's a made-up path).
+        assert!(
+            config
+                .astap_path
+                .as_deref()
+                .map(|p| p.to_str().unwrap_or(""))
+                .unwrap_or("")
+                != "/tmp/fake-astap-clear-test",
+            "cleared preference must not persist the old configured path"
+        );
+    }
+
+    /// `PlateSolverConfig` must include `catalog_path` and, when the ASTAP
+    /// solve command is built, the catalog directory must appear as `-d <dir>`.
+    /// This test verifies the struct field is propagated — the actual command
+    /// build is not testable without a real binary, but the presence of the
+    /// field in the config is the necessary condition.
+    #[test]
+    fn platesolver_config_has_catalog_path_field() {
+        use super::PlateSolverConfig;
+        use std::path::PathBuf;
+
+        let cat_dir = PathBuf::from(r"C:\astap\catalogs");
+        let config = PlateSolverConfig {
+            astap_path: None,
+            astrometry_path: None,
+            catalog_path: Some(cat_dir.clone()),
+            search_radius: 5.0,
+            downsample: 2,
+            timeout_secs: 60,
+        };
+        assert_eq!(config.catalog_path.as_deref(), Some(cat_dir.as_path()));
+    }
+
+    /// The standard Windows ASTAP install path must appear in the candidate
+    /// list produced by `astap_candidates` for the Windows OS family.
+    /// This verifies bug #1 detection: if the standard path were missing,
+    /// a plain `C:\Program Files\astap\astap.exe` install would be invisible
+    /// to the auto-detect path.
+    #[test]
+    fn astap_candidates_windows_includes_standard_program_files_path() {
+        use super::platesolve_paths::{astap_candidates, AstapPathInputs, OsFamily};
+        use std::path::PathBuf;
+
+        let candidates = astap_candidates(&AstapPathInputs {
+            os: OsFamily::Windows,
+            configured: None,
+            local_app_data: None,
+            home: None,
+        });
+
+        assert!(
+            candidates.contains(&PathBuf::from(r"C:\Program Files\astap\astap.exe")),
+            "standard Windows ASTAP path must be in the candidate list"
+        );
+        assert!(
+            candidates.contains(&PathBuf::from(r"C:\Program Files\astap\astap_cli.exe")),
+            "standard Windows ASTAP CLI path must be in the candidate list"
+        );
+    }
+
+    /// A solved ASTAP .ini with PLTSOLVD=T must parse successfully and
+    /// surface CRVAL1/CRVAL2/CDELT1/CDELT2/CROTA correctly.
+    #[test]
+    fn parse_astap_ini_succeeds_on_solved_frame() {
+        let content = concat!(
+            "PLTSOLVD=T\n",
+            "CRVAL1=150.250\n",
+            "CRVAL2=20.500\n",
+            "CDELT1=-0.000358\n",
+            "CDELT2=0.000358\n",
+            "CROTA2=15.3\n",
+        );
+        let path = write_temp("ini-solved", content);
+        let result =
+            super::parse_astap_ini_inner(&path, 1.23).expect("solved ASTAP .ini must parse");
+        assert!(result.success);
+        assert!((result.ra - 150.250).abs() < 1e-6, "RA mismatch");
+        assert!((result.dec - 20.500).abs() < 1e-6, "Dec mismatch");
+        assert!((result.rotation - 15.3).abs() < 1e-6, "rotation mismatch");
+        assert!(result.pixel_scale > 0.0, "pixel scale must be positive");
+        assert!((result.solve_time_secs - 1.23).abs() < 1e-9);
+        let _ = std::fs::remove_file(path);
     }
 }

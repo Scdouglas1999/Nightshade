@@ -1,0 +1,229 @@
+part of '../notification_routing_settings.dart';
+
+class _CategoryEditorDialog extends StatefulWidget {
+  final NotificationCategory category;
+  final NotificationRoutingRule rule;
+  final Future<void> Function(NotificationRoutingRule) onSave;
+
+  const _CategoryEditorDialog({
+    required this.category,
+    required this.rule,
+    required this.onSave,
+  });
+
+  @override
+  State<_CategoryEditorDialog> createState() => _CategoryEditorDialogState();
+}
+
+class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
+  late bool _enabled;
+  late Set<NotificationTransportKind> _selectedTransports;
+  late EventSeverity _minSeverity;
+  late TextEditingController _maxPerHourController;
+  late TextEditingController _debounceController;
+  late TextEditingController _titleTemplateController;
+  late TextEditingController _bodyTemplateController;
+
+  @override
+  void initState() {
+    super.initState();
+    _enabled = widget.rule.enabled;
+    _selectedTransports = widget.rule.transports.toSet();
+    _minSeverity = widget.rule.minSeverity;
+    _maxPerHourController =
+        TextEditingController(text: widget.rule.maxPerHour.toString());
+    _debounceController =
+        TextEditingController(text: widget.rule.debounceSeconds.toString());
+    _titleTemplateController =
+        TextEditingController(text: widget.rule.titleTemplate ?? '');
+    _bodyTemplateController =
+        TextEditingController(text: widget.rule.bodyTemplate ?? '');
+  }
+
+  @override
+  void dispose() {
+    _maxPerHourController.dispose();
+    _debounceController.dispose();
+    _titleTemplateController.dispose();
+    _bodyTemplateController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = NightshadeColors.of(context);
+    return AlertDialog(
+      backgroundColor: c.surface,
+      title: Text(
+        widget.category.label,
+        style: TextStyle(color: c.textPrimary, fontSize: 16),
+      ),
+      content: SizedBox(
+        width: dialogMaxWidth(context, 480),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  NightshadeSwitch(
+                    value: _enabled,
+                    onChanged: (v) => setState(() => _enabled = v),
+                  ),
+                  const SizedBox(width: 8),
+                  Text('Rule enabled', style: TextStyle(color: c.textPrimary)),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text('Transports', style: TextStyle(color: c.textSecondary)),
+              const SizedBox(height: 6),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: NotificationTransportKind.values.map((t) {
+                  final selected = _selectedTransports.contains(t);
+                  return FilterChip(
+                    label: Text(t.label),
+                    selected: selected,
+                    onSelected: (v) => setState(() {
+                      if (v) {
+                        _selectedTransports.add(t);
+                      } else {
+                        _selectedTransports.remove(t);
+                      }
+                    }),
+                  );
+                }).toList(),
+              ),
+              const SizedBox(height: 12),
+              Text('Minimum severity',
+                  style: TextStyle(color: c.textSecondary)),
+              const SizedBox(height: 6),
+              DropdownButton<EventSeverity>(
+                value: _minSeverity,
+                isDense: true,
+                items: EventSeverity.values
+                    .map((s) => DropdownMenuItem(
+                          value: s,
+                          child: Text(s.name),
+                        ))
+                    .toList(),
+                onChanged: (v) {
+                  if (v != null) setState(() => _minSeverity = v);
+                },
+              ),
+              const SizedBox(height: 12),
+              _numericField(
+                label: 'Max per hour (0 = unlimited)',
+                controller: _maxPerHourController,
+              ),
+              const SizedBox(height: 12),
+              _numericField(
+                label: 'Debounce seconds (0 = none)',
+                controller: _debounceController,
+              ),
+              const SizedBox(height: 12),
+              Text('Title template (empty = default)',
+                  style: TextStyle(color: c.textSecondary)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _titleTemplateController,
+                style: TextStyle(color: c.textPrimary),
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: r'e.g. ${target.name} done',
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text('Body template (empty = default)',
+                  style: TextStyle(color: c.textSecondary)),
+              const SizedBox(height: 6),
+              TextField(
+                controller: _bodyTemplateController,
+                maxLines: 3,
+                style: TextStyle(color: c.textPrimary),
+                decoration: const InputDecoration(
+                  border: OutlineInputBorder(),
+                  hintText: r'e.g. Finished ${target.name} at ${time.local}',
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text('Live preview:',
+                  style: TextStyle(color: c.textMuted, fontSize: 11)),
+              const SizedBox(height: 4),
+              Text(
+                _previewBody(),
+                style: TextStyle(
+                    color: c.textPrimary,
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () async {
+            final maxPerHour = int.tryParse(_maxPerHourController.text) ?? 0;
+            final debounce = int.tryParse(_debounceController.text) ?? 0;
+            final updated = NotificationRoutingRule(
+              transports: _selectedTransports.isEmpty
+                  ? const [NotificationTransportKind.inApp]
+                  : _selectedTransports.toList(),
+              minSeverity: _minSeverity,
+              maxPerHour: maxPerHour,
+              debounceSeconds: debounce,
+              titleTemplate: _titleTemplateController.text.trim().isEmpty
+                  ? null
+                  : _titleTemplateController.text,
+              bodyTemplate: _bodyTemplateController.text.trim().isEmpty
+                  ? null
+                  : _bodyTemplateController.text,
+              enabled: _enabled,
+            );
+            await widget.onSave(updated);
+            if (context.mounted) Navigator.of(context).pop();
+          },
+          child: const Text('Save'),
+        ),
+      ],
+    );
+  }
+
+  Widget _numericField(
+      {required String label, required TextEditingController controller}) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(label,
+              style:
+                  TextStyle(color: NightshadeColors.of(context).textSecondary)),
+        ),
+        SizedBox(
+          width: 80,
+          child: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            style: TextStyle(color: NightshadeColors.of(context).textPrimary),
+            decoration: const InputDecoration(border: OutlineInputBorder()),
+          ),
+        ),
+      ],
+    );
+  }
+
+  String _previewBody() {
+    final tpl = _bodyTemplateController.text.trim();
+    if (tpl.isEmpty) return '(default template)';
+    return previewInterpolation(tpl);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Per-transport configuration + test send sections
+// ---------------------------------------------------------------------------

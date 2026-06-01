@@ -455,6 +455,9 @@ class SequenceDiffService {
             na.integrationBudgetSecs.toString(),
             nb.integrationBudgetSecs.toString(),
             equalIf: na.integrationBudgetSecs == nb.integrationBudgetSecs);
+        _addIfChanged(out, 'Loop until stopped',
+            na.loopUntilStopped.toString(), nb.loopUntilStopped.toString(),
+            equalIf: na.loopUntilStopped == nb.loopUntilStopped);
         break;
       case LiveStackingNode():
         final na = a, nb = b as LiveStackingNode;

@@ -24,7 +24,7 @@ pub fn transmittance_uv_from_r_mu(config: &PrecomputeConfig, r_km: f64, mu: f64)
     )
 }
 
-fn distance_to_top(r: f64, mu: f64, bottom: f64, top: f64) -> f64 {
+fn distance_to_top(r: f64, mu: f64, _bottom: f64, top: f64) -> f64 {
     let discriminant = r * r * (mu * mu - 1.0) + top * top;
     (-r * mu + discriminant.max(0.0).sqrt()).max(0.0)
 }

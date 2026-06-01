@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 import 'nightshade_colors.dart';
 
@@ -18,12 +17,17 @@ abstract final class NightshadeTypography {
   // Font Families
   // ===========================================================================
 
-  /// Primary font for UI text
-  static const String fontFamily = 'Inter';
+  /// Primary font for UI text — Hanken Grotesk (bundled variable font).
+  ///
+  /// A quiet, clean grotesque chosen to give the UI a precision-instrument
+  /// character without the generic "Inter template" look. Bundled as an asset
+  /// (see `nightshade_ui/pubspec.yaml`) so it renders offline in the field.
+  static const String fontFamily = 'HankenGrotesk';
 
-  /// Monospace font for technical displays, code, and numeric values.
-  /// This is loaded via GoogleFonts for consistent cross-platform rendering.
-  static String get fontFamilyMono => GoogleFonts.jetBrainsMono().fontFamily!;
+  /// Monospace font for technical displays, code, and numeric values —
+  /// Spline Sans Mono (bundled variable font). Pairs with [fontFamily] and
+  /// renders offline (no runtime font fetch).
+  static const String fontFamilyMono = 'SplineSansMono';
 
   // ===========================================================================
   // Heading Styles
@@ -188,7 +192,7 @@ abstract final class NightshadeTypography {
     fontSize: 12,
     fontWeight: FontWeight.w400,
     height: 1.33,
-    letterSpacing: 0.25,
+    letterSpacing: 0.1,
   );
 
   /// Caption small - Very small text
@@ -198,17 +202,22 @@ abstract final class NightshadeTypography {
     fontSize: 11,
     fontWeight: FontWeight.w400,
     height: 1.27,
-    letterSpacing: 0.25,
+    letterSpacing: 0.1,
   );
 
   /// Overline - Section dividers, category labels
   /// 10px, Semi-bold, uppercase
+  ///
+  /// Tight tracking (0.6, not the old 1.5) so uppercased labels read as crisp
+  /// instrument etching rather than the wide-tracked "generated dashboard"
+  /// caps. Hanken Grotesk's even uppercase already carries the small-label
+  /// rhythm without exaggerated letter spacing.
   static const TextStyle overline = TextStyle(
     fontFamily: fontFamily,
     fontSize: 10,
     fontWeight: FontWeight.w600,
     height: 1.6,
-    letterSpacing: 1.5,
+    letterSpacing: 0.6,
   );
 
   // ===========================================================================
@@ -217,7 +226,8 @@ abstract final class NightshadeTypography {
 
   /// Mono large - Large numeric values, coordinates
   /// 18px, Regular (non-tabular; use [telemetryMd] for live-updating values)
-  static TextStyle get monoLg => GoogleFonts.jetBrainsMono(
+  static const TextStyle monoLg = TextStyle(
+    fontFamily: fontFamilyMono,
     fontSize: 18,
     fontWeight: FontWeight.w400,
     height: 1.33,
@@ -226,22 +236,30 @@ abstract final class NightshadeTypography {
 
   /// Telemetry large - Hero live numeric displays (countdowns, scores)
   /// 22px, Medium, tabular figures
-  static TextStyle get telemetryLg => withTabular(
-    GoogleFonts.jetBrainsMono(
-      fontSize: 22,
-      fontWeight: FontWeight.w500,
-      height: 1.0,
-      letterSpacing: 0,
-    ),
+  static const TextStyle telemetryLg = TextStyle(
+    fontFamily: fontFamilyMono,
+    fontSize: 22,
+    fontWeight: FontWeight.w500,
+    height: 1.0,
+    letterSpacing: 0,
+    fontFeatures: [FontFeature.tabularFigures()],
   );
 
   /// Telemetry medium - Secondary live numeric highlights (ETA, gauges)
   /// 18px, Regular, tabular figures
-  static TextStyle get telemetryMd => withTabular(monoLg);
+  static const TextStyle telemetryMd = TextStyle(
+    fontFamily: fontFamilyMono,
+    fontSize: 18,
+    fontWeight: FontWeight.w400,
+    height: 1.33,
+    letterSpacing: 0,
+    fontFeatures: [FontFeature.tabularFigures()],
+  );
 
   /// Mono - Standard technical text, code
   /// 14px, Regular
-  static TextStyle get mono => GoogleFonts.jetBrainsMono(
+  static const TextStyle mono = TextStyle(
+    fontFamily: fontFamilyMono,
     fontSize: 14,
     fontWeight: FontWeight.w400,
     height: 1.43,
@@ -250,7 +268,8 @@ abstract final class NightshadeTypography {
 
   /// Mono small - Small numeric displays
   /// 12px, Regular
-  static TextStyle get monoSm => GoogleFonts.jetBrainsMono(
+  static const TextStyle monoSm = TextStyle(
+    fontFamily: fontFamilyMono,
     fontSize: 12,
     fontWeight: FontWeight.w400,
     height: 1.33,
@@ -259,7 +278,8 @@ abstract final class NightshadeTypography {
 
   /// Mono tiny - Very small numeric values
   /// 11px, Regular
-  static TextStyle get monoXs => GoogleFonts.jetBrainsMono(
+  static const TextStyle monoXs = TextStyle(
+    fontFamily: fontFamilyMono,
     fontSize: 11,
     fontWeight: FontWeight.w400,
     height: 1.27,
@@ -272,7 +292,8 @@ abstract final class NightshadeTypography {
 
   /// Stat value - Large statistic displays
   /// 36px, Bold
-  static TextStyle get statValue => GoogleFonts.jetBrainsMono(
+  static const TextStyle statValue = TextStyle(
+    fontFamily: fontFamilyMono,
     fontSize: 36,
     fontWeight: FontWeight.w700,
     height: 1.2,
@@ -286,7 +307,7 @@ abstract final class NightshadeTypography {
     fontSize: 12,
     fontWeight: FontWeight.w500,
     height: 1.33,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   );
 
   /// Button text
@@ -321,7 +342,8 @@ abstract final class NightshadeTypography {
 
   /// Input numeric (monospace)
   /// 14px, Regular
-  static TextStyle get inputMono => GoogleFonts.jetBrainsMono(
+  static const TextStyle inputMono = TextStyle(
+    fontFamily: fontFamilyMono,
     fontSize: 14,
     fontWeight: FontWeight.w400,
     height: 1.43,

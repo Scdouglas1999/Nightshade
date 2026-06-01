@@ -63,6 +63,7 @@ class SmartExposureProperties extends ConsumerWidget {
             node: node,
             filterNames: filterNames,
             exposureContext: exposureContext,
+            loopMode: node.loopUntilStopped,
             onPlansChanged: (newPlans) {
               ref.read(currentSequenceProvider.notifier).updateNode(
                     node.copyWith(plans: newPlans),
@@ -145,22 +146,105 @@ class SmartExposureProperties extends ConsumerWidget {
             ),
           ),
 
-          if (node.rotateFilters)
+          if (node.rotateFilters) ...[
             NodePropertyField(
               colors: colors,
-              label: 'Batch Size (per visit)',
-              child: NodeNumberInput(
+              label: 'Switch Filter Every Frame',
+              child: NodeToggleSwitch(
                 colors: colors,
-                value: node.batchSize.toDouble(),
-                min: 1,
-                max: 999,
+                // Drives "loop until stopped" mode: 1 sub per filter,
+                // round-robin, looping until the target's window ends (or the
+                // integration budget). In this mode the per-filter Counts and
+                // Batch Size are irrelevant — the loop is bounded by time, not
+                // by drained counts. Off → today's count-draining behaviour.
+                value: node.loopUntilStopped,
                 onChanged: (v) {
                   ref.read(currentSequenceProvider.notifier).updateNode(
-                        node.copyWith(batchSize: v.toInt().clamp(1, 999)),
+                        // Force a clean 1-sub rotation when enabling. We leave
+                        // batchSize at its stored value when turning OFF so the
+                        // numeric Batch Size control reappears as the user left
+                        // it (the Rust executor only coerces it while loop mode
+                        // is on).
+                        node.copyWith(
+                          loopUntilStopped: v,
+                          batchSize: v ? 1 : node.batchSize,
+                        ),
                       );
                 },
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                node.loopUntilStopped
+                    ? '1 sub per filter, looping until the target’s window '
+                        'ends (or the integration budget). Per-filter Counts are '
+                        'ignored in this mode.'
+                    : 'Takes Batch Size subs per filter before rotating to the next.',
+                style: TextStyle(
+                  fontSize: Responsive.fontSize(context, 11),
+                  color: colors.textMuted,
+                ),
+              ),
+            ),
+            // The unbounded-loop hint: in loop mode, if there's neither an
+            // integration budget nor a bounding target window, the executor
+            // will fail closed (errors-are-a-feature). Surface that here so the
+            // user fixes it at edit time rather than at runtime.
+            if (node.loopUntilStopped &&
+                node.integrationBudgetSecs <= 0 &&
+                !_hasBoundingTargetWindow(ref))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: colors.warning.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: colors.warning.withValues(alpha: 0.4)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(LucideIcons.alertTriangle,
+                          size: 14, color: colors.warning),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'Nothing bounds this loop. Set an integration budget '
+                          'below, or place this node under a target with an end '
+                          'condition (ends-when / ends-before) — otherwise the '
+                          'run will refuse to start.',
+                          style: TextStyle(
+                            fontSize: Responsive.fontSize(context, 11),
+                            color: colors.warning,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            // The numeric Batch Size only matters in the (non-loop) multi-sub
+            // case. It's hidden in loop mode (batch is forced to 1).
+            if (!node.loopUntilStopped && node.batchSize > 1)
+              NodePropertyField(
+                colors: colors,
+                label: 'Batch Size (per visit)',
+                child: NodeNumberInput(
+                  colors: colors,
+                  value: node.batchSize.toDouble(),
+                  min: 2,
+                  max: 999,
+                  onChanged: (v) {
+                    ref.read(currentSequenceProvider.notifier).updateNode(
+                          node.copyWith(batchSize: v.toInt().clamp(2, 999)),
+                        );
+                  },
+                ),
+              ),
+          ],
 
           // === Integration budget ===
           const SizedBox(height: 12),
@@ -181,6 +265,33 @@ class SmartExposureProperties extends ConsumerWidget {
       ),
     );
   }
+
+  /// True when this node sits (directly or transitively) under a
+  /// [TargetHeaderNode] that has an end condition — `endWhen` (an
+  /// altitude/time crossing trigger) or the legacy `endBefore` wall-clock
+  /// cutoff. In loop-until-stopped mode that target window is what bounds the
+  /// otherwise-unbounded rotation, so the editor only warns when no such
+  /// window (and no integration budget) exists.
+  ///
+  /// Walks parents via [SequenceNode.parentId]; cheap (depth is small) and
+  /// runs only while the warning predicate is being evaluated.
+  bool _hasBoundingTargetWindow(WidgetRef ref) {
+    final sequence = ref.read(currentSequenceProvider);
+    if (sequence == null) return false;
+    final nodes = sequence.nodes;
+    var currentId = node.parentId;
+    final seen = <String>{};
+    while (currentId != null && seen.add(currentId)) {
+      final parent = nodes[currentId];
+      if (parent == null) break;
+      if (parent is TargetHeaderNode &&
+          (parent.endWhen != null || parent.endBefore != null)) {
+        return true;
+      }
+      currentId = parent.parentId;
+    }
+    return false;
+  }
 }
 
 class _PlanList extends StatelessWidget {
@@ -188,6 +299,10 @@ class _PlanList extends StatelessWidget {
   final SmartExposureNode node;
   final List<String> filterNames;
   final SmartNightExposureContext? exposureContext;
+
+  /// When true (loop-until-stopped), per-filter Count inputs are replaced by a
+  /// read-only "looping" note because the counts are ignored.
+  final bool loopMode;
   final ValueChanged<List<FilterPlan>> onPlansChanged;
 
   const _PlanList({
@@ -195,6 +310,7 @@ class _PlanList extends StatelessWidget {
     required this.node,
     required this.filterNames,
     required this.exposureContext,
+    required this.loopMode,
     required this.onPlansChanged,
   });
 
@@ -248,6 +364,7 @@ class _PlanList extends StatelessWidget {
           index: index,
           filterNames: filterNames,
           exposureContext: exposureContext,
+          loopMode: loopMode,
           onChanged: (updated) {
             final newPlans = List<FilterPlan>.from(node.plans);
             newPlans[index] = updated;
@@ -269,6 +386,7 @@ class _PlanRow extends StatelessWidget {
   final int index;
   final List<String> filterNames;
   final SmartNightExposureContext? exposureContext;
+  final bool loopMode;
   final ValueChanged<FilterPlan> onChanged;
   final VoidCallback onDelete;
 
@@ -279,6 +397,7 @@ class _PlanRow extends StatelessWidget {
     required this.index,
     required this.filterNames,
     required this.exposureContext,
+    required this.loopMode,
     required this.onChanged,
     required this.onDelete,
   });
@@ -330,14 +449,38 @@ class _PlanRow extends StatelessWidget {
                   child: NodePropertyField(
                     colors: colors,
                     label: 'Count',
-                    child: NodeNumberInput(
-                      colors: colors,
-                      value: plan.count.toDouble(),
-                      min: 0,
-                      max: 9999,
-                      onChanged: (v) =>
-                          onChanged(plan.copyWith(count: v.toInt())),
-                    ),
+                    // Loop-until-stopped ignores per-filter counts — surface a
+                    // read-only "looping" placeholder instead of an editable
+                    // field so the user isn't misled into tuning a number that
+                    // does nothing.
+                    child: loopMode
+                        ? Container(
+                            height: 38,
+                            alignment: Alignment.centerLeft,
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 12),
+                            decoration: BoxDecoration(
+                              color: colors.surface,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: colors.border),
+                            ),
+                            child: Text(
+                              '— looping',
+                              style: TextStyle(
+                                fontSize: Responsive.fontSize(context, 12),
+                                color: colors.textMuted,
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          )
+                        : NodeNumberInput(
+                            colors: colors,
+                            value: plan.count.toDouble(),
+                            min: 0,
+                            max: 9999,
+                            onChanged: (v) =>
+                                onChanged(plan.copyWith(count: v.toInt())),
+                          ),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -666,6 +809,17 @@ class _EstimateSummary extends StatelessWidget {
     // ever marked unused — the dashboard rendering depends on the same
     // class.
     estimator.toString();
+
+    // In loop-until-stopped mode the per-plan counts are ignored, so a fixed
+    // "Integration: Xh" figure would be a lie. The total is whatever fits in
+    // the bound: the integration budget if set, otherwise "until window end".
+    final loop = node.loopUntilStopped;
+    final integrationLine = loop
+        ? (node.integrationBudgetSecs > 0
+            ? 'Integration: up to ${formatHumanDurationSecs(node.integrationBudgetSecs)} (looping)'
+            : 'Integration: until the target’s window ends (looping)')
+        : 'Integration: ${formatHumanDurationSecs(integration)}';
+
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: NightshadeDecorations.tintedBadge(
@@ -677,32 +831,39 @@ class _EstimateSummary extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(LucideIcons.clock, size: 14, color: colors.primary),
+              Icon(loop ? LucideIcons.repeat : LucideIcons.clock,
+                  size: 14, color: colors.primary),
               const SizedBox(width: 8),
-              Text(
-                'Integration: ${formatHumanDurationSecs(integration)}',
-                style: TextStyle(
-                  fontSize: Responsive.fontSize(context, 13),
-                  fontWeight: FontWeight.w500,
-                  color: colors.primary,
+              Expanded(
+                child: Text(
+                  integrationLine,
+                  style: TextStyle(
+                    fontSize: Responsive.fontSize(context, 13),
+                    fontWeight: FontWeight.w500,
+                    color: colors.primary,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Row(
-            children: [
-              Icon(LucideIcons.alarmClock, size: 14, color: colors.textMuted),
-              const SizedBox(width: 8),
-              Text(
-                'Wall clock (approx): ${formatHumanDurationSecs(wallClock)}',
-                style: TextStyle(
-                  fontSize: Responsive.fontSize(context, 11),
-                  color: colors.textMuted,
+          // Wall-clock approximation only makes sense for a bounded run.
+          // In loop mode without a budget there's no finite figure.
+          if (!loop || node.integrationBudgetSecs > 0) ...[
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                Icon(LucideIcons.alarmClock, size: 14, color: colors.textMuted),
+                const SizedBox(width: 8),
+                Text(
+                  'Wall clock (approx): ${formatHumanDurationSecs(wallClock)}',
+                  style: TextStyle(
+                    fontSize: Responsive.fontSize(context, 11),
+                    color: colors.textMuted,
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
+          ],
           if (node.plans.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
@@ -720,6 +881,14 @@ class _EstimateSummary extends StatelessWidget {
   }
 
   String _planSummary(SmartExposureNode node) {
+    if (node.loopUntilStopped) {
+      // Counts are ignored — show "filter · 1 each · looping" so the summary
+      // reflects the round-robin-forever shape, not fixed counts.
+      final filters = node.plans
+          .map((p) => p.filterName.isEmpty ? '#?' : p.filterName)
+          .join('·');
+      return '$filters · 1 each · looping';
+    }
     return node.plans
         .map((p) =>
             '${p.filterName}: ${p.count}×${p.durationSecs.toStringAsFixed(0)}s')

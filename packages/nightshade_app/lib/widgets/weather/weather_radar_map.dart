@@ -40,6 +40,14 @@ class WeatherRadarMap extends ConsumerStatefulWidget {
   /// Cloud motion direction (degrees, 0=N, for indicator arrow)
   final double? motionDirection;
 
+  /// Human-readable name of the data source (e.g. "GOES Satellite"), shown in
+  /// the info overlay for attribution. Null hides the source label.
+  final String? sourceName;
+
+  /// When the displayed data was fetched, shown as a freshness indicator in
+  /// the info overlay. Null hides the freshness label.
+  final DateTime? fetchedAt;
+
   /// Callback when map tapped (for navigation in compact mode)
   final VoidCallback? onTap;
 
@@ -53,6 +61,8 @@ class WeatherRadarMap extends ConsumerStatefulWidget {
     this.radarOpacity = 0.7,
     this.contrastLevel = 1.5,
     this.motionDirection,
+    this.sourceName,
+    this.fetchedAt,
     this.onTap,
   });
 
@@ -73,6 +83,15 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
   void dispose() {
     _mapController.dispose();
     super.dispose();
+  }
+
+  /// Formats how long ago [time] was, in compact human terms.
+  String _formatAge(DateTime time) {
+    final diff = DateTime.now().difference(time);
+    if (diff.inSeconds < 60) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    return '${diff.inDays}d ago';
   }
 
   /// Calculate initial zoom level to fit alert radius
@@ -355,27 +374,46 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
                   width: 1,
                 ),
               ),
-              child: Row(
+              child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    widget.currentFrame!.isForecast
-                        ? LucideIcons.cloudRainWind
-                        : LucideIcons.satellite,
-                    size: 16,
-                    color: widget.currentFrame!.isForecast
-                        ? colors.info
-                        : colors.textSecondary,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        widget.currentFrame!.isForecast
+                            ? LucideIcons.cloudRainWind
+                            : LucideIcons.satellite,
+                        size: 16,
+                        color: widget.currentFrame!.isForecast
+                            ? colors.info
+                            : colors.textSecondary,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        widget.sourceName ??
+                            (widget.currentFrame!.isForecast
+                                ? 'Forecast'
+                                : 'Live'),
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    widget.currentFrame!.isForecast ? 'Forecast' : 'Live',
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
+                  if (widget.fetchedAt != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Updated ${_formatAge(widget.fetchedAt!)}',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 10,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

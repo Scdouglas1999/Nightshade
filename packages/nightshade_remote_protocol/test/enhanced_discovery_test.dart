@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 
@@ -150,13 +153,15 @@ void main() {
       );
       expect(registration.name, 'Nightshade Test');
       expect(registration.port, 8080);
-      expect(registration.txt.keys, containsAll(<String>[
-        'version',
-        'scheme',
-        'fingerprint',
-        'pairingSupported',
-        'name',
-      ]));
+      expect(
+          registration.txt.keys,
+          containsAll(<String>[
+            'version',
+            'scheme',
+            'fingerprint',
+            'pairingSupported',
+            'name',
+          ]));
       expect(registration.isRegistered, isFalse);
     });
   });
@@ -191,8 +196,7 @@ void main() {
       expect(server.scheme, 'https');
       expect(server.isTls, isTrue);
       expect(server.webUrl, 'https://100.64.0.5:8443');
-      expect(server.copyWith(scheme: 'http').webUrl,
-          'http://100.64.0.5:8443');
+      expect(server.copyWith(scheme: 'http').webUrl, 'http://100.64.0.5:8443');
     });
   });
 
@@ -230,8 +234,7 @@ void main() {
     });
 
     test('parseStrict lower-cases an upper-case scheme', () {
-      const payload =
-          '{"service":"nightshade","host":"100.96.0.7","port":8443,'
+      const payload = '{"service":"nightshade","host":"100.96.0.7","port":8443,'
           '"version":"2.6.0","fingerprint":"abcdef1234567890",'
           '"scheme":"HTTPS"}';
       expect(QrConnectionData.parseStrict(payload).scheme, 'https');
@@ -295,6 +298,30 @@ void main() {
           scheme: 'ftp',
         ),
         throwsArgumentError,
+      );
+    });
+
+    test('prefers compatible apiVersion over a newer app version', () async {
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(() => server.close(force: true));
+      server.listen((request) async {
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.json
+          ..write(jsonEncode({
+            'version': '3.0.0',
+            'apiVersion': '2.6.0',
+            'authRequired': false,
+          }));
+        await request.response.close();
+      });
+
+      expect(
+        await EnhancedNightshadeDiscovery.testServerConnection(
+          InternetAddress.loopbackIPv4.address,
+          server.port,
+        ),
+        isTrue,
       );
     });
   });

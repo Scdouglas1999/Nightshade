@@ -13,10 +13,6 @@ import 'desktop_app_bootstrap.dart';
 import 'desktop_logging_init.dart';
 import 'main_headless.dart' as headless;
 
-// Current app version - must match version.yaml
-const String appVersion = '2.5.0';
-const int appBuildNumber = 5;
-
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -29,6 +25,7 @@ void main(List<String> args) async {
   }
 
   await initialiseDesktopLogging();
+  final appVersion = await loadDesktopAppVersion();
 
   await windowManager.ensureInitialized();
 
@@ -62,10 +59,7 @@ void main(List<String> args) async {
       // loudly (an unset version masks OTA update logic). The desktop entry
       // is the canonical place to wire it.
       appVersionProvider.overrideWithValue(
-        const AppVersionInfo(
-          version: appVersion,
-          buildNumber: appBuildNumber,
-        ),
+        appVersion,
       ),
       // Wave 6 Pack P — wire `pluginNodeDispatcherProvider` (defined in
       // nightshade_core) to the real `PluginNodeExecutor` (defined in
@@ -114,8 +108,8 @@ void main(List<String> args) async {
 
   startBackgroundServices(
     container,
-    appVersion: appVersion,
-    appBuildNumber: appBuildNumber,
+    appVersion: appVersion.version,
+    appBuildNumber: appVersion.buildNumber,
   );
 
   runApp(

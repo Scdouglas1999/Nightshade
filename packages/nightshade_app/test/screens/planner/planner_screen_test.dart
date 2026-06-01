@@ -398,6 +398,85 @@ void main() {
   });
 
   testWidgets(
+      'candidate row exposes a Review in Sequencer action (not only the '
+      'primary)', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    // Two distinct suggestions so the optimizer promotes one to the primary
+    // card while the other only ever appears as a candidate row. The
+    // regression this guards: candidate rows previously had no path to the
+    // sequencer, so only the top recommendation could be reviewed.
+    const primary = TargetSuggestion(
+      targetId: 11,
+      targetName: 'North America Nebula',
+      raHours: 20.98,
+      decDegrees: 44.33,
+      totalScore: 95,
+      visibility: TargetVisibilityInfo(
+        currentAltitude: 62,
+        currentAzimuth: 120,
+        airmass: 1.1,
+        moonDistance: 110,
+        peakAltitude: 75,
+        hoursAboveMinAlt: 5.5,
+      ),
+      objectType: 'Emission Nebula',
+      magnitude: 4.0,
+    );
+    const secondary = TargetSuggestion(
+      targetId: 12,
+      targetName: 'Pelican Nebula',
+      raHours: 20.85,
+      decDegrees: 44.36,
+      totalScore: 80,
+      visibility: TargetVisibilityInfo(
+        currentAltitude: 60,
+        currentAzimuth: 122,
+        airmass: 1.15,
+        moonDistance: 108,
+        peakAltitude: 73,
+        hoursAboveMinAlt: 5.2,
+      ),
+      objectType: 'Emission Nebula',
+      magnitude: 8.0,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._commonOverrides(),
+          tonightSuggestionsProvider
+              .overrideWith((ref) async => [primary, secondary]),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: PlannerScreen()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    // The primary card's full-width button plus each candidate row's button
+    // all carry the same "Review in Sequencer" label. With one primary card
+    // and two candidate rows that is three occurrences; the key point is that
+    // it appears MORE than once, i.e. the candidates are no longer stranded.
+    final reviewButtons =
+        find.widgetWithText(NightshadeButton, 'Review in Sequencer');
+    expect(
+      reviewButtons,
+      findsNWidgets(3),
+      reason:
+          'Every candidate row must offer "Review in Sequencer" alongside the '
+          'primary card — not just the top recommendation.',
+    );
+  });
+
+  testWidgets(
       'candidate row shows altitude chart without expand toggle on desktop',
       (tester) async {
     tester.view.devicePixelRatio = 1.0;

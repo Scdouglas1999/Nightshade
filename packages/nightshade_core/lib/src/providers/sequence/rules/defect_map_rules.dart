@@ -83,8 +83,7 @@ class DefectMapAppliedButCalibrationOffRule
       ];
     }
 
-    final capsAsync =
-        ctx.ref.read(cameraCapabilitiesProvider(cameraId));
+    final capsAsync = ctx.ref.read(cameraCapabilitiesProvider(cameraId));
     // .value normalises the AsyncValue's nullable payload back to the
     // inner Option, matching the AsyncValue.value semantics used by the
     // calibration UI elsewhere in the codebase.
@@ -112,8 +111,7 @@ class DefectMapAppliedButCalibrationOffRule
     // returns the inner DefectMapStatus? directly.
     final status = statusAsync.value;
     if (status == null) {
-      final bucket =
-          DefectMapTemperatureBucket.fromCelsius(temperatureC);
+      final bucket = DefectMapTemperatureBucket.fromCelsius(temperatureC);
       return <ValidationIssue>[
         ValidationIssue(
           severity: ValidationSeverity.warning,

@@ -3627,8 +3627,7 @@ impl SequenceExecutor {
                                     Some(t) => t <= now,
                                 };
                                 if needs_refresh {
-                                    let new_dawn =
-                                        crate::triggers::calculate_dawn_time(lat, lon);
+                                    let new_dawn = crate::triggers::calculate_dawn_time(lat, lon);
                                     state.dawn_time = Some(new_dawn);
                                     tracing::debug!(
                                         "dawn_time computed for ({}, {}): {} (next astronomical twilight)",
@@ -4162,9 +4161,7 @@ impl SequenceExecutor {
                                                 }
                                             };
                                             let af_result = crate::instructions::execute_autofocus(
-                                                &af_config,
-                                                &af_ctx,
-                                                None,
+                                                &af_config, &af_ctx, None,
                                             )
                                             .await;
 
@@ -5141,7 +5138,6 @@ impl SequenceExecutor {
 
         Ok(())
     }
-
 }
 
 impl Default for SequenceExecutor {
@@ -5566,6 +5562,7 @@ mod tests {
                 dither_on_filter_change: false,
                 integration_budget_secs: budget_secs,
                 batch_size: 1,
+                loop_until_stopped: false,
             }),
             enabled: true,
             children: vec![],
@@ -5666,6 +5663,7 @@ mod tests {
                 dither_on_filter_change: false,
                 integration_budget_secs: 0.0,
                 batch_size: 1,
+                loop_until_stopped: false,
             }),
             enabled: true,
             children: vec![],

@@ -101,7 +101,9 @@ class _RadarTimelineScrubberState
     _animationTimer?.cancel();
     _animationTimer = null;
 
-    if (widget.isPlaying && !_isDragging && widget.frames.isNotEmpty) {
+    // Only animate when there are at least two frames to cycle through. A
+    // single frame has no loop, so a timer would just re-select index 0.
+    if (widget.isPlaying && !_isDragging && widget.frames.length > 1) {
       // Base interval: 500ms per frame (2 FPS)
       const baseInterval = Duration(milliseconds: 500);
       final adjustedInterval = Duration(
@@ -214,6 +216,16 @@ class _RadarTimelineScrubberState
           ],
         ),
       );
+    }
+
+    // A single frame can't be animated or scrubbed: there is nothing to seek
+    // through and nothing for the play loop to advance to. Some sources (e.g.
+    // the GOES satellite composite) only expose the latest image, so rather
+    // than show dead transport controls we present a clean static readout of
+    // the one frame's timestamp. Multi-frame sources (NOAA NEXRAD, RainViewer)
+    // get the full animated timeline below.
+    if (widget.frames.length == 1) {
+      return _buildSingleFrame(context, colors, widget.frames.first);
     }
 
     final currentFrame = widget.frames[widget.currentIndex];
@@ -402,6 +414,75 @@ class _RadarTimelineScrubberState
             style: theme.textTheme.bodySmall?.copyWith(
               color: colors.textMuted,
               fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Static readout for a single-frame source (no animation possible).
+  ///
+  /// Shows the frame's capture time and a "latest image" note instead of dead
+  /// play/scrub controls, which would do nothing with only one frame.
+  Widget _buildSingleFrame(
+    BuildContext context,
+    NightshadeColors colors,
+    RadarFrame frame,
+  ) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            frame.isForecast ? LucideIcons.clock : LucideIcons.satellite,
+            size: 16,
+            color: frame.isForecast ? colors.warning : colors.success,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  frame.isForecast ? 'Forecast snapshot' : 'Latest image',
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'This source provides a single live frame — no loop to play.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: colors.textMuted,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(4),
+              border: Border.all(color: colors.border),
+            ),
+            child: Text(
+              _formatTimestamp(frame.timestamp),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.w500,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ),
             ),
           ),
         ],

@@ -1,0 +1,419 @@
+// ignore_for_file: unused_element, unused_field
+
+part of '../sky_renderer.dart';
+
+/// Which slice of the scene a [SkyCanvasPainter] should render.
+///
+/// The interactive sky view splits rendering into two RepaintBoundary-isolated
+/// layers so a static view paints the expensive base once then idles while
+/// cheap animated bits repaint at 60fps:
+///
+/// * [SkyRenderScope.base] — everything that is NOT continuously animated:
+///   background, Milky Way, grids, constellations, DSOs, dim+medium stars,
+///   solar-system bodies, satellites, labels, the non-pulsing mount/selection
+///   markers. Repaints only when the pose / minute / config / catalog changes.
+/// * [SkyRenderScope.overlay] — only the cheap animated bits drawn on top:
+///   the bright-star (twinkle) pass and the pulsing selection ring. Repaints
+///   at animation cadence.
+/// * [SkyRenderScope.full] — the complete scene in a single painter. Used when
+///   the painter is driven standalone (tests, thumbnails, anywhere the
+///   two-layer host isn't involved).
+enum SkyRenderScope {
+  base,
+  overlay,
+  full,
+}
+
+/// Mount tracking status for rendering
+enum MountRenderStatus {
+  disconnected,
+  parked,
+  slewing,
+  tracking,
+  stopped,
+}
+
+/// Configuration for sky rendering
+class SkyRenderConfig {
+  final bool showStars;
+  final bool showConstellationLines;
+  final bool showConstellationLabels;
+  final bool showConstellationBoundaries;
+  final bool showDSOs;
+  final bool showDSOLabels;
+  final bool showCoordinateGrid;
+  final bool showAltAzGrid;
+  final bool showEquatorialGrid;
+  final bool showEcliptic;
+  final bool showGalacticPlane;
+  final bool showHorizon;
+  final bool showCardinalDirections;
+  final bool showMilkyWay;
+  final bool showMountPosition;
+  final bool showSun;
+  final bool showMoon;
+  final bool showPlanets;
+  final bool showGroundPlane;
+  final bool showMeridian;
+  final bool showSatellites;
+  final bool showVariableStars;
+  final bool showMinorPlanets;
+  final bool showConstellationArt;
+  final Color groundColorDark;
+  final Color groundColorLight;
+  final Color horizonGlowColor;
+  final double starMagnitudeLimit;
+  final double dsoMagnitudeLimit;
+  final Color gridColor;
+  final Color constellationLineColor;
+  final Color constellationBoundaryColor;
+  final Color eclipticColor;
+  final Color galacticPlaneColor;
+  final Color horizonColor;
+  final Color mountPositionColor;
+
+  const SkyRenderConfig({
+    this.showStars = true,
+    this.showConstellationLines = true,
+    this.showConstellationLabels = true,
+    this.showConstellationBoundaries = false,
+    this.showDSOs = true,
+    this.showDSOLabels = true,
+    this.showCoordinateGrid = false,
+    this.showAltAzGrid = false,
+    this.showEquatorialGrid = false,
+    this.showEcliptic = false,
+    this.showGalacticPlane = false,
+    this.showHorizon = true,
+    this.showCardinalDirections = true,
+    this.showMilkyWay = false,
+    this.showMountPosition = true,
+    this.showSun = true,
+    this.showMoon = true,
+    this.showPlanets = true,
+    this.showGroundPlane = true,
+    this.showMeridian = false,
+    this.showSatellites = false,
+    this.showVariableStars = false,
+    this.showMinorPlanets = false,
+    this.showConstellationArt = false,
+    this.groundColorDark = const Color(0xFF0A0805),
+    this.groundColorLight = const Color(0xFF1A1510),
+    this.horizonGlowColor = const Color(0xFF2A2015),
+    this.starMagnitudeLimit = 6.0,
+    this.dsoMagnitudeLimit = 12.0,
+    this.gridColor = const Color(0x33FFFFFF),
+    this.constellationLineColor = const Color(0x40FFFFFF),
+    this.constellationBoundaryColor = const Color(0x20FFFFFF),
+    this.eclipticColor = const Color(0x40FFEB3B),
+    this.galacticPlaneColor = const Color(0x4000BCD4),
+    this.horizonColor = const Color(0x30FF8A65),
+    this.mountPositionColor = const Color(0xFFE53935),
+  });
+
+  SkyRenderConfig copyWith({
+    bool? showStars,
+    bool? showConstellationLines,
+    bool? showConstellationLabels,
+    bool? showConstellationBoundaries,
+    bool? showDSOs,
+    bool? showDSOLabels,
+    bool? showCoordinateGrid,
+    bool? showAltAzGrid,
+    bool? showEquatorialGrid,
+    bool? showEcliptic,
+    bool? showGalacticPlane,
+    bool? showHorizon,
+    bool? showCardinalDirections,
+    bool? showMilkyWay,
+    bool? showMountPosition,
+    bool? showSun,
+    bool? showMoon,
+    bool? showPlanets,
+    bool? showGroundPlane,
+    bool? showMeridian,
+    bool? showSatellites,
+    bool? showVariableStars,
+    bool? showMinorPlanets,
+    bool? showConstellationArt,
+    Color? groundColorDark,
+    Color? groundColorLight,
+    Color? horizonGlowColor,
+    double? starMagnitudeLimit,
+    double? dsoMagnitudeLimit,
+    Color? gridColor,
+    Color? constellationLineColor,
+    Color? constellationBoundaryColor,
+    Color? eclipticColor,
+    Color? galacticPlaneColor,
+    Color? horizonColor,
+    Color? mountPositionColor,
+  }) {
+    return SkyRenderConfig(
+      showStars: showStars ?? this.showStars,
+      showConstellationLines:
+          showConstellationLines ?? this.showConstellationLines,
+      showConstellationLabels:
+          showConstellationLabels ?? this.showConstellationLabels,
+      showConstellationBoundaries:
+          showConstellationBoundaries ?? this.showConstellationBoundaries,
+      showDSOs: showDSOs ?? this.showDSOs,
+      showDSOLabels: showDSOLabels ?? this.showDSOLabels,
+      showCoordinateGrid: showCoordinateGrid ?? this.showCoordinateGrid,
+      showAltAzGrid: showAltAzGrid ?? this.showAltAzGrid,
+      showEquatorialGrid: showEquatorialGrid ?? this.showEquatorialGrid,
+      showEcliptic: showEcliptic ?? this.showEcliptic,
+      showGalacticPlane: showGalacticPlane ?? this.showGalacticPlane,
+      showHorizon: showHorizon ?? this.showHorizon,
+      showCardinalDirections:
+          showCardinalDirections ?? this.showCardinalDirections,
+      showMilkyWay: showMilkyWay ?? this.showMilkyWay,
+      showMountPosition: showMountPosition ?? this.showMountPosition,
+      showSun: showSun ?? this.showSun,
+      showMoon: showMoon ?? this.showMoon,
+      showPlanets: showPlanets ?? this.showPlanets,
+      showGroundPlane: showGroundPlane ?? this.showGroundPlane,
+      showMeridian: showMeridian ?? this.showMeridian,
+      showSatellites: showSatellites ?? this.showSatellites,
+      showVariableStars: showVariableStars ?? this.showVariableStars,
+      showMinorPlanets: showMinorPlanets ?? this.showMinorPlanets,
+      showConstellationArt: showConstellationArt ?? this.showConstellationArt,
+      groundColorDark: groundColorDark ?? this.groundColorDark,
+      groundColorLight: groundColorLight ?? this.groundColorLight,
+      horizonGlowColor: horizonGlowColor ?? this.horizonGlowColor,
+      starMagnitudeLimit: starMagnitudeLimit ?? this.starMagnitudeLimit,
+      dsoMagnitudeLimit: dsoMagnitudeLimit ?? this.dsoMagnitudeLimit,
+      gridColor: gridColor ?? this.gridColor,
+      constellationLineColor:
+          constellationLineColor ?? this.constellationLineColor,
+      constellationBoundaryColor:
+          constellationBoundaryColor ?? this.constellationBoundaryColor,
+      eclipticColor: eclipticColor ?? this.eclipticColor,
+      galacticPlaneColor: galacticPlaneColor ?? this.galacticPlaneColor,
+      horizonColor: horizonColor ?? this.horizonColor,
+      mountPositionColor: mountPositionColor ?? this.mountPositionColor,
+    );
+  }
+}
+
+/// Sky view projection type
+enum SkyProjection {
+  stereographic,
+  orthographic,
+  azimuthalEquidistant,
+}
+
+/// View state for sky rendering
+class SkyViewState {
+  final double centerRA; // hours
+  final double centerDec; // degrees
+  final double fieldOfView; // degrees
+  final double rotation; // degrees
+  final SkyProjection projection;
+
+  const SkyViewState({
+    this.centerRA = 0,
+    this.centerDec = 0,
+    this.fieldOfView = 90,
+    this.rotation = 0,
+    this.projection = SkyProjection.stereographic,
+  });
+
+  SkyViewState copyWith({
+    double? centerRA,
+    double? centerDec,
+    double? fieldOfView,
+    double? rotation,
+    SkyProjection? projection,
+  }) {
+    return SkyViewState(
+      centerRA: centerRA ?? this.centerRA,
+      centerDec: centerDec ?? this.centerDec,
+      fieldOfView: fieldOfView ?? this.fieldOfView,
+      rotation: rotation ?? this.rotation,
+      projection: projection ?? this.projection,
+    );
+  }
+}
+
+/// Precomputed atmospheric extinction lookup table.
+///
+/// 91 entries for altitudes 0-90 degrees. The extinction factor combines
+/// dimming and reddening from atmospheric scattering. Below 30 degrees the
+/// effect is significant; above 30 degrees the factor is 1.0 (no extinction).
+///
+/// The table is static since extinction depends only on altitude (geometric
+/// airmass), not observer location. Uses linear interpolation for fractional
+/// altitudes.
+class AtmosphericExtinctionLUT {
+  /// 91-entry LUT: index = integer altitude in degrees (0..90).
+  /// Each entry is (brightnessFactor, redShift) where:
+  ///   brightnessFactor: multiplier for star brightness [0.5..1.0]
+  ///   redShift: Color.lerp amount toward warm horizon color [0.0..0.4]
+  static final List<(double, double)> _lut = _buildLUT();
+
+  static List<(double, double)> _buildLUT() {
+    final table = List<(double, double)>.filled(91, (1.0, 0.0));
+    for (int alt = 0; alt <= 90; alt++) {
+      if (alt >= 30) {
+        table[alt] = (1.0, 0.0);
+      } else {
+        // extinctionFactor ramps from 0.5 at 0 deg to 1.0 at 30 deg
+        final extinctionFactor = (alt / 30.0).clamp(0.0, 1.0) * 0.5 + 0.5;
+        final redShift = (1.0 - extinctionFactor) * 0.4;
+        table[alt] = (extinctionFactor, redShift);
+      }
+    }
+    return table;
+  }
+
+  /// Look up extinction for a given altitude in degrees.
+  /// Returns (brightnessFactor, redShift).
+  /// Uses linear interpolation between integer entries.
+  static (double, double) lookup(double altitudeDeg) {
+    if (altitudeDeg >= 30.0) return (1.0, 0.0);
+    if (altitudeDeg <= 0.0) return _lut[0];
+
+    final lower = altitudeDeg.floor();
+    final upper = lower + 1;
+    if (upper > 90) return _lut[90];
+
+    final t = altitudeDeg - lower;
+    final (bLow, rLow) = _lut[lower];
+    final (bHigh, rHigh) = _lut[upper];
+    return (
+      bLow + (bHigh - bLow) * t,
+      rLow + (rHigh - rLow) * t,
+    );
+  }
+}
+
+/// Tracks rendered label bounding boxes to avoid overlap.
+///
+/// Caches its spatial grid across frames when the view hasn't moved
+/// significantly. Only rebuilds when view center moves >0.5 degrees
+/// or zoom changes >5%.
+class LabelLayoutManager {
+  final List<Rect> _renderedLabels = [];
+  final Map<int, List<Rect>> _grid = <int, List<Rect>>{};
+  static const double _cellSize = 96.0;
+
+  // Cache invalidation state
+  double _cachedCenterRA = double.nan;
+  double _cachedCenterDec = double.nan;
+  double _cachedFOV = double.nan;
+  bool _cacheValid = false;
+
+  /// Clear the layout grid unconditionally.
+  void clear() {
+    _renderedLabels.clear();
+    _grid.clear();
+    _cacheValid = false;
+  }
+
+  /// Conditionally clear the layout grid based on view movement.
+  /// Returns true if the cache was valid and reused, false if it was cleared.
+  ///
+  /// Only rebuilds when:
+  /// - View center moves more than 0.5 degrees in RA or Dec
+  /// - Zoom (FOV) changes more than 5%
+  bool clearIfViewChanged(double centerRA, double centerDec, double fov) {
+    if (_cacheValid) {
+      final raDelta = (centerRA - _cachedCenterRA).abs();
+      final decDelta = (centerDec - _cachedCenterDec).abs();
+      final fovRatio = _cachedFOV > 0 ? (fov / _cachedFOV) : 0.0;
+
+      // RA wraps at 24h, so check the shorter arc
+      final raWrapped = raDelta > 12 ? 24 - raDelta : raDelta;
+      // Convert RA hours to degrees for threshold comparison
+      final raDeg = raWrapped * 15.0;
+
+      if (raDeg < 0.5 && decDelta < 0.5 && fovRatio > 0.95 && fovRatio < 1.05) {
+        // View hasn't moved enough - reuse cached grid
+        return true;
+      }
+    }
+
+    // Cache miss: rebuild
+    _renderedLabels.clear();
+    _grid.clear();
+    _cachedCenterRA = centerRA;
+    _cachedCenterDec = centerDec;
+    _cachedFOV = fov;
+    _cacheValid = true;
+    return false;
+  }
+
+  int _cellKey(int x, int y) => Object.hash(x, y);
+
+  Iterable<Rect> _nearbyRects(Rect rect) sync* {
+    final minCellX = (rect.left / _cellSize).floor();
+    final maxCellX = (rect.right / _cellSize).floor();
+    final minCellY = (rect.top / _cellSize).floor();
+    final maxCellY = (rect.bottom / _cellSize).floor();
+
+    for (int x = minCellX - 1; x <= maxCellX + 1; x++) {
+      for (int y = minCellY - 1; y <= maxCellY + 1; y++) {
+        final bucket = _grid[_cellKey(x, y)];
+        if (bucket == null) continue;
+        yield* bucket;
+      }
+    }
+  }
+
+  void _register(Rect rect) {
+    _renderedLabels.add(rect);
+
+    final minCellX = (rect.left / _cellSize).floor();
+    final maxCellX = (rect.right / _cellSize).floor();
+    final minCellY = (rect.top / _cellSize).floor();
+    final maxCellY = (rect.bottom / _cellSize).floor();
+
+    for (int x = minCellX; x <= maxCellX; x++) {
+      for (int y = minCellY; y <= maxCellY; y++) {
+        _grid.putIfAbsent(_cellKey(x, y), () => <Rect>[]).add(rect);
+      }
+    }
+  }
+
+  /// Returns true if label can be placed without overlap
+  bool canPlace(Rect labelRect) {
+    final paddedRect = labelRect.inflate(2);
+    for (final existing in _nearbyRects(paddedRect)) {
+      if (paddedRect.overlaps(existing)) return false;
+    }
+    return true;
+  }
+
+  /// Try to find placement, returns offset or null
+  Offset? findPlacement(Offset preferred, Size labelSize, Size canvasSize) {
+    final offsets = [
+      preferred,
+      preferred + const Offset(0, -12), // Above
+      preferred + const Offset(12, 0), // Right
+      preferred + const Offset(-12, 0), // Left
+      preferred + const Offset(0, 12), // Below
+    ];
+
+    for (final offset in offsets) {
+      final rect = Rect.fromLTWH(
+          offset.dx, offset.dy, labelSize.width, labelSize.height);
+      if (canPlace(rect) && _isInBounds(rect, canvasSize)) {
+        _register(rect);
+        return offset;
+      }
+    }
+    return null;
+  }
+
+  bool _isInBounds(Rect rect, Size canvasSize) {
+    return rect.left >= 0 &&
+        rect.top >= 0 &&
+        rect.right <= canvasSize.width &&
+        rect.bottom <= canvasSize.height;
+  }
+}
+
+/// Static paint cache to avoid per-frame allocation of expensive Paint objects
+/// Creating Paint objects, MaskFilters, and Shaders every frame causes significant
+/// GC pressure and CPU overhead. This cache provides reusable instances.

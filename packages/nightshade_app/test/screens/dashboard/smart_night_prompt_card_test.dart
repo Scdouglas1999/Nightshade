@@ -1,4 +1,4 @@
-﻿import 'package:drift/native.dart';
+import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -205,7 +205,8 @@ void main() {
     expect(find.text('Build Plan'), findsNothing);
   });
 
-  testWidgets('hides the prompt when the active equipment profile is incomplete',
+  testWidgets(
+      'hides the prompt when the active equipment profile is incomplete',
       (tester) async {
     final database = db.NightshadeDatabase.forTesting(NativeDatabase.memory());
     final container = ProviderContainer(

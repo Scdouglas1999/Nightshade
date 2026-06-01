@@ -78,13 +78,13 @@ class WeatherStateNotifier extends StateNotifier<WeatherState> {
     }
   }
 
-  void setConnecting(String deviceId, String deviceName) {
+  void setConnecting(String deviceId, [String? deviceName]) {
     // DEV-P3-4: preserve `lastError` across Connecting; see camera
     // provider for the full rationale.
     state = state.copyWith(
       connectionState: DeviceConnectionState.connecting,
       deviceId: deviceId,
-      deviceName: deviceName,
+      deviceName: deviceName ?? state.deviceName ?? deviceId,
     );
   }
 

@@ -3,7 +3,6 @@ import 'package:flutter/widgets.dart';
 /// GlobalKeys for Sequencer tutorial targets
 class SequencerTutorialKeys {
   static final tabBuilder = GlobalKey(debugLabel: 'sequencer_tab_builder');
-  static final tabRun = GlobalKey(debugLabel: 'sequencer_tab_run');
   static final tabTargets = GlobalKey(debugLabel: 'sequencer_tab_targets');
   static final tabTemplates = GlobalKey(debugLabel: 'sequencer_tab_templates');
   static final nodePalette = GlobalKey(debugLabel: 'sequencer_node_palette');
@@ -18,7 +17,6 @@ class SequencerTutorialKeys {
     if (keyId == null) return null;
     switch (keyId) {
       case 'sequencer_tab_builder': return tabBuilder;
-      case 'sequencer_tab_run': return tabRun;
       case 'sequencer_tab_targets': return tabTargets;
       case 'sequencer_tab_templates': return tabTemplates;
       case 'sequencer_node_palette': return nodePalette;

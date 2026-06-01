@@ -17,6 +17,22 @@ import 'alerts_card.dart';
 import 'quick_stats_card.dart';
 import 'tonight_card.dart';
 import 'storage_card.dart';
+import '../../sequencer/widgets/run_dashboard/target_header_panel.dart';
+import '../../sequencer/widgets/run_dashboard/live_frame_panel.dart';
+import '../../sequencer/widgets/run_dashboard/exposure_progress_panel.dart';
+import '../../sequencer/widgets/run_dashboard/filter_integration_panel.dart';
+import '../../sequencer/widgets/run_dashboard/equipment_telemetry_panel.dart';
+import '../../sequencer/widgets/run_dashboard/guiding_panel_card.dart';
+import '../../sequencer/widgets/run_dashboard/weather_safety_card.dart';
+import '../../sequencer/widgets/run_dashboard/session_warnings_panel.dart';
+import '../../sequencer/widgets/run_dashboard/trigger_feed_panel.dart';
+import '../../sequencer/widgets/run_dashboard/scheduler_panel.dart';
+import '../../sequencer/widgets/run_dashboard/cloud_motion_panel.dart';
+import '../../sequencer/widgets/run_dashboard/adaptive_conditions_panel.dart';
+import '../../sequencer/widgets/run_dashboard/light_curve_panel.dart';
+import 'cockpit_recent_frames.dart';
+import 'cockpit_now_imaging.dart';
+import 'cockpit_frames.dart';
 
 typedef DashboardWidgetBuilder = Widget Function(
   BuildContext context,
@@ -33,6 +49,12 @@ class DashboardWidgetDefinition {
   final DashboardZone defaultZone;
   final DashboardWidgetBuilder builder;
 
+  /// When true, the panel renders its own chrome (NightshadeCard / banner) and
+  /// the dashboard tile frame must NOT draw a resting border/background — only
+  /// the editing / drop-target / hero highlight border and the edit-mode
+  /// affordances. Avoids double borders on the transplanted cockpit panels.
+  final bool selfChromed;
+
   const DashboardWidgetDefinition({
     required this.id,
     required this.title,
@@ -40,10 +62,168 @@ class DashboardWidgetDefinition {
     required this.icon,
     required this.defaultZone,
     required this.builder,
+    this.selfChromed = false,
   });
 }
 
 const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
+  // ===========================================================================
+  // Merged cockpit tiles (density pass). Self-chromed like the rest.
+  // ===========================================================================
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitNowImaging,
+    title: 'Now Imaging',
+    subtitle: 'Active target, altitude, and run progress in one strip',
+    icon: LucideIcons.target,
+    defaultZone: DashboardZone.primary,
+    selfChromed: true,
+    builder: _buildCockpitNowImaging,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitFrames,
+    title: 'Frames',
+    subtitle: 'Current sub-exposure with recent-capture strip',
+    icon: LucideIcons.image,
+    defaultZone: DashboardZone.primary,
+    selfChromed: true,
+    builder: _buildCockpitFrames,
+  ),
+
+  // ===========================================================================
+  // Cockpit panels (transplanted Run dashboard). All are self-chromed: each
+  // wraps itself in a NightshadeCard / banner, so the tile frame draws no
+  // resting border. They read their own providers and degrade gracefully idle.
+  // ===========================================================================
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitTargetHeader,
+    title: 'Target',
+    subtitle: 'Active target, progress, and night-at-a-glance banner',
+    icon: LucideIcons.target,
+    defaultZone: DashboardZone.primary,
+    selfChromed: true,
+    builder: _buildCockpitTargetHeader,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitLiveFrame,
+    title: 'Live Frame',
+    subtitle: 'Most recent sub-exposure with quality readout',
+    icon: LucideIcons.image,
+    defaultZone: DashboardZone.primary,
+    selfChromed: true,
+    builder: _buildCockpitLiveFrame,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitExposureProgress,
+    title: 'Exposure Progress',
+    subtitle: 'Current exposure, dither, and download timing',
+    icon: LucideIcons.timer,
+    defaultZone: DashboardZone.primary,
+    selfChromed: true,
+    builder: _buildCockpitExposureProgress,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitRecentFrames,
+    title: 'Recent Frames',
+    subtitle: 'Newest captures with filter, exposure, and time',
+    icon: LucideIcons.galleryThumbnails,
+    defaultZone: DashboardZone.primary,
+    selfChromed: true,
+    builder: _buildCockpitRecentFrames,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitFilterIntegration,
+    title: 'Filter Integration',
+    subtitle: 'Accumulated integration time per filter',
+    icon: LucideIcons.layers,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitFilterIntegration,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitEquipmentTelemetry,
+    title: 'Equipment Telemetry',
+    subtitle: 'Live device readouts (temp, position, status)',
+    icon: LucideIcons.plug,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitEquipmentTelemetry,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitGuiding,
+    title: 'Guiding',
+    subtitle: 'RMS error and guiding graph',
+    icon: LucideIcons.crosshair,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitGuiding,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitWeatherSafety,
+    title: 'Weather & Safety',
+    subtitle: 'Sky conditions and safety monitor status',
+    icon: LucideIcons.cloud,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitWeatherSafety,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitSessionWarnings,
+    title: 'Session Warnings',
+    subtitle: 'Active warnings and degraded-condition notices',
+    icon: LucideIcons.alertTriangle,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitSessionWarnings,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitTriggerFeed,
+    title: 'Trigger Feed',
+    subtitle: 'Recent automation trigger activity',
+    icon: LucideIcons.zap,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitTriggerFeed,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitScheduler,
+    title: 'Scheduler',
+    subtitle: 'Upcoming scheduled targets and transitions',
+    icon: LucideIcons.calendarClock,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitScheduler,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitCloudMotion,
+    title: 'Cloud Motion',
+    subtitle: 'Radar-derived cloud movement and trend',
+    icon: LucideIcons.wind,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitCloudMotion,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitAdaptiveConditions,
+    title: 'Adaptive Conditions',
+    subtitle: 'Adaptive exposure/condition responses',
+    icon: LucideIcons.slidersHorizontal,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitAdaptiveConditions,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitLightCurve,
+    title: 'Light Curve',
+    subtitle: 'Photometric light curve for the active target',
+    icon: LucideIcons.activity,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitLightCurve,
+  ),
+
+  // ===========================================================================
+  // Legacy control/info cards (disabled by default; retained for power users).
+  // ===========================================================================
   // Primary zone widgets (hero content)
   DashboardWidgetDefinition(
     id: DashboardWidgetId.livePreview,
@@ -155,6 +335,136 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
   ),
 ];
 
+// Cockpit panel builders. These panels read their own Riverpod providers, so
+// the colors/pulseController arguments are intentionally unused.
+Widget _buildCockpitNowImaging(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const CockpitNowImaging();
+}
+
+Widget _buildCockpitFrames(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const CockpitFrames();
+}
+
+Widget _buildCockpitTargetHeader(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const RunDashboardTargetHeader();
+}
+
+Widget _buildCockpitLiveFrame(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const RunDashboardLiveFrame();
+}
+
+Widget _buildCockpitExposureProgress(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const RunDashboardExposureProgress();
+}
+
+Widget _buildCockpitRecentFrames(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const CockpitRecentFrames();
+}
+
+Widget _buildCockpitFilterIntegration(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const RunDashboardFilterIntegration();
+}
+
+Widget _buildCockpitEquipmentTelemetry(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const RunDashboardEquipmentPanel();
+}
+
+Widget _buildCockpitGuiding(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const RunDashboardGuidingCard();
+}
+
+Widget _buildCockpitWeatherSafety(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const RunDashboardWeatherSafetyCard();
+}
+
+Widget _buildCockpitSessionWarnings(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const RunDashboardSessionWarningsPanel();
+}
+
+Widget _buildCockpitTriggerFeed(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const RunDashboardTriggerFeed();
+}
+
+Widget _buildCockpitScheduler(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const RunDashboardSchedulerPanel();
+}
+
+Widget _buildCockpitCloudMotion(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const RunDashboardCloudMotionPanel();
+}
+
+Widget _buildCockpitAdaptiveConditions(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const RunDashboardAdaptiveConditionsPanel();
+}
+
+Widget _buildCockpitLightCurve(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const LightCurvePanel();
+}
+
 Widget _buildLivePreview(
   BuildContext context,
   NightshadeColors colors,
@@ -172,7 +482,8 @@ Widget _buildCaptureSettings(
   NightshadeColors colors,
   AnimationController pulseController,
 ) {
-  return CaptureSettingsCard(key: DashboardTutorialKeys.captureControls, colors: colors);
+  return CaptureSettingsCard(
+      key: DashboardTutorialKeys.captureControls, colors: colors);
 }
 
 Widget _buildSequenceStatus(
@@ -180,7 +491,8 @@ Widget _buildSequenceStatus(
   NightshadeColors colors,
   AnimationController pulseController,
 ) {
-  return SessionProgressCard(key: DashboardTutorialKeys.sessionWidget, colors: colors);
+  return SessionProgressCard(
+      key: DashboardTutorialKeys.sessionWidget, colors: colors);
 }
 
 Widget _buildGuiding(
@@ -196,7 +508,8 @@ Widget _buildMountControl(
   NightshadeColors colors,
   AnimationController pulseController,
 ) {
-  return MountControlCard(key: DashboardTutorialKeys.mountWidget, colors: colors);
+  return MountControlCard(
+      key: DashboardTutorialKeys.mountWidget, colors: colors);
 }
 
 Widget _buildEquipmentStatus(
@@ -204,7 +517,8 @@ Widget _buildEquipmentStatus(
   NightshadeColors colors,
   AnimationController pulseController,
 ) {
-  return EquipmentStatusCard(key: DashboardTutorialKeys.equipmentStatus, colors: colors);
+  return EquipmentStatusCard(
+      key: DashboardTutorialKeys.equipmentStatus, colors: colors);
 }
 
 Widget _buildWeather(

@@ -1,0 +1,223 @@
+part of '../sequence_library_tab.dart';
+
+class _LibraryHeader extends ConsumerStatefulWidget {
+  final NightshadeColors colors;
+
+  const _LibraryHeader({required this.colors});
+
+  @override
+  ConsumerState<_LibraryHeader> createState() => _LibraryHeaderState();
+}
+
+class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
+  final _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sortOrder = ref.watch(sequenceSortOrderProvider);
+
+    return Row(
+      children: [
+        // Title
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Sequence Library',
+              style: TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.w700,
+                color: widget.colors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Browse and load your saved imaging sequences',
+              style: TextStyle(
+                fontSize: 13,
+                color: widget.colors.textMuted,
+              ),
+            ),
+          ],
+        ),
+
+        const Spacer(),
+
+        // Sort dropdown
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: widget.colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: widget.colors.border),
+          ),
+          child: PopupMenuButton<SequenceSortOrder>(
+            initialValue: sortOrder,
+            onSelected: (value) {
+              ref.read(sequenceSortOrderProvider.notifier).state = value;
+            },
+            itemBuilder: (context) => [
+              _buildSortMenuItem(SequenceSortOrder.dateModified,
+                  'Last Modified', LucideIcons.clock, sortOrder),
+              _buildSortMenuItem(SequenceSortOrder.dateCreated, 'Date Created',
+                  LucideIcons.calendar, sortOrder),
+              _buildSortMenuItem(SequenceSortOrder.name, 'Name',
+                  LucideIcons.arrowUpAZ, sortOrder),
+              _buildSortMenuItem(SequenceSortOrder.nodeCount, 'Node Count',
+                  LucideIcons.layers, sortOrder),
+            ],
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.arrowUpDown,
+                    size: 14, color: widget.colors.textMuted),
+                const SizedBox(width: 8),
+                Text(
+                  _getSortLabel(sortOrder),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: widget.colors.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Icon(LucideIcons.chevronDown,
+                    size: 14, color: widget.colors.textMuted),
+              ],
+            ),
+          ),
+        ),
+
+        const SizedBox(width: 16),
+
+        // Search
+        Container(
+          width: 250,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          decoration: BoxDecoration(
+            color: widget.colors.surfaceAlt,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: widget.colors.border),
+          ),
+          child: Row(
+            children: [
+              Icon(LucideIcons.search,
+                  size: 16, color: widget.colors.textMuted),
+              const SizedBox(width: 10),
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  onChanged: (value) {
+                    ref.read(sequenceSearchProvider.notifier).state = value;
+                  },
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: widget.colors.textPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    hintText: 'Search sequences...',
+                    hintStyle: TextStyle(
+                      fontSize: 13,
+                      color: widget.colors.textMuted,
+                    ),
+                    border: InputBorder.none,
+                    contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                ),
+              ),
+              if (_searchController.text.isNotEmpty)
+                GestureDetector(
+                  onTap: () {
+                    _searchController.clear();
+                    ref.read(sequenceSearchProvider.notifier).state = '';
+                  },
+                  child: Icon(LucideIcons.x,
+                      size: 16, color: widget.colors.textMuted),
+                ),
+            ],
+          ),
+        ),
+
+        const SizedBox(width: 16),
+
+        // Save current sequence button
+        _ActionButton(
+          colors: widget.colors,
+          icon: LucideIcons.save,
+          label: 'Save Current',
+          isPrimary: true,
+          onPressed: () => _showSaveSequenceDialog(context),
+        ),
+      ],
+    );
+  }
+
+  PopupMenuItem<SequenceSortOrder> _buildSortMenuItem(
+    SequenceSortOrder value,
+    String label,
+    IconData icon,
+    SequenceSortOrder current,
+  ) {
+    return PopupMenuItem(
+      value: value,
+      child: Row(
+        children: [
+          Icon(icon,
+              size: 14,
+              color: value == current
+                  ? widget.colors.primary
+                  : widget.colors.textMuted),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              color: value == current
+                  ? widget.colors.primary
+                  : widget.colors.textPrimary,
+              fontWeight:
+                  value == current ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+          const Spacer(),
+          if (value == current)
+            Icon(LucideIcons.check, size: 14, color: widget.colors.primary),
+        ],
+      ),
+    );
+  }
+
+  String _getSortLabel(SequenceSortOrder order) {
+    switch (order) {
+      case SequenceSortOrder.name:
+        return 'Name';
+      case SequenceSortOrder.dateModified:
+        return 'Last Modified';
+      case SequenceSortOrder.dateCreated:
+        return 'Date Created';
+      case SequenceSortOrder.nodeCount:
+        return 'Node Count';
+    }
+  }
+
+  void _showSaveSequenceDialog(BuildContext context) {
+    final currentSequence = ref.read(currentSequenceProvider);
+    if (currentSequence == null) {
+      context.showErrorSnackBar('No sequence to save');
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => _SaveSequenceDialog(
+        colors: widget.colors,
+        sequence: currentSequence,
+      ),
+    );
+  }
+}

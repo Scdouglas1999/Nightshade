@@ -55,8 +55,8 @@ fn apply_pan_like_gesture(pose: &mut ViewPose, dx: f32, dy: f32) {
         ra += two_pi;
     }
     pose.ra_rad = ra;
-    pose.dec_rad = (pose.dec_rad + d_dec)
-        .clamp(-std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2);
+    pose.dec_rad =
+        (pose.dec_rad + d_dec).clamp(-std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2);
 }
 
 #[test]

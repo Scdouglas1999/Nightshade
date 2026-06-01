@@ -11,6 +11,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/plate_solver_required_banner.dart';
 
+part 'centering_dialog/image_canvas.dart';
+
 /// Dialog for automated target centering with live image preview
 class CenteringDialog extends ConsumerStatefulWidget {
   final double? targetRa;
@@ -100,131 +102,131 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
             width: double.infinity,
             padding: const EdgeInsets.all(24),
             child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Header
-              _buildHeader(theme, colors),
-              const SizedBox(height: 16),
-
-              // Plate-solver missing banner (W6-SOLVER-UX §6.1). Surfaced
-              // when `_startCentering` catches `SolverNotAvailableError`
-              // before kicking off the centering loop. The banner exposes
-              // a "Set up plate solver" CTA that go_routes to
-              // /settings/plate-solving — clicking it pops this dialog and
-              // hands the user off to the dedicated setup page.
-              if (_solverMissingMessage != null) ...[
-                PlateSolverRequiredBanner(
-                  contextMessage: _solverMissingMessage,
-                ),
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Header
+                _buildHeader(theme, colors),
                 const SizedBox(height: 16),
-              ],
 
-              // Main content area
-              if (_isCentering ||
-                  _result != null ||
-                  centeringStatus.iterationHistory.isNotEmpty)
-                Flexible(
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Left: Image preview
-                      if (currentImage != null &&
-                          (_isCentering || _result != null))
-                        Expanded(
-                          flex: 1,
-                          child:
-                              _buildImagePreview(currentImage, colors, theme),
-                        ),
-                      if (currentImage != null &&
-                          (_isCentering || _result != null))
-                        const SizedBox(width: 16),
-
-                      // Right: Status and info
-                      Expanded(
-                        flex: 1,
-                        child: SingleChildScrollView(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              // Coordinates
-                              if (widget.targetRa != null &&
-                                  widget.targetDec != null)
-                                _buildCoordinatesCompact(
-                                    centeringStatus, colors, theme),
-
-                              if (widget.targetRa != null &&
-                                  widget.targetDec != null)
-                                const SizedBox(height: 12),
-
-                              // Exposure settings
-                              _buildExposureSettings(colors, theme),
-                              const SizedBox(height: 12),
-
-                              // Status section
-                              if (_isCentering)
-                                _buildStatusSection(centeringStatus, colors),
-
-                              // Result section
-                              if (_result != null && !_isCentering)
-                                _buildResultSection(_result!, colors),
-
-                              // Iteration history
-                              if (centeringStatus
-                                  .iterationHistory.isNotEmpty) ...[
-                                const SizedBox(height: 12),
-                                _buildIterationHistory(
-                                    centeringStatus.iterationHistory, colors),
-                              ],
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
+                // Plate-solver missing banner (W6-SOLVER-UX §6.1). Surfaced
+                // when `_startCentering` catches `SolverNotAvailableError`
+                // before kicking off the centering loop. The banner exposes
+                // a "Set up plate solver" CTA that go_routes to
+                // /settings/plate-solving — clicking it pops this dialog and
+                // hands the user off to the dedicated setup page.
+                if (_solverMissingMessage != null) ...[
+                  PlateSolverRequiredBanner(
+                    contextMessage: _solverMissingMessage,
                   ),
-                )
-              else ...[
-                // Pre-centering: simple vertical layout
-                if (widget.targetRa != null && widget.targetDec != null) ...[
-                  _buildCoordinatesCompact(centeringStatus, colors, theme),
                   const SizedBox(height: 16),
                 ],
-                _buildExposureSettings(colors, theme),
-              ],
 
-              const SizedBox(height: 16),
+                // Main content area
+                if (_isCentering ||
+                    _result != null ||
+                    centeringStatus.iterationHistory.isNotEmpty)
+                  Flexible(
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Left: Image preview
+                        if (currentImage != null &&
+                            (_isCentering || _result != null))
+                          Expanded(
+                            flex: 1,
+                            child:
+                                _buildImagePreview(currentImage, colors, theme),
+                          ),
+                        if (currentImage != null &&
+                            (_isCentering || _result != null))
+                          const SizedBox(width: 16),
 
-              // Action buttons
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  if (_isCentering)
-                    NightshadeButton(
-                      label: 'Abort',
-                      icon: LucideIcons.octagon,
-                      onPressed: _abortInFlight ? null : _abortCentering,
-                      isLoading: _abortInFlight,
-                      variant: ButtonVariant.destructive,
-                    )
-                  else ...[
-                    NightshadeButton(
-                      label: 'Close',
-                      onPressed: () => Navigator.of(context).pop(),
-                      variant: ButtonVariant.outline,
+                        // Right: Status and info
+                        Expanded(
+                          flex: 1,
+                          child: SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                // Coordinates
+                                if (widget.targetRa != null &&
+                                    widget.targetDec != null)
+                                  _buildCoordinatesCompact(
+                                      centeringStatus, colors, theme),
+
+                                if (widget.targetRa != null &&
+                                    widget.targetDec != null)
+                                  const SizedBox(height: 12),
+
+                                // Exposure settings
+                                _buildExposureSettings(colors, theme),
+                                const SizedBox(height: 12),
+
+                                // Status section
+                                if (_isCentering)
+                                  _buildStatusSection(centeringStatus, colors),
+
+                                // Result section
+                                if (_result != null && !_isCentering)
+                                  _buildResultSection(_result!, colors),
+
+                                // Iteration history
+                                if (centeringStatus
+                                    .iterationHistory.isNotEmpty) ...[
+                                  const SizedBox(height: 12),
+                                  _buildIterationHistory(
+                                      centeringStatus.iterationHistory, colors),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(width: 12),
-                    NightshadeButton(
-                      label: 'Start Centering',
-                      icon: LucideIcons.target,
-                      onPressed: _startCentering,
-                      variant: ButtonVariant.primary,
-                    ),
+                  )
+                else ...[
+                  // Pre-centering: simple vertical layout
+                  if (widget.targetRa != null && widget.targetDec != null) ...[
+                    _buildCoordinatesCompact(centeringStatus, colors, theme),
+                    const SizedBox(height: 16),
                   ],
+                  _buildExposureSettings(colors, theme),
                 ],
-              ),
-            ],
+
+                const SizedBox(height: 16),
+
+                // Action buttons
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (_isCentering)
+                      NightshadeButton(
+                        label: 'Abort',
+                        icon: LucideIcons.octagon,
+                        onPressed: _abortInFlight ? null : _abortCentering,
+                        isLoading: _abortInFlight,
+                        variant: ButtonVariant.destructive,
+                      )
+                    else ...[
+                      NightshadeButton(
+                        label: 'Close',
+                        onPressed: () => Navigator.of(context).pop(),
+                        variant: ButtonVariant.outline,
+                      ),
+                      const SizedBox(width: 12),
+                      NightshadeButton(
+                        label: 'Start Centering',
+                        icon: LucideIcons.target,
+                        onPressed: _startCentering,
+                        variant: ButtonVariant.primary,
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
           ),
-        ),
         ),
       ),
     );
@@ -503,8 +505,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     );
   }
 
-  Widget _buildStatusSection(
-      CenteringStatus status, NightshadeColors colors) {
+  Widget _buildStatusSection(CenteringStatus status, NightshadeColors colors) {
     final theme = Theme.of(context);
 
     String stateText;
@@ -904,127 +905,4 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     final seconds = ((absDec - degrees - minutes / 60) * 3600);
     return '$sign${degrees.toString().padLeft(2, '0')}° ${minutes.toString().padLeft(2, '0')}\' ${seconds.toStringAsFixed(1).padLeft(4, '0')}"';
   }
-}
-
-/// Efficiently renders RGBA image data without zoom/pan (simple fit display)
-class _CenteringImageWidget extends StatefulWidget {
-  final Uint8List imageData;
-  final int width;
-  final int height;
-
-  const _CenteringImageWidget({
-    required this.imageData,
-    required this.width,
-    required this.height,
-  });
-
-  @override
-  State<_CenteringImageWidget> createState() => _CenteringImageWidgetState();
-}
-
-class _CenteringImageWidgetState extends State<_CenteringImageWidget> {
-  ui.Image? _decodedImage;
-  Uint8List? _lastData;
-
-  @override
-  void initState() {
-    super.initState();
-    _decodeImage();
-  }
-
-  @override
-  void didUpdateWidget(covariant _CenteringImageWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (!identical(widget.imageData, _lastData)) {
-      _decodeImage();
-    }
-  }
-
-  Future<void> _decodeImage() async {
-    _lastData = widget.imageData;
-    try {
-      final completer = ui.ImmutableBuffer.fromUint8List(widget.imageData);
-      final buffer = await completer;
-      final descriptor = ui.ImageDescriptor.raw(
-        buffer,
-        width: widget.width,
-        height: widget.height,
-        pixelFormat: ui.PixelFormat.rgba8888,
-      );
-      final codec = await descriptor.instantiateCodec();
-      final frame = await codec.getNextFrame();
-      if (mounted) {
-        setState(() {
-          _decodedImage?.dispose();
-          _decodedImage = frame.image;
-        });
-      }
-      codec.dispose();
-      descriptor.dispose();
-      buffer.dispose();
-    } catch (e, st) {
-      // Why: preview-image decode is best-effort UI; the centering loop
-      // continues regardless. Logged so we can diagnose chronic decode
-      // failures (codec issues, malformed buffer) that would otherwise
-      // be invisible — the user just sees the spinner forever.
-      developer.log('[CenteringDialog] preview decode failed: $e',
-          name: 'CenteringDialog',
-          level: 900,
-          error: e,
-          stackTrace: st);
-    }
-  }
-
-  @override
-  void dispose() {
-    _decodedImage?.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_decodedImage == null) {
-      return const SizedBox(
-        width: 200,
-        height: 200,
-        child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
-      );
-    }
-
-    return RawImage(
-      image: _decodedImage,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.medium,
-    );
-  }
-}
-
-/// Crosshair overlay painter for centering image
-class _CrosshairPainter extends CustomPainter {
-  final Color color;
-
-  _CrosshairPainter({required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.0
-      ..style = PaintingStyle.stroke;
-
-    final cx = size.width / 2;
-    final cy = size.height / 2;
-
-    // Horizontal line
-    canvas.drawLine(Offset(0, cy), Offset(size.width, cy), paint);
-    // Vertical line
-    canvas.drawLine(Offset(cx, 0), Offset(cx, size.height), paint);
-
-    // Center circle
-    canvas.drawCircle(Offset(cx, cy), 20, paint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _CrosshairPainter oldDelegate) =>
-      oldDelegate.color != color;
 }

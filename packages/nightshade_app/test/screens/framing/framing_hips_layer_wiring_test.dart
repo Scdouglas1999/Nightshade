@@ -8,9 +8,12 @@
 //     canvas's existing single survey snapshot / starfield is the only
 //     background, exactly the pre-HiPS behaviour. It must never throw resolving
 //     an un-tile-capable survey.
-//   * Z-ORDER / COMPOSITION: when active the wiring mounts the C8 [HipsTileLayer]
-//     (the streamed mosaic, transparent until imagery is resident) and the C8
-//     [HipsAttributionBadge].
+//   * Z-ORDER / COMPOSITION: when active the wiring mounts the C8
+//     [HipsAttributionBadge] as top chrome. The streamed mosaic itself
+//     ([HipsTileLayer]) is composed INSIDE [FramingCanvas]'s own Stack — above
+//     the single-cutout snapshot and UNDER the grid / FOV / equipment overlays —
+//     so the imagery never hides the FOV reticle; this wiring therefore does NOT
+//     mount the tile layer (only the attribution credit).
 //   * ATTRIBUTION VISIBILITY (a licence requirement): the credit badge is shown
 //     ONLY while HiPS imagery is actually on screen. No imagery resident → no
 //     credit; imagery resident + a published credit → the credit is rendered.
@@ -258,8 +261,8 @@ void main() {
   });
 
   testWidgets(
-      'active but no imagery resident: tile layer mounted, attribution badge '
-      'hidden (licence: credit only while imagery is shown)', (tester) async {
+      'active but no imagery resident: attribution badge mounted but hidden '
+      '(licence: credit only while imagery is shown)', (tester) async {
     final loader = makeLoader();
     addTearDown(loader.dispose);
 
@@ -276,8 +279,14 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 16));
 
-    expect(find.byType(HipsTileLayer), findsOneWidget,
-        reason: 'Active → the C8 tile layer is mounted (it streams imagery).');
+    // The wiring mounts only the attribution badge; the streamed tile mosaic is
+    // composed inside FramingCanvas (not present in this isolated wiring host).
+    expect(find.byType(HipsTileLayer), findsNothing,
+        reason: 'The wiring no longer mounts the tile layer — that lives inside '
+            'FramingCanvas, under the FOV overlays.');
+    expect(find.byType(HipsAttributionBadge), findsOneWidget,
+        reason: 'Active → the attribution badge is mounted (it gates its own '
+            'visibility on resident imagery).');
     // The badge widget is built but, with no imagery + visible:false, it renders
     // nothing (SizedBox.shrink). The credit text must therefore be absent.
     expect(find.text('STScI Digitized Sky Survey'), findsNothing,
@@ -312,7 +321,7 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 16));
 
-    expect(find.byType(HipsTileLayer), findsOneWidget);
+    expect(find.byType(HipsAttributionBadge), findsOneWidget);
     expect(find.text('STScI Digitized Sky Survey'), findsOneWidget,
         reason: 'Imagery resident + a published credit → the survey copyright '
             'must be displayed (the HiPS attribution licence requirement).');

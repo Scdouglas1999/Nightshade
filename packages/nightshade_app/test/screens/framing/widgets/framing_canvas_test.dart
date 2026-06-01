@@ -58,7 +58,16 @@ Future<ProviderContainer> _pumpCanvas(
     tester.view.resetDevicePixelRatio();
   });
 
-  final container = ProviderContainer();
+  // FramingCanvas now composes the GPU HiPS tile layer in its Stack (above the
+  // survey snapshot, under the FOV overlays). These tests predate HiPS and
+  // exercise the scale bar / survey dropdown / no-image FOV reticle, so the tile
+  // layer must stay inert here: gating it off keeps the canvas hermetic (no real
+  // properties fetch / network) and the assertions focused on what they cover.
+  final container = ProviderContainer(
+    overrides: [
+      hipsFramingEnabledProvider.overrideWith((ref) => false),
+    ],
+  );
   addTearDown(container.dispose);
 
   await tester.pumpWidget(

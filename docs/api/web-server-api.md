@@ -43,7 +43,8 @@ Get server information and capabilities.
 ```json
 {
   "status": "running",
-  "version": "2.5.0",
+  "version": "2.6.0",
+  "apiVersion": "2.6.0",
   "apiOnlyMode": true,
   "webUIAvailable": false,
   "timestamp": "2025-11-30T12:00:00Z",
@@ -89,12 +90,14 @@ Get server information and capabilities.
 
 ## Version Compatibility
 
-Remote clients use `/api/info.version` for API compatibility checks before
-switching into network-control mode. The current client accepts Nightshade
-server API versions `2.4.0` and newer within major version `2`. Servers older
-than `2.4.0`, servers with an unknown/malformed version, and servers with a
-newer major API version are rejected with user-facing "server too old/new"
-guidance.
+Remote clients use `/api/info.apiVersion` for API compatibility checks before
+switching into network-control mode. The `version` field is the application
+release version shown to operators. Clients fall back to `version` when talking
+to older servers that do not advertise `apiVersion`. The current client accepts
+Nightshade server API versions `2.4.0` and newer within major version `2`.
+Servers older than `2.4.0`, servers with an unknown/malformed version, and
+servers with a newer major API version are rejected with user-facing "server
+too old/new" guidance.
 
 ## Authentication Scopes
 
@@ -118,7 +121,7 @@ Get server status.
 ```json
 {
   "status": "running",
-  "version": "2.5.0",
+  "version": "2.6.0",
   "timestamp": "2025-11-30T12:00:00Z"
 }
 ```
@@ -199,7 +202,7 @@ and excludes WebSocket-only routes.
   "openapi": "3.0.3",
   "info": {
     "title": "Nightshade Headless API",
-    "version": "2.5.0"
+    "version": "2.6.0"
   },
   "servers": [
     {"url": "http://localhost:8080"}

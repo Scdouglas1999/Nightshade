@@ -656,8 +656,12 @@ fn alpaca_device_info(
     } else {
         Some(alpaca_dev.unique_id.clone())
     };
-    let display_name =
-        DeviceInfo::generate_display_name(&alpaca_dev.device_name, None, unique_id.as_deref(), None);
+    let display_name = DeviceInfo::generate_display_name(
+        &alpaca_dev.device_name,
+        None,
+        unique_id.as_deref(),
+        None,
+    );
 
     DeviceInfo {
         id: alpaca_dev.id(),

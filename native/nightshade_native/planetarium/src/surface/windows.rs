@@ -232,11 +232,6 @@ impl PlatformSurface for WindowsSurface {
     }
 }
 
-fn map_irondash_err(err: irondash_texture::Error) -> PlanetariumError {
-    tracing::error!("irondash_texture error: {err}");
-    PlanetariumError::UnsupportedPlatform("irondash_texture registration failed — see log")
-}
-
 /// Run [`Texture::new_with_provider`] + [`Texture::into_sendable_texture`] on
 /// the Flutter platform thread (both are thread-affine — see
 /// `EngineContext::get` and `RunLoop::current` requirements), then return the

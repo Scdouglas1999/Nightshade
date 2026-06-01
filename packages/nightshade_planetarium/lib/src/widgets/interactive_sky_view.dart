@@ -6,12 +6,23 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../coordinate_system.dart';
 import '../celestial_object.dart';
+import '../catalogs/constellation_data.dart';
+import '../catalogs/satellite_catalog.dart';
+import '../catalogs/variable_star_catalog.dart';
+import '../catalogs/minor_planet_catalog.dart';
+import '../astronomy/astronomy_calculations.dart';
+import '../astronomy/planetary_positions.dart';
+import '../astronomy/milky_way_data.dart';
 import '../rendering/sky_renderer.dart';
+import '../rendering/render_quality.dart';
 import '../providers/performance_providers.dart';
 import '../providers/planetarium_providers.dart';
 import '../providers/satellite_providers.dart';
 import '../providers/variable_star_providers.dart';
 import '../providers/minor_planet_providers.dart';
+
+part 'interactive_sky_view/fov_overlay_painter.dart';
+part 'interactive_sky_view/toolbar.dart';
 
 /// Interactive sky view widget with pan, zoom, and object selection
 class InteractiveSkyView extends ConsumerStatefulWidget {
@@ -85,10 +96,29 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
   late AnimationController _selectionController;
   CelestialCoordinate? _lastSelection;
 
-  // Panning momentum
-  late AnimationController _momentumController;
+  // Panning momentum.
+  //
+  // Momentum is integrated by a per-frame ticker rather than a fixed-duration
+  // AnimationController curve: on each tick the live velocity (px/s) is applied
+  // for the real elapsed dt and then exponentially decayed. This avoids the
+  // stutter of the old approach (which multiplied a constant velocity by a
+  // 1-t ramp on a fixed 800ms timeline, giving uneven motion at low frame
+  // rates and an abrupt stop at the end).
+  late final Ticker _momentumTicker;
   Offset _panVelocity = Offset.zero;
-  List<_PanSample> _panSamples = [];
+  Duration _lastMomentumElapsed = Duration.zero;
+  final List<_PanSample> _panSamples = [];
+
+  /// Velocity (px/s) below which momentum is considered finished and the ticker
+  /// stops. Keeps the glide from creeping indefinitely.
+  static const double _momentumStopSpeed = 8.0;
+
+  /// Exponential velocity decay per second. At 4.0 the speed falls to ~1.8% of
+  /// its initial value after one second — a natural, quick-settling glide.
+  static const double _momentumDecayPerSecond = 4.0;
+
+  /// Minimum fling speed (px/s) required to start a momentum glide at all.
+  static const double _momentumMinLaunchSpeed = 120.0;
 
   // Star pop-in animation (tracks previous magnitude threshold)
   double _previousMagLimit = 6.0;
@@ -101,13 +131,10 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
   // Parallax effect - tracks current pan delta for dim star offset
   Offset _currentPanDelta = Offset.zero;
 
-  // Separate listenables for different animation categories.
-  // Twinkle is isolated because it runs continuously at ~20Hz and should not
-  // force full widget rebuilds. The constellation/Milky Way Picture caches
-  // handle the actual rendering optimization, but separating the listenable
-  // avoids unnecessary ListenableBuilder rebuilds when only twinkle changes.
-  late Listenable _twinkleListenable;
-  late Listenable _otherAnimations;
+  // Listenable driving ONLY the animated overlay layer (bright-star twinkle +
+  // selection pulse). The static base layer is never a descendant of this, so
+  // twinkle/selection ticks repaint only the cheap overlay, never the base.
+  late Listenable _overlayAnimations;
 
   @override
   void initState() {
@@ -134,11 +161,10 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     );
     // No setState listener - value read directly via ListenableBuilder
 
-    // Momentum deceleration animation
-    _momentumController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..addListener(_onMomentumAnimation);
+    // Momentum glide ticker — integrates velocity per real frame (see
+    // _onMomentumTick). Started on a fling, stopped when the speed decays
+    // below _momentumStopSpeed or a new touch cancels it.
+    _momentumTicker = createTicker(_onMomentumTick);
 
     // Star pop-in animation (600ms with elastic out)
     _popinController = AnimationController(
@@ -154,14 +180,12 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     );
     // No setState listener - value read directly via ListenableBuilder
 
-    // Twinkle runs continuously and only affects star brightness - isolate it
-    // so it doesn't force the same rebuild path as selection/pop-in animations.
-    _twinkleListenable = _twinkleController!;
-    // Selection/pop-in animations are transient and infrequent
-    _otherAnimations = Listenable.merge([
+    // The overlay layer animates the bright-star twinkle (continuous, ~20Hz
+    // effective after quantization) and the selection pulse (transient). Both
+    // drive ONLY the overlay's ListenableBuilder.
+    _overlayAnimations = Listenable.merge([
+      _twinkleController,
       _selectionController,
-      _popinController,
-      _dsoPopinController,
     ]);
 
     // Record frame timings for FPS/quality diagnostics.
@@ -174,7 +198,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     _zoomController.dispose();
     _twinkleController?.dispose();
     _selectionController.dispose();
-    _momentumController.dispose();
+    _momentumTicker.dispose();
     _popinController.dispose();
     _dsoPopinController.dispose();
     super.dispose();
@@ -231,22 +255,52 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     }
   }
 
-  void _onMomentumAnimation() {
-    if (_panVelocity.distance < 1) return;
+  /// Per-frame momentum integration.
+  ///
+  /// [elapsed] is the total time the ticker has run. We derive the real frame
+  /// dt from it, translate the view by `velocity * dt` (same px→RA/Dec
+  /// conversion the live drag uses), then exponentially decay the velocity by
+  /// `dt`. Integrating against the true dt makes the glide frame-rate
+  /// independent and smooth; decaying continuously (rather than ramping over a
+  /// fixed timeline) removes the abrupt end-of-animation stop.
+  void _onMomentumTick(Duration elapsed) {
+    if (!mounted) {
+      _momentumTicker.stop();
+      return;
+    }
 
-    // Decelerate using a curve
-    final t = Curves.decelerate.transform(_momentumController.value);
-    final remaining = 1.0 - t;
+    final dtMicros =
+        elapsed.inMicroseconds - _lastMomentumElapsed.inMicroseconds;
+    _lastMomentumElapsed = elapsed;
+    if (dtMicros <= 0) return;
+    final dt = dtMicros / 1e6;
 
     final viewState = ref.read(skyViewStateProvider);
     final panScale = viewState.fieldOfView / 500;
 
-    // Apply decelerating pan
-    final delta = _panVelocity * remaining * 0.02; // Time step factor
+    // Pixel translation this frame from the current velocity (px/s).
+    final pixelDelta = _panVelocity * dt;
     ref.read(skyViewStateProvider.notifier).pan(
-          -delta.dx * panScale / 15,
-          delta.dy * panScale,
+          -pixelDelta.dx * panScale / 15,
+          pixelDelta.dy * panScale,
         );
+
+    // Exponential decay: v *= e^(-decay * dt).
+    final decay = math.exp(-_momentumDecayPerSecond * dt);
+    _panVelocity = _panVelocity * decay;
+
+    if (_panVelocity.distance < _momentumStopSpeed) {
+      _stopMomentum();
+    }
+  }
+
+  /// Stop and reset the momentum glide.
+  void _stopMomentum() {
+    if (_momentumTicker.isActive) {
+      _momentumTicker.stop();
+    }
+    _panVelocity = Offset.zero;
+    _lastMomentumElapsed = Duration.zero;
   }
 
   /// Calculate pan velocity from recent samples
@@ -326,6 +380,9 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     final milkyWayPoints = ref.watch(milkyWayPointsProvider);
     final qualityConfig = ref.watch(fovAdaptiveQualityProvider);
     final densityHotspots = ref.watch(densityHotspotsProvider);
+    final satellites = ref.watch(currentSatellitesProvider);
+    final variableStars = ref.watch(variableStarDataProvider);
+    final minorPlanets = ref.watch(currentMinorPlanetsProvider);
 
     // Handle selection animation
     if (qualityConfig.enableSelectionAnimation) {
@@ -374,39 +431,65 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
           },
           child: GestureDetector(
             onScaleStart: (details) {
+              // A new touch always cancels any in-flight momentum glide.
+              _stopMomentum();
               _lastFocalPoint = details.focalPoint;
               _lastScale = 1.0;
-              _momentumController.stop();
               _panSamples.clear();
               _panSamples.add(_PanSample(details.focalPoint, DateTime.now()));
             },
             onScaleUpdate: (details) {
               final viewNotifier = ref.read(skyViewStateProvider.notifier);
 
-              // Handle pan
-              if (_lastFocalPoint != null) {
+              // Distinguish a pinch-zoom from a one-finger drag.
+              //
+              // On a touchpad the focal point drifts during a pinch, so
+              // treating the focal-point delta as a pan (as v1 did) drags the
+              // sky around while zooming. We therefore PAN only for a genuine
+              // single-pointer drag, and ZOOM-ONLY for a pinch — identified by
+              // either a second pointer being down OR the scale meaningfully
+              // departing from 1.0 (covers touchpads that report pointerCount
+              // == 1 for a two-finger pinch).
+              const double pinchScaleEpsilon = 0.01;
+              final isPinch = details.pointerCount >= 2 ||
+                  (details.scale - 1.0).abs() > pinchScaleEpsilon;
+
+              // Pan — single-finger drag only.
+              if (!isPinch && _lastFocalPoint != null) {
                 final delta = details.focalPoint - _lastFocalPoint!;
                 final panScale = viewState.fieldOfView / 500;
                 viewNotifier.pan(
                   -delta.dx * panScale / 15, // Convert to hours
                   delta.dy * panScale,
                 );
-                _lastFocalPoint = details.focalPoint;
 
                 // Track pan delta for parallax effect (decays over time).
                 // No setState needed: the viewState change from pan() above
                 // already triggers a rebuild via ref.watch(skyViewStateProvider).
                 _currentPanDelta = delta;
 
-                // Track pan samples for momentum calculation
+                // Track pan samples for momentum (fling) velocity.
                 _panSamples.add(_PanSample(details.focalPoint, DateTime.now()));
-                // Keep only recent samples
                 if (_panSamples.length > 10) {
                   _panSamples.removeAt(0);
                 }
+              } else if (isPinch) {
+                // During a pinch the focal point is unreliable; do NOT carry it
+                // into a pan and do NOT feed it to the momentum sampler. We keep
+                // _lastFocalPoint tracking the focal point so that if the user
+                // lifts one finger and continues a one-finger drag, the next pan
+                // delta is measured from the current focal point (no jump), but
+                // we clear the fling samples so a pinch never launches momentum.
+                _panSamples.clear();
               }
+              // Always advance the focal-point reference so a drag resuming
+              // after a pinch measures from the correct anchor.
+              _lastFocalPoint = details.focalPoint;
 
-              // Handle zoom
+              // Zoom — apply for any real scale change (pinch). Zoom about the
+              // focal point is left to the projection's view center; we only
+              // change the field of view here so a pinch zooms in place without
+              // translating the sky.
               if (_lastScale != null && details.scale != 1.0) {
                 final scaleDelta = _lastScale! / details.scale;
                 final newFOV =
@@ -416,11 +499,15 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
               }
             },
             onScaleEnd: (_) {
-              // Calculate and apply pan momentum
+              // Launch a momentum glide only for a real one-finger fling. The
+              // pinch path clears _panSamples, so a pinch-release yields zero
+              // velocity here and never glides.
               _panVelocity = _calculatePanVelocity();
-              if (_panVelocity.distance > 50) {
-                // Only apply momentum if velocity is significant
-                _momentumController.forward(from: 0.0);
+              if (_panVelocity.distance > _momentumMinLaunchSpeed) {
+                _lastMomentumElapsed = Duration.zero;
+                _momentumTicker.start();
+              } else {
+                _panVelocity = Offset.zero;
               }
 
               // Reset parallax delta. No setState needed: momentum animation
@@ -431,8 +518,14 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
               _lastScale = null;
               _panSamples.clear();
             },
+            onTapDown: (_) {
+              // A tap is a new touch — cancel any in-flight momentum glide so
+              // the view holds still under the finger.
+              _stopMomentum();
+            },
             onDoubleTapDown: (details) {
               // Zoom in 2x centered on the double-tap position
+              _stopMomentum();
               _handleDoubleTapZoom(details.localPosition,
                   Size(constraints.maxWidth, constraints.maxHeight));
             },
@@ -440,68 +533,62 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
               _handleTap(details.localPosition,
                   Size(constraints.maxWidth, constraints.maxHeight));
             },
-            // Two nested ListenableBuilders isolate animation categories:
-            // - Outer: selection/pop-in (infrequent, transient)
-            // - Inner: twinkle (continuous, only affects star brightness)
-            // This prevents twinkle from triggering unnecessary work in the
-            // outer builder path. Constellation/Milky Way Picture caches
-            // further reduce actual rendering cost per repaint.
-            child: ListenableBuilder(
-              listenable: _otherAnimations,
-              builder: (context, child) {
-                return ListenableBuilder(
-                  listenable: _twinkleListenable,
-                  builder: (context, child) {
-                    return RepaintBoundary(
-                      child: ClipRect(
+            // Two RepaintBoundary-isolated layers in a Stack:
+            //
+            // - BASE layer (bottom): the expensive, non-animated content —
+            //   background, Milky Way, grids, constellations, DSOs, dim+medium
+            //   stars, solar-system bodies, satellites, labels and the static
+            //   mount marker, plus the FOV foreground overlay. It is built
+            //   directly in this `build()` and is NOT a descendant of the
+            //   twinkle/selection ListenableBuilder, so animation ticks never
+            //   rebuild or repaint it. Its painter's shouldRepaint returns
+            //   false for twinkle/selection/pop-in and true only for real
+            //   changes (pose, minute, config, catalog, mount).
+            //
+            // - OVERLAY layer (top): only the cheap animated bits — the
+            //   bright-star (twinkle) pass and the selection pulse ring. It is
+            //   wrapped in a ListenableBuilder driven by the twinkle and
+            //   selection controllers so ONLY this layer rebuilds at animation
+            //   cadence. A static view therefore paints the base once and then
+            //   idles, with just a handful of bright stars + the selection ring
+            //   repainting at ~20Hz.
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                RepaintBoundary(
+                  // The base layer is driven only by the DSO pop-in controller
+                  // (a brief ~300ms transient after a zoom reveals fainter
+                  // DSOs, which scale on the base layer). It is NOT driven by
+                  // the twinkle/selection controllers, so those animations
+                  // never rebuild or repaint the base. When idle the pop-in
+                  // controller is stopped (value pinned at 1.0) so it issues no
+                  // ticks and the base stays static.
+                  child: ListenableBuilder(
+                    listenable: _dsoPopinController,
+                    builder: (context, child) {
+                      return ClipRect(
                         child: CustomPaint(
-                          painter: SkyCanvasPainter(
+                          painter: _buildSkyPainter(
+                            scope: SkyRenderScope.base,
                             viewState: viewState,
-                            config: renderConfig,
+                            renderConfig: renderConfig,
                             qualityConfig: qualityConfig,
-                            stars: stars.valueOrNull ?? [],
-                            dsos: dsos.valueOrNull ?? [],
+                            stars: stars.valueOrNull ?? const [],
+                            dsos: dsos.valueOrNull ?? const [],
                             constellations: constellations,
-                            observationTime: observationMinute,
-                            latitude: location.latitude,
-                            longitude: location.longitude,
-                            selectedObject: selectedObject.coordinates,
-                            mountPosition: mountPosition.coordinates,
-                            mountStatus: _mapMountStatus(mountPosition.status),
-                            sunPosition: sunPos,
-                            moonPosition: (
-                              moonPos.$1,
-                              moonPos.$2,
-                              moonIllumination.illumination
-                            ),
+                            observationMinute: observationMinute,
+                            location: location,
+                            selectedObject: selectedObject,
+                            mountPosition: mountPosition,
+                            sunPos: sunPos,
+                            moonPos: moonPos,
+                            moonIllumination: moonIllumination,
                             planets: planets,
-                            satellites: ref.watch(currentSatellitesProvider),
-                            variableStars: ref.watch(variableStarDataProvider),
-                            minorPlanets:
-                                ref.watch(currentMinorPlanetsProvider),
+                            satellites: satellites,
+                            variableStars: variableStars,
+                            minorPlanets: minorPlanets,
                             milkyWayPoints: milkyWayPoints,
-                            // Read animation values directly from controllers
-                            animationPhase: qualityConfig.animateStarTwinkle
-                                ? _twinkleController?.value
-                                : null,
-                            selectionAnimationPhase:
-                                qualityConfig.enableSelectionAnimation
-                                    ? _selectionController.value
-                                    : null,
-                            popinAnimationPhase: qualityConfig.enableStarPopin
-                                ? _popinController.value
-                                : null,
-                            dsoPopinAnimationPhase: qualityConfig.enableDsoPopin
-                                ? _dsoPopinController.value
-                                : null,
-                            parallaxPanDelta: qualityConfig.enableParallax
-                                ? _currentPanDelta
-                                : null,
                             densityHotspots: densityHotspots,
-                            observedObjectIds: widget.observedObjectIds,
-                            listedObjectIds: widget.listedObjectIds,
-                            bortleClass: widget.bortleClass,
-                            horizonAltitudes: widget.horizonAltitudes,
                           ),
                           foregroundPainter: widget.showFOV
                               ? _FOVOverlayPainter(
@@ -516,15 +603,131 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
                               : null,
                           size: Size.infinite,
                         ),
-                      ),
-                    );
-                  },
-                );
-              },
+                      );
+                    },
+                  ),
+                ),
+                RepaintBoundary(
+                  child: ListenableBuilder(
+                    listenable: _overlayAnimations,
+                    builder: (context, child) {
+                      return ClipRect(
+                        child: CustomPaint(
+                          painter: _buildSkyPainter(
+                            scope: SkyRenderScope.overlay,
+                            viewState: viewState,
+                            renderConfig: renderConfig,
+                            qualityConfig: qualityConfig,
+                            stars: stars.valueOrNull ?? const [],
+                            dsos: dsos.valueOrNull ?? const [],
+                            constellations: constellations,
+                            observationMinute: observationMinute,
+                            location: location,
+                            selectedObject: selectedObject,
+                            mountPosition: mountPosition,
+                            sunPos: sunPos,
+                            moonPos: moonPos,
+                            moonIllumination: moonIllumination,
+                            planets: planets,
+                            satellites: satellites,
+                            variableStars: variableStars,
+                            minorPlanets: minorPlanets,
+                            milkyWayPoints: milkyWayPoints,
+                            densityHotspots: densityHotspots,
+                          ),
+                          size: Size.infinite,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
             ),
           ),
         );
       },
+    );
+  }
+
+  /// Build a [SkyCanvasPainter] for one render layer (base or overlay).
+  ///
+  /// Animation phases are read live from the controllers and routed by scope so
+  /// each layer only carries the phases it actually renders:
+  /// * twinkle phase — only the overlay (it owns the bright-star pass);
+  /// * selection pulse phase — only the overlay (it owns the selection ring);
+  /// * DSO pop-in phase — only the base (DSOs scale on the base layer);
+  /// * parallax pan delta — only the base (dim stars live on the base layer).
+  SkyCanvasPainter _buildSkyPainter({
+    required SkyRenderScope scope,
+    required SkyViewState viewState,
+    required SkyRenderConfig renderConfig,
+    required RenderQualityConfig qualityConfig,
+    required List<Star> stars,
+    required List<DeepSkyObject> dsos,
+    required List<ConstellationData> constellations,
+    required DateTime observationMinute,
+    required PlanetariumObserver location,
+    required SelectedObjectState selectedObject,
+    required MountPositionState mountPosition,
+    required (double, double) sunPos,
+    required (double, double, double) moonPos,
+    required MoonTimes moonIllumination,
+    required List<PlanetData> planets,
+    required List<SatelliteData> satellites,
+    required List<VariableStarData> variableStars,
+    required List<MinorBodyData> minorPlanets,
+    required List<MilkyWayPoint>? milkyWayPoints,
+    required List<(double, double, int, int)> densityHotspots,
+  }) {
+    final isOverlay = scope == SkyRenderScope.overlay;
+    final isBase = scope == SkyRenderScope.base;
+    return SkyCanvasPainter(
+      renderScope: scope,
+      viewState: viewState,
+      config: renderConfig,
+      qualityConfig: qualityConfig,
+      stars: stars,
+      dsos: dsos,
+      constellations: constellations,
+      observationTime: observationMinute,
+      latitude: location.latitude,
+      longitude: location.longitude,
+      selectedObject: selectedObject.coordinates,
+      mountPosition: mountPosition.coordinates,
+      mountStatus: _mapMountStatus(mountPosition.status),
+      sunPosition: sunPos,
+      moonPosition: (
+        moonPos.$1,
+        moonPos.$2,
+        moonIllumination.illumination,
+      ),
+      planets: planets,
+      satellites: satellites,
+      variableStars: variableStars,
+      minorPlanets: minorPlanets,
+      milkyWayPoints: milkyWayPoints,
+      // Twinkle + selection drive the overlay only.
+      animationPhase: (isOverlay && qualityConfig.animateStarTwinkle)
+          ? _twinkleController?.value
+          : null,
+      selectionAnimationPhase:
+          (isOverlay && qualityConfig.enableSelectionAnimation)
+              ? _selectionController.value
+              : null,
+      // DSO pop-in + parallax drive the base only.
+      popinAnimationPhase: (isBase && qualityConfig.enableStarPopin)
+          ? _popinController.value
+          : null,
+      dsoPopinAnimationPhase: (isBase && qualityConfig.enableDsoPopin)
+          ? _dsoPopinController.value
+          : null,
+      parallaxPanDelta:
+          (isBase && qualityConfig.enableParallax) ? _currentPanDelta : null,
+      densityHotspots: densityHotspots,
+      observedObjectIds: widget.observedObjectIds,
+      listedObjectIds: widget.listedObjectIds,
+      bortleClass: widget.bortleClass,
+      horizonAltitudes: widget.horizonAltitudes,
     );
   }
 
@@ -729,310 +932,6 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
         math.cos(dec1) * math.cos(dec2) * math.cos(ra1 - ra2);
 
     return math.acos(cosSep.clamp(-1.0, 1.0)) * 180 / math.pi;
-  }
-}
-
-/// FOV rectangle overlay painter
-class _FOVOverlayPainter extends CustomPainter {
-  final SkyViewState viewState;
-  final double? fovWidth;
-  final double? fovHeight;
-  final CelestialCoordinate? fovCenter;
-  final double rotation;
-
-  _FOVOverlayPainter({
-    required this.viewState,
-    this.fovWidth,
-    this.fovHeight,
-    this.fovCenter,
-    this.rotation = 0,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (fovWidth == null || fovHeight == null) return;
-
-    final center = Offset(size.width / 2, size.height / 2);
-    final scale =
-        math.min(size.width, size.height) / 2 / (viewState.fieldOfView / 2);
-
-    // Convert FOV to screen pixels
-    final rectWidth = fovWidth! * scale;
-    final rectHeight = fovHeight! * scale;
-
-    // Calculate offset if FOV center is different from view center
-    Offset rectCenter = center;
-    if (fovCenter != null) {
-      // Calculate angular difference between view center and FOV center
-      // RA is in hours, convert to degrees. Apply cos(dec) correction for RA.
-      final viewCenterDecRad = viewState.centerDec * math.pi / 180;
-      final deltaRA = (fovCenter!.ra - viewState.centerRA) *
-          15 *
-          math.cos(viewCenterDecRad);
-      final deltaDec = fovCenter!.dec - viewState.centerDec;
-
-      // Convert angular offset (degrees) to screen pixels
-      // Positive deltaRA moves right, positive deltaDec moves up (screen Y is inverted)
-      final offsetX = deltaRA * scale;
-      final offsetY =
-          -deltaDec * scale; // Negative because screen Y increases downward
-
-      rectCenter = Offset(center.dx + offsetX, center.dy + offsetY);
-    }
-
-    // Draw FOV rectangle
-    canvas.save();
-    canvas.translate(rectCenter.dx, rectCenter.dy);
-    canvas.rotate((rotation + viewState.rotation) * math.pi / 180);
-
-    final rect = Rect.fromCenter(
-      center: Offset.zero,
-      width: rectWidth,
-      height: rectHeight,
-    );
-
-    // Draw border
-    final borderPaint = Paint()
-      ..color = const Color(0xFF00E676)
-      ..strokeWidth = 2
-      ..style = PaintingStyle.stroke;
-
-    canvas.drawRect(rect, borderPaint);
-
-    // Draw corner brackets
-    final bracketLength = math.min(rectWidth, rectHeight) * 0.1;
-    final bracketPaint = Paint()
-      ..color = const Color(0xFF00E676)
-      ..strokeWidth = 3
-      ..style = PaintingStyle.stroke;
-
-    // Top-left
-    canvas.drawLine(
-      Offset(-rectWidth / 2, -rectHeight / 2 + bracketLength),
-      Offset(-rectWidth / 2, -rectHeight / 2),
-      bracketPaint,
-    );
-    canvas.drawLine(
-      Offset(-rectWidth / 2, -rectHeight / 2),
-      Offset(-rectWidth / 2 + bracketLength, -rectHeight / 2),
-      bracketPaint,
-    );
-
-    // Top-right
-    canvas.drawLine(
-      Offset(rectWidth / 2 - bracketLength, -rectHeight / 2),
-      Offset(rectWidth / 2, -rectHeight / 2),
-      bracketPaint,
-    );
-    canvas.drawLine(
-      Offset(rectWidth / 2, -rectHeight / 2),
-      Offset(rectWidth / 2, -rectHeight / 2 + bracketLength),
-      bracketPaint,
-    );
-
-    // Bottom-right
-    canvas.drawLine(
-      Offset(rectWidth / 2, rectHeight / 2 - bracketLength),
-      Offset(rectWidth / 2, rectHeight / 2),
-      bracketPaint,
-    );
-    canvas.drawLine(
-      Offset(rectWidth / 2, rectHeight / 2),
-      Offset(rectWidth / 2 - bracketLength, rectHeight / 2),
-      bracketPaint,
-    );
-
-    // Bottom-left
-    canvas.drawLine(
-      Offset(-rectWidth / 2 + bracketLength, rectHeight / 2),
-      Offset(-rectWidth / 2, rectHeight / 2),
-      bracketPaint,
-    );
-    canvas.drawLine(
-      Offset(-rectWidth / 2, rectHeight / 2),
-      Offset(-rectWidth / 2, rectHeight / 2 - bracketLength),
-      bracketPaint,
-    );
-
-    // Draw center crosshair
-    final crosshairPaint = Paint()
-      ..color = const Color(0xFF00E676).withValues(alpha: 0.5)
-      ..strokeWidth = 1;
-
-    canvas.drawLine(
-      const Offset(-15, 0),
-      const Offset(15, 0),
-      crosshairPaint,
-    );
-    canvas.drawLine(
-      const Offset(0, -15),
-      const Offset(0, 15),
-      crosshairPaint,
-    );
-
-    // Draw rotation indicator
-    if (rotation != 0) {
-      canvas.drawLine(
-        Offset(0, -rectHeight / 2 - 20),
-        Offset(0, -rectHeight / 2 - 5),
-        borderPaint,
-      );
-    }
-
-    canvas.restore();
-
-    // Draw FOV dimensions label
-    final fovText =
-        '${fovWidth!.toStringAsFixed(2)}° × ${fovHeight!.toStringAsFixed(2)}°';
-    final textPainter = TextPainter(
-      text: TextSpan(
-        text: fovText,
-        style: const TextStyle(
-          color: Color(0xFF00E676),
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    );
-    textPainter.layout();
-    textPainter.paint(
-      canvas,
-      Offset(
-        rectCenter.dx - textPainter.width / 2,
-        rectCenter.dy + rectHeight / 2 + 10,
-      ),
-    );
-  }
-
-  @override
-  bool shouldRepaint(covariant _FOVOverlayPainter oldDelegate) {
-    return viewState != oldDelegate.viewState ||
-        fovWidth != oldDelegate.fovWidth ||
-        fovHeight != oldDelegate.fovHeight ||
-        rotation != oldDelegate.rotation;
-  }
-}
-
-/// Sky view toolbar widget
-class SkyViewToolbar extends ConsumerWidget {
-  /// Whether to show extended options (solar system objects, milky way)
-  final bool showExtendedOptions;
-
-  const SkyViewToolbar({
-    super.key,
-    this.showExtendedOptions = true,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final config = ref.watch(skyRenderConfigProvider);
-    final configNotifier = ref.read(skyRenderConfigProvider.notifier);
-
-    return Wrap(
-      spacing: 8,
-      runSpacing: 6,
-      children: [
-        _ToolbarToggle(
-          label: 'Stars',
-          isActive: config.showStars,
-          onTap: configNotifier.toggleStars,
-        ),
-        _ToolbarToggle(
-          label: 'Constellations',
-          isActive: config.showConstellationLines,
-          onTap: configNotifier.toggleConstellationLines,
-        ),
-        _ToolbarToggle(
-          label: 'DSOs',
-          isActive: config.showDSOs,
-          onTap: configNotifier.toggleDSOs,
-        ),
-        _ToolbarToggle(
-          label: 'Grid',
-          isActive: config.showCoordinateGrid,
-          onTap: configNotifier.toggleGrid,
-        ),
-        _ToolbarToggle(
-          label: 'Horizon',
-          isActive: config.showHorizon,
-          onTap: configNotifier.toggleHorizon,
-        ),
-        _ToolbarToggle(
-          label: 'Ecliptic',
-          isActive: config.showEcliptic,
-          onTap: configNotifier.toggleEcliptic,
-        ),
-        _ToolbarToggle(
-          label: 'Galactic',
-          isActive: config.showGalacticPlane,
-          onTap: configNotifier.toggleGalacticPlane,
-        ),
-        if (showExtendedOptions) ...[
-          _ToolbarToggle(
-            label: 'Milky Way',
-            isActive: config.showMilkyWay,
-            onTap: configNotifier.toggleMilkyWay,
-          ),
-          _ToolbarToggle(
-            label: 'Sun',
-            isActive: config.showSun,
-            onTap: configNotifier.toggleSun,
-          ),
-          _ToolbarToggle(
-            label: 'Moon',
-            isActive: config.showMoon,
-            onTap: configNotifier.toggleMoon,
-          ),
-          _ToolbarToggle(
-            label: 'Planets',
-            isActive: config.showPlanets,
-            onTap: configNotifier.togglePlanets,
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-class _ToolbarToggle extends StatelessWidget {
-  final String label;
-  final bool isActive;
-  final VoidCallback onTap;
-
-  const _ToolbarToggle({
-    required this.label,
-    required this.isActive,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(
-          color: isActive
-              ? Colors.white.withValues(alpha: 0.2)
-              : Colors.black.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: isActive
-                ? Colors.white.withValues(alpha: 0.5)
-                : Colors.white.withValues(alpha: 0.1),
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            color: isActive ? Colors.white : Colors.white70,
-            fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
-          ),
-        ),
-      ),
-    );
   }
 }
 

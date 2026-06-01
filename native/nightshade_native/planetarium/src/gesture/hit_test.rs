@@ -46,7 +46,7 @@ pub fn hit_test_screen(
     pose: ViewPose,
     mag_limit: f32,
 ) -> Result<Option<SelectedObject>, HitTestError> {
-    if catalog.is_empty() && dso_catalog.map_or(true, |c| c.records.is_empty()) {
+    if catalog.is_empty() && dso_catalog.is_none_or(|c| c.records.is_empty()) {
         return Err(HitTestError::NoCatalog);
     }
 

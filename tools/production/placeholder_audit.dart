@@ -178,8 +178,7 @@ void main(List<String> args) {
   if (assertMinFiles != null) {
     final required = int.tryParse(assertMinFiles);
     if (required == null) {
-      stderr.writeln(
-          'Invalid --min-files value: $assertMinFiles');
+      stderr.writeln('Invalid --min-files value: $assertMinFiles');
       exit(2);
     }
     if (filesScanned < required) {
@@ -208,10 +207,12 @@ void main(List<String> args) {
       .readAsLinesSync()
       .map((line) => line.trim())
       .where((line) => line.isNotEmpty)
+      .map(_highRiskBaselineSignature)
       .toSet();
 
-  final newHighRisk =
-      sortedHighRisk.where((entry) => !baseline.contains(entry)).toList();
+  final newHighRisk = sortedHighRisk
+      .where((entry) => !baseline.contains(_highRiskBaselineSignature(entry)))
+      .toList();
   if (newHighRisk.isEmpty) {
     stdout.writeln('No new high-risk markers compared to baseline.');
     return;
@@ -225,6 +226,14 @@ void main(List<String> args) {
   if (failOnNewHighRisk) {
     exit(1);
   }
+}
+
+String _highRiskBaselineSignature(String entry) {
+  final match = RegExp(r'^([^:]+):\d+:(.*)$').firstMatch(entry);
+  if (match == null) {
+    return entry;
+  }
+  return '${match.group(1)}:${match.group(2)}';
 }
 
 String? _argValue(List<String> args, String key) {
@@ -280,8 +289,7 @@ List<_AllowlistEntry> _loadAllowlist(String path) {
     final firstColon = normalized.indexOf(':');
     if (firstColon < 0) {
       // Path-only entry — reject loudly per §7B.5. Errors are a feature.
-      stderr.writeln(
-          'Invalid allowlist entry at $path:${lineNumber + 1}: '
+      stderr.writeln('Invalid allowlist entry at $path:${lineNumber + 1}: '
           '"$raw" — path-only entries are not allowed. '
           'Use "path:line" or "path:line:exact_text" for granularity.');
       exit(2);
@@ -299,8 +307,7 @@ List<_AllowlistEntry> _loadAllowlist(String path) {
     }
     final lineNo = int.tryParse(linePart);
     if (lineNo == null) {
-      stderr.writeln(
-          'Invalid allowlist entry at $path:${lineNumber + 1}: '
+      stderr.writeln('Invalid allowlist entry at $path:${lineNumber + 1}: '
           '"$raw" — second segment must be a line number, got "$linePart". '
           'Use "path:line" or "path:line:exact_text".');
       exit(2);
@@ -328,8 +335,7 @@ bool _isAllowlisted(String entry, List<_AllowlistEntry> allowlist) {
     return false;
   }
   final entryPath = normalizedEntry.substring(0, firstColon);
-  final entryLineStr =
-      normalizedEntry.substring(firstColon + 1, secondColon);
+  final entryLineStr = normalizedEntry.substring(firstColon + 1, secondColon);
   final entryText = normalizedEntry.substring(secondColon + 1);
   final entryLineNo = int.tryParse(entryLineStr);
   if (entryLineNo == null) {

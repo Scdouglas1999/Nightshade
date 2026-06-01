@@ -29,7 +29,6 @@ pub enum HealpixError {
 ///
 /// `ra_rad` and `dec_rad` are J2000 right ascension and declination in radians
 /// (same convention as [`cdshealpix::nested::hash`] longitude/latitude).
-#[must_use]
 pub fn pixel_for_direction(ra_rad: f64, dec_rad: f64, nside: u32) -> Result<u64, HealpixError> {
     validate_direction(ra_rad, dec_rad)?;
     let depth = depth_for_nside(nside)?;
@@ -83,7 +82,6 @@ pub fn depth_for_nside(nside: u32) -> Result<u8, HealpixError> {
 }
 
 /// ICRS (ra, dec) radians of a NESTED pixel cell center.
-#[must_use]
 pub fn pixel_center_radec(healpix_id: u64, nside: u32) -> Result<(f64, f64), HealpixError> {
     let depth = depth_for_nside(nside)?;
     Ok(nested::center(depth, healpix_id))

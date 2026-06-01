@@ -94,32 +94,13 @@ class TonightCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: NightshadeDecorations.tintedBadge(
-                  colors.warning,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  LucideIcons.moon,
-                  size: 16,
-                  color: colors.warning,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text(
-                'Tonight',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
-              ),
-            ],
+          DashboardCardHeader(
+            colors: colors,
+            icon: LucideIcons.moon,
+            title: 'Tonight',
+            accent: colors.warning,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: DashboardCardStyle.headerGap),
           _TonightRow(
             icon: LucideIcons.sunset,
             label: 'Twilight',

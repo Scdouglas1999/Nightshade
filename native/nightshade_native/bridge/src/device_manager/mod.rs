@@ -67,6 +67,29 @@ pub struct HeartbeatConfig {
     pub max_reconnect_attempts: u32,
     /// Delay before first reconnection attempt in seconds (default: 5)
     pub reconnect_delay_secs: u64,
+    /// Whether crossing `failure_threshold` tears the device down (disconnect
+    /// + reconnection loop) or merely latches a `Degraded` "stale" status while
+    /// keeping the device connected and monitored.
+    ///
+    /// `true` for devices where liveness genuinely matters and a lost heartbeat
+    /// means the session is in danger — cameras (a dead camera stalls every
+    /// frame) and mounts (a dead mount drifts off target / can slew into the
+    /// pier). For those, escalating to a real disconnect lets the auto-reconnect
+    /// / recovery machinery act.
+    ///
+    /// `false` for the slow, USB-contention-prone auxiliary devices (focuser,
+    /// filter wheel, rotator). A failed *liveness poll* on these almost never
+    /// means the device is gone — it means a status read lost a race with a
+    /// frame download or a momentary bus hiccup. They reconnect within seconds,
+    /// proving they were never gone, and the disconnect→reconnect cycle is
+    /// itself the disruptive event. For these we publish
+    /// `HeartbeatStatus::Degraded` (a UI-badgeable "stale" signal) and KEEP
+    /// polling; the next real *operation* (move, filter change) surfaces a
+    /// genuine failure loudly.
+    ///
+    /// Default `true` so any device type that does not explicitly opt out keeps
+    /// today's fail-loud behavior (errors are a feature).
+    pub escalate_to_disconnect: bool,
 }
 
 impl Default for HeartbeatConfig {
@@ -79,6 +102,7 @@ impl Default for HeartbeatConfig {
             auto_reconnect: false,
             max_reconnect_attempts: 3,
             reconnect_delay_secs: 5,
+            escalate_to_disconnect: true,
         }
     }
 }
@@ -120,6 +144,9 @@ impl HeartbeatConfig {
             auto_reconnect: false,
             max_reconnect_attempts: 3,
             reconnect_delay_secs: 10,
+            // Liveness genuinely matters: a dead camera stalls every frame, so
+            // a sustained heartbeat loss should escalate to disconnect/recovery.
+            escalate_to_disconnect: true,
         }
     }
 
@@ -133,6 +160,9 @@ impl HeartbeatConfig {
             auto_reconnect: true, // Mounts should auto-reconnect to maintain tracking
             max_reconnect_attempts: 5,
             reconnect_delay_secs: 3,
+            // Liveness genuinely matters: a dead mount drifts off target and can
+            // slew into the pier, so escalate to disconnect/recovery on loss.
+            escalate_to_disconnect: true,
         }
     }
 
@@ -149,6 +179,11 @@ impl HeartbeatConfig {
             auto_reconnect: false,
             max_reconnect_attempts: 2,
             reconnect_delay_secs: 5,
+            // A failed liveness poll on a focuser almost never means "gone" —
+            // it lost a race with a frame download or a bus hiccup. Latch a
+            // Degraded "stale" badge and keep monitoring; the next real move
+            // surfaces a genuine failure loudly. Do NOT auto-disconnect.
+            escalate_to_disconnect: false,
         }
     }
 
@@ -165,6 +200,11 @@ impl HeartbeatConfig {
             auto_reconnect: false,
             max_reconnect_attempts: 2,
             reconnect_delay_secs: 5,
+            // Same rationale as the focuser: a lost liveness poll on a filter
+            // wheel is almost always USB contention, not a real disconnect.
+            // Latch Degraded and keep monitoring; a real filter change surfaces
+            // any genuine fault.
+            escalate_to_disconnect: false,
         }
     }
 
@@ -178,6 +218,9 @@ impl HeartbeatConfig {
             auto_reconnect: true, // Domes should auto-reconnect for safety
             max_reconnect_attempts: 5,
             reconnect_delay_secs: 10,
+            // Domes are a safety-relevant enclosure (rain/roof): keep today's
+            // escalate-on-loss behavior so recovery runs.
+            escalate_to_disconnect: true,
         }
     }
 
@@ -194,6 +237,10 @@ impl HeartbeatConfig {
             auto_reconnect: false,
             max_reconnect_attempts: 2,
             reconnect_delay_secs: 5,
+            // Same rationale as the focuser/filter wheel: a lost liveness poll
+            // on a rotator is almost always USB contention. Latch Degraded and
+            // keep monitoring; a real rotate-to surfaces any genuine fault.
+            escalate_to_disconnect: false,
         }
     }
 
@@ -207,6 +254,9 @@ impl HeartbeatConfig {
             auto_reconnect: true, // Weather monitoring should auto-reconnect
             max_reconnect_attempts: 10,
             reconnect_delay_secs: 15,
+            // Safety-relevant (clouds/rain): keep escalate-on-loss so recovery
+            // runs and the session can react.
+            escalate_to_disconnect: true,
         }
     }
 
@@ -220,6 +270,9 @@ impl HeartbeatConfig {
             auto_reconnect: true, // Safety monitors should always auto-reconnect
             max_reconnect_attempts: 0, // Unlimited reconnect attempts
             reconnect_delay_secs: 2,
+            // Critical safety device: a lost heartbeat must escalate so the
+            // unlimited auto-reconnect kicks in immediately.
+            escalate_to_disconnect: true,
         }
     }
 
@@ -233,6 +286,9 @@ impl HeartbeatConfig {
             auto_reconnect: true,
             max_reconnect_attempts: 5,
             reconnect_delay_secs: 3,
+            // Guiding liveness is critical during an exposure: escalate on loss
+            // so recovery runs rather than silently letting guiding lapse.
+            escalate_to_disconnect: true,
         }
     }
 
@@ -249,6 +305,11 @@ impl HeartbeatConfig {
             auto_reconnect: false,
             max_reconnect_attempts: 2,
             reconnect_delay_secs: 5,
+            // A switch often controls rig power (dew heaters, the mount's own
+            // supply). Keep escalate-on-loss so a genuinely-gone power controller
+            // surfaces loudly rather than silently latching "stale". The raised
+            // failure_threshold already absorbs transient USB contention.
+            escalate_to_disconnect: true,
         }
     }
 
@@ -262,6 +323,9 @@ impl HeartbeatConfig {
             auto_reconnect: true,
             max_reconnect_attempts: 5,
             reconnect_delay_secs: 5,
+            // Session-safety accessory (flat panel / dust cover): keep
+            // escalate-on-loss so recovery runs.
+            escalate_to_disconnect: true,
         }
     }
 
@@ -497,6 +561,157 @@ pub struct DeviceManager {
     /// driver dispatch returns so a late-arriving `Connected` event from a
     /// just-canceled attempt never reaches subscribers.
     pub(crate) reconnect_cancel_tokens: RwLock<HashMap<String, tokio::sync::watch::Sender<bool>>>,
+
+    /// Device ids that currently have a long-running blocking operation in
+    /// flight (e.g. a focuser move). While a device is in this set the
+    /// heartbeat loop skips its poll, because a status read contended with the
+    /// operation can block, queue behind the move on the single ASCOM STA
+    /// thread, or be rejected by the driver — and must not be miscounted as a
+    /// heartbeat failure that escalates to a spurious disconnect.
+    ///
+    /// A plain `std::sync::Mutex` (not a tokio lock) so the RAII
+    /// [`OperationGuard`] can clear its entry from `Drop`, which cannot await.
+    /// It is only ever held for the duration of a single insert/remove/contains
+    /// and never across an `.await`, so it cannot deadlock with the async
+    /// device locks.
+    pub(crate) active_operations: Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+
+    /// Number of camera exposure/download windows currently in flight across
+    /// the whole rig.
+    ///
+    /// On shared-USB rigs (a ZWO EAF/EFW behind an ASI camera) the real cause
+    /// of transient auxiliary read failures is the camera saturating the USB
+    /// bus during frame download. While this counter is non-zero the heartbeat
+    /// loop SKIPS polls for the USB-contention-prone auxiliary device types
+    /// (focuser, filter wheel, rotator) — the same skip path as a per-device
+    /// active operation — so a status read that merely lost a race with the
+    /// download is never miscounted as a heartbeat failure.
+    ///
+    /// A counter (not a bool) so concurrent/overlapping exposures across
+    /// multiple cameras nest correctly: contention is "active" until the LAST
+    /// exposure window closes. An [`AtomicUsize`] (not a mutex) because the
+    /// RAII [`UsbContentionGuard`] decrements it from `Drop`, which cannot
+    /// await, and the heartbeat loop only ever reads it.
+    pub(crate) usb_contention: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+/// RAII marker that keeps a device id in [`DeviceManager::active_operations`]
+/// for as long as it is alive, clearing it on drop — including on early
+/// return, error, or panic — so a marker can never leak and permanently
+/// silence a device's heartbeat. Created via [`DeviceManager::begin_operation`].
+pub(crate) struct OperationGuard {
+    active: Arc<std::sync::Mutex<std::collections::HashSet<String>>>,
+    device_id: String,
+}
+
+impl Drop for OperationGuard {
+    fn drop(&mut self) {
+        // A poisoned lock means a previous holder panicked mid-mutation; the
+        // set is still structurally valid, so recover the guard via
+        // `into_inner` and clear our entry. Failing to clear would leave the
+        // device's heartbeat suppressed forever, which is worse than a
+        // momentary inconsistency.
+        let mut set = match self.active.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        set.remove(&self.device_id);
+    }
+}
+
+/// RAII marker that keeps the rig in a "USB contention" state (a camera is
+/// exposing/downloading) for as long as it is alive, decrementing the
+/// [`DeviceManager::usb_contention`] counter on drop — including on early
+/// return, error, or panic — so the marker can never leak and permanently
+/// silence the auxiliary heartbeats. Created via
+/// [`DeviceManager::begin_usb_contention`].
+pub(crate) struct UsbContentionGuard {
+    counter: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl Drop for UsbContentionGuard {
+    fn drop(&mut self) {
+        // `fetch_sub` wraps on underflow; that would only happen if a guard were
+        // dropped twice, which the type system prevents (it is moved, not
+        // cloned). Relaxed is sufficient: the heartbeat loop tolerates reading a
+        // momentarily-stale value (it just polls one tick later or skips one
+        // tick early), and there is no other memory we publish through this.
+        self.counter
+            .fetch_sub(1, std::sync::atomic::Ordering::Relaxed);
+    }
+}
+
+impl DeviceManager {
+    /// Mark the rig as being in a camera exposure/download window until the
+    /// returned [`UsbContentionGuard`] is dropped. While the window is open the
+    /// heartbeat loop skips polls for the USB-contention-prone auxiliary device
+    /// types (focuser, filter wheel, rotator) — see [`Self::is_usb_contended`]
+    /// and `run_heartbeat_loop` — so a status read that merely lost a race with
+    /// the frame download on a shared USB bus is not miscounted as a heartbeat
+    /// failure. Hold the guard for the full exposure+download window via
+    /// `let _contention = mgr.begin_usb_contention();`.
+    pub(crate) fn begin_usb_contention(&self) -> UsbContentionGuard {
+        self.usb_contention
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        UsbContentionGuard {
+            counter: self.usb_contention.clone(),
+        }
+    }
+
+    /// Whether at least one camera exposure/download window is currently open
+    /// (the rig is contending for shared USB bandwidth). The heartbeat loop
+    /// consults this for the auxiliary device types so a contended status read
+    /// is not counted as a failure.
+    pub(crate) fn is_usb_contended(&self) -> bool {
+        self.usb_contention
+            .load(std::sync::atomic::Ordering::Relaxed)
+            > 0
+    }
+
+    /// Whether the given device type is one whose heartbeat we suppress during
+    /// a camera USB-contention window. These are the slow auxiliary devices
+    /// that typically share the camera's USB path (ZWO EAF/EFW behind an ASI
+    /// camera, a Pegasus focuser on the same hub, …) and whose liveness polls
+    /// lose races with frame downloads. The camera and mount are deliberately
+    /// excluded: the camera is the one driving the contention (and we never
+    /// want to stop watching it), and the mount is on its own link / matters
+    /// for tracking safety.
+    pub(crate) fn device_type_suppressed_by_usb_contention(device_type: &DeviceType) -> bool {
+        matches!(
+            device_type,
+            DeviceType::Focuser | DeviceType::FilterWheel | DeviceType::Rotator
+        )
+    }
+
+    /// Mark `device_id` as having a blocking operation in flight until the
+    /// returned [`OperationGuard`] is dropped. The heartbeat loop skips its
+    /// poll for a device with an active operation (see `run_heartbeat_loop`),
+    /// so a status read merely contended with the operation is not counted as a
+    /// heartbeat failure. Hold the returned guard for the full duration of the
+    /// operation (e.g. a focuser move) via `let _op = self.begin_operation(id);`.
+    pub(crate) fn begin_operation(&self, device_id: &str) -> OperationGuard {
+        let mut set = match self.active_operations.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        set.insert(device_id.to_string());
+        drop(set);
+        OperationGuard {
+            active: self.active_operations.clone(),
+            device_id: device_id.to_string(),
+        }
+    }
+
+    /// Whether a blocking operation (e.g. a focuser move) is currently in
+    /// flight for `device_id`. A poisoned lock is treated as "no active
+    /// operation" so a panic elsewhere can never wedge the heartbeat into
+    /// skipping forever.
+    pub(crate) fn is_operation_active(&self, device_id: &str) -> bool {
+        self.active_operations
+            .lock()
+            .map(|set| set.contains(device_id))
+            .unwrap_or(false)
+    }
 }
 
 impl DeviceManager {
@@ -551,6 +766,8 @@ impl DeviceManager {
             native_cover_calibrators: RwLock::new(HashMap::new()),
             heartbeat_tasks: RwLock::new(HashMap::new()),
             reconnect_cancel_tokens: RwLock::new(HashMap::new()),
+            active_operations: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+            usb_contention: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         });
 
         // Start the reconnection background task
@@ -620,6 +837,8 @@ impl DeviceManager {
             native_cover_calibrators: RwLock::new(HashMap::new()),
             heartbeat_tasks: RwLock::new(HashMap::new()),
             reconnect_cancel_tokens: RwLock::new(HashMap::new()),
+            active_operations: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+            usb_contention: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         });
 
         // Start the reconnection background task
@@ -1056,6 +1275,8 @@ mod tests {
             native_cover_calibrators: RwLock::new(HashMap::new()),
             heartbeat_tasks: RwLock::new(HashMap::new()),
             reconnect_cancel_tokens: RwLock::new(HashMap::new()),
+            active_operations: Arc::new(std::sync::Mutex::new(std::collections::HashSet::new())),
+            usb_contention: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         }
     }
 
@@ -1067,6 +1288,153 @@ mod tests {
             .await
             .expect_err("missing mount should error");
         assert!(err.contains("Device not found"));
+    }
+
+    #[test]
+    fn operation_guard_marks_and_clears_active_operations() {
+        let manager = build_device_manager();
+
+        // No operation in flight initially.
+        assert!(!manager.is_operation_active("ascom:focuser"));
+
+        {
+            let _op = manager.begin_operation("ascom:focuser");
+            // The guarded device is marked active...
+            assert!(manager.is_operation_active("ascom:focuser"));
+            // ...but an unrelated device is not, so a focuser move never
+            // suppresses (for example) the mount's heartbeat.
+            assert!(!manager.is_operation_active("ascom:mount"));
+        }
+
+        // Dropping the guard clears the marker so the heartbeat resumes.
+        assert!(!manager.is_operation_active("ascom:focuser"));
+    }
+
+    #[test]
+    fn operation_guards_are_independent_per_device() {
+        let manager = build_device_manager();
+        let op_a = manager.begin_operation("focuser:a");
+        {
+            let _op_b = manager.begin_operation("focuser:b");
+            assert!(manager.is_operation_active("focuser:a"));
+            assert!(manager.is_operation_active("focuser:b"));
+        }
+        // Dropping b leaves a's marker intact.
+        assert!(manager.is_operation_active("focuser:a"));
+        assert!(!manager.is_operation_active("focuser:b"));
+        drop(op_a);
+        assert!(!manager.is_operation_active("focuser:a"));
+    }
+
+    #[test]
+    fn usb_contention_guard_marks_and_clears_contention() {
+        let manager = build_device_manager();
+
+        // No exposure in flight initially.
+        assert!(!manager.is_usb_contended());
+
+        {
+            let _contention = manager.begin_usb_contention();
+            assert!(
+                manager.is_usb_contended(),
+                "a live exposure window must mark the rig USB-contended"
+            );
+        }
+
+        // Dropping the guard clears contention so aux heartbeats resume.
+        assert!(!manager.is_usb_contended());
+    }
+
+    #[test]
+    fn usb_contention_nests_for_overlapping_exposures() {
+        let manager = build_device_manager();
+
+        let outer = manager.begin_usb_contention();
+        {
+            let _inner = manager.begin_usb_contention();
+            assert!(manager.is_usb_contended());
+        }
+        // Inner exposure finished but the outer one is still running: the rig
+        // remains contended until the LAST window closes. This is the dual-
+        // camera / overlapping-frame case.
+        assert!(
+            manager.is_usb_contended(),
+            "contention must persist while any exposure window is still open"
+        );
+        drop(outer);
+        assert!(
+            !manager.is_usb_contended(),
+            "contention clears only after the last exposure window closes"
+        );
+    }
+
+    #[test]
+    fn usb_contention_suppresses_only_aux_device_types() {
+        // The focuser/filter-wheel/rotator share the camera's USB path and are
+        // suppressed during a download window. The camera (which is driving the
+        // contention) and the mount (own link, tracking-critical) are not.
+        assert!(DeviceManager::device_type_suppressed_by_usb_contention(
+            &DeviceType::Focuser
+        ));
+        assert!(DeviceManager::device_type_suppressed_by_usb_contention(
+            &DeviceType::FilterWheel
+        ));
+        assert!(DeviceManager::device_type_suppressed_by_usb_contention(
+            &DeviceType::Rotator
+        ));
+
+        for not_suppressed in [
+            DeviceType::Camera,
+            DeviceType::Mount,
+            DeviceType::Dome,
+            DeviceType::Weather,
+            DeviceType::SafetyMonitor,
+            DeviceType::Guider,
+            DeviceType::Switch,
+            DeviceType::CoverCalibrator,
+        ] {
+            assert!(
+                !DeviceManager::device_type_suppressed_by_usb_contention(&not_suppressed),
+                "{:?} must NOT be suppressed by USB contention",
+                not_suppressed
+            );
+        }
+    }
+
+    #[test]
+    fn escalate_to_disconnect_is_a_per_device_type_property() {
+        // Liveness-critical devices keep today's behavior: a sustained
+        // heartbeat loss escalates to a real disconnect so recovery runs.
+        for escalating in [
+            DeviceType::Camera,
+            DeviceType::Mount,
+            DeviceType::Dome,
+            DeviceType::Weather,
+            DeviceType::SafetyMonitor,
+            DeviceType::Guider,
+            DeviceType::Switch,
+            DeviceType::CoverCalibrator,
+        ] {
+            assert!(
+                HeartbeatConfig::for_device_type(&escalating).escalate_to_disconnect,
+                "{:?} must escalate a heartbeat loss to disconnect",
+                escalating
+            );
+        }
+
+        // The slow, USB-contention-prone auxiliaries do NOT: they latch a
+        // Degraded "stale" status and stay connected + monitored.
+        for non_escalating in [
+            DeviceType::Focuser,
+            DeviceType::FilterWheel,
+            DeviceType::Rotator,
+        ] {
+            assert!(
+                !HeartbeatConfig::for_device_type(&non_escalating).escalate_to_disconnect,
+                "{:?} must NOT auto-disconnect on heartbeat loss",
+                non_escalating
+            );
+        }
     }
 
     #[tokio::test]

@@ -1,6 +1,32 @@
 import 'package:flutter/material.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+/// Shared visual constants for dashboard cards.
+///
+/// Every dashboard card composes its content with these so headers, padding,
+/// icons, and status chips line up across the grid instead of drifting per
+/// card. Tweak a value here and the whole dashboard moves together.
+class DashboardCardStyle {
+  DashboardCardStyle._();
+
+  /// Uniform internal padding for every card body. Matches the design
+  /// system's medium spacing token so cards read as one family.
+  static const EdgeInsets contentPadding =
+      EdgeInsets.all(NightshadeTokens.spaceMd);
+
+  /// Vertical gap between a card's header and its body.
+  static const double headerGap = NightshadeTokens.spaceSm;
+
+  /// Header icon glyph size (inside the tinted badge).
+  static const double headerIconSize = 15;
+
+  /// Header title text size.
+  static const double headerTitleSize = 13;
+
+  /// Status chip text size used in card headers.
+  static const double statusChipTextSize = 10;
+}
+
 class DashboardGlassCard extends StatelessWidget {
   final NightshadeColors colors;
   final Widget child;
@@ -10,7 +36,7 @@ class DashboardGlassCard extends StatelessWidget {
     super.key,
     required this.colors,
     required this.child,
-    this.padding = const EdgeInsets.all(16),
+    this.padding = DashboardCardStyle.contentPadding,
   });
 
   @override
@@ -19,13 +45,202 @@ class DashboardGlassCard extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: NightshadeTokens.borderRadiusMd,
         border: Border.all(color: colors.border),
         boxShadow: NightshadeTokens.elevationLevel1,
       ),
       child: Padding(
         padding: padding,
         child: child,
+      ),
+    );
+  }
+}
+
+/// Standardized header row for dashboard cards.
+///
+/// Lays out a tinted icon badge, a title, and an optional trailing widget
+/// (typically a [DashboardStatusChip] and/or inline metrics) on a single
+/// baseline with consistent sizing across every card. Use this instead of
+/// hand-rolling a header `Row` so the grid stays visually aligned.
+class DashboardCardHeader extends StatelessWidget {
+  final NightshadeColors colors;
+  final IconData icon;
+  final String title;
+
+  /// Tint applied to the icon and its badge. Defaults to the muted text
+  /// colour so an inactive card reads as neutral; pass a status colour
+  /// (success/warning/etc.) to signal an active subsystem.
+  final Color? accent;
+
+  /// Optional trailing content aligned to the end of the header row.
+  final Widget? trailing;
+
+  const DashboardCardHeader({
+    super.key,
+    required this.colors,
+    required this.icon,
+    required this.title,
+    this.accent,
+    this.trailing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = accent ?? colors.textMuted;
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(NightshadeTokens.spaceXs),
+          decoration: NightshadeDecorations.tintedBadge(
+            tint,
+            borderRadius: NightshadeTokens.borderRadiusSm,
+          ),
+          child: Icon(
+            icon,
+            size: DashboardCardStyle.headerIconSize,
+            color: tint,
+          ),
+        ),
+        const SizedBox(width: NightshadeTokens.spaceSm),
+        Expanded(
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: DashboardCardStyle.headerTitleSize,
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        if (trailing != null) ...[
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          trailing!,
+        ],
+      ],
+    );
+  }
+}
+
+/// Standardized status chip for dashboard card headers.
+///
+/// Renders a pill that is tinted when [active] and neutral otherwise, keeping
+/// the on/off treatment identical across cards.
+class DashboardStatusChip extends StatelessWidget {
+  final NightshadeColors colors;
+  final String label;
+  final bool active;
+
+  /// Colour used when [active]. Defaults to success green.
+  final Color? activeColor;
+
+  const DashboardStatusChip({
+    super.key,
+    required this.colors,
+    required this.label,
+    required this.active,
+    this.activeColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tint = activeColor ?? colors.success;
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceSm,
+        vertical: 2,
+      ),
+      decoration: active
+          ? NightshadeDecorations.statusChip(
+              tint,
+              borderRadius: NightshadeTokens.borderRadiusFull,
+              bordered: false,
+            )
+          : BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
+            ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: DashboardCardStyle.statusChipTextSize,
+          fontWeight: FontWeight.w600,
+          color: active ? tint : colors.textMuted,
+        ),
+      ),
+    );
+  }
+}
+
+/// Scrollable wrapper for dashboard zone columns that keeps the scrollbar in a
+/// dedicated gutter so its thumb never paints over card content or crosses a
+/// card's rounded border.
+///
+/// The default [MaterialScrollBehavior] on desktop overlays the scrollbar on
+/// the trailing edge of whatever is scrolled — which, for a column of bordered
+/// cards, lands the thumb directly on top of the cards. This widget owns a
+/// [ScrollController], reserves [gutter] pixels of trailing padding on the
+/// content, and draws the [Scrollbar] inside that reserved strip.
+class DashboardScrollView extends StatefulWidget {
+  final Widget child;
+  final EdgeInsets padding;
+
+  /// Width of the reserved scrollbar gutter on the trailing edge.
+  static const double gutter = 14.0;
+
+  /// Visual thickness of the scrollbar thumb. Kept narrower than [gutter] so
+  /// the thumb is fully inset with breathing room on both sides.
+  static const double _thumbThickness = 6.0;
+
+  const DashboardScrollView({
+    super.key,
+    required this.child,
+    this.padding = EdgeInsets.zero,
+  });
+
+  @override
+  State<DashboardScrollView> createState() => _DashboardScrollViewState();
+}
+
+class _DashboardScrollViewState extends State<DashboardScrollView> {
+  final ScrollController _controller = ScrollController();
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Reserve the gutter on the trailing edge by adding it to the content's
+    // right padding; the cards therefore stop short of where the thumb draws.
+    final contentPadding = widget.padding.add(
+      const EdgeInsets.only(right: DashboardScrollView.gutter),
+    ) as EdgeInsets;
+
+    return ScrollbarTheme(
+      data: ScrollbarThemeData(
+        thickness: WidgetStateProperty.all(DashboardScrollView._thumbThickness),
+        radius: const Radius.circular(NightshadeTokens.radiusFull),
+        // Inset the track so the thumb sits centred in the reserved gutter,
+        // clear of the card border to its left.
+        crossAxisMargin:
+            (DashboardScrollView.gutter - DashboardScrollView._thumbThickness) /
+                2,
+        mainAxisMargin: NightshadeTokens.spaceXs,
+      ),
+      child: Scrollbar(
+        controller: _controller,
+        // Reserve space for the thumb at all times so the layout doesn't
+        // shift when the scrollbar fades in on hover.
+        thumbVisibility: false,
+        child: SingleChildScrollView(
+          controller: _controller,
+          padding: contentPadding,
+          child: widget.child,
+        ),
       ),
     );
   }

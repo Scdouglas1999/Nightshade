@@ -65,12 +65,14 @@ class _CandidateList extends ConsumerWidget {
 class _CandidateRowInfo extends ConsumerWidget {
   final TargetSuggestion suggestion;
   final NightshadeColors colors;
+  final VoidCallback onReviewInSequencer;
   final VoidCallback onSendToFraming;
   final VoidCallback onAddToObservingList;
 
   const _CandidateRowInfo({
     required this.suggestion,
     required this.colors,
+    required this.onReviewInSequencer,
     required this.onSendToFraming,
     required this.onAddToObservingList,
   });
@@ -184,9 +186,16 @@ class _CandidateRowInfo extends ConsumerWidget {
           runSpacing: NightshadeTokens.spaceSm,
           children: [
             NightshadeButton(
+              label: context.l10n.text('plannerReviewInSequencer'),
+              icon: LucideIcons.listOrdered,
+              variant: ButtonVariant.primary,
+              size: ButtonSize.small,
+              onPressed: onReviewInSequencer,
+            ),
+            NightshadeButton(
               label: 'Send to Framing',
               icon: LucideIcons.frame,
-              variant: ButtonVariant.primary,
+              variant: ButtonVariant.outline,
               size: ButtonSize.small,
               onPressed: onSendToFraming,
             ),
@@ -251,6 +260,7 @@ class _CandidateRow extends ConsumerWidget {
     final infoSection = _CandidateRowInfo(
       suggestion: suggestion,
       colors: colors,
+      onReviewInSequencer: () => _reviewInSequencer(context, ref),
       onSendToFraming: () => _sendToFraming(context, ref),
       onAddToObservingList: () => _addToObservingList(context, ref),
     );
@@ -297,6 +307,31 @@ class _CandidateRow extends ConsumerWidget {
               },
             ),
     );
+  }
+
+  /// Build a Smart Night sequence for this single candidate and load it into
+  /// the editor, replacing the current draft (mirrors the primary card's
+  /// "Review in Sequencer"). The helper surfaces any
+  /// [SmartNightBuildException] via snackbar and returns false; we only act on
+  /// a true result.
+  Future<void> _reviewInSequencer(BuildContext context, WidgetRef ref) async {
+    final loaded = await addPlanTonightTargetToSequencer(
+      context: context,
+      ref: ref,
+      target: suggestion,
+      replaceSequence: true,
+      includeSessionPreamble: true,
+    );
+    if (!loaded || !context.mounted) return;
+
+    final colorsLocal = NightshadeColors.of(context);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Loaded ${suggestion.targetName} into the sequencer'),
+        backgroundColor: colorsLocal.success,
+      ),
+    );
+    context.go('/sequencer');
   }
 
   void _sendToFraming(BuildContext context, WidgetRef ref) {

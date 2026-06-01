@@ -39,8 +39,8 @@ const _requiredFiles = <_RequiredFile>[
     ],
   ),
   _RequiredFile(
-    path: 'apps/desktop/lib/headless_api_server.dart',
-    label: 'Headless capability API',
+    path: 'apps/desktop/lib/headless_api/handlers/system_handlers.dart',
+    label: 'Headless capability API system handlers',
     requiredText: [
       'PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem)',
       "'platformCapabilities': platformCapabilities.toJson()",

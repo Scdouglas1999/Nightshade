@@ -47,7 +47,6 @@ class LivePreviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return DashboardGlassCard(
       colors: colors,
-      padding: const EdgeInsets.all(12),
       child: LayoutBuilder(
         builder: (context, constraints) {
           final availableWidth = constraints.maxWidth;
@@ -58,27 +57,18 @@ class LivePreviewCard extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               // Header row - compact
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: NightshadeDecorations.tintedBadge(
-                      colors.primary,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Icon(LucideIcons.image, size: 14, color: colors.primary),
-                  ),
-                  const SizedBox(width: 10),
-                  Text(
-                    context.l10n.text('livePreview'),
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: colors.textPrimary),
-                  ),
-                  const Spacer(),
-                  _CaptureStatusIndicator(colors: colors, pulseController: pulseController),
-                ],
+              DashboardCardHeader(
+                colors: colors,
+                icon: LucideIcons.image,
+                title: context.l10n.text('livePreview'),
+                accent: colors.primary,
+                trailing: _CaptureStatusIndicator(
+                  colors: colors,
+                  pulseController: pulseController,
+                ),
               ),
 
-              const SizedBox(height: 10),
+              const SizedBox(height: DashboardCardStyle.headerGap),
 
               // Image preview area - constrained height to prevent dominating screen
               // Max height of 400px ensures space for other content
@@ -118,11 +108,15 @@ class _CaptureStatusIndicator extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final exposurePercent = ref.watch(exposureProgressProvider.select((s) => s.percent));
-    final isDownloading = ref.watch(exposureProgressProvider.select((s) => s.isDownloading));
-    final isSessionCapturing = ref.watch(sessionStateProvider.select((s) => s.isCapturing));
+    final exposurePercent =
+        ref.watch(exposureProgressProvider.select((s) => s.percent));
+    final isDownloading =
+        ref.watch(exposureProgressProvider.select((s) => s.isDownloading));
+    final isSessionCapturing =
+        ref.watch(sessionStateProvider.select((s) => s.isCapturing));
 
-    final isCapturing = isSessionCapturing || exposurePercent > 0 || isDownloading;
+    final isCapturing =
+        isSessionCapturing || exposurePercent > 0 || isDownloading;
 
     return Row(
       children: [
@@ -135,15 +129,19 @@ class _CaptureStatusIndicator extends ConsumerWidget {
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: isCapturing
-                    ? colors.success.withValues(alpha: 0.3 + pulseController.value * 0.4)
-                    : colors.textMuted.withValues(alpha: 0.3 + pulseController.value * 0.4),
+                    ? colors.success
+                        .withValues(alpha: 0.3 + pulseController.value * 0.4)
+                    : colors.textMuted
+                        .withValues(alpha: 0.3 + pulseController.value * 0.4),
               ),
             );
           },
         ),
         const SizedBox(width: 8),
         Text(
-          isCapturing ? context.l10n.text('capturing') : context.l10n.text('idle'),
+          isCapturing
+              ? context.l10n.text('capturing')
+              : context.l10n.text('idle'),
           style: TextStyle(
             fontSize: 12,
             color: isCapturing ? colors.success : colors.textSecondary,
@@ -171,7 +169,9 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
   Widget build(BuildContext context) {
     final colors = widget.colors;
     final currentImage = ref.watch(currentImageProvider);
-    final isConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
+    final isConnected =
+        ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
 
     return Container(
       decoration: BoxDecoration(
@@ -217,16 +217,24 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
                         shape: BoxShape.circle,
                         border: Border.all(color: colors.border),
                       ),
-                      child: Icon(LucideIcons.camera, size: 32, color: colors.textMuted),
+                      child: Icon(LucideIcons.camera,
+                          size: 32, color: colors.textMuted),
                     ),
                     const SizedBox(height: 16),
                     Text(
-                      isConnected ? context.l10n.text('noImage') : context.l10n.text('noCameraConnected'),
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: colors.textSecondary),
+                      isConnected
+                          ? context.l10n.text('noImage')
+                          : context.l10n.text('noCameraConnected'),
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: colors.textSecondary),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      isConnected ? context.l10n.text('takeSnapshotOrStartSequence') : context.l10n.text('connectCameraInEquipment'),
+                      isConnected
+                          ? context.l10n.text('takeSnapshotOrStartSequence')
+                          : context.l10n.text('connectCameraInEquipment'),
                       style: TextStyle(fontSize: 12, color: colors.textMuted),
                     ),
                   ],
@@ -239,11 +247,13 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
                 top: 8,
                 left: 8,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: colors.surface.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: colors.border.withValues(alpha: 0.5)),
+                    border:
+                        Border.all(color: colors.border.withValues(alpha: 0.5)),
                   ),
                   child: Text(
                     '${(_currentZoom * 100).toInt()}%',
@@ -262,11 +272,13 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
                 top: 8,
                 right: 8,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: colors.surface.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: colors.border.withValues(alpha: 0.5)),
+                    border:
+                        Border.all(color: colors.border.withValues(alpha: 0.5)),
                   ),
                   child: Text(
                     '${currentImage.width} × ${currentImage.height}',
@@ -311,20 +323,47 @@ class _ImageStatsRow extends ConsumerWidget {
           // Top row - Image info
           Row(
             children: [
-              _StatCell(label: 'Size', value: width != null && height != null ? '${width}x$height' : '---', colors: colors),
-              _StatCell(label: 'Stars', value: lastStats?.starCount?.toString() ?? '---', colors: colors),
-              _StatCell(label: 'HFR', value: lastStats?.hfr?.toStringAsFixed(2) ?? '---', colors: colors, highlight: true),
-              _StatCell(label: 'FWHM', value: lastStats?.fwhm?.toStringAsFixed(2) ?? '---', colors: colors),
+              _StatCell(
+                  label: 'Size',
+                  value: width != null && height != null
+                      ? '${width}x$height'
+                      : '---',
+                  colors: colors),
+              _StatCell(
+                  label: 'Stars',
+                  value: lastStats?.starCount?.toString() ?? '---',
+                  colors: colors),
+              _StatCell(
+                  label: 'HFR',
+                  value: lastStats?.hfr?.toStringAsFixed(2) ?? '---',
+                  colors: colors,
+                  highlight: true),
+              _StatCell(
+                  label: 'FWHM',
+                  value: lastStats?.fwhm?.toStringAsFixed(2) ?? '---',
+                  colors: colors),
             ],
           ),
           const SizedBox(height: 4),
           // Bottom row - Pixel stats
           Row(
             children: [
-              _StatCell(label: 'Mean', value: lastStats?.mean?.toStringAsFixed(0) ?? '---', colors: colors),
-              _StatCell(label: 'Median', value: lastStats?.median?.toStringAsFixed(0) ?? '---', colors: colors),
-              _StatCell(label: 'Min', value: lastStats?.min?.toStringAsFixed(0) ?? '---', colors: colors),
-              _StatCell(label: 'Max', value: lastStats?.max?.toStringAsFixed(0) ?? '---', colors: colors),
+              _StatCell(
+                  label: 'Mean',
+                  value: lastStats?.mean?.toStringAsFixed(0) ?? '---',
+                  colors: colors),
+              _StatCell(
+                  label: 'Median',
+                  value: lastStats?.median?.toStringAsFixed(0) ?? '---',
+                  colors: colors),
+              _StatCell(
+                  label: 'Min',
+                  value: lastStats?.min?.toStringAsFixed(0) ?? '---',
+                  colors: colors),
+              _StatCell(
+                  label: 'Max',
+                  value: lastStats?.max?.toStringAsFixed(0) ?? '---',
+                  colors: colors),
             ],
           ),
         ],

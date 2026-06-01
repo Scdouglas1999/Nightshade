@@ -1,0 +1,83 @@
+part of '../annotation_panel.dart';
+
+class AnnotationMiniChips extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const AnnotationMiniChips({super.key, required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final annotation = ref.watch(currentAnnotationProvider);
+    final settings = ref.watch(annotationSettingsProvider).valueOrNull ??
+        const AnnotationSettings();
+
+    if (annotation == null || !settings.enabled) {
+      return const SizedBox.shrink();
+    }
+
+    // Get visible objects, sorted by brightness (lowest magnitude = brightest)
+    final visibleObjects = annotation.objects.where((obj) {
+      if (!obj.visible) return false;
+      if (!isTypeVisibleFromSettings(obj.type, settings.visibleTypes)) {
+        return false;
+      }
+      if (obj.magnitude != null) {
+        if (obj.magnitude! > settings.magnitudeCutoff) return false;
+        if (obj.magnitude! < settings.minMagnitude) return false;
+      }
+      // Skip stars for the chip row - they're too numerous and not interesting
+      if (obj.type == ObjectType.star || obj.type == ObjectType.doubleStar) {
+        return false;
+      }
+      return true;
+    }).toList()
+      ..sort((a, b) {
+        final aMag = a.magnitude ?? 99.0;
+        final bMag = b.magnitude ?? 99.0;
+        return aMag.compareTo(bMag);
+      });
+
+    // Take the 5 brightest non-star objects
+    final topObjects = visibleObjects.take(5).toList();
+    if (topObjects.isEmpty) return const SizedBox.shrink();
+
+    return IgnorePointer(
+      ignoring: false,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          children: topObjects.map((obj) {
+            return GestureDetector(
+              onTap: () {
+                ref.read(selectedAnnotationObjectProvider.notifier).state = obj;
+                // Switch to the annotations tab when a chip is tapped
+                ref.read(selectedImagingPanelProvider.notifier).state =
+                    PanelTabs.annotationsTabIndex;
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.6),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: Colors.white.withValues(alpha: 0.2),
+                  ),
+                ),
+                child: Text(
+                  obj.commonName ?? obj.name,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            );
+          }).toList(),
+        ),
+      ),
+    );
+  }
+}

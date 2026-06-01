@@ -1,0 +1,181 @@
+part of '../flat_wizard_screen.dart';
+
+// --- Quick Capture Controls ---
+
+class _QuickCaptureControls extends ConsumerWidget {
+  const _QuickCaptureControls();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final state = ref.watch(flatWizardProvider);
+    final notifier = ref.read(flatWizardProvider.notifier);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Filter selector
+          _SectionHeader(title: 'Filter', colors: colors),
+          const SizedBox(height: 8),
+          const _FilterSelector(),
+          const SizedBox(height: 24),
+
+          // Histogram target
+          _SectionHeader(title: 'Histogram Target', colors: colors),
+          const SizedBox(height: 8),
+          _HistogramTargetSlider(
+            value: state.globalSettings.histogramTarget,
+            onChanged: notifier.setHistogramTarget,
+          ),
+          const SizedBox(height: 24),
+
+          // Tolerance
+          _SectionHeader(title: 'Tolerance', colors: colors),
+          const SizedBox(height: 8),
+          _ToleranceSlider(
+            value: state.globalSettings.tolerancePercent,
+            onChanged: notifier.setTolerance,
+          ),
+          const SizedBox(height: 24),
+
+          // Frame count
+          _SectionHeader(title: 'Frame Count', colors: colors),
+          const SizedBox(height: 8),
+          _FrameCountInput(
+            value: state.globalSettings.frameCount,
+            onChanged: notifier.setFrameCount,
+          ),
+          const SizedBox(height: 32),
+
+          // Action buttons
+          const _ActionButtons(mode: FlatWizardMode.quick),
+        ],
+      ),
+    );
+  }
+}
+
+// --- Batch Capture Controls ---
+
+class _BatchCaptureControls extends ConsumerWidget {
+  const _BatchCaptureControls();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final state = ref.watch(flatWizardProvider);
+    final notifier = ref.read(flatWizardProvider.notifier);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Filter checklist
+          _SectionHeader(title: 'Filters', colors: colors),
+          const SizedBox(height: 8),
+          _FilterChecklist(key: FlatWizardTutorialKeys.filterSelect),
+          const SizedBox(height: 24),
+
+          // Global settings
+          _SectionHeader(title: 'Global Settings', colors: colors),
+          const SizedBox(height: 8),
+          _HistogramTargetSlider(
+            key: FlatWizardTutorialKeys.targetAdu,
+            value: state.globalSettings.histogramTarget,
+            onChanged: notifier.setHistogramTarget,
+          ),
+          const SizedBox(height: 12),
+          _ToleranceSlider(
+            value: state.globalSettings.tolerancePercent,
+            onChanged: notifier.setTolerance,
+          ),
+          const SizedBox(height: 12),
+          _FrameCountInput(
+            key: FlatWizardTutorialKeys.frameCount,
+            value: state.globalSettings.frameCount,
+            onChanged: notifier.setFrameCount,
+          ),
+          const SizedBox(height: 32),
+
+          // Action buttons
+          const _ActionButtons(mode: FlatWizardMode.batch),
+        ],
+      ),
+    );
+  }
+}
+
+// --- Sky Flats Controls ---
+
+class _SkyFlatsControls extends ConsumerWidget {
+  const _SkyFlatsControls();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final state = ref.watch(flatWizardProvider);
+    final notifier = ref.read(flatWizardProvider.notifier);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Twilight mode
+          _SectionHeader(title: 'Twilight Mode', colors: colors),
+          const SizedBox(height: 8),
+          _TwilightModeSelector(
+            mode: state.twilightMode,
+            onChanged: notifier.setTwilightMode,
+          ),
+          const SizedBox(height: 24),
+
+          // Filter checklist with auto-order button
+          Row(
+            children: [
+              _SectionHeader(title: 'Filters', colors: colors),
+              const Spacer(),
+              NightshadeButton(
+                label: 'Auto-Order',
+                icon: LucideIcons.arrowUpDown,
+                onPressed: notifier.autoOrderForTwilight,
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _FilterChecklist(key: FlatWizardTutorialKeys.filterSelect),
+          const SizedBox(height: 24),
+
+          // Global settings
+          _SectionHeader(title: 'Global Settings', colors: colors),
+          const SizedBox(height: 8),
+          _HistogramTargetSlider(
+            key: FlatWizardTutorialKeys.targetAdu,
+            value: state.globalSettings.histogramTarget,
+            onChanged: notifier.setHistogramTarget,
+          ),
+          const SizedBox(height: 12),
+          _ToleranceSlider(
+            value: state.globalSettings.tolerancePercent,
+            onChanged: notifier.setTolerance,
+          ),
+          const SizedBox(height: 12),
+          _FrameCountInput(
+            key: FlatWizardTutorialKeys.frameCount,
+            value: state.globalSettings.frameCount,
+            onChanged: notifier.setFrameCount,
+          ),
+          const SizedBox(height: 32),
+
+          // Action buttons
+          const _ActionButtons(mode: FlatWizardMode.skyFlats),
+        ],
+      ),
+    );
+  }
+}

@@ -133,6 +133,47 @@ void main() {
       expect(filterFrags, isEmpty);
     });
 
+    test('SmartExposureNode in loop mode shows "1 each · looping"', () {
+      final node = SmartExposureNode(
+        loopUntilStopped: true,
+        plans: const [
+          FilterPlan(filterName: 'L', count: 192, durationSecs: 60),
+          FilterPlan(filterName: 'R', count: 96, durationSecs: 120),
+          FilterPlan(filterName: 'G', count: 96, durationSecs: 120),
+          FilterPlan(filterName: 'B', count: 96, durationSecs: 120),
+        ],
+      );
+      final texts = nodeSummary(node)
+          .whereType<StaticFragment>()
+          .map((f) => f.text)
+          .toList();
+      // Round-robin filter list, "1 each", and "looping" — NOT the fixed
+      // 192/96 counts.
+      expect(texts, contains('L·R·G·B'));
+      expect(texts, contains('1 each'));
+      expect(texts, contains('looping'));
+      expect(
+        texts.any((t) => t.contains('192') || t.contains('96')),
+        isFalse,
+        reason: 'loop mode must not show the per-filter counts',
+      );
+    });
+
+    test('SmartExposureNode without loop mode lists per-filter count×duration',
+        () {
+      final node = SmartExposureNode(
+        plans: const [
+          FilterPlan(filterName: 'L', count: 10, durationSecs: 60),
+        ],
+      );
+      final texts = nodeSummary(node)
+          .whereType<StaticFragment>()
+          .map((f) => f.text)
+          .toList();
+      expect(texts.any((t) => t.contains('10×60s')), isTrue);
+      expect(texts, isNot(contains('looping')));
+    });
+
     test('LoopNode (count) emits an editable iteration count', () {
       final node = LoopNode(
         conditionType: LoopConditionType.count,

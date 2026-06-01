@@ -31,9 +31,7 @@ void main() {
     });
 
     test('NetworkBackend call sites map to registered server routes', () {
-      final clientSource = File(
-        '../../packages/nightshade_core/lib/src/backend/network_backend.dart',
-      ).readAsStringSync();
+      final clientSource = _networkBackendSource();
 
       final registered = _registeredApiRoutes()
           .where((route) => !route.startsWith('WS '))
@@ -83,7 +81,8 @@ Set<String> _registeredApiRoutes() {
   final routeFiles = Directory('lib/headless_api/routes')
       .listSync()
       .whereType<File>()
-      .where((f) => f.path.endsWith('.dart') && !f.path.endsWith('headless_route.dart'));
+      .where((f) =>
+          f.path.endsWith('.dart') && !f.path.endsWith('headless_route.dart'));
   final allSource = StringBuffer();
   for (final f in routeFiles) {
     allSource.writeln(f.readAsStringSync());
@@ -115,20 +114,19 @@ Set<String> _scanRegisteredRoutes(String source) {
   final inlineRoutes = RegExp(r"router\.(get|post|put|delete)\(\s*'([^']+)'")
       .allMatches(source)
       .map((match) {
-        final path = match.group(2)!;
-        // P2-10: also surface `/ws/*` upgrade routes (e.g. /ws/live-view)
-        // so the advertised-vs-registered diff catches typos in either
-        // place.
-        final isWsRoute =
-            path == '/api/ws' || path == '/events' || path.startsWith('/ws/');
-        if (!path.startsWith('/api/') && !isWsRoute) {
-          return null;
-        }
+    final path = match.group(2)!;
+    // P2-10: also surface `/ws/*` upgrade routes (e.g. /ws/live-view)
+    // so the advertised-vs-registered diff catches typos in either
+    // place.
+    final isWsRoute =
+        path == '/api/ws' || path == '/events' || path.startsWith('/ws/');
+    if (!path.startsWith('/api/') && !isWsRoute) {
+      return null;
+    }
 
-        final method = isWsRoute ? 'WS' : match.group(1)!.toUpperCase();
-        return '$method ${_normalizeRoute(path)}';
-      })
-      .whereType<String>();
+    final method = isWsRoute ? 'WS' : match.group(1)!.toUpperCase();
+    return '$method ${_normalizeRoute(path)}';
+  }).whereType<String>();
   return {...headlessRoutes, ...inlineRoutes};
 }
 
@@ -136,15 +134,16 @@ Set<String> _advertisedApiRoutes() {
   // A-5b moved this catalog from `_getAvailableEndpoints()` in
   // `headless_api_server.dart` to `availableHeadlessEndpoints()` in
   // `handlers/system_handlers.dart`.
-  final source = File('lib/headless_api/handlers/system_handlers.dart')
-      .readAsStringSync();
+  final source =
+      File('lib/headless_api/handlers/system_handlers.dart').readAsStringSync();
   final match = RegExp(
     r'List<String> availableHeadlessEndpoints\(\) \{\s*return (?:const )?\[(.*?)\];\s*\}',
     dotAll: true,
   ).firstMatch(source);
 
   expect(match, isNotNull,
-      reason: 'availableHeadlessEndpoints() not found in system_handlers.dart.');
+      reason:
+          'availableHeadlessEndpoints() not found in system_handlers.dart.');
 
   return RegExp(r"'([^']+)'").allMatches(match!.group(1)!).map((match) {
     final parts = match.group(1)!.split(' ');
@@ -169,6 +168,25 @@ Set<String> _networkBackendRoutes(String source) {
     };
     return '$method /api/${_normalizeRoute(match.group(2)!)}';
   }).toSet();
+}
+
+String _networkBackendSource() {
+  const backendRoot = '../../packages/nightshade_core/lib/src/backend';
+  final sources = <String>[
+    File('$backendRoot/network_backend.dart').readAsStringSync(),
+  ];
+  final partsDirectory = Directory('$backendRoot/network_backend');
+  if (!partsDirectory.existsSync()) {
+    return sources.single;
+  }
+  final partFiles = partsDirectory
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((file) => file.path.endsWith('.dart'))
+      .toList()
+    ..sort((a, b) => a.path.compareTo(b.path));
+  sources.addAll(partFiles.map((file) => file.readAsStringSync()));
+  return sources.join('\n');
 }
 
 String _normalizeRoute(String path) {

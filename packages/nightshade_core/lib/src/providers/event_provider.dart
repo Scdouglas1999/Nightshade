@@ -181,11 +181,40 @@ final errorNotificationBridgeProvider = Provider<void>((ref) {
 
   StreamSubscription<core.NightshadeEvent>? subscription;
 
+  // Coalesce identical toasts that arrive in a tight burst. A mass event such
+  // as "Disconnect All" makes every device emit a Disconnected/Error event
+  // (often repeated as each driver tears down), and previously every one of
+  // those raised its own toast. Hundreds-to-thousands of toasts in a single
+  // event-loop turn flood the notification overlay and the Windows platform
+  // task runner ("Failed to post message to main thread"). Suppressing a repeat
+  // of the *same* (severity+title+message) toast within this window collapses a
+  // driver's teardown chatter to a single visible toast while still surfacing
+  // the first occurrence of every distinct error (errors-are-a-feature: nothing
+  // distinct is ever silently dropped).
+  const dedupeWindow = Duration(seconds: 3);
+  final lastShownAt = <String, DateTime>{};
+
+  bool shouldSuppress(String dedupeKey, DateTime now) {
+    // Opportunistically prune stale keys so the map can't grow without bound
+    // across a long-running session of distinct errors.
+    lastShownAt.removeWhere((_, when) => now.difference(when) > dedupeWindow);
+    final previous = lastShownAt[dedupeKey];
+    if (previous != null && now.difference(previous) < dedupeWindow) {
+      return true;
+    }
+    lastShownAt[dedupeKey] = now;
+    return false;
+  }
+
   subscription = backend.eventStream.listen((event) {
     if (event.severity == core.EventSeverity.info) return;
 
     final message = _extractEventMessage(event);
     final title = _eventTitle(event);
+
+    final now = DateTime.now();
+    final dedupeKey = '${event.severity.name}|$title|$message';
+    if (shouldSuppress(dedupeKey, now)) return;
 
     switch (event.severity) {
       case core.EventSeverity.critical:

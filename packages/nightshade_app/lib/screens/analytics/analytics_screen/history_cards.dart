@@ -1,0 +1,203 @@
+// ignore_for_file: unused_element_parameter
+
+part of '../analytics_screen.dart';
+
+class _ProjectsTab extends StatelessWidget {
+  const _ProjectsTab({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.all(24),
+      child: ProjectTrackingPanel(),
+    );
+  }
+}
+
+/// Session history card widget
+class _SessionHistoryCard extends ConsumerWidget {
+  final ImagingSession session;
+
+  const _SessionHistoryCard({required this.session});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+
+    final duration = session.endTime != null
+        ? session.endTime!.difference(session.startTime)
+        : DateTime.now().difference(session.startTime);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: NightshadeCard(
+        child: InkWell(
+          onTap: () => _showSessionDetail(context, ref, session),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                // Session info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            session.name ??
+                                context.l10n.text('analyticsUnnamedSession'),
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w600,
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: _getStatusColor(session.status, colors),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              session.status.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                                color: colors.background,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        DateFormat('MMM d, yyyy HH:mm')
+                            .format(session.startTime),
+                        style: TextStyle(
+                            fontSize: 12, color: colors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Statistics
+                Row(
+                  children: [
+                    _StatChip(
+                      icon: LucideIcons.clock,
+                      label: _formatDuration(duration),
+                      colors: colors,
+                    ),
+                    const SizedBox(width: 12),
+                    _StatChip(
+                      icon: LucideIcons.image,
+                      label: '${session.successfulExposures}',
+                      colors: colors,
+                    ),
+                    const SizedBox(width: 12),
+                    _StatChip(
+                      icon: LucideIcons.timer,
+                      label:
+                          '${(session.totalIntegrationSecs / 3600).toStringAsFixed(1)}h',
+                      colors: colors,
+                    ),
+                    if (session.avgHfr != null) ...[
+                      const SizedBox(width: 12),
+                      _StatChip(
+                        icon: LucideIcons.focus,
+                        label: session.avgHfr!.toStringAsFixed(2),
+                        colors: colors,
+                      ),
+                    ],
+                  ],
+                ),
+
+                const SizedBox(width: 12),
+                Icon(LucideIcons.chevronRight,
+                    size: 20, color: colors.textMuted),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Color _getStatusColor(String status, NightshadeColors colors) {
+    switch (status.toLowerCase()) {
+      case 'completed':
+        return colors.success;
+      case 'active':
+        return colors.info;
+      case 'aborted':
+        return colors.warning;
+      case 'error':
+        return colors.error;
+      default:
+        return colors.textMuted;
+    }
+  }
+
+  String _formatDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    if (hours > 0) {
+      return '${hours}h ${minutes}m';
+    }
+    return '${minutes}m';
+  }
+
+  void _showSessionDetail(
+      BuildContext context, WidgetRef ref, ImagingSession session) {
+    showDialog(
+      context: context,
+      builder: (context) => _SessionDetailDialog(session: session),
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final NightshadeColors colors;
+
+  const _StatChip({
+    required this.icon,
+    required this.label,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: colors.textSecondary),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w500,
+              color: colors.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Session detail dialog with export functionality

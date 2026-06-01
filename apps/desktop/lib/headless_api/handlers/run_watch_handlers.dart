@@ -531,18 +531,17 @@ class RunWatchHandlers {
       });
     }
 
-    return Response.ok(
+    return contentResponse(
       encoded.bytes,
+      contentType: 'image/jpeg',
+      contentLength: encoded.bytes.length,
       headers: {
-        'content-type': 'image/jpeg',
-        'content-length': encoded.bytes.length.toString(),
         // Strong no-cache: the frame is constantly changing; an
         // intermediary cache would freeze the phone display.
         'cache-control': 'no-store, no-cache, must-revalidate',
         'x-frame-timestamp': image.timestamp,
         'x-frame-exposure-secs': image.exposureTime.toString(),
-        if (image.stats.hfr != null)
-          'x-frame-hfr': image.stats.hfr!.toString(),
+        if (image.stats.hfr != null) 'x-frame-hfr': image.stats.hfr!.toString(),
         'x-frame-star-count': image.stats.starCount.toString(),
       },
     );
@@ -630,10 +629,10 @@ class RunWatchHandlers {
 
     controller.onCancel = cleanup;
 
-    return Response.ok(
+    return streamResponse(
       controller.stream,
+      contentType: 'text/event-stream; charset=utf-8',
       headers: {
-        'content-type': 'text/event-stream; charset=utf-8',
         // Disable buffering on intermediaries that honour the header.
         'cache-control': 'no-cache, no-transform',
         'connection': 'keep-alive',

@@ -70,10 +70,8 @@ pub fn project_icrs(ra_rad: f64, dec_rad: f64, pose: ViewPose) -> Option<(f32, f
     let screen_x = (0.5 + x_rot * scale) as f32;
     let screen_y = (0.5 - y_rot * scale) as f32;
 
-    if screen_x < -SCREEN_MARGIN
-        || screen_x > 1.0 + SCREEN_MARGIN
-        || screen_y < -SCREEN_MARGIN
-        || screen_y > 1.0 + SCREEN_MARGIN
+    if !(-SCREEN_MARGIN..=1.0 + SCREEN_MARGIN).contains(&screen_x)
+        || !(-SCREEN_MARGIN..=1.0 + SCREEN_MARGIN).contains(&screen_y)
     {
         return None;
     }
@@ -147,9 +145,7 @@ pub fn unproject_icrs(screen_x: f32, screen_y: f32, pose: ViewPose) -> Option<(f
         }
     };
 
-    if project_icrs(ra2, dec2, pose).is_none() {
-        return None;
-    }
+    project_icrs(ra2, dec2, pose)?;
 
     Some((
         wrap_ra_rad(ra2),

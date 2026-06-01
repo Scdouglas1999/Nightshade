@@ -19,8 +19,8 @@ use std::path::Path;
 
 use crate::catalog::{open_star_tile_pack, CatalogSet, MappedDsoCatalog, StarPack};
 use crate::gesture::{hit_test_screen, GestureStateMachine, HitTestError};
-use crate::scene::snapshot::DEFAULT_ASTRO_TIME_JD_UTC;
 use crate::renderer::Scene;
+use crate::scene::snapshot::DEFAULT_ASTRO_TIME_JD_UTC;
 use crate::scene::{
     build_render_scene, load, new_snapshot_slot, publish_snapshot, BuildSceneInputs, MountPosition,
     PoseController, PoseInputs, PoseLock, SceneSnapshot, SelectedObject, SnapshotInputs,
@@ -494,7 +494,7 @@ impl FrameRenderer for PlanetariumRenderer {
                 // it does NOT change the pose lock. Locking is the explicit job of
                 // `SetPoseLock(LockedToTarget(id))`. Conflating the two silently
                 // hijacks the user's view when they're just preparing a target.
-                self.tracking_target = target.clone();
+                self.tracking_target = *target;
                 self.refresh_view_pose();
             }
             PlanetariumCommand::SetPoseLock(lock) => {

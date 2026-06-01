@@ -448,6 +448,18 @@ impl DeviceOps for UnifiedDeviceOps {
 
         let mgr = get_device_manager();
 
+        // Mark the rig as USB-contended for the whole exposure+download window.
+        // On shared-USB rigs (a ZWO EAF/EFW behind an ASI camera) the camera
+        // saturates the bus during frame download, so an auxiliary device's
+        // liveness poll loses the race and returns a transient failure — the
+        // real cause of the spurious focuser/filter-wheel disconnects. While
+        // this guard is alive the heartbeat loop SKIPS polls for the
+        // focuser/filter-wheel/rotator (see `run_heartbeat_loop` /
+        // `is_usb_contended`). The guard clears the marker when this function
+        // returns — success, error, or panic — including every `?` early return
+        // below, so it can never leak and permanently silence those heartbeats.
+        let _usb_contention = mgr.begin_usb_contention();
+
         // Publish ExposureStarted event
         self.app_state.publish_imaging_event(
             ImagingEvent::ExposureStarted {
@@ -474,14 +486,14 @@ impl DeviceOps for UnifiedDeviceOps {
             bin_y,
         )
         .await
-        .map_err(|e| {
+        .inspect_err(|_e| {
             // Publish failure event
             self.app_state.publish_imaging_event(
                 ImagingEvent::ExposureComplete { success: false },
                 EventSeverity::Error,
             );
-            format!("Exposure failed: {}", e)
-        })?;
+        })
+        .map_err(|e| format!("Exposure failed: {}", e))?;
 
         wait_for_camera_exposure_complete(
             camera_id,
@@ -491,12 +503,11 @@ impl DeviceOps for UnifiedDeviceOps {
             || async { mgr.camera_is_exposure_complete(camera_id).await },
         )
         .await
-        .map_err(|e| {
+        .inspect_err(|_e| {
             self.app_state.publish_imaging_event(
                 ImagingEvent::ExposureComplete { success: false },
                 EventSeverity::Error,
             );
-            e
         })?;
 
         // Download image under a hard ceiling so a stalled download cannot

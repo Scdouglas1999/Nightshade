@@ -950,7 +950,19 @@ void main() {
         equals(1000.0),
       );
       expect(n.copyWith(batchSize: 5).batchSize, equals(5));
+      expect(
+          n.copyWith(loopUntilStopped: true).loopUntilStopped, isTrue);
       expect(n.copyWith(), equals(n));
+    });
+
+    test('loop_until_stopped_default_false_and_in_props', () {
+      final n = SmartExposureNode();
+      expect(n.loopUntilStopped, isFalse);
+      // props must include loopUntilStopped so two nodes differing only by it
+      // are not considered equal.
+      final looped = n.copyWith(loopUntilStopped: true);
+      expect(looped == n, isFalse);
+      expect(looped.props.contains(true), isTrue);
     });
 
     test('equality_includes_plans_list_order', () {

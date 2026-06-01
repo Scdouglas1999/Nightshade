@@ -103,8 +103,7 @@ List<ValidationIssue> postSessionEquipmentHealthSummary(
       severity: ValidationSeverity.info,
       category: ValidationCategory.equipmentHealth,
       title: 'Cooler Out of Setpoint Band',
-      description:
-          'Cooler temperature drifted outside its setpoint band on '
+      description: 'Cooler temperature drifted outside its setpoint band on '
           '${summary.coolerOutOfBandSamples} samples.',
     ));
   }
@@ -128,8 +127,7 @@ List<ValidationIssue> postSessionEquipmentHealthSummary(
       severity: ValidationSeverity.info,
       category: ValidationCategory.equipmentHealth,
       title: 'Sky Brightness Range',
-      description:
-          'Sky brightness ranged ${min.toStringAsFixed(2)} → '
+      description: 'Sky brightness ranged ${min.toStringAsFixed(2)} → '
           '${max.toStringAsFixed(2)} mag/arcsec²$medianStr.',
     ));
   }

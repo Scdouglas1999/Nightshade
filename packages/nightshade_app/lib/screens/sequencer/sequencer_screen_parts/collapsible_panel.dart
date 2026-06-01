@@ -1,0 +1,164 @@
+part of '../sequencer_screen.dart';
+
+class _CollapsiblePanel extends StatefulWidget {
+  final NightshadeColors colors;
+  final bool isCollapsed;
+  final double collapsedWidth;
+  final double expandedWidth;
+  final double minExpandedWidth;
+  final double maxExpandedWidth;
+  final ResizeSide side;
+  final IconData collapsedIcon;
+  final String collapsedTooltip;
+  final bool collapsedDisabled;
+  final VoidCallback onToggle;
+  final Widget child;
+
+  const _CollapsiblePanel({
+    required this.colors,
+    required this.isCollapsed,
+    required this.collapsedWidth,
+    required this.expandedWidth,
+    required this.minExpandedWidth,
+    required this.maxExpandedWidth,
+    required this.side,
+    required this.collapsedIcon,
+    required this.collapsedTooltip,
+    this.collapsedDisabled = false,
+    required this.onToggle,
+    required this.child,
+  });
+
+  @override
+  State<_CollapsiblePanel> createState() => _CollapsiblePanelState();
+}
+
+class _CollapsiblePanelState extends State<_CollapsiblePanel>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _widthAnimation;
+  double _currentExpandedWidth = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentExpandedWidth = widget.expandedWidth;
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 200),
+    );
+    _updateAnimation();
+    if (!widget.isCollapsed) {
+      _animationController.value = 1.0;
+    }
+  }
+
+  void _updateAnimation() {
+    _widthAnimation = Tween<double>(
+      begin: widget.collapsedWidth,
+      end: _currentExpandedWidth,
+    ).animate(CurvedAnimation(
+      parent: _animationController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  @override
+  void didUpdateWidget(_CollapsiblePanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isCollapsed != widget.isCollapsed) {
+      if (widget.isCollapsed) {
+        _animationController.reverse();
+      } else {
+        _currentExpandedWidth = widget.expandedWidth;
+        _updateAnimation();
+        _animationController.forward();
+      }
+    }
+    if (oldWidget.expandedWidth != widget.expandedWidth &&
+        !widget.isCollapsed) {
+      _currentExpandedWidth = widget.expandedWidth;
+      _updateAnimation();
+    }
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _widthAnimation,
+      builder: (context, child) {
+        final width = _widthAnimation.value;
+        final isEffectivelyCollapsed = width < widget.collapsedWidth + 20;
+
+        if (isEffectivelyCollapsed) {
+          // Collapsed state - show icon button strip
+          return Container(
+            width: widget.collapsedWidth,
+            decoration: BoxDecoration(
+              color: widget.colors.surface,
+              border: Border(
+                left: widget.side == ResizeSide.left
+                    ? BorderSide(color: widget.colors.border)
+                    : BorderSide.none,
+                right: widget.side == ResizeSide.right
+                    ? BorderSide(color: widget.colors.border)
+                    : BorderSide.none,
+              ),
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: 8),
+                Tooltip(
+                  message: widget.collapsedTooltip,
+                  child: IconButton(
+                    icon: Icon(
+                      widget.collapsedIcon,
+                      size: 20,
+                      color: widget.collapsedDisabled
+                          ? widget.colors.textMuted
+                          : widget.colors.textSecondary,
+                    ),
+                    onPressed:
+                        widget.collapsedDisabled ? null : widget.onToggle,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
+
+        // Expanded state - show resizable panel with content
+        return SizedBox(
+          width: width,
+          child: ResizablePanel(
+            initialWidth: width,
+            minWidth: widget.minExpandedWidth,
+            maxWidth: widget.maxExpandedWidth,
+            side: widget.side,
+            onWidthChanged: (newWidth) {
+              setState(() {
+                _currentExpandedWidth = newWidth;
+                _updateAnimation();
+              });
+            },
+            child: widget.child,
+          ),
+        );
+      },
+    );
+  }
+}
+
+/// Layout for very narrow desktop/tablet screens.
+///
+/// Per audit §4.7: below the minimum-width threshold we keep a thin
+/// draggable icon-only rail on the left so users can still drag nodes
+/// onto the tree. A "More..." button at the bottom of the rail opens the
+/// full node palette sheet for search/discovery. The properties FAB is
+/// preserved for editing the selected node.

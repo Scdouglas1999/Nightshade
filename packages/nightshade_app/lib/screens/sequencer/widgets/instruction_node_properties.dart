@@ -32,7 +32,9 @@ import 'node_property_widgets.dart';
 // ---------------------------------------------------------------------------
 
 part 'instruction_node_properties_parts/_exposure.dart';
+part 'instruction_node_properties_parts/_adaptive_exposure_section.dart';
 part 'instruction_node_properties_parts/_capture_properties.dart';
 part 'instruction_node_properties_parts/_motion_properties.dart';
+part 'instruction_node_properties_parts/_motion_alignment_properties.dart';
 part 'instruction_node_properties_parts/_notification_and_script.dart';
 part 'instruction_node_properties_parts/_misc_properties.dart';

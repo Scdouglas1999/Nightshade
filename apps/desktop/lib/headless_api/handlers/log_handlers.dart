@@ -505,9 +505,8 @@ class LogHandlers {
         }
         return matches(entry);
       }).toList();
-      final start = filtered.length > replayLimit
-          ? filtered.length - replayLimit
-          : 0;
+      final start =
+          filtered.length > replayLimit ? filtered.length - replayLimit : 0;
       for (var i = start; i < filtered.length; i++) {
         writeEntry(filtered[i]);
       }
@@ -579,10 +578,10 @@ class LogHandlers {
 
     controller.onCancel = cleanup;
 
-    return Response.ok(
+    return streamResponse(
       controller.stream,
+      contentType: 'text/event-stream; charset=utf-8',
       headers: {
-        'content-type': 'text/event-stream; charset=utf-8',
         'cache-control': 'no-cache, no-transform',
         'connection': 'keep-alive',
         'x-accel-buffering': 'no',

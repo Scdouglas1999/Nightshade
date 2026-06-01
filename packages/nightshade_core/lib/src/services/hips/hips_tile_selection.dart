@@ -585,16 +585,16 @@ class HipsTileSelection {
     final inv = 1.0 / n;
 
     final vertices = <HipsMeshVertex>[];
-    // Row-major: row = step along the iy axis, col = step along the ix axis.
-    // u (texture x) increases with the same in-face direction the tile image's
-    // pixel x runs; v (texture y) with pixel y. HiPS tile images are stored so
-    // that the diamond's (ix, iy)=(0,0) "south" corner maps to image
-    // (x=0, y=tileHeight) — but for a registered textured mesh what matters is
-    // that the mesh's (u, v) lattice and its sky lattice are consistent, which
-    // this row/col walk guarantees; the painter supplies the tile-image-to-uv
-    // convention. Here u runs with ix, v runs with iy, both 0..1 across the
-    // cell, giving a standard top-left-origin texture parameterization the
-    // painter can flip if a given survey's tiles need it.
+    // Row-major: row steps the intra-face iy axis (v), col steps ix (u); both
+    // 0..1 across the cell. This (u, v) lattice is a stable parameterisation of
+    // the diamond keyed to its HEALPix corners ((u,v)=(0,0)->south, (1,0)->east,
+    // (0,1)->west, (1,1)->north). It deliberately carries NO assumption about how
+    // the tile *image* pixels are laid out relative to (u, v): the painter owns
+    // the verified image convention (`HipsTileLayerPainter._emitVertex` samples
+    // image (tx=v, ty=u) — a pure transpose, established against real DSS2 tile
+    // content by the seam-continuity test, NOT the IVOA spec text). Keeping the
+    // sky lattice and the (u, v) lattice consistent here is all this routine must
+    // guarantee for the painter to map content seamlessly.
     for (var row = 0; row <= n; row++) {
       final fy = iy + row * inv;
       final v = row * inv;

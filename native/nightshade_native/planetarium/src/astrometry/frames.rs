@@ -183,6 +183,7 @@ fn hadec_to_horizontal(hour_angle_rad: f64, dec_rad: f64, latitude_rad: f64) -> 
 
 /// ENU unit vector → altitude and azimuth (north-referenced, east-positive).
 #[inline]
+#[allow(dead_code)]
 fn enu_to_horizontal(enu: DVec3) -> HorizontalCoords {
     let east = enu.x;
     let north = enu.y;

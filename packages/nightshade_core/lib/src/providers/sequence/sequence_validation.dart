@@ -298,7 +298,7 @@ final List<SequenceValidator> defaultSequenceValidators =
   // caller has one. The structural rules (empty compound,
   // start/end contradiction) work without an observer.
   TargetTriggerEmptyCompoundRule(),
-  TargetTriggerStartEndContradictionRule(),
+  const TargetTriggerStartEndContradictionRule(),
   NoTargetForExposuresRule(),
   ExposureParamsRule(),
   HighBinningRule(),
@@ -318,6 +318,7 @@ final List<SequenceValidator> defaultSequenceValidators =
   // Wave 3 Agent 2: SmartExposure validation.
   SmartExposureEmptyPlansRule(),
   SmartExposureNegativeCountRule(),
+  SmartExposureUnboundedLoopRule(),
   // Wave 7 Science: SciencePhotometry validation.
   SciencePhotometryFilterRule(),
   SciencePhotometryReferenceStarsEmptyRule(),

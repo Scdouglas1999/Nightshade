@@ -7,6 +7,9 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../../widgets/help/field_help_copy.dart';
 import '../../../widgets/help/field_help_label.dart';
+import '../../../widgets/pill_tab.dart';
+
+part 'panel_widgets/quick_stat.dart';
 
 /// Builds an imaging-panel row label, optionally appending a [helpAffordance]
 /// when [helpId] is supplied.
@@ -138,7 +141,9 @@ class PanelTabs extends ConsumerWidget {
   }
 }
 
-class _PanelTab extends StatefulWidget {
+/// Thin wrapper around the shared [PillTab]. The imaging panel keeps its own
+/// type name for grid layout in [PanelTabs]; the pill styling itself is shared.
+class _PanelTab extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool isSelected;
@@ -154,81 +159,13 @@ class _PanelTab extends StatefulWidget {
   });
 
   @override
-  State<_PanelTab> createState() => _PanelTabState();
-}
-
-class _PanelTabState extends State<_PanelTab> {
-  bool _isHovered = false;
-
-  @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: widget.label,
-      child: Semantics(
-        button: true,
-        selected: widget.isSelected,
-        label: widget.label,
-        child: MouseRegion(
-          onEnter: (_) => setState(() => _isHovered = true),
-          onExit: (_) => setState(() => _isHovered = false),
-          cursor: SystemMouseCursors.click,
-          child: GestureDetector(
-            onTap: widget.onTap,
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 180),
-              curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
-              decoration: widget.isSelected
-                  ? NightshadeDecorations.selectedSurface(
-                      widget.colors.primary,
-                      fillAlpha: 0.16,
-                    )
-                  : BoxDecoration(
-                      color: _isHovered
-                          ? widget.colors.surfaceHover
-                          : widget.colors.surface,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: _isHovered
-                            ? widget.colors.borderHighlight
-                            : widget.colors.border,
-                      ),
-                    ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    widget.icon,
-                    size: 16,
-                    color: widget.isSelected
-                        ? widget.colors.primary
-                        : widget.colors.textSecondary,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.label,
-                    overflow: TextOverflow.ellipsis,
-                    maxLines: 1,
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: widget.isSelected
-                          ? FontWeight.w600
-                          : FontWeight.w500,
-                      color: widget.isSelected
-                          ? widget.colors.primary
-                          : _isHovered
-                              ? widget.colors.textPrimary
-                              : widget.colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+    return PillTab(
+      icon: icon,
+      label: label,
+      isSelected: isSelected,
+      onTap: onTap,
+      colors: colors,
     );
   }
 }
@@ -1024,51 +961,6 @@ class QuickStatsPanel extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _QuickStat extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final NightshadeColors colors;
-
-  const _QuickStat({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Icon(icon, size: 16, color: colors.textMuted),
-        const SizedBox(width: 8),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              value,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
-            ),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 10,
-                color: colors.textMuted,
-              ),
-            ),
-          ],
-        ),
-      ],
     );
   }
 }

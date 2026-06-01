@@ -1,0 +1,309 @@
+// ignore_for_file: invalid_annotation_target
+
+part of '../../sequence_models.dart';
+
+class TargetSchedulerNode extends SequenceNode {
+  /// Altitude axis weight (default 0.25).
+  final double altitudeWeight;
+
+  /// Moon-distance axis weight (default 0.25).
+  final double moonDistanceWeight;
+
+  /// Transit-proximity axis weight (default 0.20).
+  final double transitProximityWeight;
+
+  /// Darkness axis weight (default 0.15).
+  final double darknessWeight;
+
+  /// Airmass axis weight (default 0.15).
+  final double airmassWeight;
+
+  /// Minimum total score (0..=100) below which the scheduler treats every
+  /// target as unrunnable. When no child clears this floor the node returns
+  /// Skipped. Default 30.
+  final double minScoreToRun;
+
+  /// Recompute the schedule every N exposures completed inside the
+  /// currently-running target's subtree. 0 means "boundary-only" — only
+  /// re-decide when the current target finishes.
+  final int recomputeEveryNExposures;
+
+  /// Once a target's subtree starts, finish its current Loop iteration
+  /// before switching even if a recompute would otherwise pick someone else.
+  /// Prevents abandoning a partially-completed exposure burst. Default true.
+  final bool finishIterationOnSwitch;
+
+  /// Wave 8 — conditions-score floor below which adaptive swap engages.
+  /// `null` disables the feature for this scheduler instance.
+  final double? swapOnConditionsBelow;
+
+  /// Wave 8 — minimum seconds between consecutive adaptive swaps
+  /// (hysteresis). Default 180s (3 minutes).
+  final double swapHysteresisSecs;
+
+  /// Wave 8 — per-tier conditions-score floors. Defaults follow the
+  /// brief (faint ≥ 70, medium ≥ 50, bright ≥ 30).
+  final BrightnessTierPreferences brightnessTierPreferences;
+
+  /// Wave 8 — score readings older than this are treated as missing
+  /// telemetry and the scheduler falls back to the ordinary ranking.
+  /// Default 300s (5 minutes).
+  final int maxConditionsScoreAgeSecs;
+
+  TargetSchedulerNode({
+    super.id,
+    super.name = 'Scheduler',
+    super.isEnabled,
+    super.childIds,
+    super.parentId,
+    super.orderIndex,
+    super.comment,
+    this.altitudeWeight = 0.25,
+    this.moonDistanceWeight = 0.25,
+    this.transitProximityWeight = 0.20,
+    this.darknessWeight = 0.15,
+    this.airmassWeight = 0.15,
+    this.minScoreToRun = 30.0,
+    this.recomputeEveryNExposures = 0,
+    this.finishIterationOnSwitch = true,
+    this.swapOnConditionsBelow,
+    this.swapHysteresisSecs = 180.0,
+    this.brightnessTierPreferences = const BrightnessTierPreferences(),
+    this.maxConditionsScoreAgeSecs = 300,
+  });
+
+  /// Stable nodeType identifier. Must match the Rust `NodeType` discriminant
+  /// (`TargetScheduler`) so `serde_json::from_str` on the round-tripped
+  /// config picks the right variant.
+  @override
+  String get nodeType => 'TargetScheduler';
+
+  @override
+  String get iconName => 'scheduler';
+
+  /// Categorised as `logic` because the node is a container; the editor
+  /// colour-codes it the same way as Loop/Parallel.
+  @override
+  NodeCategory get category => NodeCategory.logic;
+
+  /// The scheduler does not directly require any device — its children
+  /// (TargetHeaders) accumulate the device requirements.
+  @override
+  Set<DeviceType> get requiredDevices => {DeviceType.mount};
+
+  /// True when the five weights sum to approximately 1.0 (lenient ±5% band
+  /// so floating-point rounding from UI sliders doesn't trip the warning).
+  /// Used by the validator's [TargetSchedulerWeightsRule].
+  bool get weightsNormalised {
+    final sum = altitudeWeight +
+        moonDistanceWeight +
+        transitProximityWeight +
+        darknessWeight +
+        airmassWeight;
+    return sum >= 0.95 && sum <= 1.05;
+  }
+
+  /// Sum of all five weights — surfaced in the UI's "normalised: 1.00"
+  /// indicator.
+  double get weightsSum =>
+      altitudeWeight +
+      moonDistanceWeight +
+      transitProximityWeight +
+      darknessWeight +
+      airmassWeight;
+
+  /// Return a copy whose weights sum to exactly 1.0. Used by the
+  /// properties-editor "Normalise" button so users don't have to nudge five
+  /// sliders by hand.
+  TargetSchedulerNode normalisedWeights() {
+    final sum = weightsSum;
+    if (sum <= 0) return this;
+    return copyWith(
+      altitudeWeight: altitudeWeight / sum,
+      moonDistanceWeight: moonDistanceWeight / sum,
+      transitProximityWeight: transitProximityWeight / sum,
+      darknessWeight: darknessWeight / sum,
+      airmassWeight: airmassWeight / sum,
+    );
+  }
+
+  @override
+  TargetSchedulerNode copyWith({
+    String? id,
+    String? name,
+    bool? isEnabled,
+    List<String>? childIds,
+    String? parentId,
+    int? orderIndex,
+    String? comment,
+    double? altitudeWeight,
+    double? moonDistanceWeight,
+    double? transitProximityWeight,
+    double? darknessWeight,
+    double? airmassWeight,
+    double? minScoreToRun,
+    int? recomputeEveryNExposures,
+    bool? finishIterationOnSwitch,
+    // PHASE-5: plain `?? this.swapOnConditionsBelow` keep-or-replace
+    // semantics. The previous explicit-clear-via-`null` path moves to
+    // rebuild-explicit at the editor — see
+    // target_scheduler_properties.dart's adaptive-swap toggle.
+    double? swapOnConditionsBelow,
+    double? swapHysteresisSecs,
+    BrightnessTierPreferences? brightnessTierPreferences,
+    int? maxConditionsScoreAgeSecs,
+  }) {
+    return TargetSchedulerNode(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      isEnabled: isEnabled ?? this.isEnabled,
+      childIds: childIds ?? this.childIds,
+      parentId: parentId ?? this.parentId,
+      orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
+      altitudeWeight: altitudeWeight ?? this.altitudeWeight,
+      moonDistanceWeight: moonDistanceWeight ?? this.moonDistanceWeight,
+      transitProximityWeight:
+          transitProximityWeight ?? this.transitProximityWeight,
+      darknessWeight: darknessWeight ?? this.darknessWeight,
+      airmassWeight: airmassWeight ?? this.airmassWeight,
+      minScoreToRun: minScoreToRun ?? this.minScoreToRun,
+      recomputeEveryNExposures:
+          recomputeEveryNExposures ?? this.recomputeEveryNExposures,
+      finishIterationOnSwitch:
+          finishIterationOnSwitch ?? this.finishIterationOnSwitch,
+      swapOnConditionsBelow:
+          swapOnConditionsBelow ?? this.swapOnConditionsBelow,
+      swapHysteresisSecs: swapHysteresisSecs ?? this.swapHysteresisSecs,
+      brightnessTierPreferences:
+          brightnessTierPreferences ?? this.brightnessTierPreferences,
+      maxConditionsScoreAgeSecs:
+          maxConditionsScoreAgeSecs ?? this.maxConditionsScoreAgeSecs,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        ...super.props,
+        altitudeWeight,
+        moonDistanceWeight,
+        transitProximityWeight,
+        darknessWeight,
+        airmassWeight,
+        minScoreToRun,
+        recomputeEveryNExposures,
+        finishIterationOnSwitch,
+        swapOnConditionsBelow,
+        swapHysteresisSecs,
+        brightnessTierPreferences,
+        maxConditionsScoreAgeSecs,
+      ];
+}
+
+// =============================================================================
+// Wave 3 Agent 2: SmartExposure — multi-filter container instruction
+// =============================================================================
+
+/// One row in a [SmartExposureNode]'s filter plan.
+///
+/// Mirrors the Rust `FilterPlan` struct in
+/// `native/nightshade_native/sequencer/src/lib.rs`. The field set is the
+/// minimal "what to take per filter": filter name (+ optional index), how
+/// many subs, sub-length, gain/offset/binning, and a per-plan dither
+/// cadence override.
+@Freezed(fromJson: true, toJson: true)
+class FilterPlan with _$FilterPlan {
+  const FilterPlan._();
+
+  @JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)
+  const factory FilterPlan({
+    /// Filter wheel slot name (e.g. "L", "Ha"). Matched against the
+    /// connected filter wheel's name list when [filterIndex] is null.
+    @Default('') String filterName,
+
+    /// 0-based filter wheel index. Preferred over [filterName] for
+    /// reliability — matches `ExposureNode.filterIndex` / Rust
+    /// `FilterConfig::filter_index`.
+    int? filterIndex,
+
+    /// Total number of exposures to take for this filter.
+    @Default(10) int count,
+
+    /// Sub-exposure duration in seconds.
+    @Default(60.0) double durationSecs,
+
+    /// Optional gain override. null means "use camera/profile default".
+    int? gain,
+
+    /// Optional offset override.
+    int? offset,
+
+    /// Binning for this filter. Defaults to 1x1.
+    @Default(BinningMode.one) @BinningModeJsonConverter() BinningMode binning,
+
+    /// Per-plan dither cadence (every N frames). null disables dithering for
+    /// this filter regardless of any global default. 0 is treated as "no
+    /// dither" — matches `ExposureNode.ditherEvery`.
+    int? ditherEvery,
+  }) = _FilterPlan;
+
+  factory FilterPlan.fromJson(Map<String, dynamic> json) =>
+      _$FilterPlanFromJson(json);
+
+  /// Estimated integration time for this row, in seconds (count * duration).
+  /// Does NOT include filter change or dither overhead — that's added by
+  /// `SmartExposureNode.estimateTotalSecs`.
+  double get integrationSecs => count * durationSecs;
+}
+
+// PHASE-5: the `_sentinel` const used by TargetHeaderNode,
+// TargetSchedulerNode, and SciencePhotometryNode is removed — all
+// three classes now use plain `?? this.X` copyWith semantics. See the
+// Phase-5 commits for the migration log.
+
+/// Map [BinningMode] to the PascalCase string Rust's serde expects.
+/// Kept private and local: SciencePhotometryNode and SmartExposureNode
+/// (SequenceNode subclasses — out of scope for Phase 2) still call into
+/// these helpers directly because their freezed conversion is deferred.
+/// New non-SequenceNode classes should use [BinningModeJsonConverter]
+/// from `_json_converters.dart` instead — `FilterPlan` does.
+String _binningModeToRustString(BinningMode mode) {
+  switch (mode) {
+    case BinningMode.one:
+      return 'One';
+    case BinningMode.two:
+      return 'Two';
+    case BinningMode.three:
+      return 'Three';
+    case BinningMode.four:
+      return 'Four';
+  }
+}
+
+BinningMode _rustStringToBinningMode(String? value) {
+  switch (value) {
+    case 'One':
+      return BinningMode.one;
+    case 'Two':
+      return BinningMode.two;
+    case 'Three':
+      return BinningMode.three;
+    case 'Four':
+      return BinningMode.four;
+    default:
+      return BinningMode.one;
+  }
+}
+
+/// SmartExposure container instruction. One row per filter; the node
+/// internally handles filter changes, dither cadence, and rotation order
+/// — see the Rust `SmartExposureConfig` doc-comment for the full execution
+/// semantics.
+///
+/// SmartExposure is a *leaf* in the Dart tree (no childIds): the per-filter
+/// behaviour is fully encoded in the [plans] field. The Rust executor
+/// dispatches each plan row through the existing `TakeExposure` /
+/// `ChangeFilter` instruction nodes via the InstructionRegistry, so a
+/// hand-authored `FilterChange → Loop(N) → TakeExposure` chain and a
+/// SmartExposure with the equivalent plan rows produce indistinguishable
+/// imaging output.

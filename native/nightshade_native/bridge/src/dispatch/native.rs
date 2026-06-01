@@ -376,6 +376,8 @@ impl DeviceManager {
                     .map_err(|e| format!("Native mount liveness probe failed: {}", e))
             }
             DeviceType::Focuser => {
+                // Single probe; the retry for transient focuser/wheel failures
+                // lives in the perform_health_check wrapper (driver parity).
                 let focusers = self.native_focusers.read().await;
                 let focuser = focusers.get(device_id).ok_or_else(|| {
                     format!(

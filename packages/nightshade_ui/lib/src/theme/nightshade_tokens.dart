@@ -87,23 +87,29 @@ abstract final class NightshadeTokens {
   // Border Radius Scale
   // ===========================================================================
 
-  /// 4px - Small radius (pills, badges)
-  static const double radiusXs = 4.0;
+  // Corner radii are deliberately tighter than the common 8/12/16 "soft card"
+  // defaults. Crisper corners read as a precision instrument rather than a
+  // generic rounded web dashboard, while staying clearly non-boxy. The scale
+  // keeps real hierarchy (near-square chips → moderate panels → softer dialogs)
+  // instead of rounding everything to the same radius.
 
-  /// 6px - Small-medium radius (buttons, tooltips)
-  static const double radiusSm = 6.0;
+  /// 3px - Small radius (pills, badges, chips)
+  static const double radiusXs = 3.0;
 
-  /// 8px - Default radius (inputs, small cards)
-  static const double radiusMd = 8.0;
+  /// 5px - Small-medium radius (buttons, tooltips)
+  static const double radiusSm = 5.0;
 
-  /// 10px - Filled accent buttons
-  static const double radiusButton = 10.0;
+  /// 6px - Default radius (inputs, small cards)
+  static const double radiusMd = 6.0;
 
-  /// 12px - Large radius (cards, panels)
-  static const double radiusLg = 12.0;
+  /// 7px - Filled accent buttons
+  static const double radiusButton = 7.0;
 
-  /// 16px - Extra large radius (dialogs, large panels)
-  static const double radiusXl = 16.0;
+  /// 10px - Large radius (cards, panels)
+  static const double radiusLg = 10.0;
+
+  /// 13px - Extra large radius (dialogs, large panels)
+  static const double radiusXl = 13.0;
 
   /// Fully rounded (for circular elements)
   static const double radiusFull = 999.0;

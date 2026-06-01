@@ -39,6 +39,54 @@ import 'unified_discovery_provider.dart';
 final hotplugEventBridgeProvider = Provider<void>((ref) {
   final backend = ref.watch(diagnosticsBackendProvider);
 
+  // Coalesce bursts. A single physical action can emit many hot-plug events in
+  // one event-loop turn: a powered USB hub registers every downstream device
+  // at once, and the 4 s Rust poll batches all arrivals/removals discovered in
+  // a cycle into back-to-back PropertyChanged events. Invalidating all ten
+  // per-class discovery FutureProviders *per event* turns N arrivals into 10×N
+  // device-list scans queued in the same turn — an O(N) amplification of the
+  // device-event→UI path. We instead buffer qualifying events and flush a
+  // single invalidation round on a short debounce, so a burst of any size
+  // costs exactly one scan round. The refresh still lands well inside the
+  // ~3 s P2-1 budget. (errors-are-a-feature: no event is dropped — the first
+  // qualifying event in a window still guarantees a refresh; we only collapse
+  // the *count* of redundant invalidations.)
+  const coalesceWindow = Duration(milliseconds: 150);
+  Timer? flushTimer;
+
+  void flushInvalidations() {
+    // Invalidate every per-class discovery provider so the next read re-runs
+    // the scan. We invalidate the full set rather than trying to pick the
+    // matching class because a single hot-plug event can affect multiple lists
+    // (a USB-Serial bridge that registers both a mount and a focuser, an OAG
+    // that exposes both a camera and a filter wheel, etc.).
+    ref.invalidate(availableCamerasProvider);
+    ref.invalidate(availableMountsProvider);
+    ref.invalidate(availableFocusersProvider);
+    ref.invalidate(availableFilterWheelsProvider);
+    ref.invalidate(availableRotatorsProvider);
+    ref.invalidate(availableGuidersProvider);
+    ref.invalidate(availableDomesProvider);
+    ref.invalidate(availableWeatherProvider);
+    ref.invalidate(availableSafetyMonitorsProvider);
+    ref.invalidate(availableSwitchesProvider);
+
+    // The unified discovery state is a StateNotifier — invalidating it would
+    // lose the in-progress scan, which is the wrong behaviour when an arrival
+    // lands during a manual rescan. Instead, re-read the notifier and let its
+    // next discover call pull the fresh vendor-SDK list. We deliberately do NOT
+    // trigger a `discoverAll` from here: that would saturate the LAN if the
+    // polling watcher batches arrivals (e.g. plugging in a powered USB hub).
+    // The per-class FutureProvider invalidations above are enough to refresh
+    // the equipment screen's primary lists.
+    try {
+      ref.read(unifiedDiscoveryProvider.notifier);
+    } catch (_) {
+      // Provider not yet read by any UI — nothing to do, the next read will
+      // see the invalidated per-class FutureProviders.
+    }
+  }
+
   StreamSubscription<core_events.NightshadeEvent>? subscription;
   subscription = backend.eventStream.listen(
     (event) {
@@ -64,40 +112,11 @@ final hotplugEventBridgeProvider = Provider<void>((ref) {
         level: 800,
       );
 
-      // Invalidate every per-class discovery provider so the next read
-      // re-runs the scan. We invalidate the full set rather than trying
-      // to pick the matching class because a single hot-plug event can
-      // affect multiple lists (a USB-Serial bridge that registers both a
-      // mount and a focuser, an OAG that exposes both a camera and a
-      // filter wheel, etc.). The cost is one extra scan per event; the
-      // 4 s polling cadence means at most a few invalidations per
-      // session even in the most active observatory.
-      ref.invalidate(availableCamerasProvider);
-      ref.invalidate(availableMountsProvider);
-      ref.invalidate(availableFocusersProvider);
-      ref.invalidate(availableFilterWheelsProvider);
-      ref.invalidate(availableRotatorsProvider);
-      ref.invalidate(availableGuidersProvider);
-      ref.invalidate(availableDomesProvider);
-      ref.invalidate(availableWeatherProvider);
-      ref.invalidate(availableSafetyMonitorsProvider);
-      ref.invalidate(availableSwitchesProvider);
-
-      // The unified discovery state is a StateNotifier â€” invalidating it
-      // would lose the in-progress scan, which is the wrong behaviour
-      // when an arrival lands during a manual rescan. Instead, re-read
-      // the notifier and let its next discover call pull the fresh
-      // vendor-SDK list. We deliberately do NOT trigger a `discoverAll`
-      // from here: that would saturate the LAN if the polling watcher
-      // batches arrivals (e.g. plugging in a powered USB hub). The
-      // per-class FutureProvider invalidations above are enough to
-      // refresh the equipment screen's primary lists.
-      try {
-        ref.read(unifiedDiscoveryProvider.notifier);
-      } catch (_) {
-        // Provider not yet read by any UI â€” nothing to do, the next
-        // read will see the invalidated per-class FutureProviders.
-      }
+      // Debounce: (re)arm the flush timer. A burst of qualifying events in the
+      // same window collapses to a single invalidation round when the timer
+      // fires, rather than one round per event.
+      flushTimer?.cancel();
+      flushTimer = Timer(coalesceWindow, flushInvalidations);
     },
     onError: (Object error) {
       developer.log(
@@ -110,6 +129,7 @@ final hotplugEventBridgeProvider = Provider<void>((ref) {
   );
 
   ref.onDispose(() {
+    flushTimer?.cancel();
     subscription?.cancel();
   });
 });

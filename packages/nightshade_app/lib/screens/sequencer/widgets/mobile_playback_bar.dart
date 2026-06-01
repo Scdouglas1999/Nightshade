@@ -44,6 +44,11 @@ class MobilePlaybackBar extends ConsumerWidget {
           // At narrow widths (< 400px), use smaller spacing
           final isNarrow = constraints.maxWidth < 400;
           final buttonSpacing = isNarrow ? 4.0 : 8.0;
+          Future<void> stopSequence() async {
+            final result = await ref.read(sequenceActionServiceProvider).stop();
+            if (!context.mounted) return;
+            context.showCommandActionResult(result);
+          }
 
           return Row(
             children: [
@@ -92,12 +97,7 @@ class MobilePlaybackBar extends ConsumerWidget {
                 holdColor: colors.error,
                 confirmText: 'Hold to stop',
                 semanticsLabel: 'Press and hold to stop the sequence',
-                onConfirmed: () async {
-                  final result =
-                      await ref.read(sequenceActionServiceProvider).stop();
-                  if (!context.mounted) return;
-                  context.showCommandActionResult(result);
-                },
+                onConfirmed: stopSequence,
                 // IgnorePointer so the inner InkWell does not consume the
                 // long-press event; gestures are owned exclusively by the
                 // surrounding [HoldToConfirmButton]. The visual styling is
@@ -109,7 +109,7 @@ class MobilePlaybackBar extends ConsumerWidget {
                     label: 'Stop',
                     isEnabled: isRunning || isPaused,
                     isCompact: isNarrow,
-                    onPressed: () {},
+                    onPressed: stopSequence,
                   ),
                 ),
               ),

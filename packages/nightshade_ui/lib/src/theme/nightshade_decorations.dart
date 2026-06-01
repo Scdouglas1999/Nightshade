@@ -19,7 +19,10 @@ abstract final class NightshadeDecorations {
     Color color, {
     BorderRadius? borderRadius,
     bool bordered = true,
-    double borderAlpha = NightshadeTokens.opacityBorderMedium,
+    // Lighter than the medium border default: a quiet tint reads less like the
+    // ubiquitous bordered "icon-in-a-square" chip and more like an integrated
+    // accent. Call sites that need a defined edge can still pass a higher value.
+    double borderAlpha = 0.16,
   }) {
     return BoxDecoration(
       color: color.withValues(alpha: NightshadeTokens.opacitySubtle),

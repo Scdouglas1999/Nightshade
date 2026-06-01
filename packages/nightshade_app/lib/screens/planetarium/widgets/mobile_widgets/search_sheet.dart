@@ -1,0 +1,320 @@
+part of '../mobile_widgets.dart';
+
+class MobileSearchSheet extends ConsumerStatefulWidget {
+  final NightshadeColors colors;
+  final ScrollController scrollController;
+  final ValueChanged<CelestialObject> onObjectSelected;
+
+  const MobileSearchSheet({
+    super.key,
+    required this.colors,
+    required this.scrollController,
+    required this.onObjectSelected,
+  });
+
+  @override
+  ConsumerState<MobileSearchSheet> createState() => _MobileSearchSheetState();
+}
+
+class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
+  final _searchController = TextEditingController();
+  Timer? _debounceTimer;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    _debounceTimer?.cancel();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounceTimer?.cancel();
+    if (value.length >= 2) {
+      _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+        ref.read(objectSearchProvider.notifier).search(value);
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final searchState = ref.watch(objectSearchProvider);
+
+    return Column(
+      children: [
+        // Search input
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: TextField(
+            controller: _searchController,
+            autofocus: true,
+            style: TextStyle(fontSize: 14, color: widget.colors.textPrimary),
+            decoration: InputDecoration(
+              hintText: 'Search objects (M42, Orion, etc.)',
+              hintStyle:
+                  TextStyle(fontSize: 14, color: widget.colors.textMuted),
+              prefixIcon: Icon(LucideIcons.search,
+                  size: 18, color: widget.colors.textMuted),
+              suffixIcon: _searchController.text.isNotEmpty
+                  ? IconButton(
+                      icon: Icon(LucideIcons.x,
+                          size: 18, color: widget.colors.textMuted),
+                      onPressed: () {
+                        _searchController.clear();
+                        ref.read(objectSearchProvider.notifier).clear();
+                      },
+                    )
+                  : null,
+              filled: true,
+              fillColor: widget.colors.surfaceAlt,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: widget.colors.border),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: widget.colors.border),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: BorderSide(color: widget.colors.primary),
+              ),
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
+            onChanged: _onSearchChanged,
+          ),
+        ),
+
+        // Results
+        Expanded(
+          child: _buildResults(searchState),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildResults(ObjectSearchState searchState) {
+    if (_searchController.text.isEmpty) {
+      // Show quick picks when no search
+      return _buildQuickPicks();
+    }
+
+    if (searchState.isSearching) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (searchState.results.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.searchX, size: 48, color: widget.colors.textMuted),
+            const SizedBox(height: 16),
+            Text(
+              'No results found',
+              style: TextStyle(color: widget.colors.textMuted),
+            ),
+          ],
+        ),
+      );
+    }
+
+    final tileExtent = _mobileSearchTileExtent(context);
+
+    return ListView.builder(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      itemExtent: tileExtent,
+      itemCount: searchState.results.length,
+      itemBuilder: (context, index) {
+        final obj = searchState.results[index];
+        return MobileSearchResultTile(
+          object: obj,
+          colors: widget.colors,
+          onTap: () => widget.onObjectSelected(obj),
+        );
+      },
+    );
+  }
+
+  Widget _buildQuickPicks() {
+    final bestTargets = ref.watch(bestTargetsProvider);
+
+    return ListView(
+      controller: widget.scrollController,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      children: [
+        Text(
+          'Best Targets Tonight',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: widget.colors.textMuted,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 12),
+        bestTargets.when(
+          data: (targets) {
+            if (targets.isEmpty) {
+              return Container(
+                padding: const EdgeInsets.all(24),
+                child: Center(
+                  child: Text(
+                    'No targets above 30 tonight',
+                    style: TextStyle(color: widget.colors.textMuted),
+                  ),
+                ),
+              );
+            }
+            return Column(
+              children: targets.take(10).map((item) {
+                final (dso, _) = item;
+                return MobileSearchResultTile(
+                  object: dso,
+                  colors: widget.colors,
+                  onTap: () => widget.onObjectSelected(dso),
+                );
+              }).toList(),
+            );
+          },
+          // Shimmer tile column instead of a spinner so the search panel
+          // doesn't visibly shrink while suggestions stream in.
+          loading: () => Column(
+            children: List.generate(
+              5,
+              (_) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: ShimmerLoading(
+                  child: Container(
+                    height: _mobileSearchTileExtent(context) - 12,
+                    decoration: BoxDecoration(
+                      color: widget.colors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          error: (e, _) => Center(
+            child:
+                Text('Error: $e', style: TextStyle(color: widget.colors.error)),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Mobile search result tile
+class MobileSearchResultTile extends StatelessWidget {
+  final CelestialObject object;
+  final NightshadeColors colors;
+  final VoidCallback onTap;
+
+  const MobileSearchResultTile({
+    super.key,
+    required this.object,
+    required this.colors,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final avatarSize = _mobileTouchOuter(context) * 0.82;
+
+    String displayName;
+    String catalogTag;
+    String typeName;
+
+    if (object is DeepSkyObject) {
+      final info = getDsoDisplayInfo(object as DeepSkyObject);
+      displayName = info.$1;
+      catalogTag = info.$2;
+      typeName = (object as DeepSkyObject).type.displayName;
+    } else if (object is Star) {
+      displayName = object.name;
+      catalogTag = 'STAR';
+      typeName = 'Star';
+    } else {
+      displayName = object.name;
+      catalogTag = object.id;
+      typeName = 'Object';
+    }
+
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: colors.border),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: avatarSize,
+              height: avatarSize,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: colors.primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                catalogTag,
+                style: TextStyle(
+                  fontSize: avatarSize * 0.25,
+                  fontWeight: FontWeight.bold,
+                  color: colors.primary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    displayName,
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  Text(
+                    typeName,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (object.magnitude != null)
+              Text(
+                'mag ${object.magnitude!.toStringAsFixed(1)}',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colors.textSecondary,
+                ),
+              ),
+            const SizedBox(width: 8),
+            Icon(
+              LucideIcons.chevronRight,
+              size: 16,
+              color: colors.textMuted,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Compass calibration dialog shown on first gyroscope activation.

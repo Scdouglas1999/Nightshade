@@ -38,9 +38,7 @@ class LiveStackingNoExposureRule implements SequenceValidator {
     if (liveStackingNodes.isEmpty) return issues;
 
     final hasExposureNode = sequence.nodes.values.any(
-      (n) =>
-          n.isEnabled &&
-          (n is ExposureNode || n is SmartExposureNode),
+      (n) => n.isEnabled && (n is ExposureNode || n is SmartExposureNode),
     );
 
     if (hasExposureNode) return issues;

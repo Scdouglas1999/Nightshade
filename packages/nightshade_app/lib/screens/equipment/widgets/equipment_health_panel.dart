@@ -428,13 +428,13 @@ class _InsightCard extends StatelessWidget {
 // Device Heartbeat Chip
 // =============================================================================
 
-class _DeviceHeartbeatChip extends StatelessWidget {
+class _DeviceHeartbeatChip extends ConsumerWidget {
   final DeviceHealthSnapshot snapshot;
 
   const _DeviceHeartbeatChip({required this.snapshot});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final statusColor = snapshot.isHealthy ? colors.success : colors.error;
     final lastSeen = DateTime.fromMillisecondsSinceEpoch(
@@ -464,7 +464,7 @@ class _DeviceHeartbeatChip extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                _formatDeviceId(snapshot.deviceId),
+                _resolveDeviceName(ref, snapshot.deviceId),
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
@@ -489,15 +489,20 @@ class _DeviceHeartbeatChip extends StatelessWidget {
     );
   }
 
-  /// Extract a human-readable name from device IDs like "native:zwo:0" or
-  /// "indi:host:port:device_name".
-  static String _formatDeviceId(String deviceId) {
-    final parts = deviceId.split(':');
-    // Use the last meaningful segment as the display name
-    if (parts.length >= 3) {
-      return parts.sublist(1).join(':');
+  /// The friendly model name for [deviceId] (e.g. "ZWO ASI1600MM-Cool"),
+  /// resolved from the discovery cache so System Health matches the model names
+  /// shown everywhere else instead of a raw driver-id segment. Falls back to the
+  /// id-pattern name when discovery hasn't seen the device.
+  String _resolveDeviceName(WidgetRef ref, String deviceId) {
+    final discovered = ref.watch(unifiedDiscoveryProvider).rawDevices;
+    for (final device in discovered) {
+      if (device.id == deviceId &&
+          device.name.isNotEmpty &&
+          device.name != deviceId) {
+        return device.name;
+      }
     }
-    return deviceId;
+    return friendlyNameFromDeviceId(deviceId);
   }
 
   static String _formatAge(Duration age) {

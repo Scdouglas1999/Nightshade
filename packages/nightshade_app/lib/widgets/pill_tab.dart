@@ -1,0 +1,124 @@
+import 'package:flutter/material.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
+
+/// A filled icon-over-label pill button used for sidebar / panel sub-tabs.
+///
+/// This is the shared, de-duplicated implementation of the pill styling that
+/// originally lived as a private `_PanelTab` in the imaging panel. It renders a
+/// centered [Icon] above a small [label], with an animated selected/hover
+/// surface that matches the rest of the Nightshade design system.
+///
+/// The visual contract (kept byte-for-byte identical to the imaging panel):
+///  * 180ms `easeOutCubic` animated container
+///  * padding `EdgeInsets.symmetric(horizontal: 6, vertical: 8)`
+///  * selected => [NightshadeDecorations.selectedSurface] with `fillAlpha: 0.16`
+///  * unselected => surface/surfaceHover fill, 8px radius, border/borderHighlight
+///  * icon size 16, label fontSize 10 (w600 selected / w500 otherwise)
+class PillTab extends StatefulWidget {
+  /// Icon shown above the label.
+  final IconData icon;
+
+  /// Text label shown below the icon (and used as the tooltip/semantics label).
+  final String label;
+
+  /// Whether this pill is the currently-selected tab.
+  final bool isSelected;
+
+  /// Invoked when the pill is tapped.
+  final VoidCallback onTap;
+
+  /// Optional tooltip override. Defaults to [label] when null.
+  final String? tooltip;
+
+  /// Theme colors used for the fill, border, and text.
+  final NightshadeColors colors;
+
+  const PillTab({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+    required this.colors,
+    this.tooltip,
+  });
+
+  @override
+  State<PillTab> createState() => _PillTabState();
+}
+
+class _PillTabState extends State<PillTab> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: widget.tooltip ?? widget.label,
+      child: Semantics(
+        button: true,
+        selected: widget.isSelected,
+        label: widget.label,
+        child: MouseRegion(
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              curve: Curves.easeOutCubic,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+              decoration: widget.isSelected
+                  ? NightshadeDecorations.selectedSurface(
+                      widget.colors.primary,
+                      fillAlpha: 0.16,
+                    )
+                  : BoxDecoration(
+                      color: _isHovered
+                          ? widget.colors.surfaceHover
+                          : widget.colors.surface,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _isHovered
+                            ? widget.colors.borderHighlight
+                            : widget.colors.border,
+                      ),
+                    ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    widget.icon,
+                    size: 16,
+                    color: widget.isSelected
+                        ? widget.colors.primary
+                        : widget.colors.textSecondary,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.label,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: widget.isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                      color: widget.isSelected
+                          ? widget.colors.primary
+                          : _isHovered
+                              ? widget.colors.textPrimary
+                              : widget.colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

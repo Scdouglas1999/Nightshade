@@ -7,21 +7,24 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import 'package:nightshade_app/utils/snackbar_helper.dart';
 import 'package:nightshade_app/utils/plan_tonight_sequencer_helper.dart';
+import 'add_target_to_sequence_flow.dart';
 import 'framing_altaz.dart';
 import 'framing_hips_layer_wiring.dart';
 import 'framing_search_provider.dart';
 import '../../widgets/tutorial_keys/framing_keys.dart';
 import '../../widgets/contextual_tour_prompt.dart';
-import '../suggestions/widgets/suggestion_filters.dart';
 import 'widgets/optical_config_panel.dart';
 import 'widgets/framing_canvas.dart';
-import 'widgets/framing_controls.dart';
 import 'widgets/framing_sidebar.dart';
-import 'widgets/framing_suggestions_tab.dart';
 
-/// The main framing screen that contains two tabs:
-/// 1. Framing - For composing and framing astrophotography targets
-/// 2. Suggestions - For viewing tonight's target suggestions
+/// The single-purpose framing screen: composing and framing astrophotography
+/// targets on a survey-backed canvas with an equipment FOV reticle.
+///
+/// Browsing and acting on tonight's target suggestions now lives entirely in
+/// the Planner ("Plan Tonight") — this screen no longer carries a redundant
+/// Suggestions tab. Targets are adopted into the canvas via
+/// [FramingNotifier.setTargetSuggestion] + `goNamed('framing')` (e.g. from the
+/// Planner's "Send to Framing" action) or via `?ra=&dec=&name=` query params.
 class FramingScreen extends ConsumerStatefulWidget {
   const FramingScreen({super.key});
 
@@ -29,29 +32,15 @@ class FramingScreen extends ConsumerStatefulWidget {
   ConsumerState<FramingScreen> createState() => _FramingScreenState();
 }
 
-class _FramingScreenState extends ConsumerState<FramingScreen>
-    with SingleTickerProviderStateMixin {
+class _FramingScreenState extends ConsumerState<FramingScreen> {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
   final _raController = TextEditingController();
   final _decController = TextEditingController();
 
-  late TabController _tabController;
-
-  /// Currently selected tab index (0 = Framing, 1 = Suggestions)
-  int _currentTabIndex = 0;
-
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
-    _tabController.addListener(() {
-      if (!_tabController.indexIsChanging) {
-        setState(() {
-          _currentTabIndex = _tabController.index;
-        });
-      }
-    });
     // Alt/Az is recomputed lazily in build() from target + settings; no need
     // for a periodic poll that fires while the screen is off-tab/off-focus.
     // Load the most recent target if no target is currently set
@@ -113,7 +102,6 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
 
   @override
   void dispose() {
-    _tabController.dispose();
     _searchController.dispose();
     _searchFocusNode.dispose();
     _raController.dispose();
@@ -153,87 +141,12 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     final settings = ref.watch(appSettingsProvider).valueOrNull;
     final currentAltAz = _computeCurrentAltAz(framingState.target, settings);
 
-    return Column(
-      children: [
-        // Tab bar header
-        _buildTabBar(colors),
-
-        // Tab content
-        Expanded(
-          child: IndexedStack(
-            index: _currentTabIndex,
-            children: [
-              // Tab 0: Framing
-              _buildFramingContent(colors, framingState, searchState,
-                  equipmentResult, currentAltAz),
-              // Tab 1: Suggestions
-              FramingSuggestionsTab(
-                onTargetSelected: (suggestion) =>
-                    _navigateToFramingWithTarget(suggestion),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTabBar(NightshadeColors colors) {
-    return Container(
-      height: 48,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: Row(
-        children: [
-          FramingTabButton(
-            icon: LucideIcons.frame,
-            label: 'Framing',
-            isSelected: _currentTabIndex == 0,
-            colors: colors,
-            onTap: () {
-              _tabController.animateTo(0);
-              setState(() => _currentTabIndex = 0);
-            },
-          ),
-          FramingTabButton(
-            icon: LucideIcons.lightbulb,
-            label: 'Suggestions',
-            isSelected: _currentTabIndex == 1,
-            colors: colors,
-            onTap: () {
-              _tabController.animateTo(1);
-              setState(() => _currentTabIndex = 1);
-            },
-          ),
-          const Spacer(),
-          if (_currentTabIndex == 1)
-            Padding(
-              padding: const EdgeInsets.only(right: 16),
-              child: Row(
-                children: [
-                  IconButton(
-                    icon: const Icon(LucideIcons.refreshCw, size: 18),
-                    onPressed: () {
-                      ref.read(refreshSuggestionsProvider.notifier).state++;
-                    },
-                    tooltip: 'Refresh suggestions',
-                    color: colors.textSecondary,
-                  ),
-                  const SizedBox(width: 4),
-                  IconButton(
-                    icon: const Icon(LucideIcons.slidersHorizontal, size: 18),
-                    onPressed: () =>
-                        _showSuggestionFilterSheet(context, colors),
-                    tooltip: 'Filter options',
-                    color: colors.textSecondary,
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
+    return _buildFramingContent(
+      colors,
+      framingState,
+      searchState,
+      equipmentResult,
+      currentAltAz,
     );
   }
 
@@ -279,16 +192,15 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                     },
                   ),
                 ),
-                // GPU HiPS framing tile layer (C8). Sits directly above the
-                // framing canvas: the canvas (its single survey snapshot /
-                // starfield) is the never-blank fallback underneath, and this
-                // streams the deep, zoomable HiPS mosaic registered to the same
-                // FramingPlateScale on top. Gated internally by
-                // hipsFramingActiveProvider, so it contributes nothing (and the
-                // pre-HiPS background is unchanged) when the feature is off or
-                // the survey has no verified HiPS pyramid. Works regardless of
-                // the planetarium RenderingPlatform setting — this is the
-                // framing render path, not the planetarium renderer.
+                // GPU HiPS framing attribution chrome (C8). The streamed tile
+                // mosaic itself is composed INSIDE FramingCanvas's Stack — above
+                // the single-cutout survey snapshot and UNDER the grid / FOV /
+                // equipment overlays — so the imagery never hides the FOV
+                // reticle. This wiring only adds the survey attribution credit
+                // badge as top chrome (a licence requirement), self-positioning
+                // in the canvas's bottom band and gated internally by
+                // hipsFramingActiveProvider, so it contributes nothing when the
+                // feature is off or the survey has no verified HiPS pyramid.
                 const Positioned.fill(child: FramingHipsLayerWiring()),
                 if (framingState.showOpticalConfigPanel)
                   const Positioned(
@@ -397,6 +309,11 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                               framingState.target!,
                               framingState.rotation,
                             ),
+                            onAddToExistingSequence: () =>
+                                _addToExistingSequence(
+                              framingState.target!,
+                              framingState.rotation,
+                            ),
                             onSaveTarget: _saveTarget,
                             onCacheImage: _cacheImage,
                           ),
@@ -413,40 +330,12 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     );
   }
 
-  void _showSuggestionFilterSheet(
-      BuildContext context, NightshadeColors colors) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: colors.surface,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(NightshadeTokens.radiusLg),
-        ),
-      ),
-      builder: (context) {
-        return const SuggestionFilters(showAsSheet: true);
-      },
-    );
-  }
-
-  void _navigateToFramingWithTarget(TargetSuggestion suggestion) {
-    ref.read(framingProvider.notifier).setTargetSuggestion(suggestion);
-
-    _tabController.animateTo(0);
-    setState(() => _currentTabIndex = 0);
-
-    _searchController.text = suggestion.targetName;
-    _raController.text = CoordinateUtils.formatRA(suggestion.raHours);
-    _decController.text = CoordinateUtils.formatDec(suggestion.decDegrees);
-    // Alt/Az auto-refreshes on the next build via _computeCurrentAltAz.
-  }
-
   void _selectTarget(FramingTarget target) {
     final notifier = ref.read(framingProvider.notifier);
+    // setTarget records this as the last framed target (single settings key)
+    // so it restores across app restarts WITHOUT writing a row into the
+    // targets library, which previously polluted Analytics → Projects.
     notifier.setTarget(target);
-    // Persist the target to database so it's available when returning to this tab
-    notifier.saveTarget();
     ref.read(targetSearchProvider.notifier).clear();
     _searchController.text = target.name;
     _raController.text = target.raFormatted;
@@ -490,6 +379,24 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
       ref: ref,
       target: target,
       sourceSuggestion: framingState.sourceSuggestion,
+      rotationDegrees: rotation,
+    );
+    if (added && mounted) {
+      context.showInfoSnackBar('Added ${target.name} to sequence');
+    }
+  }
+
+  /// Insert the framed target as a bare target header (no auto-generated
+  /// instruction tree) into a sequence the user picks. Complements
+  /// [_addToSequence], which auto-builds a full Smart Night sequence.
+  Future<void> _addToExistingSequence(
+    FramingTarget target,
+    double rotation,
+  ) async {
+    final added = await addFramedTargetToExistingSequence(
+      context: context,
+      ref: ref,
+      target: target,
       rotationDegrees: rotation,
     );
     if (added && mounted) {

@@ -1,4 +1,4 @@
-﻿// Phone-friendly diagnostic card surfacing PHD2 guide health at a glance.
+// Phone-friendly diagnostic card surfacing PHD2 guide health at a glance.
 //
 // Why this exists: the companion DevicesTab showed total RMS as a single
 // line of text, which gives no sense of whether guiding is trending or
@@ -158,8 +158,7 @@ class _GuideHealthCardState extends ConsumerState<GuideHealthCard> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
-                _buildTopRow(
-                    context, colors, guiderState, phd2State, stats),
+                _buildTopRow(context, colors, guiderState, phd2State, stats),
                 if (phd2State == Phd2State.lostLock)
                   Padding(
                     padding: const EdgeInsets.only(top: 8),
@@ -285,19 +284,13 @@ class _GuideHealthCardState extends ConsumerState<GuideHealthCard> {
                 fontWeight: FontWeight.w500,
               ),
             ),
-            style: TextButton.styleFrom(
-              minimumSize: const Size(0, 32),
-              padding: const EdgeInsets.symmetric(horizontal: 6),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-            ),
             onPressed: widget.onDetails ?? () => _openGuidingDetails(context),
           ),
       ],
     );
   }
 
-  Widget _buildBottomRow(
-      NightshadeColors colors, Phd2GuideStats stats) {
+  Widget _buildBottomRow(NightshadeColors colors, Phd2GuideStats stats) {
     return Row(
       children: [
         _AxisChip(label: 'RA', value: stats.rmsRa, colors: colors),
@@ -373,8 +366,7 @@ class _GuideHealthCardState extends ConsumerState<GuideHealthCard> {
   ///
   /// When PHD2 is not actively guiding we render in muted grey to make it
   /// obvious the number is stale.
-  Color _rmsColor(
-      double rms, Phd2State state, NightshadeColors colors) {
+  Color _rmsColor(double rms, Phd2State state, NightshadeColors colors) {
     if (state != Phd2State.guiding) return colors.textMuted;
     if (rms < 0.8) return colors.success;
     if (rms < 1.5) return colors.warning;
@@ -655,8 +647,8 @@ class _SparklinePainter extends CustomPainter {
 
     // Latest-sample marker so the eye picks up the freshest value.
     final lastX = dx * (n - 1);
-    final lastY = size.height -
-        (samples.last / yScale).clamp(0.0, 1.0) * size.height;
+    final lastY =
+        size.height - (samples.last / yScale).clamp(0.0, 1.0) * size.height;
     canvas.drawCircle(
       Offset(lastX, lastY),
       2.0,

@@ -30,8 +30,13 @@ class StorageCard extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildHeader(),
-          const SizedBox(height: 12),
+          DashboardCardHeader(
+            colors: colors,
+            icon: LucideIcons.hardDrive,
+            title: 'Storage',
+            accent: colors.info,
+          ),
+          const SizedBox(height: DashboardCardStyle.headerGap),
           diskAsync.when(
             data: (info) => _buildBody(info, projectionAsync),
             loading: () => _buildLoading(),
@@ -39,30 +44,6 @@ class StorageCard extends ConsumerWidget {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildHeader() {
-    return Row(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(8),
-          decoration: NightshadeDecorations.tintedBadge(
-            colors.info,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(LucideIcons.hardDrive, size: 16, color: colors.info),
-        ),
-        const SizedBox(width: 8),
-        Text(
-          'Storage',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
-      ],
     );
   }
 

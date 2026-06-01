@@ -1,0 +1,847 @@
+part of '../ffi_backend.dart';
+
+extension _FfiBackendEventMapping on _FfiBackendBase {
+  /// Extract eventType string and data map from an EventPayload
+  (String, Map<String, dynamic>) _extractPayloadInfo(dynamic payload) {
+    // Handle guiding events with proper field extraction
+    if (payload is bridge.EventPayload_Guiding) {
+      final guidingEvent = payload.field0;
+      return _extractGuidingEventInfo(guidingEvent);
+    }
+
+    // Handle equipment events with proper field extraction
+    if (payload is bridge.EventPayload_Equipment) {
+      return _extractEquipmentEventInfo(payload.field0);
+    }
+
+    // Handle sequencer events with proper field extraction
+    if (payload is bridge.EventPayload_Sequencer) {
+      return _extractSequencerEventInfo(payload.field0);
+    }
+
+    // Handle imaging events with proper field extraction
+    if (payload is bridge.EventPayload_Imaging) {
+      return _extractImagingEventInfo(payload.field0);
+    }
+
+    // Handle safety events with proper field extraction
+    if (payload is bridge.EventPayload_Safety) {
+      return _extractSafetyEventInfo(payload.field0);
+    }
+
+    // Handle system events with proper field extraction
+    if (payload is bridge.EventPayload_System) {
+      return _extractSystemEventInfo(payload.field0);
+    }
+
+    // Handle polar alignment events
+    if (payload is bridge.EventPayload_PolarAlignment) {
+      final pa = payload.field0;
+      return (
+        'PolarAlignment',
+        {
+          'azimuth_error': pa.azimuthError,
+          'altitude_error': pa.altitudeError,
+          'total_error': pa.totalError,
+          'current_ra': pa.currentRa,
+          'current_dec': pa.currentDec,
+          'target_ra': pa.targetRa,
+          'target_dec': pa.targetDec,
+        }
+      );
+    }
+
+    if (payload is bridge.EventPayload_PolarAlignmentStatus) {
+      final status = payload.field0;
+      return (
+        'PolarAlignmentStatus',
+        {
+          'status': status.status,
+          'phase': status.phase,
+          'point': status.point,
+        }
+      );
+    }
+
+    if (payload is bridge.EventPayload_PolarAlignmentImage) {
+      final img = payload.field0;
+      return (
+        'PolarAlignmentImage',
+        {
+          'image_data': img.imageData,
+          'width': img.width,
+          'height': img.height,
+          'solved_ra': img.solvedRa,
+          'solved_dec': img.solvedDec,
+          'point': img.point,
+          'phase': img.phase,
+        }
+      );
+    }
+
+    // For other event types, use string parsing as fallback
+    final payloadStr = payload.toString();
+    final match = RegExp(r'^EventPayload\.(\w+)\(').firstMatch(payloadStr);
+    final eventType = match?.group(1) ?? 'unknown';
+    return (eventType, {'payload': payloadStr});
+  }
+
+  /// Extract event type and data from a SafetyEvent
+  (String, Map<String, dynamic>) _extractSafetyEventInfo(dynamic safetyEvent) {
+    if (safetyEvent is bridge.SafetyEvent_WeatherUnsafe) {
+      return ('WeatherUnsafe', {'reason': safetyEvent.reason});
+    } else if (safetyEvent is bridge.SafetyEvent_WeatherSafe) {
+      return ('WeatherSafe', {});
+    } else if (safetyEvent is bridge.SafetyEvent_EmergencyStop) {
+      return ('EmergencyStop', {'reason': safetyEvent.reason});
+    } else if (safetyEvent is bridge.SafetyEvent_ParkInitiated) {
+      return ('ParkInitiated', {'reason': safetyEvent.reason});
+    } else if (safetyEvent is bridge.SafetyEvent_ParkCompleted) {
+      return ('ParkCompleted', {});
+    }
+    return ('UnknownSafetyEvent', {'event': safetyEvent.toString()});
+  }
+
+  /// Extract event type and data from a SystemEvent
+  (String, Map<String, dynamic>) _extractSystemEventInfo(dynamic systemEvent) {
+    if (systemEvent is bridge.SystemEvent_Initialized) {
+      return ('Initialized', {});
+    } else if (systemEvent is bridge.SystemEvent_ShuttingDown) {
+      return ('ShuttingDown', {});
+    } else if (systemEvent is bridge.SystemEvent_Error) {
+      return ('Error', {'message': systemEvent.message});
+    } else if (systemEvent is bridge.SystemEvent_DiskSpaceLow) {
+      return ('DiskSpaceLow', {'available_gb': systemEvent.availableGb});
+    } else if (systemEvent is bridge.SystemEvent_Notification) {
+      return (
+        'Notification',
+        {
+          'title': systemEvent.title,
+          'message': systemEvent.message,
+          'level': systemEvent.level,
+          if (systemEvent.explicitTransports != null)
+            'explicit_transports': systemEvent.explicitTransports,
+        }
+      );
+    } else if (systemEvent is bridge.SystemEvent_EventsDropped) {
+      return (
+        'EventsDropped',
+        {
+          'dropped_count': systemEvent.droppedCount,
+          'total_dropped': systemEvent.totalDropped,
+        }
+      );
+    }
+    return ('UnknownSystemEvent', {'event': systemEvent.toString()});
+  }
+
+  /// Extract event type and data from an EquipmentEvent
+  (String, Map<String, dynamic>) _extractEquipmentEventInfo(
+      dynamic equipmentEvent) {
+    // Connection events
+    if (equipmentEvent is bridge.EquipmentEvent_Connecting) {
+      return (
+        'Connecting',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+        }
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_Connected) {
+      return (
+        'Connected',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+        }
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_Disconnected) {
+      return (
+        'Disconnected',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+        }
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_PropertyChanged) {
+      return (
+        'PropertyChanged',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+          'property': equipmentEvent.property,
+          'value': equipmentEvent.value,
+        }
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_Error) {
+      return (
+        'Error',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+          'message': equipmentEvent.message,
+        }
+      );
+    }
+    // Mount events
+    else if (equipmentEvent is bridge.EquipmentEvent_MountSlewStarted) {
+      return (
+        'MountSlewStarted',
+        {'ra': equipmentEvent.ra, 'dec': equipmentEvent.dec}
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_MountSlewCompleted) {
+      return (
+        'MountSlewCompleted',
+        {'ra': equipmentEvent.ra, 'dec': equipmentEvent.dec}
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_MountTrackingStarted) {
+      return ('MountTrackingStarted', {});
+    } else if (equipmentEvent is bridge.EquipmentEvent_MountTrackingStopped) {
+      return ('MountTrackingStopped', {});
+    } else if (equipmentEvent is bridge.EquipmentEvent_MountParkStarted) {
+      return ('MountParkStarted', {});
+    } else if (equipmentEvent is bridge.EquipmentEvent_MountParkCompleted) {
+      return ('MountParkCompleted', {});
+    } else if (equipmentEvent is bridge.EquipmentEvent_MountUnparked) {
+      return ('MountUnparked', {});
+    }
+    // Focuser events
+    else if (equipmentEvent is bridge.EquipmentEvent_FocuserMoveStarted) {
+      return (
+        'FocuserMoveStarted',
+        {'target_position': equipmentEvent.targetPosition}
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_FocuserMoveCompleted) {
+      return ('FocuserMoveCompleted', {'position': equipmentEvent.position});
+    } else if (equipmentEvent
+        is bridge.EquipmentEvent_FocuserTemperatureChanged) {
+      return (
+        'FocuserTemperatureChanged',
+        {'temperature': equipmentEvent.temperature}
+      );
+    }
+    // Filter wheel events
+    else if (equipmentEvent is bridge.EquipmentEvent_FilterChanging) {
+      return (
+        'FilterChanging',
+        {
+          'from_position': equipmentEvent.fromPosition,
+          'to_position': equipmentEvent.toPosition,
+          'filter_name': equipmentEvent.filterName,
+        }
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_FilterChanged) {
+      return (
+        'FilterChanged',
+        {
+          'position': equipmentEvent.position,
+          'filter_name': equipmentEvent.filterName,
+        }
+      );
+    }
+    // Rotator events
+    else if (equipmentEvent is bridge.EquipmentEvent_RotatorMoveStarted) {
+      return (
+        'RotatorMoveStarted',
+        {'target_angle': equipmentEvent.targetAngle}
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_RotatorMoveCompleted) {
+      return ('RotatorMoveCompleted', {'angle': equipmentEvent.angle});
+    }
+    // Camera events
+    else if (equipmentEvent is bridge.EquipmentEvent_CameraCoolingStarted) {
+      return (
+        'CameraCoolingStarted',
+        {'target_temp': equipmentEvent.targetTemp}
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_CameraCoolingReached) {
+      return (
+        'CameraCoolingReached',
+        {'temperature': equipmentEvent.temperature}
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_CameraWarmingStarted) {
+      return ('CameraWarmingStarted', {});
+    } else if (equipmentEvent is bridge.EquipmentEvent_CameraWarmingCompleted) {
+      return ('CameraWarmingCompleted', {});
+    }
+    // DEV-P3-2: heartbeat events. Rust publishes these from
+    // `device_manager::heartbeat` so per-device-card health indicators
+    // can react in real time. Each variant is mapped to a string event
+    // type and a snake_case data map so the Dart-side handler in
+    // `DeviceService` can dispatch without referencing FRB-generated
+    // types directly.
+    else if (equipmentEvent is bridge.EquipmentEvent_HeartbeatStarted) {
+      return (
+        'HeartbeatStarted',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+          'interval_secs': equipmentEvent.intervalSecs,
+        }
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_HeartbeatStopped) {
+      return (
+        'HeartbeatStopped',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+        }
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_HeartbeatStatusChanged) {
+      // `status` is the FRB-generated HeartbeatStatus enum; the handler
+      // matches on its `.name` (`healthy`, `degraded`, `disconnected`,
+      // `reconnecting`, `reconnected`) so we don't leak the FRB type
+      // into the rest of the codebase.
+      return (
+        'HeartbeatStatusChanged',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+          'status': equipmentEvent.status.name,
+          'consecutive_failures': equipmentEvent.consecutiveFailures,
+          if (equipmentEvent.lastRttMs != null)
+            'last_rtt_ms': equipmentEvent.lastRttMs,
+        }
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_HeartbeatReconnecting) {
+      return (
+        'HeartbeatReconnecting',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+          'attempt': equipmentEvent.attempt,
+          'max_attempts': equipmentEvent.maxAttempts,
+        }
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_HeartbeatReconnected) {
+      return (
+        'HeartbeatReconnected',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+          'after_attempts': equipmentEvent.afterAttempts,
+        }
+      );
+    }
+    // Fallback
+    return ('UnknownEquipmentEvent', {'event': equipmentEvent.toString()});
+  }
+
+  /// Extract event type and data from a GuidingEvent
+  (String, Map<String, dynamic>) _extractGuidingEventInfo(
+      dynamic guidingEvent) {
+    if (guidingEvent is bridge.GuidingEvent_Correction) {
+      return (
+        'GuideStep',
+        {
+          'RADistanceRaw': guidingEvent.raRaw,
+          'DECDistanceRaw': guidingEvent.decRaw,
+          'RADistance': guidingEvent.ra,
+          'DECDistance': guidingEvent.dec,
+        }
+      );
+    } else if (guidingEvent is bridge.GuidingEvent_GuidingStarted) {
+      return ('GuidingStarted', {});
+    } else if (guidingEvent is bridge.GuidingEvent_GuidingStopped) {
+      return ('GuidingStopped', {});
+    } else if (guidingEvent is bridge.GuidingEvent_Connected) {
+      return ('Connected', {});
+    } else if (guidingEvent is bridge.GuidingEvent_Disconnected) {
+      return ('Disconnected', {});
+    } else if (guidingEvent is bridge.GuidingEvent_Paused) {
+      return ('Paused', {});
+    } else if (guidingEvent is bridge.GuidingEvent_Resumed) {
+      return ('Resumed', {});
+    } else if (guidingEvent is bridge.GuidingEvent_LostStar) {
+      return ('StarLost', {});
+    } else if (guidingEvent is bridge.GuidingEvent_Settled) {
+      return ('SettleDone', {'rms': guidingEvent.rms});
+    } else if (guidingEvent is bridge.GuidingEvent_DitherStarted) {
+      return ('DitherStarted', {'pixels': guidingEvent.pixels});
+    } else if (guidingEvent is bridge.GuidingEvent_DitherCompleted) {
+      return ('DitherCompleted', {});
+    } else if (guidingEvent is bridge.GuidingEvent_Looping) {
+      return ('LoopingExposures', {});
+    } else if (guidingEvent is bridge.GuidingEvent_Settling) {
+      return ('Settling', {});
+    } else if (guidingEvent is bridge.GuidingEvent_Calibrating) {
+      return ('Calibrating', {});
+    } else if (guidingEvent is bridge.GuidingEvent_CalibrationComplete) {
+      return ('CalibrationComplete', {});
+    } else if (guidingEvent is bridge.GuidingEvent_StarSelected) {
+      return (
+        'StarSelected',
+        {
+          'X': guidingEvent.x,
+          'Y': guidingEvent.y,
+        }
+      );
+    } else if (guidingEvent is bridge.GuidingEvent_AppState) {
+      return (
+        'AppState',
+        {
+          'State': guidingEvent.state,
+        }
+      );
+    } else if (guidingEvent is bridge.GuidingEvent_GuideStats) {
+      return (
+        'GuideStats',
+        {
+          'SNR': guidingEvent.snr,
+          'StarMass': guidingEvent.starMass,
+        }
+      );
+    }
+
+    return ('UnknownGuidingEvent', {'event': guidingEvent.toString()});
+  }
+
+  /// Extract event type and data from a SequencerEvent
+  (String, Map<String, dynamic>) _extractSequencerEventInfo(
+      dynamic sequencerEvent) {
+    if (sequencerEvent is bridge.SequencerEvent_Started) {
+      return ('Started', {'sequence_name': sequencerEvent.sequenceName});
+    } else if (sequencerEvent is bridge.SequencerEvent_Paused) {
+      return ('Paused', {});
+    } else if (sequencerEvent is bridge.SequencerEvent_Resumed) {
+      return ('Resumed', {});
+    } else if (sequencerEvent is bridge.SequencerEvent_Stopped) {
+      return ('Stopped', {});
+    } else if (sequencerEvent is bridge.SequencerEvent_Completed) {
+      return ('Completed', {});
+    } else if (sequencerEvent is bridge.SequencerEvent_NodeStarted) {
+      return (
+        'NodeStarted',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'node_type': sequencerEvent.nodeType,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_NodeCompleted) {
+      return (
+        'NodeCompleted',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'status': sequencerEvent.status,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_Progress) {
+      return (
+        'Progress',
+        {
+          'current': sequencerEvent.current,
+          'total': sequencerEvent.total,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_TargetChanged) {
+      return (
+        'TargetChanged',
+        {
+          'target_name': sequencerEvent.targetName,
+          'ra': sequencerEvent.ra,
+          'dec': sequencerEvent.dec,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_TargetCompleted) {
+      return ('TargetCompleted', {'target_name': sequencerEvent.targetName});
+    } else if (sequencerEvent is bridge.SequencerEvent_ExposureStarted) {
+      return (
+        'ExposureStarted',
+        {
+          'frame': sequencerEvent.frame,
+          'total': sequencerEvent.total,
+          'filter': sequencerEvent.filter,
+          'duration_secs': sequencerEvent.durationSecs,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_ExposureCompleted) {
+      return (
+        'ExposureCompleted',
+        {
+          'frame': sequencerEvent.frame,
+          'total': sequencerEvent.total,
+          'duration_secs': sequencerEvent.durationSecs,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_Error) {
+      return ('Error', {'message': sequencerEvent.message});
+    } else if (sequencerEvent is bridge.SequencerEvent_TriggerFired) {
+      return (
+        'TriggerFired',
+        {
+          'trigger_id': sequencerEvent.triggerId,
+          'trigger_name': sequencerEvent.triggerName,
+          'action': sequencerEvent.action,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_InstructionProgress) {
+      return (
+        'InstructionProgress',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'instruction': sequencerEvent.instruction,
+          'progress_percent': sequencerEvent.progressPercent,
+          'detail': sequencerEvent.detail,
+        }
+      );
+    } else if (sequencerEvent
+        is bridge.SequencerEvent_InstructionProgressStructured) {
+      return (
+        'InstructionProgressStructured',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'instruction': sequencerEvent.instruction,
+          'progress_percent': sequencerEvent.progressPercent,
+          'detail_kind': sequencerEvent.detailKind,
+          'detail_json': sequencerEvent.detailJson,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_FrameAccepted) {
+      // Pack H — Wave 3 typed grading payload. Carries every metric the
+      // dashboard's quality panel needs without parsing the legacy
+      // `InstructionProgress.detail` string.
+      //
+      // Wave 6 Pack P — `save_path` is now carried alongside the
+      // metrics so the thumbnail strip can render an inline preview of
+      // accepted frames. Mirrors the existing `reject_path` flow on
+      // FrameRejected.
+      return (
+        'FrameAccepted',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'frame': sequencerEvent.frame,
+          'total': sequencerEvent.total,
+          'hfr': sequencerEvent.hfr,
+          'eccentricity': sequencerEvent.eccentricity,
+          'star_count': sequencerEvent.starCount,
+          'accepted_total': sequencerEvent.acceptedTotal,
+          'rejected_total': sequencerEvent.rejectedTotal,
+          'save_path': sequencerEvent.savePath,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_FrameRejected) {
+      return (
+        'FrameRejected',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'frame': sequencerEvent.frame,
+          'total': sequencerEvent.total,
+          'reason': sequencerEvent.reason,
+          'hfr': sequencerEvent.hfr,
+          'eccentricity': sequencerEvent.eccentricity,
+          'star_count': sequencerEvent.starCount,
+          'reject_path': sequencerEvent.rejectPath,
+          'consecutive_rejects': sequencerEvent.consecutiveRejects,
+          'accepted_total': sequencerEvent.acceptedTotal,
+          'rejected_total': sequencerEvent.rejectedTotal,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_SchedulerDecision) {
+      // Pack H — Wave 3 Agent 1 typed scheduler payload. The score table
+      // is flattened to a list of plain maps so it survives the
+      // `Map<String, dynamic>` data envelope without losing fields.
+      return (
+        'SchedulerDecision',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'decision_counter': sequencerEvent.decisionCounter,
+          'picked_target_id': sequencerEvent.pickedTargetId,
+          'picked_target_name': sequencerEvent.pickedTargetName,
+          'picked_score': sequencerEvent.pickedScore,
+          'scores': sequencerEvent.scores
+              .map((s) => {
+                    'target_id': s.targetId,
+                    'target_name': s.targetName,
+                    'total_score': s.totalScore,
+                    'runnable': s.runnable,
+                    'reason': s.reason,
+                  })
+              .toList(growable: false),
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_IntegrationBudget) {
+      return (
+        'IntegrationBudget',
+        {
+          'target_id': sequencerEvent.targetId,
+          'filter': sequencerEvent.filter,
+          'completed_secs': sequencerEvent.completedSecs,
+          'budget_secs': sequencerEvent.budgetSecs,
+          'fraction': sequencerEvent.fraction,
+          'budget_met': sequencerEvent.budgetMet,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_PluginNodeRequested) {
+      // Wave 6 Pack P — surface the plugin-node dispatch request so the
+      // Dart `SequenceExecutor` can route it to `PluginNodeExecutor`
+      // and reply via `sequencerPluginNodeFinished`.
+      return (
+        'PluginNodeRequested',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'plugin_id': sequencerEvent.pluginId,
+          'node_type_id': sequencerEvent.nodeTypeId,
+          'config_json': sequencerEvent.configJson,
+          'display_name': sequencerEvent.displayName,
+          'timeout_secs': sequencerEvent.timeoutSecs,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_PluginNodeProgress) {
+      // Wave 6 Pack P — plugin-authored intermediate progress payload.
+      // Informational; the sequence executor logs it and the dashboard
+      // plugin-node panel can subscribe via its own provider.
+      return (
+        'PluginNodeProgress',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'plugin_id': sequencerEvent.pluginId,
+          'node_type_id': sequencerEvent.nodeTypeId,
+          'detail_json': sequencerEvent.detailJson,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_RecoveryStarted) {
+      return (
+        'RecoveryStarted',
+        recoveryFieldsFromTyped(
+          startedAtIso: sequencerEvent.startedAtIso,
+          causeKind: sequencerEvent.causeKind,
+          causeCustomLabel: sequencerEvent.causeCustomLabel,
+          lastAttemptAtIso: sequencerEvent.lastAttemptAtIso,
+          attemptCount: sequencerEvent.attemptCount,
+          maxAttempts: sequencerEvent.maxAttempts,
+          retryIntervalSecs: sequencerEvent.retryIntervalSecs,
+          maxDurationSecs: sequencerEvent.maxDurationSecs,
+          phase: sequencerEvent.phase,
+          lastError: sequencerEvent.lastError,
+        ),
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_RecoveryProgress) {
+      return (
+        'RecoveryProgress',
+        recoveryFieldsFromTyped(
+          startedAtIso: sequencerEvent.startedAtIso,
+          causeKind: sequencerEvent.causeKind,
+          causeCustomLabel: sequencerEvent.causeCustomLabel,
+          lastAttemptAtIso: sequencerEvent.lastAttemptAtIso,
+          attemptCount: sequencerEvent.attemptCount,
+          maxAttempts: sequencerEvent.maxAttempts,
+          retryIntervalSecs: sequencerEvent.retryIntervalSecs,
+          maxDurationSecs: sequencerEvent.maxDurationSecs,
+          phase: sequencerEvent.phase,
+          lastError: sequencerEvent.lastError,
+        ),
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_RecoveryCompleted) {
+      return (
+        'RecoveryCompleted',
+        recoveryFieldsFromTyped(
+          startedAtIso: sequencerEvent.startedAtIso,
+          causeKind: sequencerEvent.causeKind,
+          causeCustomLabel: sequencerEvent.causeCustomLabel,
+          lastAttemptAtIso: sequencerEvent.lastAttemptAtIso,
+          attemptCount: sequencerEvent.attemptCount,
+          maxAttempts: sequencerEvent.maxAttempts,
+          retryIntervalSecs: sequencerEvent.retryIntervalSecs,
+          maxDurationSecs: sequencerEvent.maxDurationSecs,
+          phase: sequencerEvent.phase,
+          lastError: sequencerEvent.lastError,
+        ),
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_RecoveryGaveUp) {
+      return (
+        'RecoveryGaveUp',
+        recoveryFieldsFromTyped(
+          startedAtIso: sequencerEvent.startedAtIso,
+          causeKind: sequencerEvent.causeKind,
+          causeCustomLabel: sequencerEvent.causeCustomLabel,
+          lastAttemptAtIso: sequencerEvent.lastAttemptAtIso,
+          attemptCount: sequencerEvent.attemptCount,
+          maxAttempts: sequencerEvent.maxAttempts,
+          retryIntervalSecs: sequencerEvent.retryIntervalSecs,
+          maxDurationSecs: sequencerEvent.maxDurationSecs,
+          phase: sequencerEvent.phase,
+          lastError: sequencerEvent.lastError,
+          abortedByUser: sequencerEvent.abortedByUser,
+        ),
+      );
+    }
+    // Wave 8 Replay Debug — `SequencerEvent_DecisionLogged` is the
+    // typed payload from the Rust bridge. The Dart class is generated
+    // on FRB regen (the Rust side already declares the variant in
+    // `bridge/src/event.rs`); until that regen lands, we fall back to
+    // detecting the variant by reflective discriminant + string
+    // matching the runtime type name. Once the freezed class is in
+    // place, this whole `if` chain can be replaced with a direct
+    // `sequencerEvent is bridge.SequencerEvent_DecisionLogged` check
+    // (see the FrameAccepted / FrameRejected branches above). The
+    // runtime contract — the Rust side emits a struct with the same
+    // field names — does not change.
+    final eventTypeName = sequencerEvent.runtimeType.toString();
+    if (eventTypeName.contains('DecisionLogged')) {
+      // Use `dynamic` so the runtime-shape access compiles even
+      // before the freezed class is generated. Every field is
+      // documented in `bridge/src/event.rs::SequencerEvent::DecisionLogged`.
+      final dynamic d = sequencerEvent;
+      try {
+        return (
+          'DecisionLogged',
+          {
+            'timestamp_iso': d.timestampIso as String,
+            'category': d.category as String,
+            'summary': d.summary as String,
+            'details_json': d.detailsJson as String,
+            'node_id': d.nodeId as String?,
+            'sequence_run_id': d.sequenceRunId as int?,
+          }
+        );
+      } catch (_) {
+        // Fall through to the unknown-variant fallback below; the
+        // dynamic lookup can only fail if the generated class shape
+        // unexpectedly diverges from the Rust struct.
+      }
+    }
+
+    return ('UnknownSequencerEvent', {'event': sequencerEvent.toString()});
+  }
+
+  /// Extract event type and data from an ImagingEvent
+  (String, Map<String, dynamic>) _extractImagingEventInfo(
+      dynamic imagingEvent) {
+    if (imagingEvent is bridge.ImagingEvent_ExposureStarted) {
+      return (
+        'ExposureStarted',
+        {
+          'duration_secs': imagingEvent.durationSecs,
+          'frame_type': imagingEvent.frameType.toString(),
+        }
+      );
+    } else if (imagingEvent is bridge.ImagingEvent_ExposureStartedWithFrame) {
+      return (
+        'ExposureStarted',
+        {
+          'duration_secs': imagingEvent.durationSecs,
+          'frame': imagingEvent.frameNumber,
+          'total': imagingEvent.totalFrames,
+          'frame_type': imagingEvent.frameType.toString(),
+        }
+      );
+    } else if (imagingEvent is bridge.ImagingEvent_ExposureProgress) {
+      return (
+        'ExposureProgress',
+        {
+          'progress': imagingEvent.progress,
+          'remainingSecs': imagingEvent.remainingSecs,
+        }
+      );
+    } else if (imagingEvent is bridge.ImagingEvent_ExposureCompleted) {
+      return (
+        'ExposureCompleted',
+        {
+          'file_path': imagingEvent.filePath,
+          'hfr': imagingEvent.hfr,
+          'stars_detected': imagingEvent.starsDetected,
+        }
+      );
+    } else if (imagingEvent is bridge.ImagingEvent_ExposureCompletedWithFrame) {
+      return (
+        'ExposureCompleted',
+        {
+          'frame': imagingEvent.frameNumber,
+          'total': imagingEvent.totalFrames,
+          'hfr': imagingEvent.hfr,
+          'stars_detected': imagingEvent.starsDetected,
+        }
+      );
+    } else if (imagingEvent is bridge.ImagingEvent_ExposureFailed) {
+      return (
+        'ExposureFailed',
+        {
+          'error': imagingEvent.error,
+        }
+      );
+    } else if (imagingEvent is bridge.ImagingEvent_ExposureCancelled) {
+      return ('ExposureCancelled', {});
+    } else if (imagingEvent is bridge.ImagingEvent_DownloadStarted) {
+      return ('DownloadStarted', {});
+    } else if (imagingEvent is bridge.ImagingEvent_DownloadCompleted) {
+      return ('DownloadCompleted', {});
+    } else if (imagingEvent is bridge.ImagingEvent_ImageReady) {
+      return (
+        'ImageReady',
+        {
+          'width': imagingEvent.width,
+          'height': imagingEvent.height,
+        }
+      );
+    } else if (imagingEvent is bridge.ImagingEvent_ImageSaved) {
+      return (
+        'ImageSaved',
+        {
+          'file_path': imagingEvent.filePath,
+        }
+      );
+    } else if (imagingEvent is bridge.ImagingEvent_TemperatureChanged) {
+      return (
+        'TemperatureChanged',
+        {
+          'temp_celsius': imagingEvent.tempCelsius,
+          'cooler_power': imagingEvent.coolerPower,
+        }
+      );
+    } else if (imagingEvent is bridge.ImagingEvent_ExposureComplete) {
+      // Legacy event type - map to 'ExposureComplete' for compatibility with imaging_service.dart
+      return (
+        'ExposureComplete',
+        {
+          'success': imagingEvent.success,
+        }
+      );
+    } else if (imagingEvent is bridge.ImagingEvent_ExposureFailedOld) {
+      return (
+        'ExposureFailed',
+        {
+          'reason': imagingEvent.reason,
+        }
+      );
+    }
+    return ('UnknownImagingEvent', {'event': imagingEvent.toString()});
+  }
+
+  EventSeverity _fromBridgeSeverity(dynamic severity) {
+    final name = severity.toString().split('.').last;
+    switch (name) {
+      case 'info':
+        return EventSeverity.info;
+      case 'warning':
+        return EventSeverity.warning;
+      case 'error':
+        return EventSeverity.error;
+      case 'critical':
+        return EventSeverity.critical;
+      default:
+        return EventSeverity.info;
+    }
+  }
+
+  EventCategory _fromBridgeCategory(dynamic category) {
+    final name = category.toString().split('.').last;
+    switch (name) {
+      case 'equipment':
+        return EventCategory.equipment;
+      case 'imaging':
+        return EventCategory.imaging;
+      case 'guiding':
+        return EventCategory.guiding;
+      case 'sequencer':
+        return EventCategory.sequencer;
+      case 'safety':
+        return EventCategory.safety;
+      case 'system':
+        return EventCategory.system;
+      case 'polarAlignment':
+        return EventCategory.polarAlignment;
+      default:
+        return EventCategory.system;
+    }
+  }
+}

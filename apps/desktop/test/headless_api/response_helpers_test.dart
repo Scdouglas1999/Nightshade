@@ -72,6 +72,30 @@ void main() {
           3);
     });
 
+    test('streamResponse preserves streaming context', () {
+      final response = streamResponse(
+        const Stream<List<int>>.empty(),
+        contentType: 'text/event-stream; charset=utf-8',
+        headers: const {'cache-control': 'no-cache'},
+        context: const {'shelf.io.buffer_output': false},
+      );
+
+      expect(response.statusCode, 200);
+      expect(
+        response.headers['content-type'],
+        'text/event-stream; charset=utf-8',
+      );
+      expect(response.headers['cache-control'], 'no-cache');
+      expect(response.context['shelf.io.buffer_output'], false);
+    });
+
+    test('noContentResponse returns 204 without a body', () async {
+      final response = noContentResponse();
+
+      expect(response.statusCode, 204);
+      expect(await response.readAsString(), isEmpty);
+    });
+
     test('attachment filenames strip unsafe path and control characters', () {
       expect(
         attachmentDisposition('../bad/name \u0000".zip'),

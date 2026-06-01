@@ -165,11 +165,17 @@ class WeatherRadarService {
 
     // Fetch radar frames from the selected provider
     try {
-      final result = await provider.fetchRadarFrames(
+      final fetched = await provider.fetchRadarFrames(
         latitude: latitude,
         longitude: longitude,
         radiusKm: radiusKm,
       );
+
+      // Tag the result with the provider's display name so the UI can attribute
+      // the data source. Errors keep their own message; success gets the name.
+      final result = fetched.isSuccess
+          ? fetched.withProviderName(provider.name)
+          : fetched;
 
       // Cache the result
       _cachedResult = result;
@@ -209,6 +215,12 @@ class WeatherRadarService {
       return errorResult;
     }
   }
+
+  /// The most recent fetch result, including provider attribution and fetch
+  /// time. Null until the first fetch completes. Includes failed results (so
+  /// callers can inspect [RadarFetchResult.errorMessage]); use
+  /// [RadarFetchResult.isSuccess] to distinguish.
+  RadarFetchResult? get lastResult => _cachedResult;
 
   /// Gets cached radar frames if available.
   ///

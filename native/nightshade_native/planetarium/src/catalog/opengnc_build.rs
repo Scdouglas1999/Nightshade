@@ -128,7 +128,7 @@ pub fn opengnc_row_to_record(fields: &[&str]) -> Option<DsoRecord> {
 
     let mut messier_num = 0u32;
     if fields.len() > 23 {
-        if let Some(n) = fields[23].trim().parse::<u32>().ok() {
+        if let Ok(n) = fields[23].trim().parse::<u32>() {
             if (1..=110).contains(&n) {
                 messier_num = n;
             }

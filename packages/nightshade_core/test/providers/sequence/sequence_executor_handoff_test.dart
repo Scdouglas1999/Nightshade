@@ -1,4 +1,4 @@
-﻿// Wave 7.5 — verifies that SequenceExecutor consumes
+// Wave 7.5 — verifies that SequenceExecutor consumes
 // `sessionHandoffDecisionProvider(family)` at start() and pushes the
 // resolved per-target carry-over map into the Rust backend via
 // `sequencerUpdatePendingIntegrationCarryOver`.
@@ -108,9 +108,8 @@ void main() {
     test('Resume forwards per-filter totals to the backend', () async {
       // Seed the DB so detectCarryOver returns a real SessionCarryOver
       // for "M31" with 5 × 300s Lum frames.
-      final now = DateTime(2026, 5, 18, 22);
-      final targetId =
-          await _createTarget(db, name: 'M31', catalogId: 'M31');
+      final now = DateTime.now();
+      final targetId = await _createTarget(db, name: 'M31', catalogId: 'M31');
       final sid = await _insertSession(
         db,
         targetId: targetId,
@@ -138,9 +137,7 @@ void main() {
       );
       // Set the current sequence so sessionCarryOverProvider rebuilds
       // against it.
-      container
-          .read(currentSequenceProvider.notifier)
-          .loadSequence(sequence);
+      container.read(currentSequenceProvider.notifier).loadSequence(sequence);
 
       // Operator chose Resume for this target.
       container
@@ -155,12 +152,11 @@ void main() {
         sequence,
       );
 
-      final captured = verify(() => backend
-              .sequencerUpdatePendingIntegrationCarryOver(captureAny()))
+      final captured = verify(() =>
+              backend.sequencerUpdatePendingIntegrationCarryOver(captureAny()))
           .captured;
       expect(captured, hasLength(1));
-      final payload =
-          captured.single as Map<String, Map<String, double>>;
+      final payload = captured.single as Map<String, Map<String, double>>;
       // Single target entry keyed by the Dart TargetHeaderNode.id (the
       // BudgetRegistry's lookup key).
       expect(payload.keys, [header.id]);
@@ -169,9 +165,8 @@ void main() {
     });
 
     test('Restart forwards an empty map for the target', () async {
-      final now = DateTime(2026, 5, 18, 22);
-      final targetId =
-          await _createTarget(db, name: 'M42', catalogId: 'M42');
+      final now = DateTime.now();
+      final targetId = await _createTarget(db, name: 'M42', catalogId: 'M42');
       final sid = await _insertSession(
         db,
         targetId: targetId,
@@ -195,9 +190,7 @@ void main() {
         nodes: {header.id: header},
         rootNodeId: header.id,
       );
-      container
-          .read(currentSequenceProvider.notifier)
-          .loadSequence(sequence);
+      container.read(currentSequenceProvider.notifier).loadSequence(sequence);
       container
           .read(sessionHandoffDecisionProvider(
             (sequenceId: null, targetId: targetId),
@@ -210,18 +203,17 @@ void main() {
         sequence,
       );
 
-      final captured = verify(() => backend
-              .sequencerUpdatePendingIntegrationCarryOver(captureAny()))
+      final captured = verify(() =>
+              backend.sequencerUpdatePendingIntegrationCarryOver(captureAny()))
           .captured;
-      final payload =
-          captured.single as Map<String, Map<String, double>>;
+      final payload = captured.single as Map<String, Map<String, double>>;
       // Restart writes an explicit empty inner map so the Rust side
       // zeroes any pre-existing per-target state.
       expect(payload, {header.id: <String, double>{}});
     });
 
     test('ContinueNew omits the target from the payload', () async {
-      final now = DateTime(2026, 5, 18, 22);
+      final now = DateTime.now();
       final targetId =
           await _createTarget(db, name: 'NGC 7000', catalogId: 'NGC7000');
       final sid = await _insertSession(
@@ -247,9 +239,7 @@ void main() {
         nodes: {header.id: header},
         rootNodeId: header.id,
       );
-      container
-          .read(currentSequenceProvider.notifier)
-          .loadSequence(sequence);
+      container.read(currentSequenceProvider.notifier).loadSequence(sequence);
       container
           .read(sessionHandoffDecisionProvider(
             (sequenceId: null, targetId: targetId),
@@ -263,12 +253,12 @@ void main() {
       );
 
       // ContinueNew → payload was empty → backend never called.
-      verifyNever(() => backend
-          .sequencerUpdatePendingIntegrationCarryOver(any()));
+      verifyNever(
+          () => backend.sequencerUpdatePendingIntegrationCarryOver(any()));
     });
 
     test('no decision recorded → backend not called', () async {
-      final now = DateTime(2026, 5, 18, 22);
+      final now = DateTime.now();
       final targetId =
           await _createTarget(db, name: 'IC 1396', catalogId: 'IC1396');
       final sid = await _insertSession(
@@ -294,9 +284,7 @@ void main() {
         nodes: {header.id: header},
         rootNodeId: header.id,
       );
-      container
-          .read(currentSequenceProvider.notifier)
-          .loadSequence(sequence);
+      container.read(currentSequenceProvider.notifier).loadSequence(sequence);
 
       // No decision set — provider returns null. The seeder must NOT
       // pre-emptively zero or guess; the budget tracker starts default.
@@ -306,8 +294,8 @@ void main() {
         sequence,
       );
 
-      verifyNever(() => backend
-          .sequencerUpdatePendingIntegrationCarryOver(any()));
+      verifyNever(
+          () => backend.sequencerUpdatePendingIntegrationCarryOver(any()));
     });
 
     test('no target headers → early return, no backend call', () async {
@@ -320,8 +308,8 @@ void main() {
         backend,
         sequence,
       );
-      verifyNever(() => backend
-          .sequencerUpdatePendingIntegrationCarryOver(any()));
+      verifyNever(
+          () => backend.sequencerUpdatePendingIntegrationCarryOver(any()));
     });
   });
 }

@@ -27,6 +27,7 @@
 // (no network, no asset bundle), exactly like the framing registration golden's
 // survey-image fixture.
 
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -291,6 +292,130 @@ void main() {
     expect(allskyRecorder.drawVerticesCount, visibleSet.tiles.length,
         reason: 'The Allsky base must paint one warped cell per visible tile, '
             'so a freshly-targeted view is never blank.');
+  });
+
+  test(
+      'Allsky base uses square packed cells (non-square grid): the sub-rectangle '
+      'sampled for a high-row tile is not row-drifted', () async {
+    // REGRESSION (registration offset): the HiPS Allsky packs the 12*4^k order-k
+    // tiles into a grid that is floor(sqrt(N)) cells WIDE but ceil(N/width) cells
+    // TALL — NOT square (order 3: 768 tiles -> 27 wide x 29 tall, last row partly
+    // empty). A painter that derived the cell HEIGHT from the WIDTH
+    // (height/27 instead of height/29) made every cell ~7% too tall AND drifted
+    // the sampled row-origin downward by `row * excess` px, so a high-row tile's
+    // coarse base sampled the wrong sky — the whole Allsky mosaic appeared shifted
+    // (M81 at Dec+69, whose order-3 ancestor is at row 4, landed ~0.3deg
+    // off-centre). The cells are SQUARE, so the correct cell height is
+    // `image.height / ceil(N/nbTilesPerLine)`, which equals the cell width.
+    //
+    // This pins it with a per-row vertical GRADIENT Allsky (green encodes the
+    // exact Allsky-Y), so the sampled green at a tile's screen centre reveals the
+    // sub-cell-precise Allsky-Y the painter sampled. With square cells that Y must
+    // fall inside the tile's order-3 ancestor cell's true pixel band; the buggy
+    // too-tall cell would push it `row * excess` px past the band's bottom.
+    const allskyOrder = 3;
+    final nbPerLine = math.sqrt(12 * (1 << (2 * allskyOrder))).floor(); // 27
+    final nbRows =
+        (12 * (1 << (2 * allskyOrder)) + nbPerLine - 1) ~/ nbPerLine; // 29
+    const cellPx = 16;
+    final allskyW = nbPerLine * cellPx;
+    final allskyH = nbRows * cellPx; // square cells: cellH == cellW == 16
+
+    // Green channel = a vertical gradient over the FULL Allsky height, so a
+    // sampled green value decodes back to the exact Allsky-Y that was sampled.
+    final allsky = await () async {
+      final rec = ui.PictureRecorder();
+      final c = Canvas(rec);
+      for (var y = 0; y < allskyH; y++) {
+        final g = (y * 255 / (allskyH - 1)).round().clamp(0, 255);
+        c.drawRect(
+          Rect.fromLTWH(0, y.toDouble(), allskyW.toDouble(), 1),
+          Paint()..color = Color.fromARGB(255, 40, g, 60),
+        );
+      }
+      return rec.endRecording().toImage(allskyW, allskyH);
+    }();
+    addTearDown(allsky.dispose);
+
+    const m81 = FramingTarget(
+      name: 'M81',
+      catalogId: 'M81',
+      raHours: 9.92583,
+      decDegrees: 69.0653,
+    );
+    final norder = HipsTileSelection.selectNorder(
+      _plateScale.pixelsPerDegree(_canvasSize, 1.0),
+      _props,
+    );
+    final visibleSet = HipsTileSelection.computeVisibleTiles(
+      _plateScale, m81, _canvasSize, 1.0, norder, _props,
+      surveyId: _surveyId,
+    );
+
+    final cache = HipsTileCache(maxEntries: 8, maxBytes: 8 * 1024 * 1024);
+    addTearDown(cache.dispose);
+    final snapshot = _snapshotFrom(
+      visibleSet: visibleSet,
+      cache: cache,
+      primary: const [],
+      allsky: allsky,
+    );
+    final painter =
+        HipsTileLayerPainter(snapshot: snapshot, allskyOrder: allskyOrder);
+
+    final rec = ui.PictureRecorder();
+    final canvas = Canvas(rec);
+    canvas.drawRect(Offset.zero & _canvasSize, Paint()..color = const Color(0xFF000000));
+    painter.paint(canvas, _canvasSize);
+    final out = await rec.endRecording().toImage(
+          _canvasSize.width.toInt(),
+          _canvasSize.height.toInt(),
+        );
+    addTearDown(out.dispose);
+    final bytes = (await out.toByteData(format: ui.ImageByteFormat.rawRgba))!
+        .buffer
+        .asUint8List();
+    final w = _canvasSize.width.toInt();
+    final h = _canvasSize.height.toInt();
+
+    final shift = 2 * (norder - allskyOrder);
+    final cellH = allskyH / nbRows; // correct, square (== cell width)
+    var checked = 0;
+    for (final tile in visibleSet.tiles) {
+      // Use the centre mesh vertex: its (u, v) drives the sampled Allsky sub-cell
+      // coordinate via the painter's tx=v, ty=1-u rotation, so we can predict the
+      // EXACT correct sampled Allsky-Y and compare to what actually rendered.
+      final mid = tile.mesh.subdivisions ~/ 2;
+      final vtx = tile.mesh.vertexAt(mid, mid);
+      final sx = vtx.screen.dx.round();
+      final sy = vtx.screen.dy.round();
+      if (sx < 2 || sx >= w - 2 || sy < 2 || sy >= h - 2) continue;
+
+      final ancestorNpix = tile.id.npix >> shift;
+      final expRow = ancestorNpix ~/ nbPerLine;
+      // The painter maps mesh (u, v) -> image (tx=v, ty=1-u); for the Allsky cell
+      // the sampled Allsky-Y is cellOriginY + ty * cellH, with square cells.
+      final ty = 1.0 - vtx.u;
+      final expectedSampledY = expRow * cellH + ty * cellH;
+
+      // Decode the actually-sampled Allsky-Y from the green gradient.
+      final g = bytes[(sy * w + sx) * 4 + 1];
+      final sampledY = g * (allskyH - 1) / 255.0;
+
+      // They must agree to a couple of px (gradient quantisation + bilinear). The
+      // non-square-cell bug shifts the sampled Y by `expRow * (excessHeight)` plus
+      // the within-cell stretch — several px at row 4 — which this catches.
+      expect((sampledY - expectedSampledY).abs(), lessThan(2.5),
+          reason: 'Tile npix=${tile.id.npix} (ancestor row $expRow): the painter '
+              'sampled Allsky-Y $sampledY but square-cell geometry requires '
+              '$expectedSampledY. A mismatch is the non-square-grid bug — the '
+              'Allsky cell height was derived from the grid WIDTH instead of the '
+              'true row count, drifting the coarse base off the registered tiles.');
+      checked++;
+    }
+    expect(checked, greaterThan(0),
+        reason: 'At least one visible tile centre must be on-canvas to verify '
+            'the Allsky cell registration.');
   });
 
   test('fallback tiles draw under primary tiles (both via mesh)', () async {

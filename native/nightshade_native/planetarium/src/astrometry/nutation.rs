@@ -1063,7 +1063,8 @@ fn fmod_positive(x: f64, modulus: f64) -> f64 {
 fn delaunay_arguments_rad(t: f64) -> (f64, f64, f64, f64, f64) {
     let el =
         fmod_positive(485_868.249_036 + 1_717_915_923.217_8 * t, TURNAS_ARCSEC) * ARCSEC_TO_RAD;
-    let elp = fmod_positive(128_7104.793_05 + 129_596_581.048_1 * t, TURNAS_ARCSEC) * ARCSEC_TO_RAD;
+    let elp =
+        fmod_positive(1_287_104.793_05 + 129_596_581.048_1 * t, TURNAS_ARCSEC) * ARCSEC_TO_RAD;
     let f = fmod_positive(335_779.526_232 + 1_739_527_262.847_8 * t, TURNAS_ARCSEC) * ARCSEC_TO_RAD;
     let d =
         fmod_positive(1_072_260.703_69 + 1_602_961_601.209_0 * t, TURNAS_ARCSEC) * ARCSEC_TO_RAD;

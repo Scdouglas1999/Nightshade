@@ -30,8 +30,9 @@ use crate::utils::{
 use crate::NativeVendor;
 use async_trait::async_trait;
 use nightshade_imaging::buffer_pool::global_u8_pool;
+use std::collections::HashMap;
 use std::ffi::{c_char, c_int, c_long, c_uchar, CStr};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
 
 // =============================================================================
 // ASI SDK TYPE DEFINITIONS
@@ -1850,6 +1851,67 @@ fn check_eaf_error(code: c_int) -> Result<(), NativeError> {
 }
 
 // =============================================================================
+// CONNECTED-DEVICE REGISTRIES (EAF + EFW)
+// =============================================================================
+//
+// Purpose: prevent hot-plug discovery polls from calling EAFOpen/EAFClose (or
+// EFWOpen/EFWClose) on device IDs that are already held open by a live session.
+// The ZWO SDKs share a single OS-level handle per device ID; calling Close on
+// a connected device's ID closes the session's handle, causing the next SDK
+// call from the session to return EAF_ERROR_CLOSED (9) / EFW_ERROR_CLOSED (9),
+// which surfaces as spurious "Heartbeat failure" warnings in the UI.
+//
+// Lock ordering rule (must be respected everywhere to prevent deadlock):
+//   Registry lock  MUST NOT be held while acquiring the SDK mutex.
+//   Acquire registry lock → read/copy entry → RELEASE registry lock → then
+//   acquire SDK mutex if needed. Discovery acquires the SDK mutex first (before
+//   reading the registry), so inside the discovery loop the SDK mutex is
+//   already held; acquiring the registry lock there (briefly, no SDK call
+//   while holding it) is safe because the registry lock is never taken in the
+//   other direction (registry → then SDK mutex).
+//
+// Both registries use std::sync::Mutex (not tokio::sync::Mutex) because all
+// accesses are brief, synchronous, non-blocking, and must not span await points.
+
+/// Cached EAF discovery metadata stored for a connected focuser.
+/// Mirrors the fields of `ZwoFocuserDiscoveryInfo` exactly so discovery can
+/// reconstruct a complete entry without opening the device.
+#[derive(Clone)]
+struct ConnectedEafEntry {
+    focuser_id: i32,
+    name: String,
+    serial_number: Option<String>,
+    sdk_version: Option<String>,
+}
+
+/// Cached EFW discovery metadata stored for a connected filter wheel.
+/// Mirrors the fields of `ZwoFilterWheelDiscoveryInfo` exactly.
+#[derive(Clone)]
+struct ConnectedEfwEntry {
+    filterwheel_id: i32,
+    name: String,
+    slot_count: i32,
+    serial_number: Option<String>,
+    sdk_version: Option<String>,
+}
+
+/// Registry of currently-connected EAF focusers keyed by SDK device ID.
+/// Key is the `c_int` SDK id (same value as `ZwoFocuser::focuser_id`).
+static CONNECTED_EAF: OnceLock<Mutex<HashMap<i32, ConnectedEafEntry>>> = OnceLock::new();
+
+fn connected_eaf() -> &'static Mutex<HashMap<i32, ConnectedEafEntry>> {
+    CONNECTED_EAF.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+/// Registry of currently-connected EFW filter wheels keyed by SDK device ID.
+/// Key is the `c_int` SDK id (same value as `ZwoFilterWheel::filterwheel_id`).
+static CONNECTED_EFW: OnceLock<Mutex<HashMap<i32, ConnectedEfwEntry>>> = OnceLock::new();
+
+fn connected_efw() -> &'static Mutex<HashMap<i32, ConnectedEfwEntry>> {
+    CONNECTED_EFW.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+// =============================================================================
 // ZWO FOCUSER IMPLEMENTATION
 // =============================================================================
 
@@ -1952,10 +2014,58 @@ impl NativeDevice for ZwoFocuser {
             );
         }
 
+        // Read serial number under the still-held SDK mutex so we can populate
+        // the connected-device registry below. This is the same call discovery
+        // makes; doing it at connect time means discovery never needs to open
+        // an already-connected device just to re-read its serial number.
+        // SAFETY: EAFSerialNumber is `#[repr(C)]` POD; zeroed is a valid initial state.
+        let mut sn: EAFSerialNumber = unsafe { std::mem::zeroed() };
+        // SAFETY: zwo_eaf_mutex held by connect(); `sn` is a valid stack pointer; focuser_id is open.
+        let serial_number = if unsafe { (sdk.get_serial_number)(self.focuser_id, &mut sn) } == 0 {
+            let sn_bytes: [u8; 8] = sn.id;
+            let sn_str = sn_bytes
+                .iter()
+                .take_while(|&&b| b != 0)
+                .map(|&b| format!("{:02X}", b))
+                .collect::<String>();
+            if sn_str.is_empty() {
+                None
+            } else {
+                Some(sn_str)
+            }
+        } else {
+            None
+        };
+
         // All operations succeeded - defuse the cleanup guard
         cleanup_guard.defuse();
 
         self.connected = true;
+
+        // Populate the connected-EAF registry so that hot-plug discovery polls
+        // can report this device from cache instead of calling EAFOpen/EAFClose
+        // on the live handle.
+        // Lock ordering: registry lock acquired here with NO SDK mutex held —
+        // the SDK mutex guard (_lock) is still live but the registry lock is
+        // always shorter-lived than it; inside discover_focusers the registry
+        // lock is acquired while the SDK mutex IS held (see lock-ordering note
+        // at the top of CONNECTED-DEVICE REGISTRIES). That direction is safe
+        // because discover_focusers never calls back into the registry while
+        // holding it, and connect/disconnect never hold the registry lock across
+        // an SDK call. So the two acquisition orders don't create a cycle.
+        {
+            let mut reg = connected_eaf().lock().unwrap_or_else(|e| e.into_inner());
+            reg.insert(
+                self.focuser_id,
+                ConnectedEafEntry {
+                    focuser_id: self.focuser_id,
+                    name: self.name.clone(),
+                    serial_number,
+                    sdk_version: eaf_sdk_version_from_sdk(sdk),
+                },
+            );
+        }
+
         tracing::info!(
             "Connected to ZWO EAF: {} (max step: {}, step size: {:?} um)",
             self.name,
@@ -1982,6 +2092,16 @@ impl NativeDevice for ZwoFocuser {
         check_eaf_error(result)?;
 
         self.connected = false;
+
+        // Remove from the connected-EAF registry so that subsequent discovery
+        // polls perform a full open/query/close (device may have been physically
+        // replugged). Lock ordering: registry lock acquired with SDK mutex held;
+        // this is the same ordering as inside discover_focusers, so no cycle.
+        {
+            let mut reg = connected_eaf().lock().unwrap_or_else(|e| e.into_inner());
+            reg.remove(&self.focuser_id);
+        }
+
         tracing::info!("Disconnected from ZWO EAF");
         Ok(())
     }
@@ -2241,61 +2361,101 @@ pub async fn discover_focusers() -> Result<Vec<ZwoFocuserDiscoveryInfo>, NativeE
         // SAFETY: zwo_eaf_mutex held above; `i` is bounded by num_focusers; `id` is a valid stack pointer.
         let result = unsafe { (sdk.get_id)(i, &mut id) };
 
+        if result != 0 {
+            continue;
+        }
+
+        // Lock-ordering note: the SDK mutex (zwo_eaf_mutex) is held for the
+        // duration of discover_focusers. The registry lock is acquired briefly
+        // here to read a cached entry, then immediately released before any SDK
+        // call. The connect/disconnect paths acquire the registry lock while the
+        // SDK mutex may or may not be held, but they never hold the registry
+        // lock across an SDK call. So the two acquisition orders are:
+        //   discover: SDK mutex → registry lock (read only, released immediately)
+        //   connect:  SDK mutex held → registry lock (no SDK call while held)
+        //   disconnect: SDK mutex held → registry lock (no SDK call while held)
+        // There is no inverse path (registry → then waiting for SDK mutex), so
+        // no deadlock cycle exists.
+        let cached_entry: Option<ConnectedEafEntry> = {
+            let reg = connected_eaf().lock().unwrap_or_else(|e| e.into_inner());
+            reg.get(&id).cloned()
+        };
+        // Registry lock is released here before any SDK call.
+
+        if let Some(entry) = cached_entry {
+            // This device ID has an active session with its handle open. Skip
+            // EAFOpen/EAFGetProperty/EAFGetSerialNumber/EAFClose entirely to
+            // avoid closing the live handle. Report from cached metadata.
+            tracing::debug!(
+                "ZWO EAF discovery: skipping open/close for connected focuser ID {} ({}); using cached metadata",
+                id,
+                entry.name
+            );
+            focusers.push(ZwoFocuserDiscoveryInfo {
+                focuser_id: entry.focuser_id,
+                name: entry.name,
+                serial_number: entry.serial_number,
+                sdk_version: entry.sdk_version,
+                // Why: `i` is loop index (c_int, 0..count) — non-negative by
+                // construction. `as usize` is widening with verified non-negative.
+                discovery_index: i as usize,
+            });
+            continue;
+        }
+
+        // Not a connected device — perform the normal open/query/close discovery.
+        // SAFETY: zwo_eaf_mutex held above; `id` was just populated by EAFGetID, a valid SDK identifier.
+        let result = unsafe { (sdk.open)(id) };
         if result == 0 {
-            // Get focuser info
-            // SAFETY: zwo_eaf_mutex held above; `id` was just populated by EAFGetID, a valid SDK identifier.
-            let result = unsafe { (sdk.open)(id) };
-            if result == 0 {
-                // SAFETY: EAFInfo is `#[repr(C)]` POD; zeroed is a valid initial state.
-                let mut info: EAFInfo = unsafe { std::mem::zeroed() };
-                // SAFETY: mutex held; `info` is a valid stack pointer; `id` was just successfully opened.
-                let _ = unsafe { (sdk.get_property)(id, &mut info) };
-                // SAFETY: ASI SDK guarantees `info.name` is NUL-terminated within the 64-byte array.
-                let name = unsafe {
-                    CStr::from_ptr(info.name.as_ptr())
-                        .to_string_lossy()
-                        .to_string()
-                };
+            // SAFETY: EAFInfo is `#[repr(C)]` POD; zeroed is a valid initial state.
+            let mut info: EAFInfo = unsafe { std::mem::zeroed() };
+            // SAFETY: mutex held; `info` is a valid stack pointer; `id` was just successfully opened.
+            let _ = unsafe { (sdk.get_property)(id, &mut info) };
+            // SAFETY: ASI SDK guarantees `info.name` is NUL-terminated within the 64-byte array.
+            let name = unsafe {
+                CStr::from_ptr(info.name.as_ptr())
+                    .to_string_lossy()
+                    .to_string()
+            };
 
-                // Try to get serial number (must be done before close)
-                // SAFETY: EAFSerialNumber is `#[repr(C)]` POD (just `id: [u8; 8]`); zeroed is valid.
-                let mut sn: EAFSerialNumber = unsafe { std::mem::zeroed() };
-                // SAFETY: mutex held; `sn` is a valid stack pointer; `id` is open.
-                let serial_number = if unsafe { (sdk.get_serial_number)(id, &mut sn) } == 0 {
-                    let sn_bytes: [u8; 8] = sn.id;
-                    let sn_str = sn_bytes
-                        .iter()
-                        .take_while(|&&b| b != 0)
-                        .map(|&b| format!("{:02X}", b))
-                        .collect::<String>();
-                    if sn_str.is_empty() {
-                        None
-                    } else {
-                        Some(sn_str)
-                    }
-                } else {
+            // Try to get serial number (must be done before close)
+            // SAFETY: EAFSerialNumber is `#[repr(C)]` POD (just `id: [u8; 8]`); zeroed is valid.
+            let mut sn: EAFSerialNumber = unsafe { std::mem::zeroed() };
+            // SAFETY: mutex held; `sn` is a valid stack pointer; `id` is open.
+            let serial_number = if unsafe { (sdk.get_serial_number)(id, &mut sn) } == 0 {
+                let sn_bytes: [u8; 8] = sn.id;
+                let sn_str = sn_bytes
+                    .iter()
+                    .take_while(|&&b| b != 0)
+                    .map(|&b| format!("{:02X}", b))
+                    .collect::<String>();
+                if sn_str.is_empty() {
                     None
-                };
+                } else {
+                    Some(sn_str)
+                }
+            } else {
+                None
+            };
 
-                // SAFETY: mutex held; `id` was successfully opened above. EAFClose pairs with EAFOpen.
-                let _ = unsafe { (sdk.close)(id) };
+            // SAFETY: mutex held; `id` was successfully opened above. EAFClose pairs with EAFOpen.
+            let _ = unsafe { (sdk.close)(id) };
 
-                tracing::info!(
-                    "Found ZWO EAF: {} (ID: {}, SN: {:?})",
-                    name,
-                    id,
-                    serial_number
-                );
-                focusers.push(ZwoFocuserDiscoveryInfo {
-                    focuser_id: id,
-                    name,
-                    serial_number,
-                    sdk_version: sdk_version.clone(),
-                    // Why: `i` is the loop index (c_int, 0..count) — non-negative by
-                    // construction. `as usize` is widening with verified non-negative.
-                    discovery_index: i as usize,
-                });
-            }
+            tracing::info!(
+                "Found ZWO EAF: {} (ID: {}, SN: {:?})",
+                name,
+                id,
+                serial_number
+            );
+            focusers.push(ZwoFocuserDiscoveryInfo {
+                focuser_id: id,
+                name,
+                serial_number,
+                sdk_version: sdk_version.clone(),
+                // Why: `i` is the loop index (c_int, 0..count) — non-negative by
+                // construction. `as usize` is widening with verified non-negative.
+                discovery_index: i as usize,
+            });
         }
     }
 
@@ -2515,10 +2675,55 @@ impl NativeDevice for ZwoFilterWheel {
             .map(|i| format!("Filter {}", i + 1))
             .collect();
 
+        // Read serial number under the still-held SDK mutex so we can populate
+        // the connected-device registry below. This is the same call discovery
+        // makes; doing it at connect time means discovery never needs to open
+        // an already-connected device just to re-read its serial number.
+        // SAFETY: EFWSerialNumber is `#[repr(C)]` POD; zeroed is a valid initial state.
+        let mut sn: EFWSerialNumber = unsafe { std::mem::zeroed() };
+        // SAFETY: zwo_efw_mutex held by connect(); `sn` is a valid stack pointer; filterwheel_id is open.
+        let connect_serial_number =
+            if unsafe { (sdk.get_serial_number)(self.filterwheel_id, &mut sn) } == 0 {
+                let sn_bytes: [u8; 8] = sn.id;
+                let sn_str = sn_bytes
+                    .iter()
+                    .take_while(|&&b| b != 0)
+                    .map(|&b| format!("{:02X}", b))
+                    .collect::<String>();
+                if sn_str.is_empty() {
+                    None
+                } else {
+                    Some(sn_str)
+                }
+            } else {
+                None
+            };
+
         // All operations succeeded - defuse the cleanup guard
         cleanup_guard.defuse();
 
         self.connected = true;
+
+        // Populate the connected-EFW registry so that hot-plug discovery polls
+        // can report this device from cache instead of calling EFWOpen/EFWClose
+        // on the live handle.
+        // Lock ordering: registry lock acquired here with SDK mutex (_lock) still
+        // live. No SDK call is made while holding the registry lock. Inside
+        // discover_filter_wheels the SDK mutex is held when the registry lock is
+        // acquired (same direction). No inverse ordering exists, so no deadlock.
+        {
+            let mut reg = connected_efw().lock().unwrap_or_else(|e| e.into_inner());
+            reg.insert(
+                self.filterwheel_id,
+                ConnectedEfwEntry {
+                    filterwheel_id: self.filterwheel_id,
+                    name: self.name.clone(),
+                    slot_count: self.slot_count,
+                    serial_number: connect_serial_number,
+                    sdk_version: efw_sdk_version_from_sdk(sdk),
+                },
+            );
+        }
 
         // Drop the mutex before the async sleep so other operations aren't blocked
         drop(_lock);
@@ -2568,6 +2773,16 @@ impl NativeDevice for ZwoFilterWheel {
         check_efw_error(result)?;
 
         self.connected = false;
+
+        // Remove from the connected-EFW registry so that subsequent discovery
+        // polls perform a full open/query/close (device may have been physically
+        // replugged). Lock ordering: registry lock acquired with SDK mutex held;
+        // same ordering as inside discover_filter_wheels; no deadlock cycle.
+        {
+            let mut reg = connected_efw().lock().unwrap_or_else(|e| e.into_inner());
+            reg.remove(&self.filterwheel_id);
+        }
+
         tracing::info!("Disconnected from ZWO EFW");
         Ok(())
     }
@@ -2783,64 +2998,101 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
         // SAFETY: zwo_efw_mutex held above; `i` is bounded by num_wheels; `id` is a valid stack pointer.
         let result = unsafe { (sdk.get_id)(i, &mut id) };
 
+        if result != 0 {
+            continue;
+        }
+
+        // Lock-ordering note: the SDK mutex (zwo_efw_mutex) is held for the
+        // duration of discover_filter_wheels. The registry lock is acquired
+        // briefly here to read a cached entry, then immediately released before
+        // any SDK call. The connect/disconnect paths acquire the registry lock
+        // while the SDK mutex may or may not be held, but never hold the
+        // registry lock across an SDK call. No inverse ordering exists (registry
+        // → waiting for SDK mutex), so no deadlock cycle.
+        let cached_entry: Option<ConnectedEfwEntry> = {
+            let reg = connected_efw().lock().unwrap_or_else(|e| e.into_inner());
+            reg.get(&id).cloned()
+        };
+        // Registry lock is released here before any SDK call.
+
+        if let Some(entry) = cached_entry {
+            // This device ID has an active session with its handle open. Skip
+            // EFWOpen/EFWGetProperty/EFWGetSerialNumber/EFWClose entirely to
+            // avoid closing the live handle. Report from cached metadata.
+            tracing::debug!(
+                "ZWO EFW discovery: skipping open/close for connected filter wheel ID {} ({}); using cached metadata",
+                id,
+                entry.name
+            );
+            wheels.push(ZwoFilterWheelDiscoveryInfo {
+                filterwheel_id: entry.filterwheel_id,
+                name: entry.name,
+                slot_count: entry.slot_count,
+                serial_number: entry.serial_number,
+                sdk_version: entry.sdk_version,
+                // Why: `i` is loop index (c_int, 0..count) — non-negative by
+                // construction. `as usize` is widening with verified non-negative.
+                discovery_index: i as usize,
+            });
+            continue;
+        }
+
+        // Not a connected device — perform the normal open/query/close discovery.
+        // SAFETY: mutex held; `id` was just populated by EFWGetID.
+        let result = unsafe { (sdk.open)(id) };
         if result == 0 {
-            // Get filter wheel info
-            // SAFETY: mutex held; `id` was just populated by EFWGetID.
-            let result = unsafe { (sdk.open)(id) };
-            if result == 0 {
-                // SAFETY: EFWInfo is `#[repr(C)]` POD; zeroed is a valid initial state.
-                let mut info: EFWInfo = unsafe { std::mem::zeroed() };
-                // SAFETY: mutex held; `info` is a valid stack pointer; `id` was just successfully opened.
-                let _ = unsafe { (sdk.get_property)(id, &mut info) };
-                // SAFETY: ASI SDK guarantees `info.name` is NUL-terminated within the 64-byte array.
-                let name = unsafe {
-                    CStr::from_ptr(info.name.as_ptr())
-                        .to_string_lossy()
-                        .to_string()
-                };
-                let slot_count = info.slot_num;
+            // SAFETY: EFWInfo is `#[repr(C)]` POD; zeroed is a valid initial state.
+            let mut info: EFWInfo = unsafe { std::mem::zeroed() };
+            // SAFETY: mutex held; `info` is a valid stack pointer; `id` was just successfully opened.
+            let _ = unsafe { (sdk.get_property)(id, &mut info) };
+            // SAFETY: ASI SDK guarantees `info.name` is NUL-terminated within the 64-byte array.
+            let name = unsafe {
+                CStr::from_ptr(info.name.as_ptr())
+                    .to_string_lossy()
+                    .to_string()
+            };
+            let slot_count = info.slot_num;
 
-                // Try to get serial number (must be done before close)
-                // SAFETY: EFWSerialNumber is `#[repr(C)]` POD (just `id: [u8; 8]`); zeroed is valid.
-                let mut sn: EFWSerialNumber = unsafe { std::mem::zeroed() };
-                // SAFETY: mutex held; `sn` is a valid stack pointer; `id` is open.
-                let serial_number = if unsafe { (sdk.get_serial_number)(id, &mut sn) } == 0 {
-                    let sn_bytes: [u8; 8] = sn.id;
-                    let sn_str = sn_bytes
-                        .iter()
-                        .take_while(|&&b| b != 0)
-                        .map(|&b| format!("{:02X}", b))
-                        .collect::<String>();
-                    if sn_str.is_empty() {
-                        None
-                    } else {
-                        Some(sn_str)
-                    }
-                } else {
+            // Try to get serial number (must be done before close)
+            // SAFETY: EFWSerialNumber is `#[repr(C)]` POD (just `id: [u8; 8]`); zeroed is valid.
+            let mut sn: EFWSerialNumber = unsafe { std::mem::zeroed() };
+            // SAFETY: mutex held; `sn` is a valid stack pointer; `id` is open.
+            let serial_number = if unsafe { (sdk.get_serial_number)(id, &mut sn) } == 0 {
+                let sn_bytes: [u8; 8] = sn.id;
+                let sn_str = sn_bytes
+                    .iter()
+                    .take_while(|&&b| b != 0)
+                    .map(|&b| format!("{:02X}", b))
+                    .collect::<String>();
+                if sn_str.is_empty() {
                     None
-                };
+                } else {
+                    Some(sn_str)
+                }
+            } else {
+                None
+            };
 
-                // SAFETY: mutex held; `id` was successfully opened above. EFWClose pairs with EFWOpen.
-                let _ = unsafe { (sdk.close)(id) };
+            // SAFETY: mutex held; `id` was successfully opened above. EFWClose pairs with EFWOpen.
+            let _ = unsafe { (sdk.close)(id) };
 
-                tracing::info!(
-                    "Found ZWO EFW: {} (ID: {}, {} slots, SN: {:?})",
-                    name,
-                    id,
-                    slot_count,
-                    serial_number
-                );
-                wheels.push(ZwoFilterWheelDiscoveryInfo {
-                    filterwheel_id: id,
-                    name,
-                    slot_count,
-                    serial_number,
-                    sdk_version: sdk_version.clone(),
-                    // Why: `i` is loop index (c_int, 0..count) — non-negative by
-                    // construction. `as usize` is widening with verified non-negative.
-                    discovery_index: i as usize,
-                });
-            }
+            tracing::info!(
+                "Found ZWO EFW: {} (ID: {}, {} slots, SN: {:?})",
+                name,
+                id,
+                slot_count,
+                serial_number
+            );
+            wheels.push(ZwoFilterWheelDiscoveryInfo {
+                filterwheel_id: id,
+                name,
+                slot_count,
+                serial_number,
+                sdk_version: sdk_version.clone(),
+                // Why: `i` is loop index (c_int, 0..count) — non-negative by
+                // construction. `as usize` is widening with verified non-negative.
+                discovery_index: i as usize,
+            });
         }
     }
 
@@ -2850,6 +3102,177 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // -------------------------------------------------------------------------
+    // Connected-device registry tests (no hardware required)
+    // -------------------------------------------------------------------------
+
+    /// Insert an EAF entry, verify it can be read back, then remove it.
+    #[test]
+    fn eaf_registry_insert_lookup_remove() {
+        // Use an id unlikely to collide with any real hardware in CI.
+        let id: i32 = 0xDEAD;
+
+        // Insert
+        {
+            let mut reg = connected_eaf().lock().unwrap_or_else(|e| e.into_inner());
+            reg.insert(
+                id,
+                ConnectedEafEntry {
+                    focuser_id: id,
+                    name: "Test EAF".to_string(),
+                    serial_number: Some("AABBCCDD".to_string()),
+                    sdk_version: Some("ZWO EAF SDK v1.0".to_string()),
+                },
+            );
+        }
+
+        // Lookup — must be present with correct data
+        {
+            let reg = connected_eaf().lock().unwrap_or_else(|e| e.into_inner());
+            let entry = reg.get(&id).expect("entry must be present after insert");
+            assert_eq!(entry.focuser_id, id);
+            assert_eq!(entry.name, "Test EAF");
+            assert_eq!(entry.serial_number.as_deref(), Some("AABBCCDD"));
+        }
+
+        // Remove
+        {
+            let mut reg = connected_eaf().lock().unwrap_or_else(|e| e.into_inner());
+            let removed = reg.remove(&id);
+            assert!(removed.is_some(), "remove must return the entry");
+        }
+
+        // Verify gone
+        {
+            let reg = connected_eaf().lock().unwrap_or_else(|e| e.into_inner());
+            assert!(
+                reg.get(&id).is_none(),
+                "entry must not be present after remove"
+            );
+        }
+    }
+
+    /// Insert an EFW entry, verify it can be read back, then remove it.
+    #[test]
+    fn efw_registry_insert_lookup_remove() {
+        let id: i32 = 0xBEEF;
+
+        {
+            let mut reg = connected_efw().lock().unwrap_or_else(|e| e.into_inner());
+            reg.insert(
+                id,
+                ConnectedEfwEntry {
+                    filterwheel_id: id,
+                    name: "Test EFW".to_string(),
+                    slot_count: 7,
+                    serial_number: Some("11223344".to_string()),
+                    sdk_version: Some("ZWO EFW SDK v2.0".to_string()),
+                },
+            );
+        }
+
+        {
+            let reg = connected_efw().lock().unwrap_or_else(|e| e.into_inner());
+            let entry = reg.get(&id).expect("entry must be present after insert");
+            assert_eq!(entry.filterwheel_id, id);
+            assert_eq!(entry.name, "Test EFW");
+            assert_eq!(entry.slot_count, 7);
+            assert_eq!(entry.serial_number.as_deref(), Some("11223344"));
+        }
+
+        {
+            let mut reg = connected_efw().lock().unwrap_or_else(|e| e.into_inner());
+            let removed = reg.remove(&id);
+            assert!(removed.is_some(), "remove must return the entry");
+        }
+
+        {
+            let reg = connected_efw().lock().unwrap_or_else(|e| e.into_inner());
+            assert!(
+                reg.get(&id).is_none(),
+                "entry must not be present after remove"
+            );
+        }
+    }
+
+    /// Discovery skip predicate: if the enumerated id is in the connected-EAF
+    /// registry, the cached name must match what was inserted (simulates the
+    /// check inside the discover_focusers loop without calling any SDK).
+    #[test]
+    fn eaf_discovery_skip_returns_cached_metadata() {
+        let id: i32 = 0x1234;
+        let expected_name = "ZWO EAF-S";
+
+        // Pre-populate as if connect() had run.
+        {
+            let mut reg = connected_eaf().lock().unwrap_or_else(|e| e.into_inner());
+            reg.insert(
+                id,
+                ConnectedEafEntry {
+                    focuser_id: id,
+                    name: expected_name.to_string(),
+                    serial_number: None,
+                    sdk_version: None,
+                },
+            );
+        }
+
+        // Simulate what the discovery loop does: check registry and clone entry.
+        let maybe_entry: Option<ConnectedEafEntry> = {
+            let reg = connected_eaf().lock().unwrap_or_else(|e| e.into_inner());
+            reg.get(&id).cloned()
+        };
+
+        let entry = maybe_entry.expect("discovery loop must find the connected entry");
+        assert_eq!(entry.name, expected_name, "cached name must match");
+        // In the real loop this would `continue` without any SDK call.
+
+        // Cleanup
+        connected_eaf()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&id);
+    }
+
+    /// Discovery skip predicate for EFW: same verification as EAF above.
+    #[test]
+    fn efw_discovery_skip_returns_cached_metadata() {
+        let id: i32 = 0x5678;
+        let expected_name = "ZWO EFW 7-slot";
+
+        {
+            let mut reg = connected_efw().lock().unwrap_or_else(|e| e.into_inner());
+            reg.insert(
+                id,
+                ConnectedEfwEntry {
+                    filterwheel_id: id,
+                    name: expected_name.to_string(),
+                    slot_count: 7,
+                    serial_number: Some("DEADBEEF".to_string()),
+                    sdk_version: None,
+                },
+            );
+        }
+
+        let maybe_entry: Option<ConnectedEfwEntry> = {
+            let reg = connected_efw().lock().unwrap_or_else(|e| e.into_inner());
+            reg.get(&id).cloned()
+        };
+
+        let entry = maybe_entry.expect("discovery loop must find the connected entry");
+        assert_eq!(entry.name, expected_name);
+        assert_eq!(entry.slot_count, 7);
+
+        connected_efw()
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .remove(&id);
+    }
+
+    // -------------------------------------------------------------------------
+    // Pre-existing tests
+    // -------------------------------------------------------------------------
 
     #[test]
     fn zwo_cached_setting_updates_after_success_only() {

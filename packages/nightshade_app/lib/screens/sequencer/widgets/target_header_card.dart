@@ -489,9 +489,24 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
       _ => 'Ready',
     };
 
-    final planLabel = plan.totalExposures > 0
-        ? '${plan.totalExposures} planned exposures • ${_formatDuration(plan.totalIntegrationSecs)}'
-        : 'No exposure nodes under this target';
+    // Build the plan summary. A loop-until-stopped SmartExposure is
+    // open-ended, so we describe it as "looping" (with the budget if set)
+    // rather than inventing a fixed exposure count — and we never fall back to
+    // "No exposure nodes" just because the only imager is an open-ended loop.
+    final String planLabel;
+    if (plan.hasOpenEndedLoop) {
+      final loopPart = plan.loopBudgetSecs > 0
+          ? 'Looping • up to ${_formatDuration(plan.loopBudgetSecs)} (until window end)'
+          : 'Looping until window end';
+      planLabel = plan.totalExposures > 0
+          ? '${plan.totalExposures} planned exposures + $loopPart'
+          : loopPart;
+    } else if (plan.totalExposures > 0) {
+      planLabel =
+          '${plan.totalExposures} planned exposures • ${_formatDuration(plan.totalIntegrationSecs)}';
+    } else {
+      planLabel = 'No exposure nodes under this target';
+    }
 
     if (!showLiveBar) {
       // Idle / completed / skipped — single line with status + plan
@@ -609,14 +624,29 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
     return '$hour:$minute';
   }
 
-  ({int totalExposures, double totalIntegrationSecs}) _calculateTargetPlan(
-      Sequence? sequence) {
+  ({
+    int totalExposures,
+    double totalIntegrationSecs,
+    bool hasOpenEndedLoop,
+    double loopBudgetSecs,
+  }) _calculateTargetPlan(Sequence? sequence) {
     if (sequence == null || !sequence.nodes.containsKey(widget.node.id)) {
-      return (totalExposures: 0, totalIntegrationSecs: 0.0);
+      return (
+        totalExposures: 0,
+        totalIntegrationSecs: 0.0,
+        hasOpenEndedLoop: false,
+        loopBudgetSecs: 0.0,
+      );
     }
 
     var totalExposures = 0;
     var totalIntegrationSecs = 0.0;
+    // Loop-until-stopped SmartExposure nodes capture an unbounded number of
+    // subs (bounded by time/window, not by counts), so a fixed "N planned
+    // exposures" figure is meaningless for them. Track that separately so the
+    // label can say "looping" / "up to <budget>" instead of a misleading count.
+    var hasOpenEndedLoop = false;
+    var loopBudgetSecs = 0.0;
     final visited = <String>{};
 
     void visit(String nodeId) {
@@ -627,6 +657,22 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
       if (node is ExposureNode) {
         totalExposures += node.count;
         totalIntegrationSecs += node.durationSecs * node.count;
+      } else if (node is SmartExposureNode) {
+        if (node.loopUntilStopped) {
+          // Open-ended: counts are ignored. Record the budget (if any) so the
+          // label can show "up to Xh"; don't fold a fake exposure count in.
+          hasOpenEndedLoop = true;
+          loopBudgetSecs += node.integrationBudgetSecs;
+        } else {
+          // Smart Exposure carries its captures in per-filter plans, not as
+          // standalone ExposureNodes — count them so an auto-built (Plan
+          // Tonight) sequence, whose imaging is a single SmartExposure node,
+          // no longer reports "No exposure nodes under this target".
+          for (final plan in node.plans) {
+            totalExposures += plan.count;
+          }
+          totalIntegrationSecs += node.totalIntegrationSecs;
+        }
       }
 
       for (final childId in node.childIds) {
@@ -638,6 +684,8 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
     return (
       totalExposures: totalExposures,
       totalIntegrationSecs: totalIntegrationSecs,
+      hasOpenEndedLoop: hasOpenEndedLoop,
+      loopBudgetSecs: loopBudgetSecs,
     );
   }
 

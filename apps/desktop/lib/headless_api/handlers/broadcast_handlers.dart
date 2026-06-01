@@ -32,6 +32,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../response_helpers.dart';
+
 class BroadcastHandlers {
   final ProviderContainer container;
 
@@ -59,8 +61,8 @@ class BroadcastHandlers {
     final state = _service.state;
 
     if (!state.active) {
-      return Response.ok(
-        jsonEncode({'active': false}),
+      return jsonOk(
+        {'active': false},
         headers: _jsonHeaders(),
       );
     }
@@ -76,7 +78,7 @@ class BroadcastHandlers {
     final body = state.toInfoJson();
     body['watermark'] = _service.renderWatermark();
     body['serverTime'] = DateTime.now().toUtc().toIso8601String();
-    return Response.ok(jsonEncode(body), headers: _jsonHeaders());
+    return jsonOk(body, headers: _jsonHeaders());
   }
 
   // ---------------------------------------------------------------------------
@@ -90,8 +92,8 @@ class BroadcastHandlers {
   Future<Response> handleLiveStack(Request request) async {
     final state = _service.state;
     if (!state.active) {
-      return Response.notFound(
-        jsonEncode({'error': 'no_broadcast', 'message': 'Broadcast not armed'}),
+      return jsonNotFound(
+        {'error': 'no_broadcast', 'message': 'Broadcast not armed'},
         headers: _jsonHeaders(),
       );
     }
@@ -101,19 +103,19 @@ class BroadcastHandlers {
 
     final jpeg = state.jpegBytes;
     if (jpeg == null || jpeg.isEmpty) {
-      return Response.notFound(
-        jsonEncode({
+      return jsonNotFound(
+        {
           'error': 'no_frame',
           'message': 'Broadcast armed but no frame stacked yet.',
-        }),
+        },
         headers: _jsonHeaders(),
       );
     }
-    return Response.ok(
+    return contentResponse(
       jpeg,
+      contentType: 'image/jpeg',
+      contentLength: jpeg.length,
       headers: {
-        'content-type': 'image/jpeg',
-        'content-length': jpeg.length.toString(),
         'cache-control': 'no-store, no-cache, must-revalidate',
         'x-broadcast-frames': state.framesStacked.toString(),
         'x-broadcast-integration-secs':
@@ -132,8 +134,8 @@ class BroadcastHandlers {
   Response handleSse(Request request) {
     final state = _service.state;
     if (!state.active) {
-      return Response.notFound(
-        jsonEncode({'error': 'no_broadcast'}),
+      return jsonNotFound(
+        {'error': 'no_broadcast'},
         headers: _jsonHeaders(),
       );
     }
@@ -187,10 +189,10 @@ class BroadcastHandlers {
 
     controller.onCancel = cleanup;
 
-    return Response.ok(
+    return streamResponse(
       controller.stream,
+      contentType: 'text/event-stream; charset=utf-8',
       headers: {
-        'content-type': 'text/event-stream; charset=utf-8',
         'cache-control': 'no-cache, no-transform',
         'connection': 'keep-alive',
         'x-accel-buffering': 'no',
@@ -223,10 +225,10 @@ class BroadcastHandlers {
     // hint instead of a browser error.
     final showImage = state.active && _service.authorize(token);
     final html = _renderHtml(state, showImage: showImage, hasToken: hasToken);
-    return Response.ok(
+    return contentResponse(
       html,
+      contentType: 'text/html; charset=utf-8',
       headers: {
-        'content-type': 'text/html; charset=utf-8',
         'cache-control': 'no-cache, no-store, must-revalidate',
         // CSP that allows nothing but our own resources. The HTML uses
         // no external CSS / JS / images so default-src 'self' suffices.
@@ -251,12 +253,12 @@ class BroadcastHandlers {
   Response? _checkAuth(Request request, BroadcastSessionState state) {
     final token = request.url.queryParameters['token'];
     if (_service.authorize(token)) return null;
-    return Response.unauthorized(
-      jsonEncode({
+    return jsonUnauthorized(
+      {
         'error': 'invalid_token',
         'message':
             'This broadcast requires a token. Append ?token=… to the URL.',
-      }),
+      },
       headers: _jsonHeaders(),
     );
   }
@@ -276,8 +278,7 @@ class BroadcastHandlers {
         ? '/api/broadcast/live-stack${hasToken ? '?token=…' : ''}'
         : '';
 
-    final infoSrc =
-        '/api/broadcast/info${hasToken ? '?token=…' : ''}';
+    final infoSrc = '/api/broadcast/info${hasToken ? '?token=…' : ''}';
     final sseSrc = '/api/broadcast/sse${hasToken ? '?token=…' : ''}';
 
     final statusBlock = state.active
@@ -438,10 +439,8 @@ class BroadcastHandlers {
     $tokenBanner
     $offlineBanner
     <div class="stage">
-      ${showImage
-            ? '<img id="broadcast-img" alt="Live stack" '
-                'src="${escapeAttr(imgSrc)}">'
-            : '<div class="placeholder">Awaiting first frame…</div>'}
+      ${showImage ? '<img id="broadcast-img" alt="Live stack" '
+            'src="${escapeAttr(imgSrc)}">' : '<div class="placeholder">Awaiting first frame…</div>'}
     </div>
     <div class="telemetry">
       <div class="tile">
@@ -521,7 +520,5 @@ String _htmlAttrEscape(String s) => s
     .replaceAll('<', '&lt;')
     .replaceAll('>', '&gt;');
 
-String _htmlTextEscape(String s) => s
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;');
+String _htmlTextEscape(String s) =>
+    s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');

@@ -138,15 +138,32 @@ impl Functions {
         unsafe {
             let module = GetModuleHandleA(cstr!("flutter_windows.dll").as_ptr());
             Self {
-                RegisterExternalTexture: std::mem::transmute(GetProcAddress(
+                RegisterExternalTexture: std::mem::transmute::<
+                    *mut c_void,
+                    unsafe extern "C" fn(
+                        FlutterDesktopTextureRegistrarRef,
+                        *const FlutterDesktopTextureInfo,
+                    ) -> i64,
+                >(GetProcAddress(
                     module,
                     cstr!("FlutterDesktopTextureRegistrarRegisterExternalTexture").as_ptr(),
                 )),
-                UnregisterExternalTexture: std::mem::transmute(GetProcAddress(
+                UnregisterExternalTexture: std::mem::transmute::<
+                    *mut c_void,
+                    unsafe extern "C" fn(
+                        FlutterDesktopTextureRegistrarRef,
+                        i64,
+                        Option<unsafe extern "C" fn(*mut c_void)>,
+                        *mut c_void,
+                    ),
+                >(GetProcAddress(
                     module,
                     cstr!("FlutterDesktopTextureRegistrarUnregisterExternalTexture").as_ptr(),
                 )),
-                MarkExternalTextureFrameAvailable: std::mem::transmute(GetProcAddress(
+                MarkExternalTextureFrameAvailable: std::mem::transmute::<
+                    *mut c_void,
+                    unsafe extern "C" fn(FlutterDesktopTextureRegistrarRef, i64) -> bool,
+                >(GetProcAddress(
                     module,
                     cstr!("FlutterDesktopTextureRegistrarMarkExternalTextureFrameAvailable")
                         .as_ptr(),

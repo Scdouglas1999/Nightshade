@@ -1,0 +1,477 @@
+// ignore_for_file: invalid_annotation_target
+
+part of '../sequence_models.dart';
+
+// =============================================================================
+// SEQUENCE
+// =============================================================================
+
+/// Complete sequence.
+///
+/// **Tree representation contract** (W1.7 refactor):
+///
+///   * `nodes` (a flat `Map<String, SequenceNode>`) remains the canonical
+///     content store and the on-disk serialization shape. Every node carries
+///     its own `childIds: List<String>` and `parentId: String?`. The on-the-
+///     wire JSON (executor payload + `.nseq.json` export) is unchanged.
+///
+///   * The parent/child indexes are **derived** from `nodes` and live in
+///     [SequenceTreeIndex] (sibling class, cached per-instance via an
+///     [Expando]). They make `childrenOf(p)`, `parentOf(c)`, and descendant
+///     walks O(1) per hop without scanning the full node map.
+///
+///   * The runtime invariant is: `treeIndex.childrenOf(parentId)` is the
+///     authoritative ordering of children under `parentId`, and the
+///     `parentId` field on each node matches `treeIndex.parentOf(node.id)`.
+///     The index is built FROM `nodes[*].childIds` + `nodes[*].parentId`,
+///     so the two representations are kept consistent by construction —
+///     every mutation goes through `CurrentSequenceNotifier`, which
+///     produces a fresh `Sequence` via `copyWith(nodes: ...)`; the new
+///     instance rebuilds its index from the new `nodes` map on first
+///     access.
+///
+///   * `orderIndex` on each node is preserved as a load-bearing persistence
+///     field (Drift uses it for `ORDER BY` on load). The editor renumbers
+///     `orderIndex` only within the affected parent's children list — never
+///     a tree-wide rewrite — so reorder/insert/remove cost is bounded by the
+///     parent's sibling count, not by the total tree size.
+///
+/// Phase 3 conversion (Step 3): the lazy index fields that previously
+/// lived on this class were hoisted to [SequenceTreeIndex] in Step 1, and
+/// `SequenceProgressNotifier.updateProgress` was rewritten in Step 2 to
+/// stop depending on the pre-freezed `?? this.X` quirk. With both blockers
+/// cleared, this class is now freezed-backed — `copyWith`, `==`, and
+/// `hashCode` are generated.
+///
+/// Construction: use [Sequence.create] when you want the legacy "auto-fill
+/// id + createdAt + modifiedAt" ergonomics. The bare freezed factory
+/// requires every load-bearing field explicitly — useful for code paths
+/// (deserialization, database load, file import) that already have the
+/// authoritative values.
+@freezed
+class Sequence with _$Sequence {
+  const Sequence._();
+
+  /// Raw freezed-generated constructor. Every field is explicit — no
+  /// auto-generated UUID, no `DateTime.now()` defaults. Use this from
+  /// code paths that already have the authoritative `id` / timestamps
+  /// (deserialization, database load, etc.); use [Sequence.create] from
+  /// app / UI code that wants the historical defaulting behaviour.
+  const factory Sequence({
+    required String id,
+    int? databaseId,
+    required String name,
+    @Default('') String description,
+    @Default(<String, SequenceNode>{}) Map<String, SequenceNode> nodes,
+    String? rootNodeId,
+    required DateTime createdAt,
+    required DateTime modifiedAt,
+    @Default(false) bool isTemplate,
+    int? estimatedDurationMins,
+  }) = _Sequence;
+
+  /// Friendly factory matching the pre-freezed `Sequence(...)` signature:
+  /// `id`, `createdAt`, and `modifiedAt` are auto-generated when omitted,
+  /// `nodes` defaults to an empty map. Used by editor / template / planner
+  /// code that just wants a fresh sequence.
+  factory Sequence.create({
+    String? id,
+    int? databaseId,
+    required String name,
+    String description = '',
+    Map<String, SequenceNode>? nodes,
+    String? rootNodeId,
+    DateTime? createdAt,
+    DateTime? modifiedAt,
+    bool isTemplate = false,
+    int? estimatedDurationMins,
+  }) {
+    final now = DateTime.now();
+    return Sequence(
+      id: id ?? const Uuid().v4(),
+      databaseId: databaseId,
+      name: name,
+      description: description,
+      nodes: nodes ?? const <String, SequenceNode>{},
+      rootNodeId: rootNodeId,
+      createdAt: createdAt ?? now,
+      modifiedAt: modifiedAt ?? now,
+      isTemplate: isTemplate,
+      estimatedDurationMins: estimatedDurationMins,
+    );
+  }
+
+  // ---------------------------------------------------------------------
+  // Derived tree-index API (delegates to [SequenceTreeIndex]).
+  //
+  // The lazy `late final` index fields that previously lived on this class
+  // were hoisted to the sibling [SequenceTreeIndex] in Phase 3 Step 1 so
+  // freezed-generated equality / hashCode do not see them. The per-instance
+  // cache lives in `sequenceTreeIndexCache` ([Expando]) and is keyed by
+  // instance identity — which preserves the previous "compute once on first
+  // access, then reuse" semantic exactly: a fresh `Sequence` built from the
+  // same `nodes` map starts with an empty cache and re-derives the index
+  // on first access.
+  // ---------------------------------------------------------------------
+
+  /// Materialized [SequenceTreeIndex] for this sequence, lazily built on
+  /// first access and cached on the instance via [Expando]. Hot-path code
+  /// that does many lookups against the same `Sequence` reuses the single
+  /// pre-built index — there is no per-call rebuild.
+  SequenceTreeIndex get treeIndex => sequenceTreeIndexFor(this);
+
+  /// Children of [parentId] in their canonical order. See
+  /// [SequenceTreeIndex.childrenOf] for the full contract.
+  List<SequenceNode> childrenOf(String parentId) =>
+      treeIndex.childrenOf(parentId);
+
+  /// Parent ID of [nodeId], or `null` if [nodeId] is a root node OR is not
+  /// in this sequence. See [SequenceTreeIndex.parentOf].
+  String? parentOf(String nodeId) => treeIndex.parentOf(nodeId);
+
+  /// IDs of all descendants of [nodeId] in DFS pre-order. See
+  /// [SequenceTreeIndex.descendantsOf].
+  List<String> descendantsOf(String nodeId) => treeIndex.descendantsOf(nodeId);
+
+  /// Verify the structural invariants of this sequence. See
+  /// [SequenceTreeIndex.invariants] for the full set of checks.
+  List<String> invariants() => treeIndex.invariants();
+
+  /// Get total exposure count
+  int get totalExposures {
+    int count = 0;
+    for (final node in nodes.values) {
+      if (node is ExposureNode && node.isEnabled) {
+        count += node.count;
+      }
+    }
+    return count;
+  }
+
+  /// Get total integration time in seconds
+  /// This walks the tree structure and accounts for loop iterations
+  double get totalIntegrationSecs {
+    return estimateIntegrationSecs().estimatedSecs;
+  }
+
+  /// Estimate integration time with overhead awareness.
+  /// Walks the sequence tree counting occurrences of each operation type
+  /// and applies configurable per-operation overhead estimates.
+  SequenceEstimate estimateWithOverhead({
+    SequenceOverheadConfig config = const SequenceOverheadConfig(),
+    DateTime? referenceTime,
+  }) {
+    final base = estimateIntegrationSecs(referenceTime: referenceTime);
+
+    // Walk tree counting overhead-generating operations
+    double overheadSecs = 0;
+
+    if (rootNodeId != null && nodes[rootNodeId] != null) {
+      overheadSecs = _calculateOverhead(rootNodeId!, config, 1);
+    } else {
+      // No tree structure - just count nodes directly
+      for (final node in nodes.values) {
+        if (!node.isEnabled) continue;
+        overheadSecs += _nodeOverhead(node, config);
+      }
+    }
+
+    return SequenceEstimate(
+      estimatedSecs: base.estimatedSecs,
+      overheadSecs: overheadSecs,
+      singleIterationSecs: base.singleIterationSecs,
+      isUnbounded: base.isUnbounded,
+      untilTime: base.untilTime,
+      conditionType: base.conditionType,
+    );
+  }
+
+  /// Calculate overhead for a node and its subtree, respecting loop multipliers
+  double _calculateOverhead(
+      String nodeId, SequenceOverheadConfig config, int multiplier) {
+    final node = nodes[nodeId];
+    if (node == null || !node.isEnabled) return 0;
+
+    // Leaf node overhead
+    final selfOverhead = _nodeOverhead(node, config) * multiplier;
+
+    // Children overhead
+    double childrenOverhead = 0;
+    int childMultiplier = multiplier;
+    if (node is LoopNode) {
+      if (node.conditionType == LoopConditionType.count) {
+        childMultiplier = multiplier * (node.repeatCount ?? 1);
+      }
+      // For unbounded loops, keep multiplier at 1 for overhead
+    }
+
+    for (final childId in node.childIds) {
+      childrenOverhead += _calculateOverhead(childId, config, childMultiplier);
+    }
+
+    return selfOverhead + childrenOverhead;
+  }
+
+  /// Get the overhead contribution for a single node instance
+  double _nodeOverhead(SequenceNode node, SequenceOverheadConfig config) {
+    if (node is SlewNode) return config.slewSecs;
+    if (node is CenterNode) return config.centerTargetSecs;
+    if (node is AutofocusNode) return config.autofocusSecs;
+    if (node is FilterChangeNode) return config.filterChangeSecs;
+    if (node is DitherNode) return config.ditherSecs;
+    if (node is StartGuidingNode) return config.guideAcquireSecs;
+    if (node is MeridianFlipNode) return config.meridianFlipSecs;
+    if (node is CoolCameraNode) return config.coolingSecs;
+    if (node is WarmCameraNode) return config.warmingSecs;
+    if (node is OpenCoverNode || node is CloseCoverNode) {
+      return config.coverMoveSecs;
+    }
+    if (node is ExposureNode) {
+      // Download overhead per exposure
+      return config.downloadOverheadPerExposureSecs * node.count;
+    }
+    return 0;
+  }
+
+  /// Estimate integration time with detailed info about bounded/unbounded status
+  /// [referenceTime] is used for calculating time-based loop durations (default: now)
+  SequenceEstimate estimateIntegrationSecs({DateTime? referenceTime}) {
+    referenceTime ??= DateTime.now();
+
+    // If no root node, fall back to simple sum of all exposures
+    if (rootNodeId == null || nodes[rootNodeId] == null) {
+      double total = 0;
+      for (final node in nodes.values) {
+        if (node is ExposureNode && node.isEnabled) {
+          total += node.totalDurationSecs;
+        }
+      }
+      return SequenceEstimate(
+        estimatedSecs: total,
+        singleIterationSecs: total,
+        isUnbounded: false,
+      );
+    }
+
+    // Walk the tree from root
+    return _estimateNodeIntegration(rootNodeId!, referenceTime);
+  }
+
+  /// Recursively estimate integration time for a node and its children
+  SequenceEstimate _estimateNodeIntegration(
+      String nodeId, DateTime referenceTime) {
+    final node = nodes[nodeId];
+    if (node == null || !node.isEnabled) {
+      return const SequenceEstimate(
+        estimatedSecs: 0,
+        singleIterationSecs: 0,
+        isUnbounded: false,
+      );
+    }
+
+    // For exposure nodes, return the direct duration
+    if (node is ExposureNode) {
+      final duration = node.totalDurationSecs;
+      return SequenceEstimate(
+        estimatedSecs: duration,
+        singleIterationSecs: duration,
+        isUnbounded: false,
+      );
+    }
+
+    // For nodes with children, sum up children's estimates
+    double childrenSecs = 0;
+    double childrenSingleIteration = 0;
+    bool anyChildUnbounded = false;
+
+    for (final childId in node.childIds) {
+      final childEstimate = _estimateNodeIntegration(childId, referenceTime);
+      childrenSecs += childEstimate.estimatedSecs;
+      childrenSingleIteration += childEstimate.singleIterationSecs;
+      if (childEstimate.isUnbounded) anyChildUnbounded = true;
+    }
+
+    // For loop nodes, apply the loop multiplier
+    if (node is LoopNode) {
+      switch (node.conditionType) {
+        case LoopConditionType.count:
+          // Fixed iteration count
+          final iterations = node.repeatCount ?? 1;
+          return SequenceEstimate(
+            estimatedSecs: childrenSecs * iterations,
+            singleIterationSecs: childrenSingleIteration,
+            isUnbounded: anyChildUnbounded,
+          );
+
+        case LoopConditionType.untilTime:
+          // Time-based loop: estimate iterations based on available time
+          if (node.repeatUntil != null && childrenSingleIteration > 0) {
+            final availableSecs = node.repeatUntil!
+                .difference(referenceTime)
+                .inSeconds
+                .toDouble();
+            if (availableSecs > 0) {
+              // Estimate how many iterations can fit in the time window
+              final estimatedIterations =
+                  (availableSecs / childrenSingleIteration).floor();
+              final estimatedTotal =
+                  childrenSingleIteration * estimatedIterations;
+              return SequenceEstimate(
+                estimatedSecs: estimatedTotal,
+                singleIterationSecs: childrenSingleIteration,
+                isUnbounded: false,
+                untilTime: node.repeatUntil,
+              );
+            }
+          }
+          // If repeatUntil is in the past or not set, return single iteration
+          return SequenceEstimate(
+            estimatedSecs: childrenSingleIteration,
+            singleIterationSecs: childrenSingleIteration,
+            isUnbounded: false,
+            untilTime: node.repeatUntil,
+          );
+
+        case LoopConditionType.forever:
+        case LoopConditionType.whileDark:
+        case LoopConditionType.untilAltitude:
+        case LoopConditionType.altitudeAbove:
+          // Unbounded loops - return single iteration time but mark as unbounded
+          return SequenceEstimate(
+            estimatedSecs: childrenSingleIteration,
+            singleIterationSecs: childrenSingleIteration,
+            isUnbounded: true,
+            conditionType: node.conditionType,
+          );
+
+        case LoopConditionType.integrationTime:
+          // Integration time loop: estimate iterations based on target integration time
+          if (node.integrationTimeTarget != null &&
+              node.integrationTimeTarget! > 0 &&
+              childrenSingleIteration > 0) {
+            // Find total exposure time per iteration from children
+            double exposurePerIteration = 0;
+            for (final childId in node.childIds) {
+              final child = nodes[childId];
+              if (child is ExposureNode && child.isEnabled) {
+                exposurePerIteration += child.totalDurationSecs;
+              }
+            }
+            if (exposurePerIteration > 0) {
+              final estimatedIterations =
+                  (node.integrationTimeTarget! / exposurePerIteration).ceil();
+              return SequenceEstimate(
+                estimatedSecs: childrenSingleIteration * estimatedIterations,
+                singleIterationSecs: childrenSingleIteration,
+                isUnbounded: false,
+              );
+            }
+          }
+          // If we can't estimate, treat as unbounded
+          return SequenceEstimate(
+            estimatedSecs: childrenSingleIteration,
+            singleIterationSecs: childrenSingleIteration,
+            isUnbounded: true,
+            conditionType: node.conditionType,
+          );
+      }
+    }
+
+    // For other container nodes (Parallel, Conditional, etc.), just return children sum
+    return SequenceEstimate(
+      estimatedSecs: childrenSecs,
+      singleIterationSecs: childrenSingleIteration,
+      isUnbounded: anyChildUnbounded,
+    );
+  }
+
+  /// Get target headers (root nodes for each target).
+  ///
+  /// Flattens every enabled [TargetHeaderNode] in the tree regardless of
+  /// nesting depth (targets may live under root, under a loop, or under any
+  /// container). Sorted by `orderIndex` to keep the legacy UI ordering — the
+  /// alternative (tree-walk-canonical-order) would not work for sequences
+  /// where targets are spread across multiple parent containers, which the
+  /// `CrossParentReorderException` test in `sequence_editor_trust_patch_test`
+  /// pins as supported behavior.
+  List<TargetHeaderNode> get targetHeaders {
+    return nodes.values
+        .whereType<TargetHeaderNode>()
+        .where((n) => n.isEnabled)
+        .toList()
+      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+  }
+
+  /// Get node by ID
+  SequenceNode? getNode(String id) => nodes[id];
+
+  /// Get root node
+  SequenceNode? get rootNode => rootNodeId != null ? nodes[rootNodeId] : null;
+
+  /// Get children of a node. See [childrenOf] for the index-backed equivalent;
+  /// this is the legacy entry point kept for backward compatibility with
+  /// consumers that already use `getChildren`. Both return the same list.
+  List<SequenceNode> getChildren(String parentId) => childrenOf(parentId);
+
+  /// Count all descendants of [nodeId] (children, grandchildren, ...).
+  ///
+  /// Returns 0 when [nodeId] does not exist or is a leaf. The node itself
+  /// is **not** counted — only its subtree. Used by the UI to decide
+  /// whether deleting a node warrants a confirmation dialog (e.g.,
+  /// "Delete N nodes?" for non-leaf containers).
+  ///
+  /// Backed by the parent-keyed index (single DFS over the subtree), so
+  /// the cost is O(size-of-subtree) — no nodes outside the subtree are
+  /// visited. The defensive cycle guard from the pre-W1.7 implementation is
+  /// preserved as defense-in-depth against malformed import data, even
+  /// though [invariants] would have rejected it.
+  int countDescendants(String nodeId) => treeIndex.countDescendants(nodeId);
+}
+
+/// Progress of sequence execution.
+///
+/// Phase 3 Step 2 resolved the freezed-incompatibility blocker on this
+/// class by rewriting `SequenceProgressNotifier.updateProgress` to build
+/// the next `SequenceProgress` explicitly (no reliance on the pre-freezed
+/// `copyWith(x: x ?? this.x)` quirk). Step 3 then converted this class to
+/// freezed; the rewritten `updateProgress` continues to work because it
+/// constructs a fresh `SequenceProgress` rather than calling `copyWith`.
+@freezed
+class SequenceProgress with _$SequenceProgress {
+  const SequenceProgress._();
+
+  const factory SequenceProgress({
+    @Default(SequenceExecutionState.idle) SequenceExecutionState state,
+    String? currentNodeId,
+    String? currentNodeName,
+    NodeStatus? currentNodeStatus,
+    @Default(0) int totalExposures,
+    @Default(0) int completedExposures,
+    @Default(0.0) double totalIntegrationSecs,
+    @Default(0.0) double completedIntegrationSecs,
+    @Default(0.0) double elapsedSecs,
+    double? estimatedRemainingSecs,
+    String? currentTarget,
+    String? currentFilter,
+    String? message,
+    @Default(<String, NodeStatus>{}) Map<String, NodeStatus> nodeStatuses,
+
+    /// Per-node instruction progress (0-100 percent)
+    @Default(<String, double>{}) Map<String, double> nodeProgressPercent,
+
+    /// Per-node instruction progress detail message
+    @Default(<String, String>{}) Map<String, String> nodeProgressDetail,
+
+    /// Per-node structured instruction progress detail.
+    @Default(<String, InstructionProgressDetail>{})
+    Map<String, InstructionProgressDetail> nodeProgressStructuredDetail,
+  }) = _SequenceProgress;
+
+  double get progressPercent {
+    if (totalExposures == 0) return 0;
+    return completedExposures / totalExposures;
+  }
+}
+
+// =============================================================================
+// Wave 7 Science — SciencePhotometryNode + transparency-adaptive support.

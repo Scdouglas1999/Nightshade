@@ -307,8 +307,7 @@ fn init_native_internal(log_directory: Option<String>) -> Result<(), NightshadeE
     // makes the console useless for diagnosing anything else, so we silence
     // those crates at INFO (`wgpu_core::device=warn`, `wgpu_hal=warn`)
     // unless the operator explicitly bumps them via RUST_LOG.
-    const DEFAULT_FILTER: &str =
-        "info,wgpu_core=warn,wgpu_hal=warn,wgpu=warn,naga=warn";
+    const DEFAULT_FILTER: &str = "info,wgpu_core=warn,wgpu_hal=warn,wgpu=warn,naga=warn";
     let console_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(DEFAULT_FILTER));
     let file_filter = EnvFilter::new(format!("debug,{DEFAULT_FILTER}"));

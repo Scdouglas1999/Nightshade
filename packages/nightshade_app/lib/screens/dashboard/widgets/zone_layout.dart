@@ -18,7 +18,8 @@ class DashboardZoneColumn extends StatelessWidget {
   final bool isEditing;
   final CardVariant cardVariant;
   final bool isHeroZone;
-  final void Function(DashboardWidgetId dragged, DashboardWidgetId target) onReorder;
+  final void Function(DashboardWidgetId dragged, DashboardWidgetId target)
+      onReorder;
   final void Function(DashboardWidgetId id) onResize;
   final void Function(DashboardWidgetId id, bool enabled) onToggleEnabled;
 
@@ -40,7 +41,8 @@ class DashboardZoneColumn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (tiles.isEmpty) {
-      return _EmptyZonePlaceholder(zone: zone, colors: colors, isEditing: isEditing);
+      return _EmptyZonePlaceholder(
+          zone: zone, colors: colors, isEditing: isEditing);
     }
 
     // Use tighter spacing for secondary zone (8px) vs primary (16px)
@@ -69,7 +71,8 @@ class DashboardZoneColumn extends StatelessWidget {
     }
 
     final child = Builder(
-      builder: (context) => definition.builder(context, colors, pulseController),
+      builder: (context) =>
+          definition.builder(context, colors, pulseController),
     );
 
     return DashboardTile(
@@ -79,6 +82,7 @@ class DashboardZoneColumn extends StatelessWidget {
       isEditing: isEditing,
       cardVariant: isHero ? CardVariant.elevated : cardVariant,
       isHero: isHero,
+      selfChromed: definition.selfChromed,
       onReorder: onReorder,
       onResize: onResize,
       onToggleEnabled: onToggleEnabled,
@@ -155,7 +159,8 @@ class MobileEquipmentSection extends StatelessWidget {
   final NightshadeColors colors;
   final AnimationController pulseController;
   final bool isEditing;
-  final void Function(DashboardWidgetId dragged, DashboardWidgetId target) onReorder;
+  final void Function(DashboardWidgetId dragged, DashboardWidgetId target)
+      onReorder;
   final void Function(DashboardWidgetId id) onResize;
   final void Function(DashboardWidgetId id, bool enabled) onToggleEnabled;
 
@@ -215,7 +220,8 @@ class MobileEquipmentSection extends StatelessWidget {
     if (definition == null) return const SizedBox.shrink();
 
     final child = Builder(
-      builder: (context) => definition.builder(context, colors, pulseController),
+      builder: (context) =>
+          definition.builder(context, colors, pulseController),
     );
 
     return DashboardTile(
@@ -225,6 +231,7 @@ class MobileEquipmentSection extends StatelessWidget {
       isEditing: isEditing,
       cardVariant: CardVariant.standard,
       isHero: false,
+      selfChromed: definition.selfChromed,
       onReorder: onReorder,
       onResize: onResize,
       onToggleEnabled: onToggleEnabled,
@@ -241,7 +248,8 @@ class TertiaryZoneRow extends ConsumerWidget {
   final NightshadeColors colors;
   final AnimationController pulseController;
   final bool isEditing;
-  final void Function(DashboardWidgetId dragged, DashboardWidgetId target) onReorder;
+  final void Function(DashboardWidgetId dragged, DashboardWidgetId target)
+      onReorder;
   final void Function(DashboardWidgetId id) onResize;
   final void Function(DashboardWidgetId id, bool enabled) onToggleEnabled;
 
@@ -278,7 +286,9 @@ class TertiaryZoneRow extends ConsumerWidget {
 
     // Filter out Alerts card if it has no content (unless in edit mode where we show all)
     final filteredTiles = tiles.where((tile) {
-      if (tile.widgetId == DashboardWidgetId.alerts && !alertsHasContent && !isEditing) {
+      if (tile.widgetId == DashboardWidgetId.alerts &&
+          !alertsHasContent &&
+          !isEditing) {
         return false;
       }
       return true;
@@ -364,7 +374,8 @@ class TertiaryZoneRow extends ConsumerWidget {
 
       // For the last row with fewer cards, we still want equal-width cards
       // but they should expand to fill the row (up to max width each)
-      final rowWidget = _buildSingleRow(rowTiles, layout.cardWidth, layout.cardsPerRow);
+      final rowWidget =
+          _buildSingleRow(rowTiles, layout.cardWidth, layout.cardsPerRow);
 
       if (rows.isNotEmpty) {
         rows.add(const SizedBox(height: _cardSpacing));
@@ -403,7 +414,8 @@ class TertiaryZoneRow extends ConsumerWidget {
     if (definition == null) return const SizedBox.shrink();
 
     final child = Builder(
-      builder: (context) => definition.builder(context, colors, pulseController),
+      builder: (context) =>
+          definition.builder(context, colors, pulseController),
     );
 
     // Wrap in ConstrainedBox with minHeight for consistent card sizing
@@ -416,6 +428,7 @@ class TertiaryZoneRow extends ConsumerWidget {
         isEditing: isEditing,
         cardVariant: CardVariant.standard,
         isHero: false,
+        selfChromed: definition.selfChromed,
         onReorder: onReorder,
         onResize: onResize,
         onToggleEnabled: onToggleEnabled,

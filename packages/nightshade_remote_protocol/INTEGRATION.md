@@ -30,7 +30,8 @@ When the server is running, `/api/info` includes:
 
 ```json
 {
-  "version": "2.5.0",
+  "version": "2.6.0",
+  "apiVersion": "2.6.0",
   "pairingSupported": true,
   "fingerprint": "<sha256-hex>",
   "authRequired": true

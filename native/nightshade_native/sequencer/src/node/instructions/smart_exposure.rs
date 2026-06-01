@@ -94,7 +94,47 @@ impl InstructionNode for SmartExposureInstruction {
             // (override absent) does not clone the plan vector.
             _ => std::borrow::Cow::Borrowed(config),
         };
+
+        // "Loop until stopped" forcing. The mode IS "1 sub per filter,
+        // round-robin, forever (until time/window)", so we coerce
+        // `batch_size=1` and `rotate_filters=true` here regardless of their
+        // stored values. We only clone when a coercion is actually needed so
+        // the common (loop-mode-off) path keeps the borrow.
+        let config =
+            if config.loop_until_stopped && (!config.rotate_filters || config.batch_size != 1) {
+                std::borrow::Cow::Owned(SmartExposureConfig {
+                    rotate_filters: true,
+                    batch_size: 1,
+                    ..config.into_owned()
+                })
+            } else {
+                config
+            };
         let config = config.as_ref();
+
+        // Errors-are-a-feature: refuse to enter an unbounded infinite loop.
+        // `loop_until_stopped` deliberately ignores per-plan counts, so the
+        // ONLY things that can end the node are (a) the integration budget,
+        // (b) the surrounding target's `end_when` window, or (c) an explicit
+        // sequence stop / skip-to-next-target. (c) is always available at
+        // runtime, but it requires a human to press Stop — it is NOT an
+        // automatic bound for an unattended dawn run. So we require at least
+        // one *automatic* bound: a positive budget, OR a detectable target
+        // end trigger. If neither is present we fail closed rather than spin
+        // forever and silently never finish.
+        if config.loop_until_stopped
+            && config.integration_budget_secs <= 0.0
+            && context.active_target_end_trigger().is_none()
+        {
+            tracing::error!(
+                "SmartExposure '{}' is in loop-until-stopped mode but has no integration \
+                 budget and no surrounding target window (end_when) to bound it; refusing to \
+                 loop forever. Set an integration budget or place this node under a target \
+                 with an end condition.",
+                node_id
+            );
+            return NodeStatus::Failure;
+        }
 
         // Empty plans is an empty success — matches `Loop(0)` semantics and
         // keeps the executor from getting stuck on an empty body. The
@@ -153,6 +193,26 @@ impl InstructionNode for SmartExposureInstruction {
                 return NodeStatus::Skipped;
             }
 
+            // Loop-until-stopped: the surrounding target's `end_when` window
+            // is the primary automatic bound. The parent TargetHeader only
+            // probes `end_when` at child boundaries, but this node never
+            // returns to the parent while it loops — so we poll the installed
+            // trigger ourselves here, between batches, and finish Success when
+            // the window closes (e.g. the target drops below the configured
+            // altitude at dawn). `None` (no trigger / unevaluable) falls
+            // through to the budget bound, which the entry guard guarantees
+            // exists when no trigger does.
+            if config.loop_until_stopped {
+                if let Some(true) = context.active_target_end_trigger_satisfied() {
+                    tracing::info!(
+                        "SmartExposure '{}' loop-until-stopped: target window closed; finishing",
+                        node_id
+                    );
+                    save_checkpoint(node_id, context, &state).await;
+                    return NodeStatus::Success;
+                }
+            }
+
             // Budget short-circuit. We check before each batch so a small
             // overshoot is bounded by one batch's worth of exposure time.
             if integration_budget_exceeded(config, &state) {
@@ -167,7 +227,10 @@ impl InstructionNode for SmartExposureInstruction {
             }
 
             // Pick the next plan that still has remaining work. If we've
-            // exhausted every plan, we're done.
+            // exhausted every plan, we're done. In loop-until-stopped mode
+            // counts are ignored, so `next_plan` always returns the next row
+            // in rotation and this `else` is never taken — the only exits in
+            // loop mode are the budget/window/cancellation checks above.
             let Some(plan_index) = next_plan(config, &state) else {
                 tracing::info!(
                     "SmartExposure '{}' all plans complete ({} filters)",
@@ -187,7 +250,15 @@ impl InstructionNode for SmartExposureInstruction {
                 .get(&plan.filter_name)
                 .copied()
                 .unwrap_or(0);
-            let remaining = plan.count.saturating_sub(completed_for_plan);
+            // In loop-until-stopped mode the per-plan count is irrelevant —
+            // we always have exactly one sub of "remaining" work for the
+            // chosen filter (batch_size is forced to 1 above). Otherwise it's
+            // the un-completed slice of the authored count.
+            let remaining = if config.loop_until_stopped {
+                1
+            } else {
+                plan.count.saturating_sub(completed_for_plan)
+            };
             if remaining == 0 {
                 // The next_plan() above already filtered exhausted plans, so
                 // this branch should not be reachable. Treat it defensively
@@ -205,7 +276,8 @@ impl InstructionNode for SmartExposureInstruction {
             //   * the user-configured per-visit batch size (always >= 1)
             // When `rotate_filters` is false we want to drain the plan
             // entirely before moving on — so we ignore `batch_size` in that
-            // mode.
+            // mode. Loop-until-stopped always takes exactly one sub (forced
+            // batch_size=1 and remaining=1 above).
             let batch_size = if config.rotate_filters {
                 config.batch_size.max(1).min(remaining)
             } else {
@@ -335,6 +407,13 @@ fn next_plan(config: &SmartExposureConfig, state: &SmartExposureCheckpoint) -> O
     let n = config.plans.len();
     if n == 0 {
         return None;
+    }
+    // Loop-until-stopped ignores per-plan counts: no plan is ever
+    // "exhausted", so we simply hand back the current rotation index
+    // (clamped). `rotate_filters` is forced true in this mode, so the
+    // execute() body advances `current_plan_index` after each sub.
+    if config.loop_until_stopped {
+        return Some(state.current_plan_index.min(n - 1));
     }
     if config.rotate_filters {
         // Start scan from current_plan_index (re-visit the same row when we
@@ -483,17 +562,38 @@ fn emit_progress(
     plan_index: usize,
     context: &ExecutionContext,
 ) {
-    let total = plan.count;
+    // In loop-until-stopped mode the per-plan count is ignored, so reporting
+    // it as the denominator would be misleading. Use the integration budget
+    // as the progress yardstick when one is set; otherwise progress is
+    // genuinely open-ended ("until the target window ends") and we report 0
+    // total / 0% (indeterminate) rather than a fake fraction.
+    let (total, percent) = if config.loop_until_stopped {
+        if config.integration_budget_secs > 0.0 {
+            let pct = (100.0 * state.completed_integration_secs / config.integration_budget_secs)
+                .clamp(0.0, 100.0);
+            (0u32, pct)
+        } else {
+            (0u32, 0.0)
+        }
+    } else {
+        let t = plan.count;
+        let frame_in_plan = state
+            .per_filter_completed
+            .get(&plan.filter_name)
+            .copied()
+            .unwrap_or(0);
+        let pct = if t > 0 {
+            100.0 * f64::from(frame_in_plan) / f64::from(t)
+        } else {
+            0.0
+        };
+        (t, pct)
+    };
     let frame_in_plan = state
         .per_filter_completed
         .get(&plan.filter_name)
         .copied()
         .unwrap_or(0);
-    let percent = if total > 0 {
-        100.0 * f64::from(frame_in_plan) / f64::from(total)
-    } else {
-        0.0
-    };
     let mut upd = ProgressUpdate::instruction_progress(
         node_id.to_string(),
         "Smart Exposure",
@@ -703,6 +803,7 @@ mod tests {
             dither_on_filter_change: true,
             integration_budget_secs: 14_400.0,
             batch_size: 1,
+            loop_until_stopped: true,
         };
         let nt = NodeType::SmartExposure(cfg);
         let json = serde_json::to_string(&nt).expect("serialize node type");
@@ -714,6 +815,7 @@ mod tests {
                 assert!(c.dither_on_filter_change);
                 assert!((c.integration_budget_secs - 14_400.0).abs() < f64::EPSILON);
                 assert_eq!(c.batch_size, 1);
+                assert!(c.loop_until_stopped);
                 assert_eq!(c.plans[0].filter_name, "L");
                 assert_eq!(c.plans[0].count, 60);
             }
@@ -740,6 +842,7 @@ mod tests {
                 assert!(!c.dither_on_filter_change);
                 assert_eq!(c.integration_budget_secs, 0.0);
                 assert_eq!(c.batch_size, 1);
+                assert!(!c.loop_until_stopped);
             }
             other => panic!("expected SmartExposure variant, got {:?}", other),
         }
@@ -955,6 +1058,165 @@ mod tests {
             "sequential mode should drain L (3) then R (2); got {:?}",
             order
         );
+    }
+
+    /// Loop-until-stopped: `next_plan` ignores per-plan counts entirely and
+    /// always returns the current rotation index, even when every plan's
+    /// authored count has been "completed" many times over. This is what
+    /// keeps the node looping instead of terminating at the fixed counts.
+    #[test]
+    fn loop_until_stopped_next_plan_never_exhausts() {
+        let cfg = SmartExposureConfig {
+            plans: vec![plan("L", 1), plan("R", 1)],
+            rotate_filters: true,
+            loop_until_stopped: true,
+            ..SmartExposureConfig::default()
+        };
+        let mut state = SmartExposureCheckpoint::default();
+        // Pretend we've already shot far past the authored counts.
+        state.per_filter_completed.insert("L".into(), 500);
+        state.per_filter_completed.insert("R".into(), 500);
+        // Still returns the current row — never None.
+        state.current_plan_index = 0;
+        assert_eq!(next_plan(&cfg, &state), Some(0));
+        state.current_plan_index = 1;
+        assert_eq!(next_plan(&cfg, &state), Some(1));
+    }
+
+    /// Loop mode round-trips through the same execute() picking flow as the
+    /// rotation tests, but because counts are ignored the order keeps cycling
+    /// L,R,G,B,L,R,G,B,… well past where the fixed counts (1 each) would have
+    /// stopped. We bound the loop by an iteration budget (the real executor
+    /// is bounded by the integration budget / target window) to prove it
+    /// keeps rotating rather than draining-and-stopping.
+    #[test]
+    fn loop_until_stopped_keeps_rotating_past_counts() {
+        let cfg = SmartExposureConfig {
+            plans: vec![plan("L", 1), plan("R", 1), plan("G", 1), plan("B", 1)],
+            rotate_filters: true,
+            loop_until_stopped: true,
+            ..SmartExposureConfig::default()
+        };
+        let mut state = SmartExposureCheckpoint::default();
+        let mut order: Vec<String> = Vec::new();
+        let n = cfg.plans.len();
+        // Ten subs — more than the 4 the fixed counts would have produced.
+        for _ in 0..10 {
+            let picked = next_plan(&cfg, &state).expect("loop mode always picks a plan");
+            order.push(cfg.plans[picked].filter_name.clone());
+            let completed = state
+                .per_filter_completed
+                .get(&cfg.plans[picked].filter_name)
+                .copied()
+                .unwrap_or(0);
+            state
+                .per_filter_completed
+                .insert(cfg.plans[picked].filter_name.clone(), completed + 1);
+            state.current_plan_index = (picked + 1) % n;
+        }
+        assert_eq!(
+            order,
+            vec!["L", "R", "G", "B", "L", "R", "G", "B", "L", "R"]
+                .into_iter()
+                .map(String::from)
+                .collect::<Vec<_>>(),
+            "loop mode should keep cycling filters past the per-plan counts; got {:?}",
+            order
+        );
+    }
+
+    /// Misconfiguration guard: loop-until-stopped with NO integration budget
+    /// AND no installed target end trigger must fail closed rather than spin
+    /// forever. We exercise the executor's `execute()` entry path with a bare
+    /// ExecutionContext (no target window installed).
+    #[test]
+    fn loop_until_stopped_without_bound_fails_closed() {
+        let cfg = SmartExposureConfig {
+            plans: vec![plan("L", 1), plan("R", 1)],
+            rotate_filters: true,
+            loop_until_stopped: true,
+            integration_budget_secs: 0.0,
+            ..SmartExposureConfig::default()
+        };
+        let node_type = NodeType::SmartExposure(cfg);
+        let mut context = ExecutionContext::new("root".to_string());
+        // No target end trigger installed.
+        assert!(context.active_target_end_trigger().is_none());
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let status = rt.block_on(async {
+            SmartExposureInstruction
+                .execute("node_loop", &node_type, &mut context)
+                .await
+        });
+        assert_eq!(
+            status,
+            NodeStatus::Failure,
+            "unbounded loop-until-stopped must fail closed, not loop forever"
+        );
+    }
+
+    /// With a positive integration budget, loop-until-stopped is bounded and
+    /// the entry guard lets it proceed (no Failure). We can't run the full
+    /// exposure path without device ops, but we can assert the guard does NOT
+    /// trip: a budget IS a valid automatic bound.
+    #[test]
+    fn loop_until_stopped_with_budget_passes_guard() {
+        let cfg = SmartExposureConfig {
+            plans: vec![plan("L", 1)],
+            rotate_filters: true,
+            loop_until_stopped: true,
+            integration_budget_secs: 3600.0,
+            ..SmartExposureConfig::default()
+        };
+        // The guard condition mirrors execute(): budget>0 OR end-trigger set.
+        let has_budget = cfg.integration_budget_secs > 0.0;
+        let context = ExecutionContext::new("root".to_string());
+        let bounded = has_budget || context.active_target_end_trigger().is_some();
+        assert!(
+            bounded,
+            "a positive budget must satisfy the loop-mode bound"
+        );
+    }
+
+    /// An installed target end trigger is also a valid bound even with no
+    /// budget. The trigger is evaluated against the context's observer/target
+    /// snapshot; a `TimeAfter` in the past reads as "satisfied" → the loop
+    /// would stop on the first between-batch check.
+    #[test]
+    fn loop_until_stopped_target_window_is_a_valid_bound() {
+        let context = ExecutionContext::new("root".to_string());
+        // A TimeAfter(0) (epoch) is always in the past → satisfied now.
+        context.install_active_target_end_trigger(Some(
+            crate::scheduling::TargetTrigger::TimeAfter(0),
+        ));
+        assert!(context.active_target_end_trigger().is_some());
+        assert_eq!(context.active_target_end_trigger_satisfied(), Some(true));
+    }
+
+    #[test]
+    fn loop_until_stopped_forces_batch_one_and_rotate() {
+        // A stored config with rotate_filters=false and batch_size=9 should,
+        // in loop mode, behave as rotate+batch1. We assert the coercion the
+        // execute() body performs by replicating its condition.
+        let cfg = SmartExposureConfig {
+            plans: vec![plan("L", 1), plan("R", 1)],
+            rotate_filters: false,
+            batch_size: 9,
+            loop_until_stopped: true,
+            ..SmartExposureConfig::default()
+        };
+        let needs_coercion = cfg.loop_until_stopped && (!cfg.rotate_filters || cfg.batch_size != 1);
+        assert!(needs_coercion);
+        let effective = SmartExposureConfig {
+            rotate_filters: true,
+            batch_size: 1,
+            ..cfg
+        };
+        assert!(effective.rotate_filters);
+        assert_eq!(effective.batch_size, 1);
     }
 
     #[test]

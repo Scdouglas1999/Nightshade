@@ -782,8 +782,7 @@ pub fn auto_stretch_color_image(width: u32, height: u32, data: Vec<u16>) -> Vec<
     }
 
     let (r_params, g_params, b_params) = auto_stretch_rgb(&data, width, height);
-    let rgb8 =
-        apply_stretch_rgb_per_channel(&data, width, height, &r_params, &g_params, &b_params);
+    let rgb8 = apply_stretch_rgb_per_channel(&data, width, height, &r_params, &g_params, &b_params);
 
     // Expand interleaved RGB8 → RGBA8 (opaque alpha) so the display layer
     // consumes the same 4-byte layout as the grayscale path.
@@ -1090,7 +1089,9 @@ mod auto_stretch_color_tests {
         let probe = (pixel_count - 1) * 4;
         let (r, g, b) = (rgba[probe], rgba[probe + 1], rgba[probe + 2]);
         // A single shared (linked) curve would force r == g == b here.
-        let distinct = [r, g, b].into_iter().collect::<std::collections::HashSet<_>>();
+        let distinct = [r, g, b]
+            .into_iter()
+            .collect::<std::collections::HashSet<_>>();
         assert!(
             distinct.len() > 1,
             "channels must stretch independently, got r={r} g={g} b={b}"

@@ -400,6 +400,8 @@ void main() {
     final smart = SmartExposureNode(
       id: 'smart',
       parentId: 'target',
+      loopUntilStopped: true,
+      integrationBudgetSecs: 3600,
       plans: const [
         FilterPlan(
           filterName: 'L',
@@ -431,6 +433,11 @@ void main() {
     expect(restored.brightnessTierPreferences.faintMinScore, 76);
     expect(restored.brightnessTierPreferences.mediumMinScore, 54);
     expect(restored.brightnessTierPreferences.brightMinScore, 31);
+
+    // loop_until_stopped must round-trip through export/import.
+    final restoredSmart = imported.nodes['smart'] as SmartExposureNode;
+    expect(restoredSmart.loopUntilStopped, isTrue);
+    expect(restoredSmart.integrationBudgetSecs, 3600);
   });
 
   test('exportSequence honours forceExport flag and writes even with errors',

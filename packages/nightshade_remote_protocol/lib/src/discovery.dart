@@ -10,12 +10,14 @@ class DiscoveredServer {
   final int signalingPort;
   final String name;
   final String version;
+  final String? apiVersion;
   final String mode;
   final bool authRequired;
   final String authenticationMode;
   final bool pairingSupported;
   final String? authToken;
   final String? fingerprint;
+
   /// Transport scheme. Either `http` (plain) or `https` (TLS). Defaults to
   /// `http` because UDP-broadcast discovery cannot tell the difference — the
   /// mDNS browse path populates this from the server's `scheme` TXT record so
@@ -29,6 +31,7 @@ class DiscoveredServer {
     required this.signalingPort,
     required this.name,
     required this.version,
+    this.apiVersion,
     this.mode = 'desktop',
     this.authRequired = false,
     this.authenticationMode = 'none',
@@ -52,6 +55,7 @@ class DiscoveredServer {
     int? signalingPort,
     String? name,
     String? version,
+    String? apiVersion,
     String? mode,
     bool? authRequired,
     String? authenticationMode,
@@ -66,6 +70,7 @@ class DiscoveredServer {
       signalingPort: signalingPort ?? this.signalingPort,
       name: name ?? this.name,
       version: version ?? this.version,
+      apiVersion: apiVersion ?? this.apiVersion,
       mode: mode ?? this.mode,
       authRequired: authRequired ?? this.authRequired,
       authenticationMode: authenticationMode ?? this.authenticationMode,

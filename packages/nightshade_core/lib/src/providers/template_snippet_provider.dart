@@ -336,6 +336,7 @@ Map<String, dynamic> _serializeNode(
       'ditherOnFilterChange': node.ditherOnFilterChange,
       'integrationBudgetSecs': node.integrationBudgetSecs,
       'batchSize': node.batchSize,
+      'loopUntilStopped': node.loopUntilStopped,
     });
   } else if (node is AutofocusNode) {
     base.addAll({

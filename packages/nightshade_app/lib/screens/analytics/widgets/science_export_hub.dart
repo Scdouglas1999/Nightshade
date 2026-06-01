@@ -14,6 +14,8 @@ import '../../../services/observation_report_service.dart';
 import '../../../utils/snackbar_helper.dart';
 import 'mpc_export_panel.dart';
 
+part 'science_export_hub/export_controls.dart';
+
 /// Identifier for a science dataset that the hub can export. Exposed so that
 /// per-card export buttons in the science analytics tab can route into the
 /// hub with the relevant card pre-highlighted (audit §4.14 consolidation).
@@ -122,7 +124,8 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                     ),
                   ),
                   IconButton(
-                    icon: Icon(LucideIcons.x, size: 18, color: colors.textMuted),
+                    icon:
+                        Icon(LucideIcons.x, size: 18, color: colors.textMuted),
                     onPressed: () => Navigator.of(context).pop(),
                   ),
                 ],
@@ -157,7 +160,8 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                               : _sessionLabel(sessions, _selectedSessionId!),
                           items: [
                             'All Sessions',
-                            ...sessions.map((s) => _sessionLabel(sessions, s.id)),
+                            ...sessions
+                                .map((s) => _sessionLabel(sessions, s.id)),
                           ],
                           onChanged: (value) {
                             setState(() {
@@ -235,7 +239,8 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                       isExporting: _isExporting,
                       highlight: widget.initialDataset ==
                           ScienceExportDataset.photometry,
-                      onExport: () => _exportData(ScienceExportDataset.photometry),
+                      onExport: () =>
+                          _exportData(ScienceExportDataset.photometry),
                     ),
                     const SizedBox(height: 8),
                     _ExportTypeCard(
@@ -274,9 +279,10 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                           'Per-tile FWHM, HFR, eccentricity, roundness, star count across field',
                       icon: LucideIcons.grid,
                       isExporting: _isExporting,
-                      highlight:
-                          widget.initialDataset == ScienceExportDataset.psfTiles,
-                      onExport: () => _exportData(ScienceExportDataset.psfTiles),
+                      highlight: widget.initialDataset ==
+                          ScienceExportDataset.psfTiles,
+                      onExport: () =>
+                          _exportData(ScienceExportDataset.psfTiles),
                     ),
                     const SizedBox(height: 8),
                     _ExportTypeCard(
@@ -289,7 +295,8 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                       isExporting: _isExporting,
                       highlight: widget.initialDataset ==
                           ScienceExportDataset.residuals,
-                      onExport: () => _exportData(ScienceExportDataset.residuals),
+                      onExport: () =>
+                          _exportData(ScienceExportDataset.residuals),
                     ),
                     const SizedBox(height: 8),
                     _ExportTypeCard(
@@ -491,7 +498,8 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
           // MPC report has its own dialog/flow; should not land here, but
           // surfacing an error keeps the contract honest if a future caller
           // routes a "Download CSV" intent to the wrong dataset.
-          throw StateError('MPC report uses the dedicated panel, not CSV export.');
+          throw StateError(
+              'MPC report uses the dedicated panel, not CSV export.');
       }
 
       if (rows.length <= 1) {
@@ -499,8 +507,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
         if (mounted) {
           setState(() {
             _isExporting = false;
-            _lastExportResult =
-                'No data found for the selected filters.';
+            _lastExportResult = 'No data found for the selected filters.';
           });
         }
         return;
@@ -557,7 +564,8 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
       late final String filePath;
       final backend = ref.read(backendProvider);
       if (backend is NetworkBackend) {
-        final bytes = await backend.generateObservationReport(_selectedSessionId!);
+        final bytes =
+            await backend.generateObservationReport(_selectedSessionId!);
         final directory = await _getExportDirectory();
         final timestamp = DateTime.now()
             .toIso8601String()
@@ -606,8 +614,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
     return true;
   }
 
-  Future<List<List<dynamic>>> _buildPhotometryRows(
-      List<int> sessionIds) async {
+  Future<List<List<dynamic>>> _buildPhotometryRows(List<int> sessionIds) async {
     final rows = <List<dynamic>>[
       [
         'Session ID',
@@ -736,8 +743,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
     return rows;
   }
 
-  Future<List<List<dynamic>>> _buildPsfTileRows(
-      List<int> sessionIds) async {
+  Future<List<List<dynamic>>> _buildPsfTileRows(List<int> sessionIds) async {
     final rows = <List<dynamic>>[
       [
         'Session ID',
@@ -774,8 +780,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
     return rows;
   }
 
-  Future<List<List<dynamic>>> _buildResidualRows(
-      List<int> sessionIds) async {
+  Future<List<List<dynamic>>> _buildResidualRows(List<int> sessionIds) async {
     final rows = <List<dynamic>>[
       [
         'Session ID',
@@ -903,129 +908,5 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
       await exportDir.create(recursive: true);
     }
     return exportDir;
-  }
-}
-
-class _ExportTypeCard extends StatelessWidget {
-  final NightshadeColors colors;
-  final String title;
-  final String description;
-  final IconData icon;
-  final bool isExporting;
-  final VoidCallback onExport;
-  final bool highlight;
-  final bool enabled;
-  final String actionLabel;
-  final IconData actionIcon;
-
-  const _ExportTypeCard({
-    super.key,
-    required this.colors,
-    required this.title,
-    required this.description,
-    required this.icon,
-    required this.isExporting,
-    required this.onExport,
-    this.highlight = false,
-    this.enabled = true,
-    this.actionLabel = 'CSV',
-    this.actionIcon = LucideIcons.download,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final borderColor = highlight
-        ? colors.primary.withValues(alpha: 0.7)
-        : colors.border;
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: borderColor,
-          width: highlight ? 1.5 : 1.0,
-        ),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 20, color: colors.primary),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: colors.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 8),
-          NightshadeButton(
-            label: actionLabel,
-            icon: actionIcon,
-            size: ButtonSize.small,
-            variant: ButtonVariant.outline,
-            onPressed: (isExporting || !enabled) ? null : onExport,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DateButton extends StatelessWidget {
-  final NightshadeColors colors;
-  final String label;
-  final VoidCallback onTap;
-
-  const _DateButton({
-    required this.colors,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: colors.border),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(LucideIcons.calendar, size: 14, color: colors.textMuted),
-            const SizedBox(width: 6),
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }

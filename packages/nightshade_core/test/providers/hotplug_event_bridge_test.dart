@@ -95,16 +95,59 @@ void main() {
     final cameraBaseline = cameraScans;
     final mountBaseline = mountScans;
 
-    // Emit a hot-plug arrival. The bridge should invalidate the
-    // per-class providers; the next read re-runs the FutureProvider.
+    // Emit a hot-plug arrival. The bridge debounces invalidation, so we wait
+    // past the coalesce window before the next read re-runs the FutureProvider.
     controller.add(_hotplugEvent(property: deviceDiscoveredProperty));
-    await Future<void>.delayed(const Duration(milliseconds: 10));
+    await Future<void>.delayed(const Duration(milliseconds: 200));
 
     await container.read(availableCamerasProvider.future);
     await container.read(availableMountsProvider.future);
 
     expect(cameraScans, greaterThan(cameraBaseline));
     expect(mountScans, greaterThan(mountBaseline));
+  });
+
+  test(
+      'hotplugEventBridgeProvider coalesces a burst into a single '
+      'invalidation round', () async {
+    final controller = StreamController<NightshadeEvent>.broadcast();
+    addTearDown(controller.close);
+
+    final backend = _MockFfiBackend();
+    when(() => backend.eventStream).thenAnswer((_) => controller.stream);
+
+    var cameraScans = 0;
+    final container = ProviderContainer(
+      overrides: [
+        backendProvider.overrideWith(
+          (ref) => _FixedBackendNotifier(ref, backend),
+        ),
+        availableCamerasProvider.overrideWith((ref) {
+          cameraScans += 1;
+          return <DeviceInfo>[];
+        }),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    container.read(hotplugEventBridgeProvider);
+    await container.read(availableCamerasProvider.future);
+    final baseline = cameraScans;
+
+    // A powered-hub plug-in: many arrivals back-to-back inside one window.
+    for (var i = 0; i < 25; i++) {
+      controller.add(_hotplugEvent(
+        property: deviceDiscoveredProperty,
+        deviceId: 'native:zwo:$i',
+      ));
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+
+    await container.read(availableCamerasProvider.future);
+
+    // 25 events must NOT cause 25 rescans — the debounce collapses them to a
+    // single invalidation round, so exactly one extra scan beyond baseline.
+    expect(cameraScans, equals(baseline + 1));
   });
 
   test(
@@ -139,7 +182,7 @@ void main() {
       deviceType: 'focuser',
       deviceId: 'native:zwo:0',
     ));
-    await Future<void>.delayed(const Duration(milliseconds: 10));
+    await Future<void>.delayed(const Duration(milliseconds: 200));
 
     await container.read(availableFocusersProvider.future);
     expect(scans, greaterThan(baseline));

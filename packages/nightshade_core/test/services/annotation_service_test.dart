@@ -145,6 +145,12 @@ void main() {
         installedPath: annotationCatalogPath,
       ),
     );
+    when(() => mockCatalogManager.searchDsoNearby(
+          ra: any(named: 'ra'),
+          dec: any(named: 'dec'),
+          radiusDegrees: any(named: 'radiusDegrees'),
+          maxMagnitude: any(named: 'maxMagnitude'),
+        )).thenAnswer((_) async => []);
 
     final mockBackend = MockNightshadeBackend();
     when(() => mockBackend.eventStream).thenAnswer((_) => const Stream.empty());
@@ -228,4 +234,116 @@ void main() {
           fovDegrees: any(named: 'fovDegrees'),
         )).called(1);
   });
+
+  test(
+      'findObjectsInFov rethrows a genuine annotation-catalog query failure as '
+      'AnnotationCatalogQueryException instead of swallowing it into []',
+      () async {
+    // Drive a REAL query failure into the pipeline's site-1 catch by handing
+    // findObjectsInFov an annotation catalog whose searchNearby throws.
+    // Before the fix this was caught, logged, and converted into an empty list
+    // — indistinguishable from "no objects in this frame". Now it must
+    // re-throw a typed AnnotationCatalogQueryException so the failure surfaces.
+    final tempDir =
+        await Directory.systemTemp.createTemp('annotation_query_failure_test_');
+    addTearDown(() async => tempDir.delete(recursive: true));
+
+    await CatalogManager.instance.initialize(tempDir.path);
+
+    final container = ProviderContainer(
+      overrides: [
+        annotationSettingsProvider.overrideWith(
+          () => TestAnnotationSettingsNotifier(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final service = container.read(annotationServiceProvider);
+    // Inject a catalog whose query throws — a genuine failure, not empty data.
+    service.debugAnnotationCatalogOverride = _ThrowingAnnotationCatalog();
+
+    const plateSolve = PlateSolveData(
+      ra: 10.0,
+      dec: 20.0,
+      pixelScale: 1.5,
+      rotation: 0.0,
+      fieldWidth: 1.0,
+      fieldHeight: 1.0,
+      imageWidth: 100,
+      imageHeight: 100,
+    );
+
+    await expectLater(
+      () => service.findObjectsInFov(plateSolve: plateSolve),
+      throwsA(
+        isA<AnnotationCatalogQueryException>()
+            .having((e) => e.catalog, 'catalog', 'annotation'),
+      ),
+    );
+  });
+
+  test(
+      'findObjectsInFov returns an empty list (no throw) when catalogs are '
+      'present but match nothing in the frame', () async {
+    // A successful-but-empty query is a legitimate result, not a failure. With
+    // an annotation catalog installed but holding only an object far outside
+    // this field of view, findObjectsInFov must return an empty list WITHOUT
+    // throwing — this is how the pipeline reports a quiet "0 objects" complete.
+    final tempDir =
+        await Directory.systemTemp.createTemp('annotation_empty_ok_test_');
+    addTearDown(() async => tempDir.delete(recursive: true));
+
+    await CatalogManager.instance.initialize(tempDir.path);
+
+    // One well-formed galaxy at RA=200, far from the RA=10 FOV below.
+    await File(CatalogManager.instance.annotationCatalogPath).writeAsString(
+      'RAJ2000,DEJ2000,Bmag,zhelio,PGC\n'
+      '200.0,-30.0,12.3,7000,12345\n',
+    );
+
+    final container = ProviderContainer(
+      overrides: [
+        annotationSettingsProvider.overrideWith(
+          () => TestAnnotationSettingsNotifier(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final service = container.read(annotationServiceProvider);
+
+    const plateSolve = PlateSolveData(
+      ra: 10.0,
+      dec: 20.0,
+      pixelScale: 1.5,
+      rotation: 0.0,
+      fieldWidth: 1.0,
+      fieldHeight: 1.0,
+      imageWidth: 100,
+      imageHeight: 100,
+    );
+
+    final objects = await service.findObjectsInFov(plateSolve: plateSolve);
+    expect(objects, isEmpty);
+  });
+}
+
+/// An [AnnotationCatalog] whose [searchNearby] throws, standing in for a
+/// corrupt/unreadable catalog so the pipeline's genuine-failure path can be
+/// exercised. Reports itself available so the query is actually attempted.
+class _ThrowingAnnotationCatalog extends AnnotationCatalog {
+  @override
+  bool get isAvailable => true;
+
+  @override
+  Future<List<AnnotationObject>> searchNearby({
+    required double ra,
+    required double dec,
+    required double radiusDegrees,
+    double? maxMagnitude,
+    Set<AnnotationObjectType>? typeFilter,
+  }) async {
+    throw StateError('annotation catalog read failed');
+  }
 }

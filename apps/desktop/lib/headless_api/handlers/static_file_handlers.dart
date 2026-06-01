@@ -167,14 +167,12 @@ class StaticFileHandlers {
     final rootWithSep = resolvedRoot.endsWith(Platform.pathSeparator)
         ? resolvedRoot
         : resolvedRoot + Platform.pathSeparator;
-    if (!resolvedPath.startsWith(rootWithSep) &&
-        resolvedPath != resolvedRoot) {
+    if (!resolvedPath.startsWith(rootWithSep) && resolvedPath != resolvedRoot) {
       return jsonForbidden({'error': 'Access denied'});
     }
 
     final bytes = await file.readAsBytes();
-    final isServiceWorker =
-        surface == 'run-watch' && relativePath == 'sw.js';
+    final isServiceWorker = surface == 'run-watch' && relativePath == 'sw.js';
     // Why a stricter policy for the service worker only: the bootstrap
     // script must always reload to honour updates. Every other asset
     // can be cached aggressively by the browser within a single
@@ -182,10 +180,10 @@ class StaticFileHandlers {
     final cacheControl =
         isServiceWorker ? 'no-cache, no-store, must-revalidate' : 'no-cache';
 
-    return Response.ok(
+    return contentResponse(
       bytes,
+      contentType: _mimeFor(filePath),
       headers: {
-        'content-type': _mimeFor(filePath),
         'cache-control': cacheControl,
         if (isServiceWorker) 'service-worker-allowed': '/run-watch/',
         ..._staticFileSecurityHeaders,
@@ -213,8 +211,8 @@ class StaticFileHandlers {
     final exeDir = p.dirname(Platform.resolvedExecutable);
 
     // 1. Next to the executable inside the Flutter assets bundle.
-    final releaseAssets = Directory(
-        p.join(exeDir, 'data', 'flutter_assets', name));
+    final releaseAssets =
+        Directory(p.join(exeDir, 'data', 'flutter_assets', name));
     if (releaseAssets.existsSync()) return releaseAssets;
 
     // 2. Next to the executable directly (some installer layouts).

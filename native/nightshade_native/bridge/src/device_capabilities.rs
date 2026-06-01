@@ -684,6 +684,7 @@ fn native_calibrator_state_to_capability(
     }
 }
 
+#[cfg(test)]
 pub(crate) async fn invalidate_capability_cache() {
     let mut cache = capability_cache().lock().await;
     cache.clear();
@@ -3499,10 +3500,8 @@ mod tests {
         }
         async fn get_vendor_features(
             &self,
-        ) -> Result<
-            nightshade_native::camera::VendorFeatures,
-            nightshade_native::traits::NativeError,
-        > {
+        ) -> Result<nightshade_native::camera::VendorFeatures, nightshade_native::traits::NativeError>
+        {
             Ok(nightshade_native::camera::VendorFeatures::default())
         }
         async fn get_gain_range(

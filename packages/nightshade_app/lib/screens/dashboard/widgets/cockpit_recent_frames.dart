@@ -1,0 +1,436 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart' hide ConnectionState;
+import 'package:nightshade_ui/nightshade_ui.dart';
+
+/// Reusable horizontal strip of the most recent captures from the active
+/// session.
+///
+/// Source: [sessionImagesProvider] (`List<CapturedImage>`, oldest-first as the
+/// session appends). We take the last [_maxFrames] and reverse them so the
+/// newest capture leads the strip. Each cell renders a small thumbnail plus
+/// filter / exposure / time, mirroring the efficient rendering used by the
+/// sequencer's `ExposureNodeThumbnailStrip`: thumbnails are fetched on demand
+/// via `ImagingBackend.getImageThumbnail` (a pre-rendered ~512px JPEG) rather
+/// than re-decoding the full FITS per cell. A local-file fallback covers
+/// ad-hoc captures whose backend thumbnail is a Flutter-decodable image.
+///
+/// When the session has no frames yet, the strip shows a compact empty hint so
+/// the surface still reads as "recent frames will land here" instead of
+/// collapsing to nothing.
+///
+/// This is the shared rendering used by both the opt-in [CockpitRecentFrames]
+/// tile and the merged `CockpitFrames` tile, so the thumbnail-loading logic
+/// lives in exactly one place.
+class RecentFramesStrip extends ConsumerWidget {
+  const RecentFramesStrip({super.key});
+
+  /// Newest N frames shown in the strip. Older frames are summarised by a
+  /// trailing "+N" badge so a long night never grows the surface unbounded.
+  static const int _maxFrames = 8;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+    final images = ref.watch(sessionImagesProvider);
+
+    // sessionImagesProvider appends in capture order, so the newest frame is
+    // last. Take the tail (newest [_maxFrames]) and reverse to newest-first.
+    final total = images.length;
+    final tail =
+        total > _maxFrames ? images.sublist(total - _maxFrames) : images;
+    final newestFirst = tail.reversed.toList(growable: false);
+    final hiddenCount = total - newestFirst.length;
+
+    if (newestFirst.isEmpty) {
+      return _EmptyHint(colors: colors);
+    }
+    return _FramesRow(
+      frames: newestFirst,
+      hiddenCount: hiddenCount,
+      colors: colors,
+    );
+  }
+}
+
+/// Recent-frames cockpit tile — a glanceable horizontal strip of the most
+/// recent captures from the active session, with a labelled header.
+///
+/// Opt-in tile retained for power users. The strip rendering itself lives in
+/// [RecentFramesStrip] so the merged `CockpitFrames` tile and this card share
+/// one implementation.
+class CockpitRecentFrames extends ConsumerWidget {
+  const CockpitRecentFrames({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+    final total = ref.watch(sessionImagesProvider).length;
+
+    return NightshadeCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.galleryThumbnails,
+                  size: 14, color: colors.textMuted),
+              const SizedBox(width: 8),
+              Text(
+                'Recent Frames',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: colors.textSecondary,
+                  letterSpacing: 0.3,
+                ),
+              ),
+              const Spacer(),
+              if (total > 0)
+                Text(
+                  total == 1 ? '1 frame' : '$total frames',
+                  style: NightshadeTypography.withTabular(
+                    TextStyle(fontSize: 11, color: colors.textMuted),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          const RecentFramesStrip(),
+        ],
+      ),
+    );
+  }
+}
+
+class _EmptyHint extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _EmptyHint({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(LucideIcons.imageOff, size: 20, color: colors.textMuted),
+          const SizedBox(height: 6),
+          Text(
+            'No frames captured this session yet',
+            style: TextStyle(fontSize: 11.5, color: colors.textMuted),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FramesRow extends StatelessWidget {
+  final List<CapturedImage> frames;
+  final int hiddenCount;
+  final NightshadeColors colors;
+
+  /// Thumbnail edge in logical pixels. Matches the compact end of the
+  /// sequencer strip so the two surfaces feel consistent.
+  static const double _tilePx = 72.0;
+
+  /// Height reserved below the thumbnail for the filter + exposure + time
+  /// caption rows.
+  static const double _captionHeight = 34.0;
+
+  const _FramesRow({
+    required this.frames,
+    required this.hiddenCount,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: _tilePx + _captionHeight,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: frames.length + (hiddenCount > 0 ? 1 : 0),
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          if (hiddenCount > 0 && index == frames.length) {
+            return _MoreBadge(
+              count: hiddenCount,
+              colors: colors,
+              tilePx: _tilePx,
+            );
+          }
+          return _FrameTile(
+            image: frames[index],
+            tilePx: _tilePx,
+            colors: colors,
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _MoreBadge extends StatelessWidget {
+  final int count;
+  final NightshadeColors colors;
+  final double tilePx;
+
+  const _MoreBadge({
+    required this.count,
+    required this.colors,
+    required this.tilePx,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: '$count earlier frames not shown',
+      child: Container(
+        width: tilePx,
+        height: tilePx,
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: colors.border),
+        ),
+        alignment: Alignment.center,
+        child: Text(
+          '+$count',
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+            color: colors.textMuted,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FrameTile extends ConsumerStatefulWidget {
+  final CapturedImage image;
+  final double tilePx;
+  final NightshadeColors colors;
+
+  const _FrameTile({
+    required this.image,
+    required this.tilePx,
+    required this.colors,
+  });
+
+  @override
+  ConsumerState<_FrameTile> createState() => _FrameTileState();
+}
+
+class _FrameTileState extends ConsumerState<_FrameTile> {
+  Future<Uint8List?>? _bytesFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _bytesFuture = _loadBytes();
+  }
+
+  @override
+  void didUpdateWidget(covariant _FrameTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.image.id != widget.image.id ||
+        oldWidget.image.filePath != widget.image.filePath) {
+      _bytesFuture = _loadBytes();
+    }
+  }
+
+  Future<Uint8List?> _loadBytes() async {
+    final imageId = int.tryParse(widget.image.id);
+    if (imageId == null) return null;
+
+    try {
+      final backend = ref.read(imagingBackendProvider);
+      final bytes = await backend.getImageThumbnail(imageId);
+      if (bytes.isNotEmpty) return bytes;
+    } catch (e) {
+      // Surface the failure to the log rather than swallowing it silently —
+      // a missing thumbnail is a real condition, but it shouldn't take down
+      // the whole strip, so the tile falls back to the placeholder icon.
+      ref.read(loggingServiceProvider).debug(
+            'RecentFramesStrip: backend thumbnail fetch failed for image '
+            '${widget.image.id}: $e',
+            source: 'RecentFramesStrip',
+          );
+    }
+    return null;
+  }
+
+  String _filterLabel() => widget.image.settings.filter ?? 'L';
+
+  String _exposureLabel() {
+    final secs = widget.image.settings.exposureTime;
+    if (secs >= 1) return '${secs.toStringAsFixed(0)}s';
+    return '${secs.toStringAsFixed(1)}s';
+  }
+
+  String _timeLabel() {
+    final t = widget.image.capturedAt.toLocal();
+    String two(int v) => v.toString().padLeft(2, '0');
+    return '${two(t.hour)}:${two(t.minute)}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    final px = widget.tilePx;
+    return Tooltip(
+      message: '${_fileName(widget.image.filePath)}\n'
+          '${_filterLabel()} · ${_exposureLabel()} · ${_timeLabel()}',
+      waitDuration: const Duration(milliseconds: 350),
+      child: SizedBox(
+        width: px,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              width: px,
+              height: px,
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(
+                  color: colors.border,
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _FrameImage(
+                bytesFuture: _bytesFuture,
+                fallbackFilePath: widget.image.filePath,
+                colors: colors,
+              ),
+            ),
+            const SizedBox(height: 3),
+            Row(
+              children: [
+                Text(
+                  _filterLabel(),
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: colors.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Expanded(
+                  child: Text(
+                    _exposureLabel(),
+                    style: NightshadeTypography.withTabular(
+                      TextStyle(fontSize: 10, color: colors.textMuted),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.right,
+                  ),
+                ),
+              ],
+            ),
+            Text(
+              _timeLabel(),
+              style: NightshadeTypography.withTabular(
+                TextStyle(fontSize: 9, color: colors.textMuted),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _fileName(String path) {
+    if (path.isEmpty) return widget.image.targetName ?? 'Captured frame';
+    return path.split(RegExp(r'[/\\]')).last;
+  }
+}
+
+class _FrameImage extends ConsumerWidget {
+  final Future<Uint8List?>? bytesFuture;
+  final String fallbackFilePath;
+  final NightshadeColors colors;
+
+  const _FrameImage({
+    required this.bytesFuture,
+    required this.fallbackFilePath,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isRemoteMode = ref.watch(isRemoteModeProvider);
+    return FutureBuilder<Uint8List?>(
+      future: bytesFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(
+            child: SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.4,
+                valueColor: AlwaysStoppedAnimation<Color>(colors.textMuted),
+              ),
+            ),
+          );
+        }
+        final bytes = snapshot.data;
+        if (bytes != null && bytes.isNotEmpty) {
+          return Image.memory(
+            bytes,
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => _placeholder(),
+          );
+        }
+        // No backend thumbnail. When local (not remote) and the source file
+        // is a Flutter-decodable raster (not FITS/XISF), fall back to the
+        // file directly; otherwise show a placeholder icon.
+        if (!isRemoteMode && _isImageLikePath(fallbackFilePath)) {
+          return Image.file(
+            File(fallbackFilePath),
+            fit: BoxFit.cover,
+            width: double.infinity,
+            height: double.infinity,
+            gaplessPlayback: true,
+            errorBuilder: (_, __, ___) => _placeholder(),
+          );
+        }
+        return _placeholder();
+      },
+    );
+  }
+
+  Widget _placeholder() => Center(
+        child: Icon(LucideIcons.image, size: 18, color: colors.textMuted),
+      );
+
+  bool _isImageLikePath(String path) {
+    final lower = path.toLowerCase();
+    return lower.endsWith('.png') ||
+        lower.endsWith('.jpg') ||
+        lower.endsWith('.jpeg') ||
+        lower.endsWith('.tif') ||
+        lower.endsWith('.tiff');
+  }
+}

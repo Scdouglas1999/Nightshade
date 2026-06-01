@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -180,6 +181,13 @@ class AnnotationService {
   String? _annotationCatalogPath;
   String? _dsoCatalogPath;
 
+  /// Test-only override for the annotation catalog. When set,
+  /// [_loadAnnotationCatalog] returns this instead of constructing one from the
+  /// installed catalog files. Used to exercise the pipeline's genuine-failure
+  /// path (e.g. a catalog whose `searchNearby` throws). Never set in production.
+  @visibleForTesting
+  AnnotationCatalog? debugAnnotationCatalogOverride;
+
   // External providers
   final _simbadProvider = SimbadProvider();
   final _exoplanetProvider = ExoplanetProvider();
@@ -258,6 +266,11 @@ class AnnotationService {
   // =========================================================================
 
   Future<AnnotationCatalog?> _loadAnnotationCatalog() async {
+    final override = debugAnnotationCatalogOverride;
+    if (override != null) {
+      return override;
+    }
+
     final annotationStatus = await _catalogManager.getAnnotationCatalogStatus();
     if (!annotationStatus.isInstalled ||
         annotationStatus.installedPath == null) {

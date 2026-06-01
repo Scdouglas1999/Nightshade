@@ -1,0 +1,484 @@
+part of '../calibration_handlers.dart';
+
+extension CalibrationDarkLibraryHandlers on CalibrationHandlers {
+  // ===========================================================================
+  // Dark library
+  // ===========================================================================
+
+  /// GET /api/calibration/darks
+  Future<Response> handleListDarks(Request request) async {
+    _logInfo('[API] GET /api/calibration/darks');
+    final params = request.url.queryParameters;
+
+    final exposureSeconds = _parseDoubleParam(params, 'exposureSeconds');
+    final temperatureC = _parseDoubleParam(params, 'temperatureC');
+    final gain = _parseIntParam(params, 'gain');
+    final limit = _parseListLimit(params);
+
+    final entries = await _database.darkLibraryDao.listFiltered(
+      exposureSeconds: exposureSeconds,
+      gain: gain,
+      temperatureCelsius: temperatureC,
+      limit: limit,
+    );
+
+    final json = <Map<String, dynamic>>[];
+    for (final entry in entries) {
+      json.add(await _darkEntryToWire(entry));
+    }
+    return jsonOk({'darks': json, 'count': json.length});
+  }
+
+  /// GET /api/calibration/darks/{id}
+  Future<Response> handleGetDark(Request request, String id) async {
+    _logInfo('[API] GET /api/calibration/darks/$id');
+    final iid = _parsePathId(id, 'id');
+    final entry = await _database.darkLibraryDao.getEntryById(iid);
+    if (entry == null) {
+      return jsonNotFound({
+        'error': 'dark_not_found',
+        'message': 'No dark library entry with id $iid',
+      });
+    }
+    return jsonOk({'dark': await _darkEntryToWire(entry)});
+  }
+
+  /// POST /api/calibration/darks  — register an existing file by path.
+  Future<Response> handleRegisterDark(Request request) async {
+    _logInfo('[API] POST /api/calibration/darks');
+    final payload = await readJsonObject(request);
+
+    final filePath = requireString(payload, 'filePath');
+    final exposureDuration = requireDouble(payload, 'exposureDuration', min: 0);
+    final gain = optionalInt(payload, 'gain') ?? 0;
+    final offset = optionalInt(payload, 'offset') ?? 0;
+    final binX = optionalInt(payload, 'binX', min: 1) ?? 1;
+    final binY = optionalInt(payload, 'binY', min: 1) ?? 1;
+    final sensorTempC = optionalDouble(payload, 'sensorTempC');
+    final frameType = optionalString(payload, 'frameType') ?? 'dark';
+    final frameCount = optionalInt(payload, 'frameCount');
+    final masterPath = optionalString(payload, 'masterPath');
+    final width = optionalInt(payload, 'width');
+    final height = optionalInt(payload, 'height');
+
+    if (frameType != 'dark' && frameType != 'bias') {
+      throw BadRequestError(
+        field: 'frameType',
+        expected: '"dark" or "bias"',
+        message: 'frameType must be "dark" or "bias", got "$frameType"',
+      );
+    }
+
+    final file = File(filePath);
+    if (!await file.exists()) {
+      return jsonBadRequest({
+        'error': 'dark_file_not_found',
+        'message': 'No file exists at $filePath',
+        'filePath': filePath,
+      });
+    }
+
+    final companion = DarkLibraryCompanion.insert(
+      filePath: filePath,
+      exposureTime: exposureDuration,
+      temperature: Value(sensorTempC),
+      gain: Value(gain),
+      offset: Value(offset),
+      binX: Value(binX),
+      binY: Value(binY),
+      frameType: Value(frameType),
+      width: Value(width),
+      height: Value(height),
+      masterDarkPath: Value(masterPath),
+      masterFrameCount: Value(frameCount),
+    );
+
+    final id = await _database.darkLibraryDao.addEntry(companion);
+    final entry = await _database.darkLibraryDao.getEntryById(id);
+    if (entry == null) {
+      // Should not happen — we just inserted, but treat as a HandlerFailure
+      // so the operator sees a structured error rather than a generic 500.
+      throw HandlerFailure(
+        code: 'dark_register_failed',
+        message: 'Failed to read back newly-created dark library entry',
+      );
+    }
+    return jsonCreated({'dark': await _darkEntryToWire(entry)});
+  }
+
+  /// POST /api/calibration/darks/upload — multipart-ish (FITS body + JSON
+  /// metadata in query params).
+  ///
+  /// We deliberately don't pull a full MIME multipart parser into the
+  /// dependency closure (the `shelf` ecosystem has no canonical multipart
+  /// helper at our minor version). Instead we accept the binary FITS as
+  /// the raw request body and the metadata as JSON-encoded query
+  /// parameters in a `meta` field. This matches the existing
+  /// `/api/imaging/save-fits` flow.
+  Future<Response> handleUploadDark(Request request) async {
+    _logInfo('[API] POST /api/calibration/darks/upload');
+
+    final contentLength = int.tryParse(request.headers['content-length'] ?? '');
+    if (contentLength != null &&
+        contentLength > CalibrationHandlers._maxDarkUploadBytes) {
+      return jsonTooLarge({
+        'error': 'dark_upload_too_large',
+        'maxBytes': CalibrationHandlers._maxDarkUploadBytes,
+      });
+    }
+
+    final metaParam = request.url.queryParameters['meta'];
+    if (metaParam == null || metaParam.isEmpty) {
+      throw BadRequestError(
+        field: 'meta',
+        expected: 'url-encoded JSON object',
+        message: 'POST /api/calibration/darks/upload requires a `meta` query '
+            'parameter containing the JSON dark metadata',
+      );
+    }
+    Map<String, dynamic> meta;
+    try {
+      final decoded = jsonDecode(metaParam);
+      if (decoded is! Map<String, dynamic>) {
+        throw const FormatException('meta is not a JSON object');
+      }
+      meta = decoded;
+    } on FormatException catch (e) {
+      throw BadRequestError(
+        field: 'meta',
+        expected: 'url-encoded JSON object',
+        message: 'Failed to parse `meta` query parameter: ${e.message}',
+      );
+    }
+
+    final exposureDuration = requireDouble(meta, 'exposureDuration', min: 0);
+    final sensorTempC = optionalDouble(meta, 'sensorTempC');
+    final gain = optionalInt(meta, 'gain') ?? 0;
+    final offset = optionalInt(meta, 'offset') ?? 0;
+    final binX = optionalInt(meta, 'binX', min: 1) ?? 1;
+    final binY = optionalInt(meta, 'binY', min: 1) ?? 1;
+    final frameType = optionalString(meta, 'frameType') ?? 'dark';
+    final width = optionalInt(meta, 'width');
+    final height = optionalInt(meta, 'height');
+    final frameCount = optionalInt(meta, 'frameCount');
+
+    if (frameType != 'dark' && frameType != 'bias') {
+      throw BadRequestError(
+        field: 'frameType',
+        expected: '"dark" or "bias"',
+        message: 'frameType must be "dark" or "bias", got "$frameType"',
+      );
+    }
+
+    final requestedName =
+        request.url.queryParameters['fileName'] ?? 'upload.fits';
+    final sanitized = _sanitizeDarkFileName(requestedName);
+    if (sanitized == null) {
+      return jsonBadRequest({
+        'error': 'invalid_filename',
+        'message': 'Filename must end in .fits, .fit, or .xisf and contain no '
+            'path separators',
+      });
+    }
+
+    final dir = await _calibrationDarksDir();
+    final destination = await _resolveUniquePath(dir, sanitized);
+
+    // Stream the body straight to disk; we track size as we go so a body
+    // that lies about its Content-Length still gets truncated.
+    final sink = destination.openWrite();
+    int bytesWritten = 0;
+    bool oversized = false;
+    try {
+      await for (final chunk in request.read()) {
+        bytesWritten += chunk.length;
+        if (bytesWritten > CalibrationHandlers._maxDarkUploadBytes) {
+          oversized = true;
+          break;
+        }
+        sink.add(chunk);
+      }
+    } finally {
+      await sink.flush();
+      await sink.close();
+    }
+
+    if (oversized) {
+      try {
+        if (await destination.exists()) {
+          await destination.delete();
+        }
+      } catch (e) {
+        _logWarning(
+          'Failed to remove oversized dark upload at '
+          '${destination.path}: $e',
+        );
+      }
+      return jsonTooLarge({
+        'error': 'dark_upload_too_large',
+        'maxBytes': CalibrationHandlers._maxDarkUploadBytes,
+      });
+    }
+
+    if (bytesWritten == 0) {
+      try {
+        if (await destination.exists()) {
+          await destination.delete();
+        }
+      } catch (_, __) {
+        // Why: best-effort cleanup of a partially-written destination; the
+        // BadRequestError thrown immediately below is the surfaced outcome.
+      }
+      throw BadRequestError(
+        field: 'body',
+        expected: 'FITS payload',
+        message: 'Upload body was empty',
+      );
+    }
+
+    final companion = DarkLibraryCompanion.insert(
+      filePath: destination.path,
+      exposureTime: exposureDuration,
+      temperature: Value(sensorTempC),
+      gain: Value(gain),
+      offset: Value(offset),
+      binX: Value(binX),
+      binY: Value(binY),
+      frameType: Value(frameType),
+      width: Value(width),
+      height: Value(height),
+      masterFrameCount: Value(frameCount),
+    );
+
+    final id = await _database.darkLibraryDao.addEntry(companion);
+    final entry = await _database.darkLibraryDao.getEntryById(id);
+    if (entry == null) {
+      throw HandlerFailure(
+        code: 'dark_register_failed',
+        message: 'Failed to read back newly-created dark library entry',
+      );
+    }
+    return jsonCreated({
+      'dark': await _darkEntryToWire(entry),
+      'bytesWritten': bytesWritten,
+    });
+  }
+
+  /// GET /api/calibration/darks/{id}/download — stream with Range support.
+  Future<Response> handleDownloadDark(Request request, String id) async {
+    _logInfo('[API] GET /api/calibration/darks/$id/download');
+    final iid = _parsePathId(id, 'id');
+
+    final entry = await _database.darkLibraryDao.getEntryById(iid);
+    if (entry == null) {
+      return jsonNotFound({
+        'error': 'dark_not_found',
+        'message': 'No dark library entry with id $iid',
+      });
+    }
+    final file = File(entry.filePath);
+    if (!await file.exists()) {
+      return jsonNotFound({
+        'error': 'dark_file_not_found',
+        'message': 'On-disk file is missing for dark $iid',
+        'filePath': entry.filePath,
+      });
+    }
+
+    final int fileLength;
+    final DateTime mtime;
+    try {
+      fileLength = await file.length();
+      mtime = await file.lastModified();
+    } on PathAccessException catch (e) {
+      _logWarning('Permission denied reading dark $iid: $e');
+      return jsonForbidden({
+        'error': 'permission_denied',
+        'path': entry.filePath,
+      });
+    } on FileSystemException catch (e) {
+      return jsonInternalServerError({
+        'error': 'stat_failed',
+        'detail': e.message,
+      });
+    }
+
+    final fileName = p.basename(entry.filePath);
+    final lower = fileName.toLowerCase();
+    String contentType;
+    if (lower.endsWith('.fits') || lower.endsWith('.fit')) {
+      contentType = 'application/fits';
+    } else if (lower.endsWith('.xisf')) {
+      contentType = 'application/x-xisf';
+    } else {
+      contentType = 'application/octet-stream';
+    }
+
+    final etag = '"dark-$iid-${mtime.millisecondsSinceEpoch}"';
+    final rangeHeader = request.headers['range'];
+    final ifRange = request.headers['if-range'];
+    final ifRangeMatches = ifRange == null || ifRange == etag;
+    final shouldHonourRange = rangeHeader != null && ifRangeMatches;
+
+    if (!shouldHonourRange) {
+      return attachmentResponse(
+        file.openRead(),
+        fileName: fileName,
+        contentType: contentType,
+        contentLength: fileLength,
+        headers: {
+          'accept-ranges': 'bytes',
+          'etag': etag,
+        },
+      );
+    }
+
+    final int rangeStart;
+    final int rangeEnd;
+    try {
+      final parsed = parseRangeHeader(rangeHeader, fileLength);
+      rangeStart = parsed.start;
+      rangeEnd = parsed.end;
+    } on FormatException catch (e) {
+      return rangeNotSatisfiableResponse(fileLength, reason: e.message);
+    }
+
+    return partialContentResponse(
+      file.openRead(rangeStart, rangeEnd + 1),
+      start: rangeStart,
+      end: rangeEnd,
+      totalLength: fileLength,
+      contentType: contentType,
+      fileName: fileName,
+      headers: {'etag': etag},
+    );
+  }
+
+  /// DELETE /api/calibration/darks/{id}?deleteFile=true
+  Future<Response> handleDeleteDark(Request request, String id) async {
+    _logInfo('[API] DELETE /api/calibration/darks/$id');
+    final iid = _parsePathId(id, 'id');
+    final deleteFile =
+        request.url.queryParameters['deleteFile']?.toLowerCase() == 'true';
+
+    final entry = await _database.darkLibraryDao.getEntryById(iid);
+    if (entry == null) {
+      return jsonNotFound({
+        'error': 'dark_not_found',
+        'message': 'No dark library entry with id $iid',
+      });
+    }
+
+    bool fileDeleted = false;
+    if (deleteFile) {
+      try {
+        final file = File(entry.filePath);
+        if (await file.exists()) {
+          await file.delete();
+          fileDeleted = true;
+        }
+      } on PathAccessException catch (e) {
+        _logWarning('Permission denied deleting dark $iid file: $e');
+        return jsonForbidden({
+          'error': 'permission_denied',
+          'message': 'Could not delete on-disk dark file',
+          'path': entry.filePath,
+        });
+      } on FileSystemException catch (e) {
+        _logWarning('Failed to delete dark $iid file: ${e.message}');
+        // The DB row still gets removed below; we surface the file-side
+        // failure in the response so the caller can decide whether to
+        // clean up manually.
+        await _database.darkLibraryDao.deleteEntry(iid);
+        return jsonOk({
+          'deleted': true,
+          'fileDeleted': false,
+          'fileError': e.message,
+        });
+      }
+    }
+
+    final rowsAffected = await _database.darkLibraryDao.deleteEntry(iid);
+    return jsonOk({
+      'deleted': rowsAffected > 0,
+      'fileDeleted': fileDeleted,
+    });
+  }
+
+  /// POST /api/calibration/darks/find-match
+  Future<Response> handleFindMatchingDark(Request request) async {
+    _logInfo('[API] POST /api/calibration/darks/find-match');
+    final payload = await readJsonObject(request);
+
+    final exposureDuration = requireDouble(payload, 'exposureDuration', min: 0);
+    final gain = optionalInt(payload, 'gain') ?? 0;
+    final offset = optionalInt(payload, 'offset') ?? 0;
+    final binX = optionalInt(payload, 'binX', min: 1) ?? 1;
+    final binY = optionalInt(payload, 'binY', min: 1) ?? 1;
+    final sensorTempC = optionalDouble(payload, 'sensorTempC');
+    final frameType = optionalString(payload, 'frameType') ?? 'dark';
+
+    DarkLibraryMatchTolerances tolerances = DarkLibraryMatchTolerances.defaults;
+    final tolMap = optionalObject(payload, 'tolerances');
+    if (tolMap != null) {
+      final exposureRatio = optionalDouble(tolMap, 'exposureSecondsRatio');
+      final exposureAbs = optionalDouble(tolMap, 'exposureSeconds');
+      final temperatureTol = optionalDouble(tolMap, 'temperatureCelsius');
+      double exposureSecs = tolerances.exposureSecs;
+      if (exposureAbs != null) {
+        exposureSecs = exposureAbs;
+      } else if (exposureRatio != null) {
+        exposureSecs = exposureDuration * exposureRatio;
+      }
+      tolerances = DarkLibraryMatchTolerances.validated(
+        exposureSecs: exposureSecs,
+        temperatureC: temperatureTol ?? tolerances.temperatureC,
+      );
+    }
+
+    final match = await _database.darkLibraryDao.findBestMatch(
+      exposureTime: exposureDuration,
+      gain: gain,
+      offset: offset,
+      binX: binX,
+      binY: binY,
+      temperature: sensorTempC,
+      tolerances: tolerances,
+      frameType: frameType,
+    );
+    if (match == null) {
+      return jsonNotFound({
+        'error': 'no_matching_dark',
+        'message':
+            'No dark library entry matches the requested capture parameters',
+      });
+    }
+    return jsonOk({'dark': await _darkEntryToWire(match)});
+  }
+
+  /// POST /api/calibration/darks/backfill-sizes
+  ///
+  /// Note: the `dark_library` schema has no `file_size` column, so this
+  /// endpoint performs the closest equivalent — a verification pass that
+  /// stats every row, returning counts of present/missing/error rows and
+  /// the total on-disk byte usage. Mirrors the spirit of the
+  /// `captured_images.fileSize` backfill (which DOES update a column).
+  Future<Response> handleVerifyDarkSizes(Request request) async {
+    _logInfo('[API] POST /api/calibration/darks/backfill-sizes');
+    final stats = await _database.darkLibraryDao.verifyOnDiskState(
+      logger: _logger,
+    );
+    return jsonOk({
+      'verified': stats['total'],
+      'present': stats['present'],
+      'missing': stats['missing'],
+      'errors': stats['errors'],
+      'totalBytes': stats['totalBytes'],
+      // For symmetry with /images backfill: no rows are mutated by this
+      // endpoint (no file_size column on dark_library), so we surface zero
+      // here so clients can use the same code path.
+      'updated': 0,
+      'skipped': stats['missing'],
+    });
+  }
+}

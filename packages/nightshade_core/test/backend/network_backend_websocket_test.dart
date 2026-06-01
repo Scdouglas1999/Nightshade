@@ -121,6 +121,47 @@ void main() {
       }
     });
 
+    test('prefers compatible apiVersion over a newer app version', () async {
+      var websocketOpened = false;
+      final server = await _startServer(
+        (socket) {
+          websocketOpened = true;
+          socket.listen((message) {
+            final data = jsonDecode(message as String) as Map<String, dynamic>;
+            if (data['type'] == 'ping') {
+              socket.add(jsonEncode({'type': 'pong'}));
+            }
+          });
+        },
+        infoBody: const {
+          'version': '3.0.0',
+          'apiVersion': '2.6.0',
+        },
+      );
+
+      final backend = NetworkBackend(
+        serverHost: InternetAddress.loopbackIPv4.address,
+        serverPort: server.port,
+        webSocketPort: server.port,
+        webSocketHeartbeatInterval: const Duration(milliseconds: 50),
+        webSocketHeartbeatTimeout: const Duration(milliseconds: 250),
+      );
+
+      try {
+        await backend.connectionStateStream
+            .firstWhere((state) => state == BackendConnectionState.connected)
+            .timeout(const Duration(seconds: 2));
+        await _waitUntil(
+          () => websocketOpened,
+          timeout: const Duration(seconds: 2),
+        );
+        expect(websocketOpened, isTrue);
+      } finally {
+        backend.dispose();
+        await server.close(force: true);
+      }
+    });
+
     test('discovers devices using headless deviceType field', () async {
       final server = await _startServer(
         (socket) {

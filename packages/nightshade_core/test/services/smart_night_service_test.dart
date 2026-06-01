@@ -657,11 +657,11 @@ void main() {
         containsAll(['L', 'R', 'G', 'B']),
       );
 
-      final smartExposure = result.sequence.nodes.values
-          .whereType<SmartExposureNode>()
-          .single;
+      final smartExposure =
+          result.sequence.nodes.values.whereType<SmartExposureNode>().single;
       expect(smartExposure.rotateFilters, isTrue);
-      expect(smartExposure.plans.map((p) => p.filterName), containsAll(['L', 'R', 'G', 'B']));
+      expect(smartExposure.plans.map((p) => p.filterName),
+          containsAll(['L', 'R', 'G', 'B']));
       expect(
         result.sequence.nodes.values.whereType<SlewNode>(),
         isNotEmpty,
@@ -715,7 +715,10 @@ void main() {
       expect(result.filterPlans, hasLength(1));
       expect(result.filterPlans.single.filterName, 'L');
       expect(
-        result.sequence.nodes.values.whereType<SmartExposureNode>().single.plans,
+        result.sequence.nodes.values
+            .whereType<SmartExposureNode>()
+            .single
+            .plans,
         hasLength(1),
       );
     });
@@ -756,8 +759,7 @@ void main() {
         settings: const SmartNightSettings(subExposureFloorSecs: 1),
       );
 
-      final filterNames =
-          result.filterPlans.map((p) => p.filterName).toList();
+      final filterNames = result.filterPlans.map((p) => p.filterName).toList();
       expect(filterNames, contains('L'));
       expect(filterNames, containsAll(['R', 'G', 'B']));
       expect(filterNames, isNot(contains('Ha')));
@@ -876,6 +878,17 @@ void main() {
         result.sequence.nodes.values.whereType<StartGuidingNode>(),
         isNotEmpty,
       );
+      final target =
+          result.sequence.nodes.values.whereType<TargetHeaderNode>().single;
+      final targetChildren =
+          target.childIds.map((id) => result.sequence.nodes[id]).toList();
+      final autofocusIndex =
+          targetChildren.indexWhere((node) => node is AutofocusNode);
+      final guidingIndex =
+          targetChildren.indexWhere((node) => node is StartGuidingNode);
+      expect(autofocusIndex, isNonNegative);
+      expect(guidingIndex, isNonNegative);
+      expect(autofocusIndex, lessThan(guidingIndex));
     });
 
     test('includeSessionPreamble adds cool unpark warm park nodes', () {
@@ -921,8 +934,7 @@ void main() {
             .whereType<ExposureNode>()
             .where((n) => n.frameType == FrameType.dark);
 
-    test(
-        'auto-schedule darks OFF: no dark nodes appended, warning preserved',
+    test('auto-schedule darks OFF: no dark nodes appended, warning preserved',
         () {
       final plan = service.build(
         profile: monoProfile,
@@ -1077,8 +1089,8 @@ void main() {
         settings: const SmartNightSettings(autoScheduleMissingDarks: true),
       );
 
-      final root = plan.sequence.nodes[plan.sequence.rootNodeId]
-          as InstructionSetNode;
+      final root =
+          plan.sequence.nodes[plan.sequence.rootNodeId] as InstructionSetNode;
       final ids = root.childIds;
       String? darkGroupId;
       String? warmId;
@@ -1242,7 +1254,7 @@ void main() {
         decDegrees: 40,
         totalScore: 80,
         objectType: objectType,
-        visibility: TargetVisibilityInfo(
+        visibility: const TargetVisibilityInfo(
           currentAltitude: 50,
           currentAzimuth: 180,
           airmass: 1.4,

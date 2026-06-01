@@ -1068,10 +1068,7 @@ pub async fn execute_center(
                         // keep polling until the deadline so a persistent
                         // failure ends the attempt rather than capturing
                         // mid-slew.
-                        tracing::warn!(
-                            "Centering: slew-state read failed ({}); retrying",
-                            e
-                        );
+                        tracing::warn!("Centering: slew-state read failed ({}); retrying", e);
                     }
                 }
                 if tokio::time::Instant::now() > slew_deadline {

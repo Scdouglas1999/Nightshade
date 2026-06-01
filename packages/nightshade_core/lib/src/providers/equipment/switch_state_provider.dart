@@ -89,11 +89,11 @@ class SwitchStateNotifier extends StateNotifier<SwitchState> {
     }
   }
 
-  void setConnecting(String deviceId, String deviceName) {
+  void setConnecting(String deviceId, [String? deviceName]) {
     state = state.copyWith(
       connectionState: DeviceConnectionState.connecting,
       deviceId: deviceId,
-      deviceName: deviceName,
+      deviceName: deviceName ?? state.deviceName ?? deviceId,
       clearError: true,
     );
   }

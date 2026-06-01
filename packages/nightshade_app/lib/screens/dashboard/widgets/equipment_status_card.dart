@@ -15,64 +15,72 @@ class EquipmentStatusCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     // Use select() to only rebuild when connection state changes
-    final cameraConnected = ref.watch(cameraStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
-    final mountConnected = ref.watch(mountStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
-    final guiderConnected = ref.watch(guiderStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
-    final focuserConnected = ref.watch(focuserStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
-    final filterWheelConnected = ref.watch(filterWheelStateProvider.select((s) => s.connectionState)) == DeviceConnectionState.connected;
+    final cameraConnected =
+        ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
+    final mountConnected =
+        ref.watch(mountStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
+    final guiderConnected =
+        ref.watch(guiderStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
+    final focuserConnected =
+        ref.watch(focuserStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
+    final filterWheelConnected =
+        ref.watch(filterWheelStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
 
-    final connectedCount = [cameraConnected, mountConnected, guiderConnected, focuserConnected, filterWheelConnected]
-        .where((c) => c).length;
+    final connectedCount = [
+      cameraConnected,
+      mountConnected,
+      guiderConnected,
+      focuserConnected,
+      filterWheelConnected
+    ].where((c) => c).length;
 
     return DashboardGlassCard(
       colors: colors,
-      padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           // Header row
-          Row(
-            children: [
-              Icon(
-                LucideIcons.plug,
-                size: 14,
-                color: connectedCount > 0 ? colors.success : colors.textMuted,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Equipment',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
-              ),
-              const Spacer(),
-              Text(
-                '$connectedCount/5',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: connectedCount == 5 ? colors.success : colors.textSecondary,
-                ),
-              ),
-              const SizedBox(width: 8),
-              GestureDetector(
-                onTap: () => context.go('/equipment'),
-                child: Text(
-                  'Manage',
+          DashboardCardHeader(
+            colors: colors,
+            icon: LucideIcons.plug,
+            title: 'Equipment',
+            accent: connectedCount > 0 ? colors.success : null,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$connectedCount/5',
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
-                    color: colors.accent,
+                    color: connectedCount == 5
+                        ? colors.success
+                        : colors.textSecondary,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: () => context.go('/equipment'),
+                  child: Text(
+                    'Manage',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                      color: colors.accent,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
 
-          const SizedBox(height: 8),
+          const SizedBox(height: DashboardCardStyle.headerGap),
 
           // Compact horizontal icon row
           Container(

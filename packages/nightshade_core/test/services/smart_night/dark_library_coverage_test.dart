@@ -68,19 +68,32 @@ void main() {
     });
 
     test('returns no notes when a matching master exists', () async {
-      final expectedDuration = exposureContext.recommendForFilter('L').seconds;
-      await DarkLibraryDao(database).addEntry(DarkLibraryCompanion.insert(
-        filePath: '/tmp/master_l.fits',
-        exposureTime: expectedDuration,
-        frameType: const Value('dark'),
-        temperature: const Value(-10),
-        gain: const Value(100),
-        offset: const Value(50),
-        binX: const Value(1),
-        binY: const Value(1),
-        masterDarkPath: const Value('/tmp/master_l.fits'),
-        masterFrameCount: const Value(20),
-      ));
+      // L / R / G / B no longer share a single exposure: the calculator now
+      // models per-channel sky brightness (blue sees the darkest sky and needs
+      // the longest sub), so an autoLrgb plan requires a dark master at each
+      // distinct duration. Seed one master per unique required duration so the
+      // library is genuinely fully covered.
+      final dao = DarkLibraryDao(database);
+      final requiredDurations = <double>{
+        for (final filter in const ['L', 'R', 'G', 'B'])
+          exposureContext.recommendForFilter(filter).seconds,
+      };
+      var index = 0;
+      for (final duration in requiredDurations) {
+        await dao.addEntry(DarkLibraryCompanion.insert(
+          filePath: '/tmp/master_$index.fits',
+          exposureTime: duration,
+          frameType: const Value('dark'),
+          temperature: const Value(-10),
+          gain: const Value(100),
+          offset: const Value(50),
+          binX: const Value(1),
+          binY: const Value(1),
+          masterDarkPath: Value('/tmp/master_$index.fits'),
+          masterFrameCount: const Value(20),
+        ));
+        index++;
+      }
 
       final notes = await coverage.missingNotes(
         profile: profile,

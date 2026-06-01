@@ -53,7 +53,6 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'widgets/hips_attribution_badge.dart';
-import 'widgets/hips_tile_layer.dart';
 
 // The survey `properties` document is resolved by the single shared
 // [framingHipsPropertiesProvider] in nightshade_core (the C7 provider surface,
@@ -97,37 +96,30 @@ class FramingHipsLayerWiring extends ConsumerWidget {
     final propertiesAsync =
         ref.watch(framingHipsPropertiesProvider(surveySource));
 
-    // The group is NOT wrapped in a blanket IgnorePointer: the C8 tile layer
-    // ignores pointers itself (pan / rotate fall through to the framing canvas
-    // beneath), while the attribution badge must stay tappable to open the
-    // survey's copyright page. Wrapping the whole group would swallow that tap.
-    return Stack(
-      children: [
-        // The streamed HiPS tile mosaic, registered to the shared
-        // FramingPlateScale so it co-registers with the canvas overlays. C8
-        // measures its own canvas, resolves the shared plate scale, drives the
-        // loader and paints the resident snapshot; it stays transparent until
-        // imagery is resident, so the canvas snapshot shows through underneath.
-        const Positioned.fill(child: HipsTileLayer()),
-
-        // Survey attribution credit, in the framing canvas's quiet bottom chrome
-        // band, centred so it never collides with the canvas's bottom-left scale
-        // indicator or bottom-right zoom controls. Shown only while HiPS imagery
-        // is actually visible and the survey published a credit; otherwise the
-        // badge renders nothing.
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: NightshadeTokens.spaceMd,
-          child: Align(
-            alignment: Alignment.bottomCenter,
-            child: HipsAttributionBadge(
-              properties: propertiesAsync.valueOrNull,
-              visible: hasImagery,
-            ),
-          ),
+    // This wiring renders ONLY the survey attribution credit as top chrome. The
+    // streamed HiPS tile mosaic itself ([HipsTileLayer]) is composed inside
+    // [FramingCanvas]'s own Stack — directly above the single-cutout survey
+    // snapshot and UNDER the grid / FOV / equipment overlays — so the imagery
+    // can never hide the FOV reticle (it would if it sat over the whole canvas
+    // here, the way the original full-fill tile layer did).
+    //
+    // The badge fills the canvas band and aligns itself to the quiet
+    // bottom-centre chrome, so it never collides with the canvas's bottom-left
+    // scale indicator or bottom-right zoom controls. It is NOT wrapped in
+    // IgnorePointer: only the badge pill is hit-testable (so it stays tappable
+    // to open the survey's copyright page), and an [Align] over empty space does
+    // not intercept the pan / rotate gestures the canvas beneath owns. The
+    // [SizedBox.expand] keeps this a drop-in fill child of the screen Stack
+    // (mounted as a [Positioned.fill]).
+    return Padding(
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+      child: Align(
+        alignment: Alignment.bottomCenter,
+        child: HipsAttributionBadge(
+          properties: propertiesAsync.valueOrNull,
+          visible: hasImagery,
         ),
-      ],
+      ),
     );
   }
 }

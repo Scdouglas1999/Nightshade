@@ -813,6 +813,25 @@ pub struct SmartExposureConfig {
     /// wheel wear at the cost of slightly less even temporal sampling.
     #[serde(default = "default_smart_exposure_batch_size")]
     pub batch_size: u32,
+    /// "Loop until stopped" mode. When true, SmartExposure ignores the
+    /// per-plan `count`s entirely and takes exactly one sub per filter,
+    /// round-robin, repeating indefinitely until EITHER the
+    /// `integration_budget_secs` cap is met OR the surrounding target's
+    /// `end_when` window closes (or the sequence is stopped/skipped). This is
+    /// the "balanced result by dawn" mode: instead of draining fixed counts
+    /// and stopping early, it keeps every filter evenly sampled for the whole
+    /// available window.
+    ///
+    /// In this mode `batch_size` is forced to 1 and `rotate_filters` to true
+    /// regardless of their stored values, because "1 sub per filter,
+    /// round-robin" is the whole point. Default false (today's
+    /// count-draining behaviour is preserved for existing sequences).
+    ///
+    /// Errors-are-a-feature: entering this mode with NO integration budget
+    /// AND no detectable target-window/stop bound is a misconfiguration —
+    /// the executor returns Failure rather than spinning forever.
+    #[serde(default)]
+    pub loop_until_stopped: bool,
 }
 
 fn default_rotate_filters() -> bool {
@@ -831,6 +850,7 @@ impl Default for SmartExposureConfig {
             dither_on_filter_change: false,
             integration_budget_secs: 0.0,
             batch_size: default_smart_exposure_batch_size(),
+            loop_until_stopped: false,
         }
     }
 }

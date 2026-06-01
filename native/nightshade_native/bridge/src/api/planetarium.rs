@@ -40,6 +40,7 @@ fn next_id() -> i64 {
     v
 }
 
+#[cfg(test)]
 fn lookup(handle: i64) -> Result<(), String> {
     registry()
         .lock()
@@ -1342,7 +1343,10 @@ mod tests {
         let plan = planetarium_arc(handle);
 
         // First resize: non-blocking, then its error surfaces.
-        assert_eq!(planetarium_resize(handle, 64, 64, 1.0).expect("resize 1"), 0);
+        assert_eq!(
+            planetarium_resize(handle, 64, 64, 1.0).expect("resize 1"),
+            0
+        );
         wait_resize_generation(&plan, 1);
         let first_err = wait_surface_error(handle);
 

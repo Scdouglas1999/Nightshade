@@ -88,6 +88,44 @@ pub fn api_init_settings_storage(storage_path: String) -> Result<(), NightshadeE
     crate::state::init_platesolver_storage(path)
         .map_err(|e| NightshadeError::OperationFailed(e))?;
 
+    // Push the persisted plate-solver paths into the imaging crate's
+    // process-global so every subsequent solve call (blind_solve, solve_near,
+    // the sequencer centering, the imaging auto-solve) sees the configured
+    // paths immediately — without waiting for the UI to call
+    // api_platesolve_set_config.
+    if let Ok(pref) = crate::state::get_platesolver_preference() {
+        nightshade_imaging::set_solver_preference(
+            if pref.astap_path.is_empty() {
+                None
+            } else {
+                Some(pref.astap_path.as_str())
+            },
+            if pref.astrometry_path.is_empty() {
+                None
+            } else {
+                Some(pref.astrometry_path.as_str())
+            },
+            if pref.catalog_path.is_empty() {
+                None
+            } else {
+                Some(pref.catalog_path.as_str())
+            },
+        );
+        tracing::info!(
+            "Plate-solver preference loaded at startup: astap={:?} catalog={:?}",
+            if pref.astap_path.is_empty() {
+                "(auto)"
+            } else {
+                &pref.astap_path
+            },
+            if pref.catalog_path.is_empty() {
+                "(auto)"
+            } else {
+                &pref.catalog_path
+            },
+        );
+    }
+
     // Load observer location from persisted settings into in-memory state
     // This ensures the sequencer and other Rust components have access to location
     get_state().load_observer_location_from_settings();

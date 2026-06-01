@@ -11,7 +11,7 @@ void main() {
       expect(decoration.color, color.withValues(alpha: 0.1));
       expect(
         decoration.border,
-        Border.all(color: color.withValues(alpha: 0.25)),
+        Border.all(color: color.withValues(alpha: 0.16)),
       );
     });
 
@@ -48,7 +48,8 @@ void main() {
       const color = Color(0xFF3DAA6D);
       final decoration = NightshadeDecorations.kpiBadge(color);
 
-      expect(decoration.color, color.withValues(alpha: NightshadeTokens.opacityStatusFill));
+      expect(decoration.color,
+          color.withValues(alpha: NightshadeTokens.opacityStatusFill));
       expect(
         decoration.border,
         Border.all(color: color.withValues(alpha: 0.4)),
@@ -81,7 +82,8 @@ void main() {
       const color = Color(0xFF3DAA6D);
       final decoration = NightshadeDecorations.statusChip(color);
 
-      expect(decoration.color, color.withValues(alpha: NightshadeTokens.opacityStatusFill));
+      expect(decoration.color,
+          color.withValues(alpha: NightshadeTokens.opacityStatusFill));
     });
 
     testWidgets('NightshadeColors.of resolves theme extension', (tester) async {

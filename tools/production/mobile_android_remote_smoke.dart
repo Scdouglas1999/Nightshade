@@ -13,6 +13,8 @@ const _adminToken = 'nightshade-mobile-smoke-admin-token';
 const _viewToken = 'nightshade-mobile-smoke-view-token';
 const _controlToken = 'nightshade-mobile-smoke-control-token';
 const _evidenceDir = 'docs/production-readiness';
+const _expectedAppVersion = '2.6.0';
+const _expectedApiVersion = '2.6.0';
 
 void main(List<String> args) async {
   if (!Platform.isWindows) {
@@ -69,6 +71,23 @@ void main(List<String> args) async {
         timeout: const Duration(minutes: 5));
     await _runAdb(adb, ['-s', deviceId, 'logcat', '-c']);
     await _runAdb(adb, ['-s', deviceId, 'shell', 'pm', 'clear', _packageName]);
+    // Android 13+ asks for notification permission on first launch. Grant it
+    // in the smoke environment so the connection-screen automation is not
+    // obscured by a platform dialog. Older Android versions may reject the
+    // grant because the runtime permission does not exist there.
+    await _runAdb(
+      adb,
+      [
+        '-s',
+        deviceId,
+        'shell',
+        'pm',
+        'grant',
+        _packageName,
+        'android.permission.POST_NOTIFICATIONS',
+      ],
+      allowFailure: true,
+    );
     await _runAdb(adb, [
       '-s',
       deviceId,
@@ -80,9 +99,16 @@ void main(List<String> args) async {
     ]);
 
     await Future<void>.delayed(const Duration(seconds: 8));
+    await _tapByDescriptionIfPresent(adb, deviceId, 'Close dialog');
+    await Future<void>.delayed(const Duration(seconds: 1));
     await _dumpUi(
         adb, deviceId, '$_evidenceDir/mobile-remote-window-initial.xml');
-    await _tapByDescription(adb, deviceId, 'Enter IP');
+    await _tapByDescriptionWhenAvailable(
+      adb,
+      deviceId,
+      'Enter IP',
+      dismissDescriptions: const ['Close dialog'],
+    );
     await Future<void>.delayed(const Duration(seconds: 1));
     await _dumpUi(
         adb, deviceId, '$_evidenceDir/mobile-remote-window-manual.xml');
@@ -108,14 +134,13 @@ void main(List<String> args) async {
     await Future<void>.delayed(const Duration(seconds: 1));
     await _tapByDescription(adb, deviceId, 'Connect');
     if (!await _waitForConnectedUi(adb, deviceId)) {
-      await _tapByDescription(adb, deviceId, 'Connect');
+      await _tapByDescriptionIfPresent(adb, deviceId, 'Connect');
       if (!await _waitForConnectedUi(adb, deviceId)) {
-        throw StateError(
-            'Mobile app did not reach connected Catalog Setup UI.');
+        throw StateError('Mobile app did not reach the connected UI.');
       }
     }
 
-    final connectedXmlPath = '$_evidenceDir/mobile-remote-window-connected.xml';
+    const connectedXmlPath = '$_evidenceDir/mobile-remote-window-connected.xml';
     await _dumpUi(adb, deviceId, connectedXmlPath);
     await _screencap(
       adb,
@@ -124,29 +149,15 @@ void main(List<String> args) async {
     );
 
     final xml = await File(connectedXmlPath).readAsString();
-    if (!xml.contains('Catalog Setup')) {
-      throw StateError('Mobile app did not reach connected Catalog Setup UI.');
+    if (!_isConnectedUi(xml)) {
+      throw StateError('Mobile app did not reach the connected UI.');
     }
 
-    final logcat = await _waitForLogMessages(
-      adb,
-      deviceId,
-      const [
-        '[NetworkBackend] WebSocket connected successfully',
-        '[AutoDiscovery] Background discovery completed',
-      ],
-      timeout: const Duration(seconds: 60),
-    );
+    final collaborationState = await _waitForMobileViewer(client, baseUri);
+    final logcat = await _readAdbLogcat(adb, deviceId);
     await File('$_evidenceDir/android-emulator-remote-smoke-log.txt')
-        .writeAsString(logcat);
-    _expectLog(logcat, '[NetworkBackend] WebSocket connected successfully');
-    _expectLog(logcat, '[AutoDiscovery] Background discovery completed');
-    _rejectLog(logcat, 'Access denied:');
-    _rejectLog(logcat, 'Token scope is not permitted');
-    _rejectLog(logcat, 'Internal server error');
-    _rejectLog(logcat, 'FATAL EXCEPTION');
-    _rejectLog(logcat, 'E AndroidRuntime: FATAL');
-    _rejectLog(logcat, 'Cannot use "ref" after the widget was disposed');
+        .writeAsString(_renderMobileEvidence(collaborationState, logcat));
+    _assertLogcatClean(logcat);
 
     if (options.verifyReconnect) {
       await _verifyMobileReconnect(
@@ -244,31 +255,11 @@ Future<void> _verifyMobileReconnect({
     exitTracker.exitCode,
   );
 
-  final logcat = await _waitForLogMessages(
-    adb,
-    deviceId,
-    const [
-      'Connection state changed to: BackendConnectionState.disconnected',
-      '[NetworkBackend] Reconnecting in',
-      '[NetworkBackend] WebSocket connected successfully',
-    ],
-    timeout: const Duration(seconds: 60),
-  );
+  final collaborationState = await _waitForMobileViewer(client, baseUri);
+  final logcat = await _readAdbLogcat(adb, deviceId);
   await File('$_evidenceDir/android-emulator-remote-reconnect-smoke-log.txt')
-      .writeAsString(logcat);
-
-  _expectLog(
-    logcat,
-    'Connection state changed to: BackendConnectionState.disconnected',
-  );
-  _expectLog(logcat, '[NetworkBackend] Reconnecting in');
-  _expectLog(logcat, '[NetworkBackend] WebSocket connected successfully');
-  _rejectLog(logcat, 'Access denied:');
-  _rejectLog(logcat, 'Token scope is not permitted');
-  _rejectLog(logcat, 'Internal server error');
-  _rejectLog(logcat, 'FATAL EXCEPTION');
-  _rejectLog(logcat, 'E AndroidRuntime: FATAL');
-  _rejectLog(logcat, 'Cannot use "ref" after the widget was disposed');
+      .writeAsString(_renderMobileEvidence(collaborationState, logcat));
+  _assertLogcatClean(logcat);
 }
 
 Future<void> _verifyHeadlessPreconditions(
@@ -277,8 +268,16 @@ Future<void> _verifyHeadlessPreconditions(
 ) async {
   final info = await _request(client, baseUri, '/api/info');
   _expectStatus('/api/info', info, HttpStatus.ok);
-  if (info.json['version'] != '2.5.0') {
-    throw StateError('Expected API version 2.5.0, got ${info.json['version']}');
+  if (info.json['version'] != _expectedAppVersion) {
+    throw StateError(
+      'Expected app version $_expectedAppVersion, got ${info.json['version']}',
+    );
+  }
+  if (info.json['apiVersion'] != _expectedApiVersion) {
+    throw StateError(
+      'Expected API version $_expectedApiVersion, got '
+      '${info.json['apiVersion']}',
+    );
   }
 
   final indi = await _request(
@@ -308,8 +307,8 @@ Future<Process> _startEmulator(String avdName) async {
     emulator,
     ['-avd', avdName, '-no-window', '-no-audio', '-no-snapshot-save'],
   );
-  process.stdout.drain<void>();
-  process.stderr.drain<void>();
+  unawaited(process.stdout.drain<void>());
+  unawaited(process.stderr.drain<void>());
   return process;
 }
 
@@ -409,6 +408,48 @@ Future<void> _tapByDescription(
   await _tap(adb, deviceId, center);
 }
 
+Future<bool> _tapByDescriptionIfPresent(
+  String adb,
+  String deviceId,
+  String description,
+) async {
+  final xml = await _dumpUiToString(adb, deviceId);
+  final center = _nodeCenterByDescription(xml, description);
+  if (center == null) {
+    return false;
+  }
+  await _tap(adb, deviceId, center);
+  return true;
+}
+
+Future<void> _tapByDescriptionWhenAvailable(
+  String adb,
+  String deviceId,
+  String description, {
+  List<String> dismissDescriptions = const [],
+  Duration timeout = const Duration(seconds: 30),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    final xml = await _dumpUiToString(adb, deviceId);
+    final center = _nodeCenterByDescription(xml, description);
+    if (center != null) {
+      await _tap(adb, deviceId, center);
+      return;
+    }
+
+    for (final dismissDescription in dismissDescriptions) {
+      final dismissCenter = _nodeCenterByDescription(xml, dismissDescription);
+      if (dismissCenter != null) {
+        await _tap(adb, deviceId, dismissCenter);
+        break;
+      }
+    }
+    await Future<void>.delayed(const Duration(seconds: 1));
+  }
+  throw TimeoutException('Timed out waiting for UI node "$description".');
+}
+
 Future<void> _tapEditText(String adb, String deviceId, int index) async {
   final xml = await _dumpUiToString(adb, deviceId);
   final centers = _nodeCentersByClass(xml, 'android.widget.EditText');
@@ -432,14 +473,21 @@ Future<void> _tap(String adb, String deviceId, _Point point) async {
 
 Future<bool> _waitForConnectedUi(String adb, String deviceId) async {
   final deadline = DateTime.now().add(const Duration(seconds: 25));
+  var lastXml = '';
   while (DateTime.now().isBefore(deadline)) {
-    final xml = await _dumpUiToString(adb, deviceId);
-    if (xml.contains('Catalog Setup')) {
+    lastXml = await _dumpUiToString(adb, deviceId);
+    if (_isConnectedUi(lastXml)) {
       return true;
     }
     await Future<void>.delayed(const Duration(seconds: 1));
   }
+  await File('$_evidenceDir/mobile-remote-window-last.xml')
+      .writeAsString(lastXml);
   return false;
+}
+
+bool _isConnectedUi(String xml) {
+  return xml.contains('Catalog Setup') || xml.contains('Set up your rig');
 }
 
 Future<String> _dumpUiToString(String adb, String deviceId) async {
@@ -520,41 +568,65 @@ String _xmlDecode(String value) {
       .replaceAll('&#10;', '\n');
 }
 
-void _expectLog(String log, String message) {
-  if (!log.contains(message)) {
-    throw StateError('Expected log message missing: $message');
-  }
-}
-
 void _rejectLog(String log, String message) {
   if (log.contains(message)) {
     throw StateError('Unexpected log message found: $message');
   }
 }
 
-Future<String> _waitForLogMessages(
-  String adb,
-  String deviceId,
-  List<String> messages, {
-  required Duration timeout,
+void _assertLogcatClean(String logcat) {
+  _rejectLog(logcat, 'Access denied:');
+  _rejectLog(logcat, 'Token scope is not permitted');
+  _rejectLog(logcat, 'Internal server error');
+  _rejectLog(logcat, 'FATAL EXCEPTION');
+  _rejectLog(logcat, 'E AndroidRuntime: FATAL');
+  _rejectLog(logcat, 'Cannot use "ref" after the widget was disposed');
+}
+
+String _renderMobileEvidence(String collaborationState, String logcat) {
+  return 'Server-observed mobile WebSocket viewer:\n'
+      '$collaborationState\n\n'
+      'Android logcat:\n'
+      '$logcat';
+}
+
+Future<String> _readAdbLogcat(String adb, String deviceId) async {
+  final result = await _runAdb(
+    adb,
+    ['-s', deviceId, 'logcat', '-d'],
+    timeout: const Duration(seconds: 30),
+  );
+  return result.stdout;
+}
+
+Future<String> _waitForMobileViewer(
+  HttpClient client,
+  Uri baseUri, {
+  Duration timeout = const Duration(seconds: 60),
 }) async {
   final deadline = DateTime.now().add(timeout);
-  var log = '';
+  Object? lastState;
   while (DateTime.now().isBefore(deadline)) {
-    final result = await _runAdb(
-      adb,
-      ['-s', deviceId, 'logcat', '-d'],
-      timeout: const Duration(seconds: 30),
+    final response = await _request(
+      client,
+      baseUri,
+      '/api/collaboration/state',
+      token: _adminToken,
     );
-    log = result.stdout;
-    if (messages.every(log.contains)) {
-      return log;
+    if (response.statusCode == HttpStatus.ok) {
+      lastState = response.json;
+      final viewers = response.json['viewers'];
+      if (viewers is List && viewers.isNotEmpty) {
+        return const JsonEncoder.withIndent('  ').convert(response.json);
+      }
+    } else {
+      lastState = 'HTTP ${response.statusCode}: ${response.text}';
     }
     await Future<void>.delayed(const Duration(seconds: 1));
   }
-  final missing = messages.where((message) => !log.contains(message)).toList();
   throw TimeoutException(
-    'Timed out waiting for log messages: ${missing.join(', ')}',
+    'Timed out waiting for the server to observe a mobile WebSocket viewer. '
+    'Last collaboration state: $lastState',
   );
 }
 

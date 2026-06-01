@@ -571,8 +571,13 @@ pub async fn api_phd2_get_calibration_data() -> Result<Phd2CalibrationData, Nigh
         .as_mut()
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
-    // Get calibration data for both axes - "both" returns combined info
-    let result = client.get_calibration_data("both").map_err(|e| {
+    // PHD2's get_calibration_data `which` param only accepts "Mount" or "AO"
+    // (default "Mount") — there is no "both", and passing it makes PHD2 reject
+    // the request with `invalid 'which' param`, spamming the log with calibration
+    // fetch errors. Query the mount calibration (the guide-scope axes); AO is
+    // only relevant to adaptive-optics rigs, which report through a separate
+    // device.
+    let result = client.get_calibration_data("Mount").map_err(|e| {
         NightshadeError::OperationFailed(format!("Failed to get calibration data: {}", e))
     })?;
 

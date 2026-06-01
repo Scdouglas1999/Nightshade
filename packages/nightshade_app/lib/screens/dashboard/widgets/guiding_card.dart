@@ -25,7 +25,8 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
     final guiderState = ref.watch(guiderStateProvider);
     final guideGraphData = ref.watch(guideGraphProvider);
 
-    final isConnected = guiderState.connectionState == DeviceConnectionState.connected;
+    final isConnected =
+        guiderState.connectionState == DeviceConnectionState.connected;
     final isGuiding = guiderState.isGuiding;
     final rmsTotal = guiderState.rmsTotal?.toStringAsFixed(2) ?? '---';
     final rmsRa = guiderState.rmsRa?.toStringAsFixed(2) ?? '---';
@@ -43,61 +44,39 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
 
     return DashboardGlassCard(
       colors: colors,
-      padding: const EdgeInsets.all(10),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           // Header with state and RMS inline
-          Row(
-            children: [
-              Icon(
-                LucideIcons.crosshair,
-                size: 14,
-                color: isGuiding ? colors.success : colors.textMuted,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                l10n.text('guiding'),
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: colors.textPrimary),
-              ),
-              const Spacer(),
-              // Inline RMS values
-              Text(
-                '$rmsTotal"',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: isGuiding ? colors.primary : colors.textSecondary,
-                ),
-              ),
-              const SizedBox(width: 8),
-              // State badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: isGuiding
-                    ? NightshadeDecorations.statusChip(
-                        colors.success,
-                        borderRadius: BorderRadius.circular(8),
-                        bordered: false,
-                      )
-                    : BoxDecoration(
-                        color: colors.surfaceAlt,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                child: Text(
-                  stateText,
+          DashboardCardHeader(
+            colors: colors,
+            icon: LucideIcons.crosshair,
+            title: l10n.text('guiding'),
+            accent: isGuiding ? colors.success : null,
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Inline RMS values
+                Text(
+                  '$rmsTotal"',
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: isGuiding ? colors.success : colors.textMuted,
+                    color: isGuiding ? colors.primary : colors.textSecondary,
                   ),
                 ),
-              ),
-            ],
+                const SizedBox(width: 8),
+                DashboardStatusChip(
+                  colors: colors,
+                  label: stateText,
+                  active: isGuiding,
+                ),
+              ],
+            ),
           ),
 
-          const SizedBox(height: 6),
+          const SizedBox(height: DashboardCardStyle.headerGap),
 
           // Graph - compact height
           Container(
@@ -110,13 +89,16 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
                 ? ClipRRect(
                     borderRadius: BorderRadius.circular(4),
                     child: CustomPaint(
-                      painter: _DashboardGuidingGraphPainter(data: guideGraphData, colors: colors),
+                      painter: _DashboardGuidingGraphPainter(
+                          data: guideGraphData, colors: colors),
                       child: const SizedBox.expand(),
                     ),
                   )
                 : Center(
                     child: Text(
-                      isConnected ? l10n.text('clickStartToBegin') : l10n.text('connectGuider'),
+                      isConnected
+                          ? l10n.text('clickStartToBegin')
+                          : l10n.text('connectGuider'),
                       style: TextStyle(fontSize: 10, color: colors.textMuted),
                     ),
                   ),
@@ -130,11 +112,13 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
               // Stats row with legend
               Container(width: 10, height: 2, color: Colors.redAccent),
               const SizedBox(width: 3),
-              Text('$rmsRa"', style: TextStyle(fontSize: 10, color: colors.textSecondary)),
+              Text('$rmsRa"',
+                  style: TextStyle(fontSize: 10, color: colors.textSecondary)),
               const SizedBox(width: 8),
               Container(width: 10, height: 2, color: Colors.blueAccent),
               const SizedBox(width: 3),
-              Text('$rmsDec"', style: TextStyle(fontSize: 10, color: colors.textSecondary)),
+              Text('$rmsDec"',
+                  style: TextStyle(fontSize: 10, color: colors.textSecondary)),
               const Spacer(),
               // Start/Stop button
               SizedBox(
@@ -142,7 +126,8 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
                 child: NightshadeButton(
                   label: isGuiding ? l10n.text('stop') : l10n.text('start'),
                   icon: isGuiding ? LucideIcons.square : LucideIcons.play,
-                  variant: isGuiding ? ButtonVariant.outline : ButtonVariant.primary,
+                  variant:
+                      isGuiding ? ButtonVariant.outline : ButtonVariant.primary,
                   size: ButtonSize.small,
                   onPressed: (!isConnected || _isStartingOrStopping)
                       ? null
@@ -169,7 +154,8 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to ${isCurrentlyGuiding ? 'stop' : 'start'} guiding: $e'),
+            content: Text(
+                'Failed to ${isCurrentlyGuiding ? 'stop' : 'start'} guiding: $e'),
             backgroundColor: widget.colors.error,
           ),
         );

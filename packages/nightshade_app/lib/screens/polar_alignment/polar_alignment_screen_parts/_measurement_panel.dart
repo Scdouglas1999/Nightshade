@@ -1,0 +1,536 @@
+// Part of ../polar_alignment_screen.dart -- extracted for maintainability.
+// ignore_for_file: unused_element
+
+part of '../polar_alignment_screen.dart';
+
+extension _MeasurementPanel on _PolarAlignmentScreenState {
+  Widget _buildMeasuringStatus(
+      NightshadeColors colors, PolarAlignmentState state) {
+    final point = state.currentPoint;
+    final status = state.statusMessage;
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Main image area
+          Expanded(
+            flex: 2,
+            child: Container(
+              key: PolarAlignmentTutorialKeys.imageView,
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.border),
+              ),
+              child: Stack(
+                children: [
+                  // Image display
+                  if (state.hasImage)
+                    Center(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.memory(
+                          state.imageData!,
+                          fit: BoxFit.contain,
+                          gaplessPlayback: true,
+                        ),
+                      ),
+                    )
+                  else
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 60,
+                            height: 60,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 4,
+                              color: colors.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Waiting for image...',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // Solve coordinates overlay
+                  if (state.solvedRa != null && state.solvedDec != null)
+                    Positioned(
+                      left: 12,
+                      bottom: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: colors.background.withValues(alpha: 0.85),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(color: colors.border),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(LucideIcons.checkCircle,
+                                    size: 12, color: colors.success),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Plate Solved',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: colors.success,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              'RA: ${_formatRA(state.solvedRa!)}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: colors.textPrimary,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                            Text(
+                              'Dec: ${_formatDec(state.solvedDec!)}',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: colors.textPrimary,
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 16),
+
+          // Progress panel
+          SizedBox(
+            width: 180,
+            child: Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Progress',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  _MeasurementProgressItem(
+                    colors: colors,
+                    label: 'Point 1',
+                    isActive: point == 1,
+                    isComplete: point > 1,
+                  ),
+                  const SizedBox(height: 8),
+                  _MeasurementProgressItem(
+                    colors: colors,
+                    label: 'Point 2',
+                    isActive: point == 2,
+                    isComplete: point > 2,
+                  ),
+                  const SizedBox(height: 8),
+                  _MeasurementProgressItem(
+                    colors: colors,
+                    label: 'Point 3',
+                    isActive: point == 3,
+                    isComplete: point > 3,
+                  ),
+                  const SizedBox(height: 24),
+                  Text(
+                    'Status',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+
+                  // Task 4.4: Solve progress indicator with timer
+                  if (status.toLowerCase().contains('solv'))
+                    _SolveProgressIndicator(colors: colors, status: status)
+                  else
+                    Text(
+                      status,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+
+                  const Spacer(),
+                  // Mount activity indicator
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: colors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      children: [
+                        SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: colors.primary,
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Capturing Point $point',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatRA(double degrees) {
+    final hours = degrees / 15.0;
+    final h = hours.floor();
+    final m = ((hours - h) * 60).floor();
+    final s = (((hours - h) * 60 - m) * 60).toStringAsFixed(1);
+    return '${h.toString().padLeft(2, '0')}h ${m.toString().padLeft(2, '0')}m ${s}s';
+  }
+
+  String _formatDec(double degrees) {
+    final sign = degrees >= 0 ? '+' : '-';
+    final abs = degrees.abs();
+    final d = abs.floor();
+    final m = ((abs - d) * 60).floor();
+    final s = (((abs - d) * 60 - m) * 60).toStringAsFixed(0);
+    return '$sign${d.toString().padLeft(2, '0')}° ${m.toString().padLeft(2, '0')}\' $s"';
+  }
+
+  Widget _buildAdjustmentInstructions(
+    NightshadeColors colors,
+    PolarAlignmentState state,
+    PolarAlignmentConfig config,
+  ) {
+    final error = state.currentError;
+
+    // Direction text - use Left/Right/Up/Down as per UX design
+    final azDir =
+        error != null ? (error.azimuthError > 0 ? 'Right' : 'Left') : '--';
+    final altDir =
+        error != null ? (error.altitudeError > 0 ? 'Down' : 'Up') : '--';
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Main image area with bullseye overlay
+          Expanded(
+            flex: 2,
+            child: Container(
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.border),
+              ),
+              child: Stack(
+                children: [
+                  // Live image
+                  if (state.hasImage)
+                    Center(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(8),
+                        child: Image.memory(
+                          state.imageData!,
+                          fit: BoxFit.contain,
+                          gaplessPlayback: true,
+                        ),
+                      ),
+                    )
+                  else
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          SizedBox(
+                            width: 60,
+                            height: 60,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 4,
+                              color: colors.primary,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Capturing adjustment image...',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // Bullseye overlay
+                  Positioned.fill(
+                    child: CustomPaint(
+                      painter: _BullseyeOverlayPainter(
+                        colors: colors,
+                        azimuthError: error?.azimuthError,
+                        altitudeError: error?.altitudeError,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 16),
+
+          // Direction panel
+          SizedBox(
+            width: 200,
+            child: Container(
+              key: PolarAlignmentTutorialKeys.adjustment,
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.border),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Adjust Mount',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Azimuth direction
+                  Text(
+                    'Azimuth',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  if (error != null)
+                    Text(
+                      '$azDir ${error.azimuthError.abs().toStringAsFixed(1)}"',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: error.azimuthError.abs() < 30
+                            ? colors.success
+                            : error.azimuthError.abs() < 60
+                                ? colors.warning
+                                : colors.error,
+                      ),
+                    )
+                  else
+                    Text(
+                      '--',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: colors.textMuted,
+                      ),
+                    ),
+
+                  const SizedBox(height: 20),
+
+                  // Altitude direction
+                  Text(
+                    'Altitude',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  if (error != null)
+                    Text(
+                      '$altDir ${error.altitudeError.abs().toStringAsFixed(1)}"',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: error.altitudeError.abs() < 30
+                            ? colors.success
+                            : error.altitudeError.abs() < 60
+                                ? colors.warning
+                                : colors.error,
+                      ),
+                    )
+                  else
+                    Text(
+                      '--',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                        color: colors.textMuted,
+                      ),
+                    ),
+
+                  const SizedBox(height: 24),
+                  Divider(color: colors.border),
+                  const SizedBox(height: 16),
+
+                  // Total error
+                  Text(
+                    'Total Error',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  if (error != null)
+                    Text(
+                      '${error.totalError.toStringAsFixed(1)}"',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: error.totalError < 30
+                            ? colors.success
+                            : error.totalError < 60
+                                ? colors.warning
+                                : colors.error,
+                      ),
+                    )
+                  else
+                    Text(
+                      '--',
+                      style: TextStyle(
+                        fontSize: 28,
+                        fontWeight: FontWeight.bold,
+                        color: colors.textMuted,
+                      ),
+                    ),
+
+                  const Spacer(),
+
+                  // Progress toward threshold
+                  Text(
+                    'Threshold: ${config.autoCompleteThreshold.toStringAsFixed(0)}"',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: LinearProgressIndicator(
+                      value: error != null
+                          ? (1.0 - (error.totalError / 120.0)).clamp(0.0, 1.0)
+                          : 0.0,
+                      backgroundColor: colors.surfaceAlt,
+                      color: error != null
+                          ? (error.totalError < 30
+                              ? colors.success
+                              : error.totalError < 60
+                                  ? colors.warning
+                                  : colors.error)
+                          : colors.textMuted,
+                      minHeight: 6,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  // Auto-complete indicator
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: colors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          LucideIcons.target,
+                          size: 14,
+                          color: error != null &&
+                                  error.totalError <
+                                      config.autoCompleteThreshold
+                              ? colors.success
+                              : colors.textMuted,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            error != null &&
+                                    error.totalError <
+                                        config.autoCompleteThreshold
+                                ? 'Below threshold!'
+                                : 'Adjust to threshold',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: error != null &&
+                                      error.totalError <
+                                          config.autoCompleteThreshold
+                                  ? colors.success
+                                  : colors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Task 4.3: Before/After Summary Card
+}

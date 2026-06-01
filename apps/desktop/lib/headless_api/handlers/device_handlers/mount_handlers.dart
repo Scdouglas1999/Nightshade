@@ -1,0 +1,183 @@
+part of '../device_handlers.dart';
+
+extension MountDeviceHandlers on DeviceHandlers {
+  Future<Response> handleMountSlew(Request request) async {
+    _logInfo('[API] POST /api/mount/slew');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    final ra = requireDouble(payload, 'ra');
+    final dec = requireDouble(payload, 'dec');
+
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'mount.slew',
+      deviceId: deviceId,
+    );
+
+    final backend = container.read(deviceBackendProvider);
+    await backend.mountSlewToCoordinates(deviceId, ra, dec);
+
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'slewing',
+    });
+  }
+
+  Future<Response> handleMountSync(Request request) async {
+    _logInfo('[API] POST /api/mount/sync');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    final ra = requireDouble(payload, 'ra');
+    final dec = requireDouble(payload, 'dec');
+
+    final backend = container.read(deviceBackendProvider);
+    await backend.mountSync(deviceId, ra, dec);
+
+    return jsonOk({'status': 'synced'});
+  }
+
+  Future<Response> handleMountPark(Request request) async {
+    _logInfo('[API] POST /api/mount/park');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'mount.park',
+      deviceId: deviceId,
+    );
+
+    final backend = container.read(deviceBackendProvider);
+    await backend.mountPark(deviceId);
+
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'parking',
+    });
+  }
+
+  Future<Response> handleMountUnpark(Request request) async {
+    _logInfo('[API] POST /api/mount/unpark');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'mount.unpark',
+      deviceId: deviceId,
+    );
+
+    final backend = container.read(deviceBackendProvider);
+    await backend.mountUnpark(deviceId);
+
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'unparked',
+    });
+  }
+
+  Future<Response> handleMountSetTracking(Request request) async {
+    _logInfo('[API] POST /api/mount/tracking');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    final enabled = requireBool(payload, 'enabled');
+
+    final backend = container.read(deviceBackendProvider);
+    await backend.mountSetTracking(deviceId, enabled);
+
+    return jsonOk({'status': 'ok'});
+  }
+
+  Future<Response> handleMountPulseGuide(Request request) async {
+    _logInfo('[API] POST /api/mount/pulse-guide');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    final direction = requireString(payload, 'direction');
+    final durationMs = requireInt(payload, 'durationMs');
+
+    final backend = container.read(deviceBackendProvider);
+    await backend.mountPulseGuide(
+      deviceId: deviceId,
+      direction: direction,
+      durationMs: durationMs,
+    );
+
+    return jsonOk({'status': 'ok'});
+  }
+
+  Future<Response> handleMountAbort(Request request) async {
+    _logInfo('[API] POST /api/mount/abort');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+
+    final backend = container.read(deviceBackendProvider);
+    await backend.mountAbort(deviceId);
+
+    return jsonOk({'status': 'aborted'});
+  }
+
+  Future<Response> handleMountGetStatus(Request request) async {
+    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+
+    final backend = container.read(deviceBackendProvider);
+    final status = await backend.mountGetStatus(deviceId);
+
+    return jsonOk(status);
+  }
+
+  Future<Response> handleMountSetTrackingRate(Request request) async {
+    _logInfo('[API] POST /api/mount/set-tracking-rate');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    final rate = requireInt(payload, 'rate');
+
+    final backend = container.read(deviceBackendProvider);
+    await backend.mountSetTrackingRate(deviceId, rate);
+
+    return jsonOk({'status': 'ok'});
+  }
+
+  Future<Response> handleMountMoveAxis(Request request) async {
+    _logInfo('[API] POST /api/mount/move-axis');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    final axis = requireInt(payload, 'axis');
+    final rate = requireDouble(payload, 'rate');
+
+    final backend = container.read(deviceBackendProvider);
+    await backend.mountMoveAxis(deviceId, axis, rate);
+
+    return jsonOk({'status': 'ok'});
+  }
+
+  Future<Response> handleMountSlewAltAz(Request request) async {
+    _logInfo('[API] POST /api/mount/slew-alt-az');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    final altitude = requireDouble(payload, 'altitude');
+    final azimuth = requireDouble(payload, 'azimuth');
+
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'mount.slew-alt-az',
+      deviceId: deviceId,
+    );
+
+    final backend = container.read(deviceBackendProvider);
+    await backend.mountSlewAltAz(deviceId, altitude, azimuth);
+
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'slewing',
+    });
+  }
+
+  Future<Response> handleMountFindHome(Request request) async {
+    _logInfo('[API] POST /api/mount/find-home');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+
+    final backend = container.read(deviceBackendProvider);
+    await backend.mountFindHome(deviceId);
+
+    return jsonOk({'status': 'finding_home'});
+  }
+
+  // ===========================================================================
+}

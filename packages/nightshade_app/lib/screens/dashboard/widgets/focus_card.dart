@@ -45,42 +45,18 @@ class FocusCard extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: NightshadeDecorations.tintedBadge(
-                      colors.accent,
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Icon(
-                      LucideIcons.focus,
-                      size: 16,
-                      color: colors.accent,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      l10n.text('focus'),
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  Text(
-                    isConnected ? l10n.text('ok') : l10n.text('off'),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: isConnected ? colors.success : colors.textMuted,
-                    ),
-                  ),
-                ],
+              DashboardCardHeader(
+                colors: colors,
+                icon: LucideIcons.focus,
+                title: l10n.text('focus'),
+                accent: isConnected ? colors.accent : null,
+                trailing: DashboardStatusChip(
+                  colors: colors,
+                  label: isConnected ? l10n.text('ok') : l10n.text('off'),
+                  active: isConnected,
+                ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: DashboardCardStyle.headerGap),
               Row(
                 children: [
                   DashboardMiniStat(
@@ -134,7 +110,9 @@ class FocusCard extends ConsumerWidget {
                   isEnabled: isConnected && !focuserState.isMoving,
                   onMove: (steps) async {
                     try {
-                      await ref.read(deviceServiceProvider).moveFocuserRelative(steps);
+                      await ref
+                          .read(deviceServiceProvider)
+                          .moveFocuserRelative(steps);
                     } catch (e) {
                       if (context.mounted) {
                         context.showErrorSnackBar('Failed to move focuser: $e');
@@ -154,9 +132,12 @@ class FocusCard extends ConsumerWidget {
                     label: l10n.text('autofocus'),
                     icon: LucideIcons.focus,
                     size: ButtonSize.small,
-                    onPressed: isConnected ? () {
-                      context.showInfoSnackBar(l10n.text('useFocusTabForAutofocus'));
-                    } : null,
+                    onPressed: isConnected
+                        ? () {
+                            context.showInfoSnackBar(
+                                l10n.text('useFocusTabForAutofocus'));
+                          }
+                        : null,
                   ),
                 )
               else
@@ -223,7 +204,8 @@ class _FocusPositionSparkline extends StatelessWidget {
           // Sparkline chart with left padding for labels
           Positioned.fill(
             child: Padding(
-              padding: const EdgeInsets.only(left: 28, right: 4, top: 4, bottom: 4),
+              padding:
+                  const EdgeInsets.only(left: 28, right: 4, top: 4, bottom: 4),
               child: CustomPaint(
                 size: const Size(double.infinity, 32),
                 painter: _SparklinePainter(

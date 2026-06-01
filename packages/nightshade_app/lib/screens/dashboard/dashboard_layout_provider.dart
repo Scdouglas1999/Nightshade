@@ -24,9 +24,13 @@ class DashboardLayoutNotifier extends AsyncNotifier<DashboardLayout> {
       }
       final layout = DashboardLayout.fromJson(decoded);
 
-      // Migrate v2 layouts to v3 by assigning zones based on widget defaults
+      // Migrate older layouts onto the current default. This fires for v3/v4
+      // users (currentVersion is 5), moving everyone onto the dense cockpit
+      // default while preserving their show/hide choices where ids overlap.
+      // New merged cockpit ids use their default enabled state; the four
+      // superseded panels are force-disabled (see _migrateToCurrentVersion).
       if (layout.version < DashboardLayout.currentVersion) {
-        final migrated = _migrateToV3(layout);
+        final migrated = _migrateToCurrentVersion(layout);
         await _persist(migrated);
         return migrated;
       }
@@ -37,19 +41,35 @@ class DashboardLayoutNotifier extends AsyncNotifier<DashboardLayout> {
     }
   }
 
-  /// Migrate a v2 layout to v3 by preserving enabled/disabled state
-  /// and assigning tiles to zones based on widget defaults.
-  DashboardLayout _migrateToV3(DashboardLayout oldLayout) {
+  /// Migrate an older layout onto the current default by rebuilding tiles from
+  /// `defaultLayout()` while preserving each tile's enabled/disabled state by
+  /// id. Tiles present in the old layout but not in the current default drop
+  /// out (correct — they are no longer part of the shipped layout); new tiles
+  /// in the default keep their default enabled state.
+  DashboardLayout _migrateToCurrentVersion(DashboardLayout oldLayout) {
     final defaults = DashboardLayout.defaultLayout();
     final enabledMap = {for (final t in oldLayout.tiles) t.widgetId: t.enabled};
 
-    // Preserve user's enabled/disabled choices, use default zone assignments
-    // Exception: Quick Stats is now redundant with Command Bar, so disable it
+    // Preserve user's enabled/disabled choices, use default zone assignments.
+    // Two force-disable exceptions during migration:
+    //   * Quick Stats — redundant with the Command Bar stats.
+    //   * The four cockpit panels superseded by the merged `cockpitNowImaging`
+    //     and `cockpitFrames` tiles (density pass v5). v4 users had these
+    //     enabled; without this the merged tiles would render alongside the old
+    //     panels, showing both. The merged ids aren't in old layouts, so they
+    //     come in enabled from the defaults — net result is the dense default.
+    const forceDisabled = <DashboardWidgetId>{
+      DashboardWidgetId.quickStats,
+      DashboardWidgetId.cockpitTargetHeader,
+      DashboardWidgetId.cockpitLiveFrame,
+      DashboardWidgetId.cockpitExposureProgress,
+      DashboardWidgetId.cockpitRecentFrames,
+    };
+
     final tiles = defaults.tiles.map((tile) {
       var wasEnabled = enabledMap[tile.widgetId];
 
-      // Force disable Quick Stats during migration - Command Bar now shows this
-      if (tile.widgetId == DashboardWidgetId.quickStats) {
+      if (forceDisabled.contains(tile.widgetId)) {
         wasEnabled = false;
       }
 
@@ -69,7 +89,8 @@ class DashboardLayoutNotifier extends AsyncNotifier<DashboardLayout> {
     state = AsyncData(defaults);
   }
 
-  Future<void> reorder(DashboardWidgetId dragged, DashboardWidgetId target) async {
+  Future<void> reorder(
+      DashboardWidgetId dragged, DashboardWidgetId target) async {
     final layout = state.value;
     if (layout == null) {
       throw StateError('Dashboard layout not loaded yet.');
@@ -153,7 +174,8 @@ class DashboardLayoutNotifier extends AsyncNotifier<DashboardLayout> {
     }
 
     final tiles = layout.tiles
-        .map((tile) => tile.widgetId == id ? tile.copyWith(enabled: enabled) : tile)
+        .map((tile) =>
+            tile.widgetId == id ? tile.copyWith(enabled: enabled) : tile)
         .toList();
 
     if (!tiles.any((tile) => tile.widgetId == id)) {
@@ -173,7 +195,8 @@ class DashboardLayoutNotifier extends AsyncNotifier<DashboardLayout> {
 
 // Why keep-alive (not autoDispose): the dashboard layout is a user
 // preference persisted to the settings DAO; the async build() reads from
-// SQLite and migrates v2 -> v3 layouts. Disposing on navigation would force
+// SQLite and migrates older layouts onto the current version. Disposing on
+// navigation would force
 // every revisit (which happens on every app launch and tab switch) to
 // re-run that I/O + migration, causing a visible flash of the default
 // layout while loading. Memory cost is trivial (a single DashboardLayout

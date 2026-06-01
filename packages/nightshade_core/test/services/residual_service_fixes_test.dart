@@ -60,7 +60,7 @@ class _MockSequenceCheckpointsDao extends Mock
 class _MockSequenceRepository extends Mock implements SequenceRepository {}
 
 class _TestBackendNotifier extends BackendNotifier {
-  _TestBackendNotifier(Ref ref, NightshadeBackend backend) : super(ref) {
+  _TestBackendNotifier(super.ref, NightshadeBackend backend) {
     state = backend;
   }
 }
@@ -531,6 +531,46 @@ void main() {
         repository.loadSequence(sequenceId),
         throwsA(isA<StateError>()),
       );
+    });
+
+    test('sequence repository preserves Smart Exposure loop-until-stopped',
+        () async {
+      final database = NightshadeDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(database.close);
+
+      final repository = SequenceRepository(SequencesDao(database));
+      final sequenceId = await repository.saveSequence(
+        seq_models.Sequence.create(
+          name: 'Smart Exposure Persistence',
+          rootNodeId: 'root',
+          nodes: {
+            'root': seq_models.InstructionSetNode(
+              id: 'root',
+              childIds: const ['smart'],
+            ),
+            'smart': seq_models.SmartExposureNode(
+              id: 'smart',
+              parentId: 'root',
+              loopUntilStopped: true,
+              integrationBudgetSecs: 5400,
+              plans: const [
+                seq_models.FilterPlan(
+                  filterName: 'L',
+                  count: 3,
+                  durationSecs: 180,
+                ),
+              ],
+            ),
+          },
+        ),
+      );
+
+      final restored = await repository.loadSequence(sequenceId);
+      final smart = restored!.nodes['smart'] as seq_models.SmartExposureNode;
+
+      expect(smart.loopUntilStopped, isTrue);
+      expect(smart.integrationBudgetSecs, 5400);
+      expect(smart.plans.single.filterName, 'L');
     });
 
     test('saving sequence clears legacy recovery config references', () async {

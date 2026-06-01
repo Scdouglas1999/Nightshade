@@ -91,7 +91,7 @@ class CameraStateNotifier extends StateNotifier<CameraStateSnapshot> {
     }
   }
 
-  void setConnecting(String deviceId, String deviceName) {
+  void setConnecting(String deviceId, [String? deviceName]) {
     // DEV-P3-4: preserve `lastError` across the Connecting transition so
     // the equipment card can keep showing the most recent driver error
     // while the reconnect is in flight. It is cleared only when the
@@ -100,7 +100,7 @@ class CameraStateNotifier extends StateNotifier<CameraStateSnapshot> {
     state = state.copyWith(
       connectionState: DeviceConnectionState.connecting,
       deviceId: deviceId,
-      deviceName: deviceName,
+      deviceName: deviceName ?? state.deviceName ?? deviceId,
     );
   }
 

@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -16,6 +17,7 @@ import '../../../widgets/tutorial_keys/framing_keys.dart';
 import '../painters/framing_background_painters.dart';
 import '../painters/framing_painters.dart';
 import 'framing_overlays.dart';
+import 'hips_tile_layer.dart';
 
 /// The main framing canvas: handles pan / rotate gestures, stacks the survey
 /// image (or starfield fallback), optional grid, equipment FOV overlays, the
@@ -25,6 +27,7 @@ class FramingCanvas extends StatefulWidget {
   final NightshadeColors colors;
   final FramingState framingState;
   final FramingEquipmentResult? equipmentResult;
+
   /// Reports a pan delta together with the real, sidebar-excluded [canvasSize]
   /// the delta was measured against. The size is required so the framing
   /// provider can convert drawn-canvas-pixel pans to sky degrees through the
@@ -135,7 +138,25 @@ class _FramingCanvasState extends State<FramingCanvas> {
           });
         }
         final plateScale = _resolvePlateScale(_canvasSize);
-        return _buildCanvas(context, plateScale);
+        // Mouse-wheel zoom: extend the on-screen +/- zoom buttons to the
+        // scroll wheel — scroll up zooms in, down zooms out, reusing the same
+        // stepped zoomIn/zoomOut (clamped 0.25–4.0) the buttons use. A Consumer
+        // supplies `ref` (this State is a plain State, not a ConsumerState).
+        return Consumer(
+          builder: (context, ref, _) => Listener(
+            onPointerSignal: (signal) {
+              if (signal is PointerScrollEvent) {
+                final notifier = ref.read(framingProvider.notifier);
+                if (signal.scrollDelta.dy < 0) {
+                  notifier.zoomIn();
+                } else if (signal.scrollDelta.dy > 0) {
+                  notifier.zoomOut();
+                }
+              }
+            },
+            child: _buildCanvas(context, plateScale),
+          ),
+        );
       },
     );
   }
@@ -199,275 +220,307 @@ class _FramingCanvasState extends State<FramingCanvas> {
         _isDragging = false;
         _isRotating = false;
       },
-      child: Container(
-        color: widget.colors.background,
-        child: Stack(
-          children: [
-            // Survey image background
-            if (widget.framingState.surveyImage != null)
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: FramingSurveyImagePainter(
-                    image: widget.framingState.surveyImage!,
-                    zoom: widget.framingState.zoom,
-                    panX: widget.framingState.panX,
-                    panY: widget.framingState.panY,
-                    rotation: widget.framingState.rotation,
-                    plateScale: plateScale,
-                  ),
-                ),
-              )
-            else if (widget.framingState.isLoadingImage)
-              Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    CircularProgressIndicator(color: widget.colors.primary),
-                    const SizedBox(height: NightshadeTokens.spaceLg),
-                    Text(
-                      'Loading sky survey...',
-                      style: NightshadeTypography.body
-                          .copyWith(color: widget.colors.textMuted),
-                    ),
-                  ],
-                ),
-              )
-            else
-              // Static star field backdrop
-              CustomPaint(
-                painter: FramingStarBackgroundPainter(colors: widget.colors),
-                size: Size.infinite,
-              ),
-
-            // Grid overlay
-            if (widget.framingState.showGrid)
-              CustomPaint(
-                painter: FramingGridPainter(
-                  zoom: widget.framingState.zoom,
-                  panX: widget.framingState.panX,
-                  panY: widget.framingState.panY,
-                  color: widget.colors.primary
-                      .withValues(alpha: NightshadeTokens.opacityMedium),
-                  plateScale: plateScale,
-                ),
-                size: Size.infinite,
-              ),
-
-            // Equipment FOV overlay - Show when preview FOV > equipment FOV
-            //
-            // Transform order MUST match FramingSurveyImagePainter: the survey
-            // background is drawn into a pan-displaced rect and THEN rotated
-            // about the canvas center (rotate ∘ translate), so the image center
-            // lands at canvasCenter + rotate(pan). To keep the reticle pixel-co-
-            // registered with the imagery under simultaneous pan AND rotation,
-            // the overlay must compose the same way: rotate about the canvas
-            // center OUTERMOST, translate by pan INNERMOST. (Reversing these —
-            // translate outer, rotate inner — drifts the reticle off the
-            // imagery by rotate(pan) - pan whenever rotation != 0 and pan != 0.)
-            if (_showEquipmentOverlay && _equipment != null)
-              Center(
-                child: Transform.rotate(
-                  angle: widget.framingState.rotation * math.pi / 180,
-                  child: Transform.translate(
-                    offset: Offset(
-                        widget.framingState.panX, widget.framingState.panY),
-                    child: CustomPaint(
-                      painter: FramingEquipmentFOVOverlayPainter(
-                        fovWidth: _equipment!.fovWidthDeg,
-                        fovHeight: _equipment!.fovHeightDeg,
-                        zoom: widget.framingState.zoom,
-                        plateScale: plateScale,
-                        colors: widget.colors,
-                        opacity: widget.framingState.equipmentFovOverlayOpacity,
-                        showDirections:
-                            widget.framingState.showCardinalDirections,
-                      ),
-                      size: Size.infinite,
+      // Hard-clip the entire canvas to its bounded box. Several layers paint
+      // beyond their own RenderBox via raw canvas ops: in particular
+      // [FramingSurveyImagePainter] draws the survey cutout into
+      // [FramingPlateScale.drawRectFor], which at zoom > 1 is LARGER than the
+      // canvas, and `drawImageRect` does not clip to the CustomPaint's size — so
+      // without this the survey background spilled past the canvas edges and
+      // painted behind the framing sidebar. The HiPS tile painter already
+      // self-clips, which is why only the background bled; this ClipRect makes
+      // the guarantee uniform (background, grid, FOV/mosaic overlays and tiles
+      // all stay inside the canvas) at one place instead of per-painter.
+      child: ClipRect(
+        child: Container(
+          color: widget.colors.background,
+          child: Stack(
+            children: [
+              // Survey image background
+              if (widget.framingState.surveyImage != null)
+                Positioned.fill(
+                  child: CustomPaint(
+                    painter: FramingSurveyImagePainter(
+                      image: widget.framingState.surveyImage!,
+                      zoom: widget.framingState.zoom,
+                      panX: widget.framingState.panX,
+                      panY: widget.framingState.panY,
+                      rotation: widget.framingState.rotation,
+                      plateScale: plateScale,
                     ),
                   ),
-                ),
-              ),
-
-            // FOV overlay - Show when equipment is configured and preview FOV <= equipment FOV
-            // Same rotate-outer / translate-inner order as the background and
-            // the larger-than-equipment overlay above, so the reticle stays
-            // co-registered with the survey imagery under pan + rotation.
-            if (_hasEquipment && _equipment != null && !_showEquipmentOverlay)
-              Center(
-                child: Transform.rotate(
-                  angle: widget.framingState.rotation * math.pi / 180,
-                  child: Transform.translate(
-                    offset: Offset(
-                        widget.framingState.panX, widget.framingState.panY),
-                    child: CustomPaint(
-                      key: FramingTutorialKeys.fovRect,
-                      painter: FramingFOVPainter(
-                        fovWidth: _equipment!.fovWidthDeg,
-                        fovHeight: _equipment!.fovHeightDeg,
-                        zoom: widget.framingState.zoom,
-                        plateScale: plateScale,
-                        colors: widget.colors,
-                        showDirections:
-                            widget.framingState.showCardinalDirections,
-                      ),
-                      size: Size.infinite,
-                    ),
-                  ),
-                ),
-              ),
-
-            // Mosaic grid overlay
-            // Same rotate-outer / translate-inner order as the background and
-            // FOV overlays so the mosaic panels stay co-registered with the
-            // survey imagery under pan + rotation.
-            if (widget.framingState.mosaicEnabled &&
-                _hasEquipment &&
-                _equipment != null)
-              Center(
-                child: Transform.rotate(
-                  angle: widget.framingState.rotation * math.pi / 180,
-                  child: Transform.translate(
-                    offset: Offset(
-                        widget.framingState.panX, widget.framingState.panY),
-                    child: CustomPaint(
-                      painter: FramingMosaicGridPainter(
-                        config: widget.framingState.mosaicConfig,
-                        panels: widget.framingState.mosaicPanels,
-                        fovWidth: _equipment!.fovWidthDeg,
-                        fovHeight: _equipment!.fovHeightDeg,
-                        zoom: widget.framingState.zoom,
-                        plateScale: plateScale,
-                        colors: widget.colors,
-                        showPanelNumbers: widget.framingState.showPanelNumbers,
-                        showSequencePath: widget.framingState.showSequencePath,
-                        selectedPanelIndex:
-                            widget.framingState.selectedPanelIndex,
-                      ),
-                      size: Size.infinite,
-                    ),
-                  ),
-                ),
-              ),
-
-            // Crosshairs
-            Center(
-              child: CustomPaint(
-                painter: FramingCrosshairPainter(colors: widget.colors),
-                size: const Size(100, 100),
-              ),
-            ),
-
-            // Top controls
-            Positioned(
-              top: 16,
-              left: 16,
-              right: 16,
-              child: _CanvasControls(
-                colors: widget.colors,
-                framingState: widget.framingState,
-              ),
-            ),
-
-            // Equipment status overlay (when not configured)
-            if (!_hasEquipment && widget.framingState.target != null)
-              Positioned(
-                top: 60,
-                right: 16,
-                child: Container(
-                  padding: NightshadeTokens.paddingMd,
-                  decoration: BoxDecoration(
-                    color: widget.colors.info
-                        .withValues(alpha: NightshadeTokens.opacityStatusFill),
-                    borderRadius: NightshadeTokens.borderRadiusMd,
-                    border: Border.all(
-                        color: widget.colors.info
-                            .withValues(alpha: NightshadeTokens.opacityHalf)),
-                  ),
-                  child: Row(
+                )
+              else if (widget.framingState.isLoadingImage)
+                Center(
+                  child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(LucideIcons.eye,
-                          size: NightshadeTokens.iconXs, color: widget.colors.info),
-                      const SizedBox(width: NightshadeTokens.spaceSm),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Preview: ${widget.framingState.previewFovDegrees.toStringAsFixed(1)}° FOV',
-                            style: NightshadeTypography.labelQuiet
-                                .copyWith(color: widget.colors.info),
-                          ),
-                          Text(
-                            'Configure equipment for accurate framing',
-                            style: NightshadeTypography.overline
-                                .copyWith(color: widget.colors.textMuted),
-                          ),
-                        ],
+                      CircularProgressIndicator(color: widget.colors.primary),
+                      const SizedBox(height: NightshadeTokens.spaceLg),
+                      Text(
+                        'Loading sky survey...',
+                        style: NightshadeTypography.body
+                            .copyWith(color: widget.colors.textMuted),
                       ),
                     ],
                   ),
+                )
+              else
+                // Static star field backdrop
+                CustomPaint(
+                  painter: FramingStarBackgroundPainter(colors: widget.colors),
+                  size: Size.infinite,
+                ),
+
+              // GPU HiPS deep-survey tile mosaic. It belongs in the canvas Stack
+              // directly ABOVE the single-cutout survey snapshot / starfield (the
+              // never-blank fallback underneath) and UNDER the grid / FOV /
+              // equipment / mosaic overlays below, so the streamed imagery never
+              // hides the FOV reticle. The layer gates itself on
+              // hipsFramingActiveProvider and paints nothing (a transparent box)
+              // when the feature is off or the survey has no verified HiPS
+              // pyramid, so with it inactive the canvas is exactly as before. It
+              // resolves the SAME FramingPlateScale this canvas uses, so the
+              // mosaic co-registers with the overlays to the pixel. The
+              // attribution badge is composed separately at screen level (top
+              // chrome) by FramingHipsLayerWiring.
+              const Positioned.fill(child: HipsTileLayer()),
+
+              // Grid overlay
+              if (widget.framingState.showGrid)
+                CustomPaint(
+                  painter: FramingGridPainter(
+                    zoom: widget.framingState.zoom,
+                    panX: widget.framingState.panX,
+                    panY: widget.framingState.panY,
+                    color: widget.colors.primary
+                        .withValues(alpha: NightshadeTokens.opacityMedium),
+                    plateScale: plateScale,
+                  ),
+                  size: Size.infinite,
+                ),
+
+              // Equipment FOV overlay - Show when preview FOV > equipment FOV
+              //
+              // Transform order MUST match FramingSurveyImagePainter: the survey
+              // background is drawn into a pan-displaced rect and THEN rotated
+              // about the canvas center (rotate ∘ translate), so the image center
+              // lands at canvasCenter + rotate(pan). To keep the reticle pixel-co-
+              // registered with the imagery under simultaneous pan AND rotation,
+              // the overlay must compose the same way: rotate about the canvas
+              // center OUTERMOST, translate by pan INNERMOST. (Reversing these —
+              // translate outer, rotate inner — drifts the reticle off the
+              // imagery by rotate(pan) - pan whenever rotation != 0 and pan != 0.)
+              if (_showEquipmentOverlay && _equipment != null)
+                Center(
+                  child: Transform.rotate(
+                    angle: widget.framingState.rotation * math.pi / 180,
+                    child: Transform.translate(
+                      offset: Offset(
+                          widget.framingState.panX, widget.framingState.panY),
+                      child: CustomPaint(
+                        painter: FramingEquipmentFOVOverlayPainter(
+                          fovWidth: _equipment!.fovWidthDeg,
+                          fovHeight: _equipment!.fovHeightDeg,
+                          zoom: widget.framingState.zoom,
+                          plateScale: plateScale,
+                          colors: widget.colors,
+                          opacity:
+                              widget.framingState.equipmentFovOverlayOpacity,
+                          showDirections:
+                              widget.framingState.showCardinalDirections,
+                        ),
+                        size: Size.infinite,
+                      ),
+                    ),
+                  ),
+                ),
+
+              // FOV overlay - Show when equipment is configured and preview FOV <= equipment FOV
+              // Same rotate-outer / translate-inner order as the background and
+              // the larger-than-equipment overlay above, so the reticle stays
+              // co-registered with the survey imagery under pan + rotation.
+              if (_hasEquipment && _equipment != null && !_showEquipmentOverlay)
+                Center(
+                  child: Transform.rotate(
+                    angle: widget.framingState.rotation * math.pi / 180,
+                    child: Transform.translate(
+                      offset: Offset(
+                          widget.framingState.panX, widget.framingState.panY),
+                      child: CustomPaint(
+                        key: FramingTutorialKeys.fovRect,
+                        painter: FramingFOVPainter(
+                          fovWidth: _equipment!.fovWidthDeg,
+                          fovHeight: _equipment!.fovHeightDeg,
+                          zoom: widget.framingState.zoom,
+                          plateScale: plateScale,
+                          colors: widget.colors,
+                          showDirections:
+                              widget.framingState.showCardinalDirections,
+                        ),
+                        size: Size.infinite,
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Mosaic grid overlay
+              // Same rotate-outer / translate-inner order as the background and
+              // FOV overlays so the mosaic panels stay co-registered with the
+              // survey imagery under pan + rotation.
+              if (widget.framingState.mosaicEnabled &&
+                  _hasEquipment &&
+                  _equipment != null)
+                Center(
+                  child: Transform.rotate(
+                    angle: widget.framingState.rotation * math.pi / 180,
+                    child: Transform.translate(
+                      offset: Offset(
+                          widget.framingState.panX, widget.framingState.panY),
+                      child: CustomPaint(
+                        painter: FramingMosaicGridPainter(
+                          config: widget.framingState.mosaicConfig,
+                          panels: widget.framingState.mosaicPanels,
+                          fovWidth: _equipment!.fovWidthDeg,
+                          fovHeight: _equipment!.fovHeightDeg,
+                          zoom: widget.framingState.zoom,
+                          plateScale: plateScale,
+                          colors: widget.colors,
+                          showPanelNumbers:
+                              widget.framingState.showPanelNumbers,
+                          showSequencePath:
+                              widget.framingState.showSequencePath,
+                          selectedPanelIndex:
+                              widget.framingState.selectedPanelIndex,
+                        ),
+                        size: Size.infinite,
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Crosshairs
+              Center(
+                child: CustomPaint(
+                  painter: FramingCrosshairPainter(colors: widget.colors),
+                  size: const Size(100, 100),
                 ),
               ),
 
-            // Zoom controls
-            Positioned(
-              bottom: 16,
-              right: 16,
-              child: Consumer(
-                builder: (context, ref, child) => _ZoomControls(
+              // Top controls
+              Positioned(
+                top: 16,
+                left: 16,
+                right: 16,
+                child: _CanvasControls(
+                  colors: widget.colors,
+                  framingState: widget.framingState,
+                ),
+              ),
+
+              // Equipment status overlay (when not configured)
+              if (!_hasEquipment && widget.framingState.target != null)
+                Positioned(
+                  top: 60,
+                  right: 16,
+                  child: Container(
+                    padding: NightshadeTokens.paddingMd,
+                    decoration: BoxDecoration(
+                      color: widget.colors.info.withValues(
+                          alpha: NightshadeTokens.opacityStatusFill),
+                      borderRadius: NightshadeTokens.borderRadiusMd,
+                      border: Border.all(
+                          color: widget.colors.info
+                              .withValues(alpha: NightshadeTokens.opacityHalf)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.eye,
+                            size: NightshadeTokens.iconXs,
+                            color: widget.colors.info),
+                        const SizedBox(width: NightshadeTokens.spaceSm),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Preview: ${widget.framingState.previewFovDegrees.toStringAsFixed(1)}° FOV',
+                              style: NightshadeTypography.labelQuiet
+                                  .copyWith(color: widget.colors.info),
+                            ),
+                            Text(
+                              'Configure equipment for accurate framing',
+                              style: NightshadeTypography.overline
+                                  .copyWith(color: widget.colors.textMuted),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // Zoom controls
+              Positioned(
+                bottom: 16,
+                right: 16,
+                child: Consumer(
+                  builder: (context, ref, child) => _ZoomControls(
+                    colors: widget.colors,
+                    zoom: widget.framingState.zoom,
+                    onZoomIn: () => ref.read(framingProvider.notifier).zoomIn(),
+                    onZoomOut: () =>
+                        ref.read(framingProvider.notifier).zoomOut(),
+                    onReset: () =>
+                        ref.read(framingProvider.notifier).resetView(),
+                  ),
+                ),
+              ),
+
+              // Scale indicator
+              Positioned(
+                bottom: 16,
+                left: 16,
+                child: _ScaleIndicator(
                   colors: widget.colors,
                   zoom: widget.framingState.zoom,
-                  onZoomIn: () => ref.read(framingProvider.notifier).zoomIn(),
-                  onZoomOut: () => ref.read(framingProvider.notifier).zoomOut(),
-                  onReset: () => ref.read(framingProvider.notifier).resetView(),
-                ),
-              ),
-            ),
-
-            // Scale indicator
-            Positioned(
-              bottom: 16,
-              left: 16,
-              child: _ScaleIndicator(
-                colors: widget.colors,
-                zoom: widget.framingState.zoom,
-                plateScale: plateScale,
-                canvasSize: _canvasSize,
-              ),
-            ),
-
-            // Target info overlay
-            if (widget.framingState.target != null &&
-                widget.framingState.showLabels)
-              Positioned(
-                top: 60,
-                left: 16,
-                child: FramingTargetInfoOverlay(
-                  colors: widget.colors,
-                  target: widget.framingState.target!,
+                  plateScale: plateScale,
+                  canvasSize: _canvasSize,
                 ),
               ),
 
-            // Error overlay
-            if (widget.framingState.imageError != null)
-              Center(
-                child: Container(
-                  padding: NightshadeTokens.paddingLg,
-                  margin: const EdgeInsets.all(NightshadeTokens.space3xl),
-                  decoration: BoxDecoration(
-                    color: widget.colors.error
-                        .withValues(alpha: NightshadeTokens.opacitySubtle),
-                    borderRadius: NightshadeTokens.borderRadiusMd,
-                    border: Border.all(color: widget.colors.error),
-                  ),
-                  child: Text(
-                    widget.framingState.imageError!,
-                    style: NightshadeTypography.body
-                        .copyWith(color: widget.colors.error),
+              // Target info overlay
+              if (widget.framingState.target != null &&
+                  widget.framingState.showLabels)
+                Positioned(
+                  top: 60,
+                  left: 16,
+                  child: FramingTargetInfoOverlay(
+                    colors: widget.colors,
+                    target: widget.framingState.target!,
                   ),
                 ),
-              ),
-          ],
+
+              // Error overlay
+              if (widget.framingState.imageError != null)
+                Center(
+                  child: Container(
+                    padding: NightshadeTokens.paddingLg,
+                    margin: const EdgeInsets.all(NightshadeTokens.space3xl),
+                    decoration: BoxDecoration(
+                      color: widget.colors.error
+                          .withValues(alpha: NightshadeTokens.opacitySubtle),
+                      borderRadius: NightshadeTokens.borderRadiusMd,
+                      border: Border.all(color: widget.colors.error),
+                    ),
+                    child: Text(
+                      widget.framingState.imageError!,
+                      style: NightshadeTypography.body
+                          .copyWith(color: widget.colors.error),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -601,7 +654,8 @@ class _SurveySourceSelector extends StatelessWidget {
             .withValues(alpha: NightshadeTokens.opacityHalf),
         borderRadius: NightshadeTokens.borderRadiusMd,
         border: Border.all(
-          color: colors.border.withValues(alpha: NightshadeTokens.opacitySubtle),
+          color:
+              colors.border.withValues(alpha: NightshadeTokens.opacitySubtle),
         ),
       ),
       child: Row(
@@ -618,8 +672,7 @@ class _SurveySourceSelector extends StatelessWidget {
             value: source.name,
             isDense: true,
             items: SurveySource.values.map((s) => s.name).toList(),
-            itemLabels:
-                SurveySource.values.map((s) => s.displayName).toList(),
+            itemLabels: SurveySource.values.map((s) => s.displayName).toList(),
             onChanged: (name) {
               if (name == null) return;
               onChanged(SurveySource.values.byName(name));
@@ -740,8 +793,8 @@ class _ZoomControls extends StatelessWidget {
           _ZoomButton(icon: LucideIcons.plus, colors: colors, onTap: onZoomIn),
           const SizedBox(height: NightshadeTokens.spaceXs),
           Padding(
-            padding: const EdgeInsets.symmetric(
-                vertical: NightshadeTokens.spaceXs),
+            padding:
+                const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceXs),
             child: Text(
               '${(zoom * 100).round()}%',
               style: NightshadeTypography.withTabular(
@@ -836,7 +889,15 @@ class _ScaleIndicator extends StatelessWidget {
   /// bar width, so the bar grows and shrinks through familiar astronomical
   /// increments as the user zooms.
   static const List<double> _niceArcminSteps = [
-    1, 2, 5, 10, 15, 30, 60, 120, 300,
+    1,
+    2,
+    5,
+    10,
+    15,
+    30,
+    60,
+    120,
+    300,
   ];
 
   /// Target on-screen length of the scale bar, in logical pixels, before
@@ -845,9 +906,8 @@ class _ScaleIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final pixelsPerDegree = canvasSize.isEmpty
-        ? 0.0
-        : plateScale.pixelsPerDegree(canvasSize, zoom);
+    final pixelsPerDegree =
+        canvasSize.isEmpty ? 0.0 : plateScale.pixelsPerDegree(canvasSize, zoom);
     final pixelsPerArcmin = pixelsPerDegree / 60.0;
 
     // Choose the largest nice step that still fits within the target width;
@@ -882,8 +942,8 @@ class _ScaleIndicator extends StatelessWidget {
         children: [
           Text(
             'Scale',
-            style: NightshadeTypography.overline
-                .copyWith(color: colors.textMuted),
+            style:
+                NightshadeTypography.overline.copyWith(color: colors.textMuted),
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),
           Row(

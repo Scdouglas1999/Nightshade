@@ -82,22 +82,14 @@ class _ConnectionStaleBannerState extends ConsumerState<ConnectionStaleBanner> {
             const SizedBox(width: 8),
             TextButton(
               onPressed: _retrying ? null : _handleRetry,
-              style: TextButton.styleFrom(
-                foregroundColor: fg,
-                disabledForegroundColor: fg.withValues(alpha: 0.5),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
-                minimumSize: const Size(0, 28),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                visualDensity: VisualDensity.compact,
-                textStyle: const TextStyle(
+              child: Text(
+                _retrying ? 'Retrying…' : 'Retry',
+                style: TextStyle(
+                  color: _retrying ? fg.withValues(alpha: 0.5) : fg,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              child: Text(_retrying ? 'Retrying…' : 'Retry'),
             ),
           ],
         ),

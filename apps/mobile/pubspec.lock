@@ -709,14 +709,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "14.8.1"
-  google_fonts:
-    dependency: transitive
-    description:
-      name: google_fonts
-      sha256: ba03d03bcaa2f6cb7bd920e3b5027181db75ab524f8891c8bc3aa603885b8055
-      url: "https://pub.dev"
-    source: hosted
-    version: "6.3.3"
   graphs:
     dependency: transitive
     description:
@@ -1000,7 +992,7 @@ packages:
       path: "../desktop"
       relative: true
     source: path
-    version: "2.6.0+6"
+    version: "3.0.0+7"
   nightshade_planetarium:
     dependency: "direct main"
     description:

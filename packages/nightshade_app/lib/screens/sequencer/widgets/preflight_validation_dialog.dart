@@ -8,13 +8,16 @@ import 'mount_unpark_dialog.dart';
 import 'sequence_diff_dialog.dart';
 import 'session_handoff_dialog.dart';
 import 'visual_timeline.dart';
+part 'preflight_validation_dialog/simulation_widgets.dart';
+part 'preflight_validation_dialog/action_widgets.dart';
+part 'preflight_validation_dialog/issue_section.dart';
 
 // =============================================================================
 // PRE-FLIGHT VALIDATION DIALOG
 // =============================================================================
 //
 // UI shell for the canonical sequence validator. The validation engine
-// lives in `nightshade_core/.../sequence/sequence_validation.dart` — this
+// lives in `nightshade_core/.../sequence/sequence_validation.dart` â€” this
 // file only renders the result.
 //
 // Previously this file defined its own ValidationIssue / ValidationSeverity
@@ -43,7 +46,7 @@ class _PreFlightValidationDialogState
   String? _simulationUnavailableReason;
   bool _isValidating = true;
 
-  /// Wave 6 Pack O — diff vs the most recent COMPLETED run of this
+  /// Wave 6 Pack O â€” diff vs the most recent COMPLETED run of this
   /// sequence. `null` either means we haven't computed it yet, or there
   /// is no previous run to compare against (fresh sequence, or first
   /// successful run still pending). When non-null AND non-empty we
@@ -110,7 +113,7 @@ class _PreFlightValidationDialogState
 
   /// Resolve the most recent COMPLETED run of the current sequence and
   /// compute a structural diff against the in-editor copy. The diff is
-  /// informational only — pre-flight does NOT block on it; the link
+  /// informational only â€” pre-flight does NOT block on it; the link
   /// just lets the operator review what's changed since the last
   /// known-good run.
   ///
@@ -123,7 +126,7 @@ class _PreFlightValidationDialogState
       if (sequence == null) return;
       final sequenceDbId = sequence.databaseId;
       if (sequenceDbId == null) {
-        // Sequence has never been persisted — no run history to diff.
+        // Sequence has never been persisted â€” no run history to diff.
         return;
       }
       final dao = ref.read(sequenceRunsDaoProvider);
@@ -158,14 +161,14 @@ class _PreFlightValidationDialogState
       if (!mounted) return;
       setState(() => _previousRunDiff = result);
     } catch (_) {
-      // Quietly skip — pre-flight is not the place to bubble up
+      // Quietly skip â€” pre-flight is not the place to bubble up
       // diff-resolution errors. The link just won't appear.
     }
   }
 
   /// Handle starting the sequence, checking for mount parking first.
   ///
-  /// Wave 7 — Before kicking off the mount-unpark flow we surface the
+  /// Wave 7 â€” Before kicking off the mount-unpark flow we surface the
   /// multi-night carry-over dialog when (a) at least one target has
   /// recent unfinished integration and (b) the
   /// `sessionHandoffAutoPrompt` setting is on. The decision is recorded
@@ -184,7 +187,7 @@ class _PreFlightValidationDialogState
       Navigator.of(context).pop();
     }
 
-    // Wave 7 — Surface the carry-over banner when enabled.
+    // Wave 7 â€” Surface the carry-over banner when enabled.
     if (mounted) {
       final autoPrompt = ref.read(sessionHandoffAutoPromptProvider);
       if (autoPrompt) {
@@ -203,7 +206,7 @@ class _PreFlightValidationDialogState
           // because the carry-over is informational only.
           if (!mounted) return;
           if (decisions == null) {
-            // User cancelled the handoff dialog entirely — abort the
+            // User cancelled the handoff dialog entirely â€” abort the
             // sequence start in case they intended to back out.
             return;
           }
@@ -369,7 +372,7 @@ class _PreFlightValidationDialogState
     final result = _result!;
     final hasSimulationIssues = _simulation?.issues.isNotEmpty ?? false;
 
-    // Wave 5 Agent 3 — partition issues into the three new pre-flight
+    // Wave 5 Agent 3 â€” partition issues into the three new pre-flight
     // groups (Dark Library, Equipment Health, Optical Train) so each
     // gets its own collapsible section, then a "General" bucket for
     // the existing categories (structure / equipment / settings / etc).
@@ -394,7 +397,7 @@ class _PreFlightValidationDialogState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Wave 6 Pack O — info banner when the sequence has changed
+          // Wave 6 Pack O â€” info banner when the sequence has changed
           // since the last completed run. Informational only; not a
           // pre-flight blocker.
           if (_previousRunDiff != null && !_previousRunDiff!.isEmpty) ...[
@@ -566,7 +569,7 @@ class _PreFlightValidationDialogState
   /// Deep-link to the dark library / calibration tools. The exact route
   /// name is defined in `apps/desktop/lib/app_routes.dart` (and matched
   /// on mobile). We deliberately do not build the capture sequence
-  /// here — opening the existing tool keeps the responsibility with the
+  /// here â€” opening the existing tool keeps the responsibility with the
   /// dark-library screen.
   void _openCalibrationCenter() {
     Navigator.of(context).pop();
@@ -806,7 +809,7 @@ class _PreFlightValidationDialogState
     );
   }
 
-  /// Wave 6 Pack O — info-severity banner shown when the in-editor
+  /// Wave 6 Pack O â€” info-severity banner shown when the in-editor
   /// sequence differs structurally from the most recent COMPLETED run
   /// of the same sequence. Tapping "View N changes" pops the structural
   /// diff dialog.
@@ -975,488 +978,5 @@ class _PreFlightValidationDialogState
     if (hours > 0) return '${hours}h ${minutes}m';
     if (minutes > 0) return '${minutes}m';
     return '${duration.inSeconds}s';
-  }
-}
-
-class _SimulationMetric extends StatelessWidget {
-  final NightshadeColors colors;
-  final String label;
-  final String value;
-  final Color? tone;
-
-  const _SimulationMetric({
-    required this.colors,
-    required this.label,
-    required this.value,
-    this.tone,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final valueColor = tone ?? colors.textPrimary;
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: TextStyle(fontSize: 10, color: colors.textMuted),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w700,
-              color: valueColor,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SimulationTimeline extends StatelessWidget {
-  final NightshadeColors colors;
-  final PreSessionSimulationResult simulation;
-
-  const _SimulationTimeline({
-    required this.colors,
-    required this.simulation,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final totalMs = simulation.duration.inMilliseconds;
-    if (totalMs <= 0) return const SizedBox.shrink();
-
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: SizedBox(
-        height: 18,
-        child: Row(
-          children: [
-            for (final segment in simulation.segments)
-              Expanded(
-                flex: segment.duration.inMilliseconds.clamp(1, totalMs),
-                child: Tooltip(
-                  message:
-                      '${segment.nodeName}: ${_formatDuration(segment.duration)}',
-                  child: Container(
-                    margin: const EdgeInsets.only(right: 1),
-                    color: _colorFor(segment),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Color _colorFor(PreSessionSimulationSegment segment) {
-    switch (segment.nodeType) {
-      case 'TakeExposure':
-        return colors.primary;
-      case 'SmartExposure':
-        return colors.info;
-      case 'Autofocus':
-        return colors.warning;
-      case 'SlewToTarget':
-      case 'CenterTarget':
-        return colors.success;
-      default:
-        return colors.textMuted;
-    }
-  }
-
-  String _formatDuration(Duration duration) {
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes.remainder(60);
-    if (hours > 0) return '${hours}h ${minutes}m';
-    if (minutes > 0) return '${minutes}m';
-    return '${duration.inSeconds}s';
-  }
-}
-
-class _SimulationIssueRow extends StatelessWidget {
-  final NightshadeColors colors;
-  final PreSessionSimulationIssue issue;
-
-  const _SimulationIssueRow({
-    required this.colors,
-    required this.issue,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final tone = switch (issue.severity) {
-      PreSessionSimulationSeverity.error => colors.error,
-      PreSessionSimulationSeverity.warning => colors.warning,
-      PreSessionSimulationSeverity.info => colors.info,
-    };
-    final icon = switch (issue.severity) {
-      PreSessionSimulationSeverity.error => LucideIcons.xCircle,
-      PreSessionSimulationSeverity.warning => LucideIcons.alertTriangle,
-      PreSessionSimulationSeverity.info => LucideIcons.info,
-    };
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 12, color: tone),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              issue.message,
-              style: TextStyle(fontSize: 11, color: colors.textSecondary),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Small count badge widget
-class _CountBadge extends StatelessWidget {
-  final int count;
-  final Color color;
-  final IconData icon;
-
-  const _CountBadge({
-    required this.count,
-    required this.color,
-    required this.icon,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: NightshadeDecorations.statusChip(
-        color,
-        borderRadius: BorderRadius.circular(8),
-        bordered: false,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 12, color: color),
-          const SizedBox(width: 4),
-          Text(
-            count.toString(),
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: color,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Custom start sequence button with solid fill styling
-class _StartSequenceButton extends StatefulWidget {
-  final bool canStart;
-  final bool hasWarningsOnly;
-  final NightshadeColors colors;
-  final VoidCallback? onPressed;
-
-  const _StartSequenceButton({
-    required this.canStart,
-    required this.hasWarningsOnly,
-    required this.colors,
-    this.onPressed,
-  });
-
-  @override
-  State<_StartSequenceButton> createState() => _StartSequenceButtonState();
-}
-
-class _StartSequenceButtonState extends State<_StartSequenceButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final isEnabled = widget.onPressed != null;
-    final onPrimary = Theme.of(context).colorScheme.onPrimary;
-    final baseColor = widget.canStart
-        ? widget.colors.success
-        : widget.hasWarningsOnly
-            ? widget.colors.warning
-            : widget.colors.textMuted;
-    final buttonColors = NightshadeDecorations.filledButtonColors(
-      baseColor,
-      isHovered: _isHovered,
-      isDisabled: !isEnabled,
-    );
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      cursor:
-          isEnabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
-      child: GestureDetector(
-        onTap: widget.onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          decoration: BoxDecoration(
-            color: buttonColors.background,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: buttonColors.border),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                widget.canStart ? LucideIcons.play : LucideIcons.alertTriangle,
-                size: 16,
-                color: onPrimary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                widget.hasWarningsOnly ? 'Start Anyway' : 'Start Sequence',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: onPrimary,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// Wave 5 Agent 3 — Pre-flight category section
-// =============================================================================
-//
-// Compact collapsible-style group for the new pre-flight categories.
-// Renders an icon + title + (optional) trailing action button (e.g.
-// "Capture missing darks") and the issue cards beneath.
-
-class _PreflightSection extends StatefulWidget {
-  final NightshadeColors colors;
-  final IconData icon;
-  final String title;
-  final List<ValidationIssue> issues;
-  final Widget? trailing;
-
-  const _PreflightSection({
-    required this.colors,
-    required this.icon,
-    required this.title,
-    required this.issues,
-    this.trailing,
-  });
-
-  @override
-  State<_PreflightSection> createState() => _PreflightSectionState();
-}
-
-class _PreflightSectionState extends State<_PreflightSection> {
-  bool _expanded = true;
-
-  Color _worstColor() {
-    if (widget.issues.any((i) => i.severity == ValidationSeverity.error)) {
-      return widget.colors.error;
-    }
-    if (widget.issues.any((i) => i.severity == ValidationSeverity.warning)) {
-      return widget.colors.warning;
-    }
-    return widget.colors.info;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = widget.colors;
-    final tone = _worstColor();
-    return Container(
-      margin: const EdgeInsets.only(bottom: 14),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          InkWell(
-            onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: BorderRadius.circular(10),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
-              child: Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(6),
-                    decoration: NightshadeDecorations.statusChip(
-                      tone,
-                      borderRadius: BorderRadius.circular(6),
-                      bordered: false,
-                    ),
-                    child: Icon(widget.icon, size: 14, color: tone),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      widget.title,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                  ),
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: NightshadeDecorations.statusChip(
-                      tone,
-                      borderRadius: BorderRadius.circular(8),
-                      bordered: false,
-                    ),
-                    child: Text(
-                      '${widget.issues.length}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: tone,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    _expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
-                    size: 16,
-                    color: colors.textMuted,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          if (_expanded) ...[
-            const Divider(height: 1, thickness: 1),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final issue in widget.issues)
-                    _IssueRow(colors: colors, issue: issue),
-                ],
-              ),
-            ),
-            if (widget.trailing != null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                child: Row(
-                  children: [
-                    const Spacer(),
-                    widget.trailing!,
-                  ],
-                ),
-              ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _IssueRow extends StatelessWidget {
-  final NightshadeColors colors;
-  final ValidationIssue issue;
-
-  const _IssueRow({required this.colors, required this.issue});
-
-  @override
-  Widget build(BuildContext context) {
-    final Color issueColor;
-    final IconData issueIcon;
-    switch (issue.severity) {
-      case ValidationSeverity.error:
-        issueColor = colors.error;
-        issueIcon = LucideIcons.xCircle;
-        break;
-      case ValidationSeverity.warning:
-        issueColor = colors.warning;
-        issueIcon = LucideIcons.alertTriangle;
-        break;
-      case ValidationSeverity.info:
-        issueColor = colors.info;
-        issueIcon = LucideIcons.info;
-        break;
-    }
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(issueIcon, size: 12, color: issueColor),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  issue.title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  issue.description,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: colors.textSecondary,
-                  ),
-                ),
-                if (issue.resolutionHint != null) ...[
-                  const SizedBox(height: 4),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(LucideIcons.lightbulb,
-                          size: 10, color: colors.primary),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          issue.resolutionHint!,
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: colors.primary,
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

@@ -192,5 +192,4 @@ mod tests {
             .await;
         assert_eq!(status, NodeStatus::Failure);
     }
-
 }

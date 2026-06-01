@@ -25,6 +25,7 @@ class _DiscoveryPrefs {
       'nightshade_last_server_signaling_port';
   static const lastServerName = 'nightshade_last_server_name';
   static const lastServerVersion = 'nightshade_last_server_version';
+  static const lastServerApiVersion = 'nightshade_last_server_api_version';
   static const lastServerMode = 'nightshade_last_server_mode';
   static const lastServerAuthRequired = 'nightshade_last_server_auth_required';
   static const lastServerAuthMode = 'nightshade_last_server_auth_mode';
@@ -129,6 +130,7 @@ class QrConnectionData {
   final String authenticationMode;
   final bool pairingSupported;
   final String? authToken;
+
   /// Optional pairing code embedded in QR for one-scan enrollment.
   final String? pairingCode;
 
@@ -336,8 +338,9 @@ class QrConnectionData {
       pairingSupported: decoded['pairingSupported'] is bool
           ? decoded['pairingSupported'] as bool
           : false,
-      authToken:
-          decoded['authToken'] is String ? decoded['authToken'] as String : null,
+      authToken: decoded['authToken'] is String
+          ? decoded['authToken'] as String
+          : null,
       pairingCode: decoded['pairingCode'] is String
           ? decoded['pairingCode'] as String
           : null,
@@ -418,6 +421,12 @@ class EnhancedNightshadeDiscovery {
         _DiscoveryPrefs.lastServerSignalingPort, server.signalingPort);
     await prefs.setString(_DiscoveryPrefs.lastServerName, server.name);
     await prefs.setString(_DiscoveryPrefs.lastServerVersion, server.version);
+    final apiVersion = server.apiVersion;
+    if (apiVersion != null && apiVersion.isNotEmpty) {
+      await prefs.setString(_DiscoveryPrefs.lastServerApiVersion, apiVersion);
+    } else {
+      await prefs.remove(_DiscoveryPrefs.lastServerApiVersion);
+    }
     await prefs.setString(_DiscoveryPrefs.lastServerMode, server.mode);
     await prefs.setBool(
         _DiscoveryPrefs.lastServerAuthRequired, server.authRequired);
@@ -462,6 +471,7 @@ class EnhancedNightshadeDiscovery {
           prefs.getInt(_DiscoveryPrefs.lastServerSignalingPort) ?? 45678,
       name: prefs.getString(_DiscoveryPrefs.lastServerName) ?? 'Nightshade',
       version: prefs.getString(_DiscoveryPrefs.lastServerVersion) ?? '2.0.0',
+      apiVersion: prefs.getString(_DiscoveryPrefs.lastServerApiVersion),
       mode: prefs.getString(_DiscoveryPrefs.lastServerMode) ?? 'desktop',
       authRequired:
           prefs.getBool(_DiscoveryPrefs.lastServerAuthRequired) ?? false,
@@ -482,6 +492,7 @@ class EnhancedNightshadeDiscovery {
     await prefs.remove(_DiscoveryPrefs.lastServerSignalingPort);
     await prefs.remove(_DiscoveryPrefs.lastServerName);
     await prefs.remove(_DiscoveryPrefs.lastServerVersion);
+    await prefs.remove(_DiscoveryPrefs.lastServerApiVersion);
     await prefs.remove(_DiscoveryPrefs.lastServerMode);
     await prefs.remove(_DiscoveryPrefs.lastServerAuthRequired);
     await prefs.remove(_DiscoveryPrefs.lastServerAuthMode);
@@ -515,6 +526,9 @@ class EnhancedNightshadeDiscovery {
     return seed.copyWith(
       name: info['name'] as String? ?? seed.name,
       version: info['version'] as String? ?? seed.version,
+      apiVersion: info['apiVersion'] as String? ??
+          info['version'] as String? ??
+          seed.apiVersion,
       mode: info['mode'] as String? ?? seed.mode,
       authRequired: info['authRequired'] as bool? ?? seed.authRequired,
       authenticationMode:
@@ -604,7 +618,7 @@ class EnhancedNightshadeDiscovery {
 
       final info = jsonDecode(infoResponse.body) as Map<String, dynamic>;
       final compatibility = NightshadeServerCompatibility.check(
-        info['version'] as String?,
+        info['apiVersion'] as String? ?? info['version'] as String?,
       );
       if (!compatibility.isCompatible) {
         developer.log(
@@ -649,7 +663,8 @@ class EnhancedNightshadeDiscovery {
   }
 
   static bool _isCompatibleServer(DiscoveredServer server) {
-    final compatibility = NightshadeServerCompatibility.check(server.version);
+    final compatibility = NightshadeServerCompatibility.check(
+        server.apiVersion ?? server.version);
     if (!compatibility.isCompatible) {
       developer.log(
         'Skipping incompatible Nightshade server ${server.host}:${server.webPort}: ${compatibility.message}',

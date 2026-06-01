@@ -679,7 +679,7 @@ fn parse_field_f64(
         })
 }
 
-fn string_at<'a>(table: &'a [u8], offset: u32, len: u16) -> Result<&'a str, MinorBodyParseError> {
+fn string_at(table: &[u8], offset: u32, len: u16) -> Result<&str, MinorBodyParseError> {
     let start = offset as usize;
     let end = start
         .checked_add(len as usize)

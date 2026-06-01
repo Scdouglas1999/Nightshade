@@ -6,9 +6,7 @@ use thiserror::Error;
 use wgpu::TextureFormat;
 
 use super::constants::{
-    IRRADIANCE_TEXTURE_HEIGHT, IRRADIANCE_TEXTURE_WIDTH, SCATTERING_TEXTURE_DEPTH,
-    SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_WIDTH, TRANSMITTANCE_TEXTURE_HEIGHT,
-    TRANSMITTANCE_TEXTURE_WIDTH,
+    SCATTERING_TEXTURE_DEPTH, SCATTERING_TEXTURE_HEIGHT, SCATTERING_TEXTURE_WIDTH,
 };
 
 /// Precompute failure (shader, device, or IO).
@@ -34,8 +32,8 @@ pub struct BrunetonLuts {
     pub irradiance: wgpu::Texture,
     pub irradiance_view: wgpu::TextureView,
     /// Internal combined scattering texture (kept for Task 53 atmosphere shader).
-    pub(crate) combined_scattering: wgpu::Texture,
-    pub(crate) combined_scattering_view: wgpu::TextureView,
+    pub(crate) _combined_scattering: wgpu::Texture,
+    pub(crate) _combined_scattering_view: wgpu::TextureView,
 }
 
 impl BrunetonLuts {

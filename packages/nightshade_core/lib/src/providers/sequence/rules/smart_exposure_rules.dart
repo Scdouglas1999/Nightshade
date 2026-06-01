@@ -59,7 +59,10 @@ class SmartExposureNegativeCountRule implements SequenceValidator {
       if (!node.isEnabled) continue;
       for (var i = 0; i < node.plans.length; i++) {
         final p = node.plans[i];
-        if (p.count <= 0) {
+        // In loop-until-stopped mode the per-plan count is ignored entirely
+        // (1 sub per filter, looping), so a zero/negative count is not a
+        // dead row — skip the warning to avoid a false positive.
+        if (!node.loopUntilStopped && p.count <= 0) {
           issues.add(ValidationIssue(
             severity: ValidationSeverity.warning,
             category: ValidationCategory.exposures,
@@ -236,5 +239,62 @@ class SmartExposureFilterUnknownRule implements RefAwareSequenceValidator {
       }
     }
     return issues;
+  }
+}
+
+/// Loop-until-stopped mode is bounded by EITHER an integration budget OR the
+/// surrounding target's end window (`endWhen` / legacy `endBefore`). With
+/// neither, the Rust executor fails closed at runtime rather than looping
+/// forever (errors-are-a-feature). This rule surfaces that at edit time as an
+/// error so the user fixes it before pressing Start instead of hitting a
+/// runtime failure.
+class SmartExposureUnboundedLoopRule implements SequenceValidator {
+  @override
+  String get name => 'SmartExposureUnboundedLoop';
+
+  @override
+  List<ValidationIssue> validate(Sequence sequence) {
+    final issues = <ValidationIssue>[];
+    for (final node in sequence.nodes.values) {
+      if (node is! SmartExposureNode) continue;
+      if (!node.isEnabled) continue;
+      if (!node.loopUntilStopped) continue;
+      // A positive integration budget is a valid automatic bound.
+      if (node.integrationBudgetSecs > 0) continue;
+      // Otherwise, the only automatic bound is a parent target window.
+      if (_hasBoundingTargetWindow(sequence, node)) continue;
+
+      issues.add(ValidationIssue(
+        severity: ValidationSeverity.error,
+        category: ValidationCategory.exposures,
+        title: 'SmartExposure loop is unbounded',
+        description:
+            'Smart Exposure "${node.name}" is in "switch filter every frame" '
+            '(loop until stopped) mode but has no integration budget and is not '
+            'under a target with an end condition. It would loop forever, so the '
+            'run will refuse to start.',
+        affectedNodeId: node.id,
+        resolutionHint:
+            'Set an integration budget on the node, or place it under a target '
+            'with an ends-when / ends-before condition.',
+      ));
+    }
+    return issues;
+  }
+
+  /// Walk parents to find a [TargetHeaderNode] with an end condition.
+  bool _hasBoundingTargetWindow(Sequence sequence, SequenceNode node) {
+    var currentId = node.parentId;
+    final seen = <String>{};
+    while (currentId != null && seen.add(currentId)) {
+      final parent = sequence.nodes[currentId];
+      if (parent == null) break;
+      if (parent is TargetHeaderNode &&
+          (parent.endWhen != null || parent.endBefore != null)) {
+        return true;
+      }
+      currentId = parent.parentId;
+    }
+    return false;
   }
 }

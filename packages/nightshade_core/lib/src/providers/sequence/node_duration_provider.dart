@@ -81,8 +81,7 @@ double _rollupSecs(
   // overhead. This matches [Sequence._nodeOverhead] + the executor.
   if (node is ExposureNode) {
     final integration = node.durationSecs * node.count;
-    final download =
-        overhead.downloadOverheadPerExposureSecs * node.count;
+    final download = overhead.downloadOverheadPerExposureSecs * node.count;
     return integration + download;
   }
 
@@ -106,8 +105,7 @@ double _rollupSecs(
         integration > node.integrationBudgetSecs) {
       integration = node.integrationBudgetSecs;
     }
-    final download =
-        overhead.downloadOverheadPerExposureSecs * frameCount;
+    final download = overhead.downloadOverheadPerExposureSecs * frameCount;
     return integration + download;
   }
 
@@ -119,9 +117,8 @@ double _rollupSecs(
     childSecs.add(s);
     childSum += s;
   }
-  final childMax = childSecs.isEmpty
-      ? 0.0
-      : childSecs.reduce((a, b) => a > b ? a : b);
+  final childMax =
+      childSecs.isEmpty ? 0.0 : childSecs.reduce((a, b) => a > b ? a : b);
 
   // Self overhead for non-exposure nodes that have a fixed time cost
   // (slew, autofocus, etc). For containers this is 0.
@@ -138,10 +135,8 @@ double _rollupSecs(
         // single-iteration when the deadline is in the past matches
         // _estimateNodeIntegration().
         if (node.repeatUntil != null && childSum > 0) {
-          final availableSecs = node.repeatUntil!
-              .difference(DateTime.now())
-              .inSeconds
-              .toDouble();
+          final availableSecs =
+              node.repeatUntil!.difference(DateTime.now()).inSeconds.toDouble();
           if (availableSecs > 0) {
             final iters = (availableSecs / childSum).floor();
             return selfOverhead + (childSum * iters);

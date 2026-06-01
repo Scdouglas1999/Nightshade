@@ -140,6 +140,7 @@ Future<void> _writePassingFixture(Directory root) async {
     'warningFileCount': 1,
     'criticalFileCount': 1,
     'prioritySplitCandidateCount': 1,
+    'modularizedSourceFamilyCount': 1,
     'warningLineLimit': 1000,
     'criticalLineLimit': 2500,
   });
@@ -222,6 +223,7 @@ Future<void> _writeFailingFixture(Directory root) async {
     'warningFileCount': 1,
     'criticalFileCount': 1,
     'prioritySplitCandidateCount': 1,
+    'modularizedSourceFamilyCount': 1,
     'warningLineLimit': 1000,
     'criticalLineLimit': 2500,
   });
@@ -275,14 +277,14 @@ void logRequest() {
     root,
     'packages/nightshade_core/lib/src/backend/network_backend.dart',
     '''
-class NetworkBackend {
+class _NetworkBackendTransport {
   static const _requestIdHeader = 'x-request-id';
-  void compat(request) {
-    request.headers.set(_requestIdHeader, _nextRequestId('compat'));
-  }
+  final compatHeaders = {
+    _NetworkBackendTransport._requestIdHeader: _nextRequestId('compat'),
+  };
   void headers(Map<String, String> headers, String endpoint) {
     headers[RemoteApiCompatibility.apiVersionHeader] = '2.5.0';
-    headers[_requestIdHeader] = _nextRequestId(endpoint);
+    headers[_NetworkBackendTransport._requestIdHeader] = _nextRequestId(endpoint);
   }
 }
 ''',

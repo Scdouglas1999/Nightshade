@@ -115,6 +115,13 @@ final performanceMonitorProvider = ChangeNotifierProvider<PerformanceMonitor>((r
   return PerformanceMonitor();
 });
 
+/// Toggles the on-screen performance HUD (UI-thread ms / GPU-raster ms / FPS).
+///
+/// Available in release builds so performance can be diagnosed on real target
+/// hardware (the timing data from [PerformanceMonitor] is collected in release;
+/// this only controls whether the readout is painted).
+final showPerfHudProvider = StateProvider<bool>((ref) => false);
+
 /// Provider for enabling/disabling auto quality adjustment.
 ///
 /// When enabled, the system can automatically adjust render quality

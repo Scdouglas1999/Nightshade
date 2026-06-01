@@ -1,0 +1,982 @@
+part of '../settings_provider.dart';
+
+class AppSettingsState {
+  // General
+  final bool startMinimized;
+  final bool autoConnectEquipment;
+  final bool autoSaveSequences;
+  final bool confirmBeforeClosing;
+  final bool autoDiscoverOnLaunch;
+
+  // Appearance
+  final String theme; // 'dark' or 'light'
+  final String language; // 'en', 'es'
+  final String accentColor; // hex color
+  final String fontSize; // 'Small', 'Medium', 'Large'
+  final String
+      uiScale; // 'Auto', 'Small (0.8x)', 'Normal (1.0x)', 'Large (1.2x)', 'Extra Large (1.4x)'
+  final bool sidebarCollapsed;
+
+  // Location
+  final double latitude;
+  final double longitude;
+  final double elevation;
+  final String timezone;
+  final bool useSystemTime;
+
+  // Imaging
+  final String imageFormat; // 'FITS', 'XISF', 'TIFF'
+  final String fileNamingPattern;
+  final String bitDepth; // '16-bit', '32-bit'
+
+  // Sequencer
+  final bool parkOnUnsafeWeather;
+  final bool parkBeforeDawn;
+  final int meridianFlipMinutes; // minutes before meridian
+  final bool autoFocusOnFilterChange;
+  final bool useFilterFocusOffsets; // Apply focus offsets when changing filters
+  final int autoFocusEveryMinutes;
+  final bool ditherEnabled;
+  final int ditherEveryFrames;
+  final SafetyFailMode
+      safetyFailMode; // How to behave when safety data unavailable
+
+  // Plate Solving
+  final String plateSolver; // 'ASTAP', 'Astrometry.net', 'PlateSolve2'
+  final String astapPath;
+  final String astrometryPath;
+  final int plateSolveTimeout;
+  final double plateSolveSearchRadius;
+  final bool blindSolve;
+
+  // PHD2 Guiding
+  final String phd2Path;
+  final String phd2Host;
+  final int phd2Port;
+
+  // Notifications
+  final bool notificationsEnabled;
+  final String discordWebhook;
+  final String pushoverKey;
+  final String pushoverUser;
+  final bool notifyOnSequenceComplete;
+  final bool notifyOnError;
+  final bool notifyOnMeridianFlip;
+  final bool soundEnabled;
+
+  // File Paths
+  final String imageOutputPath;
+  final String sequencesPath;
+  final String databasePath;
+  final String logsPath;
+
+  // Protocol Settings
+  final String indiServerHost;
+  final int indiServerPort;
+  final bool indiAutoConnect;
+  final String alpacaServerHost;
+  final int alpacaServerPort;
+  final bool alpacaAutoDiscover;
+
+  // Sequencer Execution Settings
+  final bool useNativeExecution;
+  final bool useSimulationMode;
+
+  // Remote Access / Web Server Settings
+  final bool webServerEnabled;
+  final int webServerPort;
+
+  // Equipment Settings - Camera
+  final String coolingBehavior; // 'On Connect', 'Manual', 'Never'
+  final int defaultGain;
+  final int defaultOffset;
+
+  // Equipment Settings - Mount
+  final bool enableMeridianFlip;
+
+  // Equipment Settings - Focuser
+  final bool tempCompensation;
+  final double tempCoefficient;
+  final int backlashCompensation;
+
+  // Equipment Settings - Guider
+  final String ditherScale; // 'Small', 'Medium', 'Large'
+  final double settleThreshold;
+  final int settleTimeout;
+
+  // Observing Environment
+  final int bortleClass; // 1-9, Bortle dark-sky scale
+  final String
+      horizonProfileJson; // JSON: 8 altitude values at N/NE/E/SE/S/SW/W/NW
+
+  /// Effective horizon in degrees used by the Run Dashboard, scheduler and
+  /// planetarium when computing "time-to-set". 0Â° = mathematical horizon;
+  /// a value like 20Â° models trees / structures the user can't see
+  /// through. The same value is consumed by every "set" display in the
+  /// app so the dashboard and the planetarium agree to the second.
+  final double effectiveHorizonDeg;
+
+  /// When true, critical-severity executor events trigger a system bell on
+  /// top of the in-app banner / notification. Useful for unattended
+  /// imaging where the user has walked away from the laptop.
+  final bool audibleAlertsOnCritical;
+
+  /// Planetarium renderer: legacy CustomPainter (v1) or Rust+wgpu (v2).
+  final RenderingPlatform renderingPlatform;
+
+  /// Which sound to play when [audibleAlertsOnCritical] fires.
+  ///
+  /// Allowed values:
+  ///   * `systemBell` (default): Flutter's [SystemSound.alert] â€” works on
+  ///     Windows / macOS / Linux / iOS / Android.
+  ///   * `none`: silence even when [audibleAlertsOnCritical] is true (kept
+  ///     because we may add custom sound assets later; "none" lets the user
+  ///     keep the toggle on but mute the audio temporarily without flipping
+  ///     it off and losing the banner-only behaviour).
+  final String criticalAlertSound;
+
+  /// When true, the headless server forwards critical-severity executor
+  /// events to paired mobile clients as push notifications, on top of the
+  /// in-app banner / notification. Default on â€” if the user has gone to the
+  /// trouble of pairing a phone, they want to be alerted.
+  final bool pushCriticalAlerts;
+
+  // -------------------------------------------------------------------
+  // Wave 4 Recovery Mode â€” user-tunable defaults
+  // -------------------------------------------------------------------
+  /// Minutes between auto-retry attempts during a recovery loop. SGP
+  /// default: 10 minutes. Persisted as a double-precision count of
+  /// minutes so the bridge layer can multiply by 60 once.
+  final double recoveryDefaultRetryIntervalMins;
+
+  /// Total minutes before the recovery loop gives up. SGP default: 90.
+  final double recoveryDefaultMaxDurationMins;
+
+  /// When true, the executor commands the mount to stop tracking on
+  /// recovery entry. Default on â€” most failure modes (guide star, dew,
+  /// weather, drift) are improved by parking tracking so the rig doesn't
+  /// keep sliding while the operator is asleep.
+  final bool recoveryStopTrackingDuringRecovery;
+
+  /// When true, an imminent meridian crossing inside the recovery window
+  /// aborts the loop instead of trying to retry across the flip. SGP
+  /// behaviour: a recovery loop that straddles a flip leaves the rig in
+  /// an unpredictable state.
+  final bool recoveryAbortOnMeridian;
+
+  /// When true, ring the platform alert sound on recovery entry. Reuses
+  /// the existing critical-alert path so the user setting is unified
+  /// with [audibleAlertsOnCritical].
+  final bool recoveryAudibleAlertWhenEntered;
+
+  // Autofocus Settings
+  final String afMethod; // 'Star HFR'
+  final String afCurveFitting; // 'Hyperbolic', 'Parabolic', 'Trend Lines'
+  final int afStepSize; // step size between measurement points
+  final double afExposureTime; // default exposure for AF frames
+  final int afInitialOffsetSteps; // how many steps out from center
+  final int afNumberOfAttempts; // retry count on failure
+  final int afUseBrightestNStars; // 0 = use all
+  final double afOuterCropRatio;
+  final double afInnerCropRatio;
+  final int afBinning;
+  final double afRSquaredThreshold;
+  final bool afDisableGuidingDuringAf;
+  final int afFocuserSettleTimeMs;
+  final int afExposuresPerPoint;
+  final String afBacklashCompMethod; // 'None', 'Overshoot', 'Absolute'
+  final int afBacklashIn;
+  final int afBacklashOut;
+  final String
+      afAutofocusFilterName; // designated filter for AF runs (empty = use current)
+  final String
+      afFilterSettingsJson; // JSON map of filter name to FilterAutofocusConfig
+
+  /// Pack G â€” observer name written into FITS `OBSERVER`. Empty string
+  /// (the default) is treated as "no observer" and the keyword is omitted
+  /// from FITS rather than emitted with a sentinel.
+  final String observerName;
+
+  // -------------------------------------------------------------------
+  // Pack G â€” Wave 3 Image Grading (live frame Pass/Reject)
+  // -------------------------------------------------------------------
+  /// Master switch: when false, no grading runs and the executor's
+  /// RuntimeConfig.default_quality_check is set to None at start.
+  final bool enableImageGrading;
+
+  /// Reject if HFR exceeds this absolute pixel value. `null` => don't
+  /// apply the absolute check.
+  final double? imageGradingHfrThresholdPx;
+
+  /// Reject if HFR exceeds `baseline * (1 + percent / 100)`. `null` =>
+  /// don't apply the baseline-relative check.
+  final double? imageGradingHfrBaselinePercent;
+
+  /// Reject if star eccentricity exceeds this value. `null` => don't apply.
+  final double? imageGradingEccentricityThreshold;
+
+  /// Reject if detected star count falls below this. `null` => don't apply.
+  final int? imageGradingStarCountMin;
+
+  /// Pause sequence after this many consecutive rejects (default 3).
+  final int imageGradingMaxConsecutiveRejects;
+
+  /// Override for the reject folder. `null` => use `<save_path>/Reject/`.
+  /// Relative paths resolve against the run save_path; absolute paths are
+  /// used verbatim.
+  final String? imageGradingRejectFolderPath;
+
+  // -------------------------------------------------------------------
+  // Wave 5 Agent 2 â€” Sky-brightness adaptive exposure (global defaults)
+  // -------------------------------------------------------------------
+  /// Master switch for the global default adaptive-exposure config.
+  /// When false the global default is cleared in the executor and only
+  /// per-node overrides apply.
+  final bool adaptiveExposureEnabled;
+
+  /// Target SNR (informational; live math uses background flux ratio).
+  final double adaptiveExposureTargetSnr;
+
+  /// Reference sky brightness (mag/arcsecÂ²) the nominal duration was
+  /// calibrated for. Dark-site default 21.5.
+  final double adaptiveExposureReferenceMag;
+
+  /// Global minimum exposure clamp (seconds).
+  final double adaptiveExposureMinSecs;
+
+  /// Global maximum exposure clamp (seconds).
+  final double adaptiveExposureMaxSecs;
+
+  /// Per-filter enable map. Empty => apply globally.
+  final Map<String, bool> adaptiveExposurePerFilterEnabled;
+
+  /// Per-filter minimum exposure overrides (seconds).
+  final Map<String, double> adaptiveExposurePerFilterMinSecs;
+
+  /// Per-filter maximum exposure overrides (seconds).
+  final Map<String, double> adaptiveExposurePerFilterMaxSecs;
+
+  // -------------------------------------------------------------------
+  // Wave 5 Agent 3 â€” Pre-flight checks
+  // -------------------------------------------------------------------
+  /// How aggressively the pre-flight dialog should warn or block on
+  /// questionable conditions (missing darks, stale polar alignment, time
+  /// drift, focuser at edge of travel, etc.). Default [PreflightStrictness.normal].
+  final PreflightStrictness preflightStrictness;
+
+  /// Maximum age in days for the last polar alignment before pre-flight
+  /// flags it as stale. Default 7 days (assuming a permanently-mounted
+  /// rig). Portable rigs typically want 1 (every session).
+  final int polarAlignmentMaxAgeDays;
+
+  /// Minimum number of dark frames required to consider a (gain, offset,
+  /// temp, duration, binning) combination "covered". Below this the
+  /// pre-flight rule emits a coverage warning. Default 10 (median-combine
+  /// produces a master with usable read-noise reduction at N >= 10).
+  final int darkLibraryMinCoverage;
+
+  /// Threshold (mm or score units) above which the optical-train pre-flight
+  /// comparison flags "your rig has shifted since last session". The
+  /// comparison runs over the diagnostics `tiltScore` + `collimationScore`
+  /// delta. Default 8 â€” picks up a meaningful spacer change without firing
+  /// on noise.
+  final double opticalTrainDriftThreshold;
+
+  // -------------------------------------------------------------------
+  // Wave 6 Agent 1 â€” Smart Night auto-builder defaults
+  // -------------------------------------------------------------------
+  /// Maximum session wall-clock duration (hours) the Smart Night wizard
+  /// uses to cap the planning window. `null` => use the full dark window
+  /// (astronomical dusk â†’ dawn).
+  final double? smartNightMaxSessionHours;
+
+  /// Default autofocus cadence (frames) for the Smart Night wizard when
+  /// running the `everyNFrames` strategy.
+  final int smartNightDefaultAfCadenceFrames;
+
+  /// Default integration budget per target (minutes) the wizard uses.
+  /// Tweaks the per-target window cap when composing per-filter plans.
+  final int smartNightDefaultIntegrationBudgetMinsPerTarget;
+
+  /// Whether the wizard appends end-of-session flats when the active
+  /// profile has a cover calibrator.
+  final bool smartNightIncludeFlatsAtEnd;
+
+  /// Whether the wizard wraps multi-target plans in a TargetSchedulerNode
+  /// (rather than a linear chain) when the target count is at or above
+  /// [smartNightSchedulerTargetThreshold].
+  final bool smartNightUseSchedulerForMultiTarget;
+
+  /// Minimum target count before the wizard auto-picks scheduler mode.
+  final int smartNightSchedulerTargetThreshold;
+
+  /// Default Smart Night strategy persisted across sessions. One of
+  /// `auto_lrgb`, `mono_lrgb`, `narrowband_hoo`, `narrowband_sho`,
+  /// `osc_one_shot`.
+  final String smartNightDefaultStrategy;
+
+  /// Days after which a polar alignment is "stale" enough to warrant the
+  /// Smart Night wizard prepending an alignment node. Distinct from the
+  /// pre-flight rule's [polarAlignmentMaxAgeDays] knob because the wizard
+  /// wants the freshness target to be configurable independently (e.g.
+  /// pre-flight at 7 days, but Smart Night prepends only at 14 days).
+  final int smartNightPolarAlignmentStaleAfterDays;
+
+  /// Smart Night exposure calculator floor (seconds). Separate from the
+  /// runtime adaptive-exposure floor so one feature does not silently tune
+  /// the other.
+  final double smartNightSubExposureFloorSecs;
+
+  /// Smart Night exposure calculator ceiling (seconds).
+  final double smartNightSubExposureCeilingSecs;
+
+  /// Smart Night planning SNR target used by the exposure calculator.
+  final double smartNightTargetSnr;
+
+  /// Whether the dashboard may show the Smart Night auto-prompt after
+  /// equipment is ready. Manual Plan Tonight actions stay available when
+  /// this is false.
+  final bool smartNightAutoPromptEnabled;
+
+  // -------------------------------------------------------------------
+  // Wave 6 Agent 5 â€” Notes / journal preferences
+  // -------------------------------------------------------------------
+  /// Whether the auto-prompt note dialog appears after a sequence run
+  /// completes. Defaults to true (opt-out, not opt-in: the session
+  /// report is more useful when the user is in the habit of dropping
+  /// a quick note at the end of every run).
+  ///
+  /// Mirrored in the database app_settings table under the
+  /// `notes.prompt_after_run` key (see [kPromptForNotesAfterRunKey]).
+  final bool promptForNotesAfterRun;
+
+  // -------------------------------------------------------------------
+  // Wave 7 â€” Session lifecycle preferences
+  // -------------------------------------------------------------------
+
+  /// Whether the multi-night carry-over banner auto-opens at pre-flight
+  /// when an unfinished session is detected for one of the sequence's
+  /// targets. Default true: the banner is informational only, the user
+  /// still has to pick Resume / Restart / Continue New.
+  ///
+  /// Mirrored in the database under `session.handoff_auto_prompt`.
+  final bool sessionHandoffAutoPrompt;
+
+  /// Whether the Targets tab in the sequencer surfaces a per-target
+  /// campaign rollup column ("Total integration: 24h Lum, 8h Ha across
+  /// 6 sessions"). Default true. Users with a clean targets table can
+  /// flip this off for less visual noise.
+  ///
+  /// Mirrored in the database under `campaign_rollup.surface_targets_tab`.
+  final bool campaignRollupSurfaceTargetsTab;
+
+  /// How the campaign rollup groups runs for a given target:
+  ///   * `by_target_name` â€” case-insensitive name match (default; works
+  ///     across sequences that re-name the same object).
+  ///   * `by_target_id` â€” exact Drift `targets.id` match (stricter).
+  ///   * `by_user_tag` â€” group by the `targets.tags` field when present.
+  ///
+  /// Mirrored in the database under `campaign_rollup.grouping_mode`.
+  final String campaignRollupGroupingMode;
+
+  // -------------------------------------------------------------------
+  // Wave 8 â€” Adaptive sky-conditions target swap defaults
+  //
+  // These knobs pre-fill the matching fields on a newly-created
+  // [TargetSchedulerNode]. Changing them never mutates an existing node
+  // â€” they're "what should the next scheduler I drop in look like?".
+  // Persisted as raw strings in `app_settings`; the map is JSON-encoded.
+  // -------------------------------------------------------------------
+
+  /// When true, new [TargetSchedulerNode]s are created with
+  /// [TargetSchedulerNode.swapOnConditionsBelow] set to
+  /// [adaptiveSwapDefaultThreshold]. When false, new schedulers ship
+  /// with adaptive swap *disabled* (`swapOnConditionsBelow = null`) so
+  /// the user has to opt in explicitly.
+  ///
+  /// Mirrored under `adaptive_swap.enabled_by_default`.
+  final bool adaptiveSwapEnabledByDefault;
+
+  /// Default conditions-score floor (0..=100) seeded into a new
+  /// scheduler's `swapOnConditionsBelow`. Only consulted when
+  /// [adaptiveSwapEnabledByDefault] is true.
+  ///
+  /// Mirrored under `adaptive_swap.default_threshold`.
+  final double adaptiveSwapDefaultThreshold;
+
+  /// Default `swapHysteresisSecs` (seconds between consecutive swaps)
+  /// seeded into a new scheduler. Mirrored under
+  /// `adaptive_swap.default_hysteresis_secs`.
+  final double adaptiveSwapDefaultHysteresisSecs;
+
+  /// Per-axis composer weights for the live ConditionsScore. Keys:
+  /// `transparency` / `seeing` / `cloud` / `wind`. Mirrored under
+  /// `adaptive_swap.score_weights` as a JSON object.
+  final Map<String, double> conditionsScoreWeights;
+
+  const AppSettingsState({
+    // General
+    this.startMinimized = false,
+    this.autoConnectEquipment = true,
+    this.autoSaveSequences = true,
+    this.confirmBeforeClosing = true,
+    this.autoDiscoverOnLaunch = true,
+
+    // Appearance
+    this.theme = 'dark',
+    this.language = 'en',
+    this.accentColor = kDefaultAccentColorHex,
+    this.fontSize = 'Medium',
+    this.uiScale = 'Auto',
+    this.sidebarCollapsed = false,
+
+    // Location
+    this.latitude = 0.0,
+    this.longitude = 0.0,
+    this.elevation = 0.0,
+    this.timezone = 'UTC',
+    this.useSystemTime = true,
+
+    // Imaging
+    this.imageFormat = 'FITS',
+    this.fileNamingPattern = r'$TARGET_$FILTER_$DATE_$SEQ',
+    this.bitDepth = '16-bit',
+
+    // Sequencer
+    this.parkOnUnsafeWeather = true,
+    this.parkBeforeDawn = true,
+    this.meridianFlipMinutes = 5,
+    this.autoFocusOnFilterChange = true,
+    this.useFilterFocusOffsets = true,
+    this.autoFocusEveryMinutes = 60,
+    this.ditherEnabled = true,
+    this.ditherEveryFrames = 3,
+    this.safetyFailMode = SafetyFailMode.failClosed,
+
+    // Plate Solving
+    this.plateSolver = 'ASTAP',
+    this.astapPath = '',
+    this.astrometryPath = '',
+    this.plateSolveTimeout = 60,
+    this.plateSolveSearchRadius = 30.0,
+    this.blindSolve = false,
+
+    // PHD2 Guiding
+    this.phd2Path = '',
+    this.phd2Host = 'localhost',
+    this.phd2Port = 4400,
+
+    // Notifications
+    this.notificationsEnabled = true,
+    this.discordWebhook = '',
+    this.pushoverKey = '',
+    this.pushoverUser = '',
+    this.notifyOnSequenceComplete = true,
+    this.notifyOnError = true,
+    this.notifyOnMeridianFlip = false,
+    this.soundEnabled = true,
+
+    // File Paths
+    this.imageOutputPath = '',
+    this.sequencesPath = '',
+    this.databasePath = '',
+    this.logsPath = '',
+
+    // Protocol Settings
+    this.indiServerHost = 'localhost',
+    this.indiServerPort = 7624,
+    this.indiAutoConnect = false,
+    this.alpacaServerHost = 'localhost',
+    this.alpacaServerPort = 11111,
+    this.alpacaAutoDiscover = false,
+
+    // Sequencer Execution
+    this.useNativeExecution = true,
+    this.useSimulationMode = false,
+
+    // Remote Access / Web Server
+    this.webServerEnabled = false,
+    this.webServerPort = 8080,
+
+    // Equipment Settings - Camera
+    this.coolingBehavior = 'On Connect',
+    this.defaultGain = 100,
+    this.defaultOffset = 50,
+
+    // Equipment Settings - Mount
+    this.enableMeridianFlip = true,
+
+    // Equipment Settings - Focuser
+    this.tempCompensation = true,
+    this.tempCoefficient = -12.0,
+    this.backlashCompensation = 0,
+
+    // Equipment Settings - Guider
+    this.ditherScale = 'Medium',
+    this.settleThreshold = 0.5,
+    this.settleTimeout = 30,
+
+    // Observing Environment
+    this.bortleClass = 5,
+    this.horizonProfileJson =
+        '{"N":0,"NE":0,"E":0,"SE":0,"S":0,"SW":0,"W":0,"NW":0}',
+    this.effectiveHorizonDeg = 0.0,
+    this.audibleAlertsOnCritical = false,
+    this.renderingPlatform = RenderingPlatform.v1,
+    this.criticalAlertSound = 'systemBell',
+    this.pushCriticalAlerts = true,
+    // Wave 4 Recovery Mode â€” SGP-matching defaults.
+    this.recoveryDefaultRetryIntervalMins = 10.0,
+    this.recoveryDefaultMaxDurationMins = 90.0,
+    this.recoveryStopTrackingDuringRecovery = true,
+    this.recoveryAbortOnMeridian = true,
+    this.recoveryAudibleAlertWhenEntered = true,
+
+    // Autofocus Settings
+    this.afMethod = 'Star HFR',
+    this.afCurveFitting = 'Hyperbolic',
+    this.afStepSize = 50,
+    this.afExposureTime = 4.0,
+    this.afInitialOffsetSteps = 4,
+    this.afNumberOfAttempts = 1,
+    this.afUseBrightestNStars = 0,
+    this.afOuterCropRatio = 1.0,
+    this.afInnerCropRatio = 0.0,
+    this.afBinning = 1,
+    this.afRSquaredThreshold = 0.7,
+    this.afDisableGuidingDuringAf = false,
+    this.afFocuserSettleTimeMs = 500,
+    this.afExposuresPerPoint = 1,
+    this.afBacklashCompMethod = 'Overshoot',
+    this.afBacklashIn = 350,
+    this.afBacklashOut = 0,
+    this.afAutofocusFilterName = '',
+    this.afFilterSettingsJson = '{}',
+
+    // Pack G â€” observer name (FITS OBSERVER keyword).
+    this.observerName = '',
+    this.enableImageGrading = false,
+    this.imageGradingHfrThresholdPx = 3.5,
+    this.imageGradingHfrBaselinePercent = 50.0,
+    this.imageGradingEccentricityThreshold = 0.7,
+    this.imageGradingStarCountMin = 10,
+    this.imageGradingMaxConsecutiveRejects = 3,
+    this.imageGradingRejectFolderPath,
+    this.adaptiveExposureEnabled = false,
+    this.adaptiveExposureTargetSnr = 30.0,
+    this.adaptiveExposureReferenceMag = 21.5,
+    this.adaptiveExposureMinSecs = 5.0,
+    this.adaptiveExposureMaxSecs = 600.0,
+    this.adaptiveExposurePerFilterEnabled = const {},
+    this.adaptiveExposurePerFilterMinSecs = const {},
+    this.adaptiveExposurePerFilterMaxSecs = const {},
+    this.preflightStrictness = PreflightStrictness.normal,
+    this.polarAlignmentMaxAgeDays = 7,
+    this.darkLibraryMinCoverage = 10,
+    this.opticalTrainDriftThreshold = 8.0,
+    this.smartNightMaxSessionHours,
+    this.smartNightDefaultAfCadenceFrames = 25,
+    this.smartNightDefaultIntegrationBudgetMinsPerTarget = 240,
+    this.smartNightIncludeFlatsAtEnd = true,
+    this.smartNightUseSchedulerForMultiTarget = true,
+    this.smartNightSchedulerTargetThreshold = 3,
+    this.smartNightDefaultStrategy = 'auto_lrgb',
+    this.smartNightPolarAlignmentStaleAfterDays = 7,
+    this.smartNightSubExposureFloorSecs = 30.0,
+    this.smartNightSubExposureCeilingSecs = 300.0,
+    this.smartNightTargetSnr = 30.0,
+    this.smartNightAutoPromptEnabled = true,
+    this.promptForNotesAfterRun = true,
+    this.sessionHandoffAutoPrompt = true,
+    this.campaignRollupSurfaceTargetsTab = true,
+    this.campaignRollupGroupingMode = 'by_target_name',
+    this.adaptiveSwapEnabledByDefault = false,
+    this.adaptiveSwapDefaultThreshold = 50.0,
+    this.adaptiveSwapDefaultHysteresisSecs = 180.0,
+    this.conditionsScoreWeights = const {
+      'transparency': 0.40,
+      'seeing': 0.25,
+      'cloud': 0.25,
+      'wind': 0.10,
+    },
+  });
+  AppSettingsState copyWith({
+    bool? startMinimized,
+    bool? autoConnectEquipment,
+    bool? autoSaveSequences,
+    bool? confirmBeforeClosing,
+    bool? autoDiscoverOnLaunch,
+    String? theme,
+    String? language,
+    String? accentColor,
+    String? fontSize,
+    String? uiScale,
+    bool? sidebarCollapsed,
+    double? latitude,
+    double? longitude,
+    double? elevation,
+    String? timezone,
+    bool? useSystemTime,
+    String? imageFormat,
+    String? fileNamingPattern,
+    String? bitDepth,
+    bool? parkOnUnsafeWeather,
+    bool? parkBeforeDawn,
+    int? meridianFlipMinutes,
+    bool? autoFocusOnFilterChange,
+    bool? useFilterFocusOffsets,
+    int? autoFocusEveryMinutes,
+    bool? ditherEnabled,
+    int? ditherEveryFrames,
+    SafetyFailMode? safetyFailMode,
+    String? plateSolver,
+    String? astapPath,
+    String? astrometryPath,
+    int? plateSolveTimeout,
+    double? plateSolveSearchRadius,
+    bool? blindSolve,
+    String? phd2Path,
+    String? phd2Host,
+    int? phd2Port,
+    bool? notificationsEnabled,
+    String? discordWebhook,
+    String? pushoverKey,
+    String? pushoverUser,
+    bool? notifyOnSequenceComplete,
+    bool? notifyOnError,
+    bool? notifyOnMeridianFlip,
+    bool? soundEnabled,
+    String? imageOutputPath,
+    String? sequencesPath,
+    String? databasePath,
+    String? logsPath,
+    String? indiServerHost,
+    int? indiServerPort,
+    bool? indiAutoConnect,
+    String? alpacaServerHost,
+    int? alpacaServerPort,
+    bool? alpacaAutoDiscover,
+    bool? useNativeExecution,
+    bool? useSimulationMode,
+    // Remote Access / Web Server
+    bool? webServerEnabled,
+    int? webServerPort,
+    // Equipment Settings
+    String? coolingBehavior,
+    int? defaultGain,
+    int? defaultOffset,
+    bool? enableMeridianFlip,
+    bool? tempCompensation,
+    double? tempCoefficient,
+    int? backlashCompensation,
+    String? ditherScale,
+    double? settleThreshold,
+    int? settleTimeout,
+    // Observing Environment
+    int? bortleClass,
+    String? horizonProfileJson,
+    double? effectiveHorizonDeg,
+    bool? audibleAlertsOnCritical,
+    RenderingPlatform? renderingPlatform,
+    String? criticalAlertSound,
+    bool? pushCriticalAlerts,
+    // Wave 4 Recovery Mode
+    double? recoveryDefaultRetryIntervalMins,
+    double? recoveryDefaultMaxDurationMins,
+    bool? recoveryStopTrackingDuringRecovery,
+    bool? recoveryAbortOnMeridian,
+    bool? recoveryAudibleAlertWhenEntered,
+    // Autofocus Settings
+    String? afMethod,
+    String? afCurveFitting,
+    int? afStepSize,
+    double? afExposureTime,
+    int? afInitialOffsetSteps,
+    int? afNumberOfAttempts,
+    int? afUseBrightestNStars,
+    double? afOuterCropRatio,
+    double? afInnerCropRatio,
+    int? afBinning,
+    double? afRSquaredThreshold,
+    bool? afDisableGuidingDuringAf,
+    int? afFocuserSettleTimeMs,
+    int? afExposuresPerPoint,
+    String? afBacklashCompMethod,
+    int? afBacklashIn,
+    int? afBacklashOut,
+    String? afAutofocusFilterName,
+    String? afFilterSettingsJson,
+    // Pack G â€” observer name (FITS OBSERVER)
+    String? observerName,
+    // Pack G â€” Wave 3 Image Grading
+    bool? enableImageGrading,
+    // Wrap nullable fields with Object() sentinels so callers can set them
+    // back to null. We use a private `_unset` sentinel to distinguish
+    // "no change" from "set to null". Dart doesn't have a built-in
+    // optional-but-nullable pattern; this is the canonical workaround.
+    Object? imageGradingHfrThresholdPx = _unset,
+    Object? imageGradingHfrBaselinePercent = _unset,
+    Object? imageGradingEccentricityThreshold = _unset,
+    Object? imageGradingStarCountMin = _unset,
+    int? imageGradingMaxConsecutiveRejects,
+    Object? imageGradingRejectFolderPath = _unset,
+    // Wave 5 Agent 2 â€” Sky-brightness adaptive exposure
+    bool? adaptiveExposureEnabled,
+    double? adaptiveExposureTargetSnr,
+    double? adaptiveExposureReferenceMag,
+    double? adaptiveExposureMinSecs,
+    double? adaptiveExposureMaxSecs,
+    Map<String, bool>? adaptiveExposurePerFilterEnabled,
+    Map<String, double>? adaptiveExposurePerFilterMinSecs,
+    Map<String, double>? adaptiveExposurePerFilterMaxSecs,
+    // Wave 5 Agent 3 â€” Pre-flight
+    PreflightStrictness? preflightStrictness,
+    int? polarAlignmentMaxAgeDays,
+    int? darkLibraryMinCoverage,
+    double? opticalTrainDriftThreshold,
+    // Wave 6 Agent 1 â€” Smart Night defaults. `smartNightMaxSessionHours`
+    // uses the same `_unset` sentinel pattern as the nullable Image
+    // Grading thresholds so callers can deliberately clear it back to
+    // "use the full dark window".
+    Object? smartNightMaxSessionHours = _unset,
+    int? smartNightDefaultAfCadenceFrames,
+    int? smartNightDefaultIntegrationBudgetMinsPerTarget,
+    bool? smartNightIncludeFlatsAtEnd,
+    bool? smartNightUseSchedulerForMultiTarget,
+    int? smartNightSchedulerTargetThreshold,
+    String? smartNightDefaultStrategy,
+    int? smartNightPolarAlignmentStaleAfterDays,
+    double? smartNightSubExposureFloorSecs,
+    double? smartNightSubExposureCeilingSecs,
+    double? smartNightTargetSnr,
+    bool? smartNightAutoPromptEnabled,
+    // Wave 6 Agent 5 â€” Notes prompt toggle.
+    bool? promptForNotesAfterRun,
+    // Wave 7 â€” Session lifecycle.
+    bool? sessionHandoffAutoPrompt,
+    bool? campaignRollupSurfaceTargetsTab,
+    String? campaignRollupGroupingMode,
+    // Wave 8 â€” Adaptive sky-conditions defaults.
+    bool? adaptiveSwapEnabledByDefault,
+    double? adaptiveSwapDefaultThreshold,
+    double? adaptiveSwapDefaultHysteresisSecs,
+    Map<String, double>? conditionsScoreWeights,
+  }) {
+    return AppSettingsState(
+      startMinimized: startMinimized ?? this.startMinimized,
+      autoConnectEquipment: autoConnectEquipment ?? this.autoConnectEquipment,
+      autoSaveSequences: autoSaveSequences ?? this.autoSaveSequences,
+      confirmBeforeClosing: confirmBeforeClosing ?? this.confirmBeforeClosing,
+      autoDiscoverOnLaunch: autoDiscoverOnLaunch ?? this.autoDiscoverOnLaunch,
+      theme: theme ?? this.theme,
+      language: language ?? this.language,
+      accentColor: accentColor ?? this.accentColor,
+      fontSize: fontSize ?? this.fontSize,
+      uiScale: uiScale ?? this.uiScale,
+      sidebarCollapsed: sidebarCollapsed ?? this.sidebarCollapsed,
+      latitude: latitude ?? this.latitude,
+      longitude: longitude ?? this.longitude,
+      elevation: elevation ?? this.elevation,
+      timezone: timezone ?? this.timezone,
+      useSystemTime: useSystemTime ?? this.useSystemTime,
+      imageFormat: imageFormat ?? this.imageFormat,
+      fileNamingPattern: fileNamingPattern ?? this.fileNamingPattern,
+      bitDepth: bitDepth ?? this.bitDepth,
+      parkOnUnsafeWeather: parkOnUnsafeWeather ?? this.parkOnUnsafeWeather,
+      parkBeforeDawn: parkBeforeDawn ?? this.parkBeforeDawn,
+      meridianFlipMinutes: meridianFlipMinutes ?? this.meridianFlipMinutes,
+      autoFocusOnFilterChange:
+          autoFocusOnFilterChange ?? this.autoFocusOnFilterChange,
+      useFilterFocusOffsets:
+          useFilterFocusOffsets ?? this.useFilterFocusOffsets,
+      autoFocusEveryMinutes:
+          autoFocusEveryMinutes ?? this.autoFocusEveryMinutes,
+      ditherEnabled: ditherEnabled ?? this.ditherEnabled,
+      ditherEveryFrames: ditherEveryFrames ?? this.ditherEveryFrames,
+      safetyFailMode: safetyFailMode ?? this.safetyFailMode,
+      plateSolver: plateSolver ?? this.plateSolver,
+      astapPath: astapPath ?? this.astapPath,
+      astrometryPath: astrometryPath ?? this.astrometryPath,
+      plateSolveTimeout: plateSolveTimeout ?? this.plateSolveTimeout,
+      plateSolveSearchRadius:
+          plateSolveSearchRadius ?? this.plateSolveSearchRadius,
+      blindSolve: blindSolve ?? this.blindSolve,
+      phd2Path: phd2Path ?? this.phd2Path,
+      phd2Host: phd2Host ?? this.phd2Host,
+      phd2Port: phd2Port ?? this.phd2Port,
+      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+      discordWebhook: discordWebhook ?? this.discordWebhook,
+      pushoverKey: pushoverKey ?? this.pushoverKey,
+      pushoverUser: pushoverUser ?? this.pushoverUser,
+      notifyOnSequenceComplete:
+          notifyOnSequenceComplete ?? this.notifyOnSequenceComplete,
+      notifyOnError: notifyOnError ?? this.notifyOnError,
+      notifyOnMeridianFlip: notifyOnMeridianFlip ?? this.notifyOnMeridianFlip,
+      soundEnabled: soundEnabled ?? this.soundEnabled,
+      imageOutputPath: imageOutputPath ?? this.imageOutputPath,
+      sequencesPath: sequencesPath ?? this.sequencesPath,
+      databasePath: databasePath ?? this.databasePath,
+      logsPath: logsPath ?? this.logsPath,
+      indiServerHost: indiServerHost ?? this.indiServerHost,
+      indiServerPort: indiServerPort ?? this.indiServerPort,
+      indiAutoConnect: indiAutoConnect ?? this.indiAutoConnect,
+      alpacaServerHost: alpacaServerHost ?? this.alpacaServerHost,
+      alpacaServerPort: alpacaServerPort ?? this.alpacaServerPort,
+      alpacaAutoDiscover: alpacaAutoDiscover ?? this.alpacaAutoDiscover,
+      useNativeExecution: useNativeExecution ?? this.useNativeExecution,
+      useSimulationMode: useSimulationMode ?? this.useSimulationMode,
+      // Remote Access / Web Server
+      webServerEnabled: webServerEnabled ?? this.webServerEnabled,
+      webServerPort: webServerPort ?? this.webServerPort,
+      // Equipment Settings
+      coolingBehavior: coolingBehavior ?? this.coolingBehavior,
+      defaultGain: defaultGain ?? this.defaultGain,
+      defaultOffset: defaultOffset ?? this.defaultOffset,
+      enableMeridianFlip: enableMeridianFlip ?? this.enableMeridianFlip,
+      tempCompensation: tempCompensation ?? this.tempCompensation,
+      tempCoefficient: tempCoefficient ?? this.tempCoefficient,
+      backlashCompensation: backlashCompensation ?? this.backlashCompensation,
+      ditherScale: ditherScale ?? this.ditherScale,
+      settleThreshold: settleThreshold ?? this.settleThreshold,
+      settleTimeout: settleTimeout ?? this.settleTimeout,
+      // Autofocus Settings
+      bortleClass: bortleClass ?? this.bortleClass,
+      horizonProfileJson: horizonProfileJson ?? this.horizonProfileJson,
+      effectiveHorizonDeg: effectiveHorizonDeg ?? this.effectiveHorizonDeg,
+      audibleAlertsOnCritical:
+          audibleAlertsOnCritical ?? this.audibleAlertsOnCritical,
+      renderingPlatform: renderingPlatform ?? this.renderingPlatform,
+      criticalAlertSound: criticalAlertSound ?? this.criticalAlertSound,
+      pushCriticalAlerts: pushCriticalAlerts ?? this.pushCriticalAlerts,
+      // Wave 4 Recovery Mode
+      recoveryDefaultRetryIntervalMins: recoveryDefaultRetryIntervalMins ??
+          this.recoveryDefaultRetryIntervalMins,
+      recoveryDefaultMaxDurationMins:
+          recoveryDefaultMaxDurationMins ?? this.recoveryDefaultMaxDurationMins,
+      recoveryStopTrackingDuringRecovery: recoveryStopTrackingDuringRecovery ??
+          this.recoveryStopTrackingDuringRecovery,
+      recoveryAbortOnMeridian:
+          recoveryAbortOnMeridian ?? this.recoveryAbortOnMeridian,
+      recoveryAudibleAlertWhenEntered: recoveryAudibleAlertWhenEntered ??
+          this.recoveryAudibleAlertWhenEntered,
+      afMethod: afMethod ?? this.afMethod,
+      afCurveFitting: afCurveFitting ?? this.afCurveFitting,
+      afStepSize: afStepSize ?? this.afStepSize,
+      afExposureTime: afExposureTime ?? this.afExposureTime,
+      afInitialOffsetSteps: afInitialOffsetSteps ?? this.afInitialOffsetSteps,
+      afNumberOfAttempts: afNumberOfAttempts ?? this.afNumberOfAttempts,
+      afUseBrightestNStars: afUseBrightestNStars ?? this.afUseBrightestNStars,
+      afOuterCropRatio: afOuterCropRatio ?? this.afOuterCropRatio,
+      afInnerCropRatio: afInnerCropRatio ?? this.afInnerCropRatio,
+      afBinning: afBinning ?? this.afBinning,
+      afRSquaredThreshold: afRSquaredThreshold ?? this.afRSquaredThreshold,
+      afDisableGuidingDuringAf:
+          afDisableGuidingDuringAf ?? this.afDisableGuidingDuringAf,
+      afFocuserSettleTimeMs:
+          afFocuserSettleTimeMs ?? this.afFocuserSettleTimeMs,
+      afExposuresPerPoint: afExposuresPerPoint ?? this.afExposuresPerPoint,
+      afBacklashCompMethod: afBacklashCompMethod ?? this.afBacklashCompMethod,
+      afBacklashIn: afBacklashIn ?? this.afBacklashIn,
+      afBacklashOut: afBacklashOut ?? this.afBacklashOut,
+      afAutofocusFilterName:
+          afAutofocusFilterName ?? this.afAutofocusFilterName,
+      afFilterSettingsJson: afFilterSettingsJson ?? this.afFilterSettingsJson,
+      // Pack G â€” observer name (FITS OBSERVER)
+      observerName: observerName ?? this.observerName,
+      // Pack G â€” Wave 3 Image Grading
+      enableImageGrading: enableImageGrading ?? this.enableImageGrading,
+      imageGradingHfrThresholdPx: identical(imageGradingHfrThresholdPx, _unset)
+          ? this.imageGradingHfrThresholdPx
+          : imageGradingHfrThresholdPx as double?,
+      imageGradingHfrBaselinePercent:
+          identical(imageGradingHfrBaselinePercent, _unset)
+              ? this.imageGradingHfrBaselinePercent
+              : imageGradingHfrBaselinePercent as double?,
+      imageGradingEccentricityThreshold:
+          identical(imageGradingEccentricityThreshold, _unset)
+              ? this.imageGradingEccentricityThreshold
+              : imageGradingEccentricityThreshold as double?,
+      imageGradingStarCountMin: identical(imageGradingStarCountMin, _unset)
+          ? this.imageGradingStarCountMin
+          : imageGradingStarCountMin as int?,
+      imageGradingMaxConsecutiveRejects: imageGradingMaxConsecutiveRejects ??
+          this.imageGradingMaxConsecutiveRejects,
+      imageGradingRejectFolderPath:
+          identical(imageGradingRejectFolderPath, _unset)
+              ? this.imageGradingRejectFolderPath
+              : imageGradingRejectFolderPath as String?,
+      // Wave 5 Agent 2 â€” Sky-brightness adaptive exposure
+      adaptiveExposureEnabled:
+          adaptiveExposureEnabled ?? this.adaptiveExposureEnabled,
+      adaptiveExposureTargetSnr:
+          adaptiveExposureTargetSnr ?? this.adaptiveExposureTargetSnr,
+      adaptiveExposureReferenceMag:
+          adaptiveExposureReferenceMag ?? this.adaptiveExposureReferenceMag,
+      adaptiveExposureMinSecs:
+          adaptiveExposureMinSecs ?? this.adaptiveExposureMinSecs,
+      adaptiveExposureMaxSecs:
+          adaptiveExposureMaxSecs ?? this.adaptiveExposureMaxSecs,
+      adaptiveExposurePerFilterEnabled: adaptiveExposurePerFilterEnabled ??
+          this.adaptiveExposurePerFilterEnabled,
+      adaptiveExposurePerFilterMinSecs: adaptiveExposurePerFilterMinSecs ??
+          this.adaptiveExposurePerFilterMinSecs,
+      adaptiveExposurePerFilterMaxSecs: adaptiveExposurePerFilterMaxSecs ??
+          this.adaptiveExposurePerFilterMaxSecs,
+      // Wave 5 Agent 3 â€” Pre-flight
+      preflightStrictness: preflightStrictness ?? this.preflightStrictness,
+      polarAlignmentMaxAgeDays:
+          polarAlignmentMaxAgeDays ?? this.polarAlignmentMaxAgeDays,
+      darkLibraryMinCoverage:
+          darkLibraryMinCoverage ?? this.darkLibraryMinCoverage,
+      opticalTrainDriftThreshold:
+          opticalTrainDriftThreshold ?? this.opticalTrainDriftThreshold,
+      // Wave 6 Agent 1 â€” Smart Night defaults.
+      smartNightMaxSessionHours: identical(smartNightMaxSessionHours, _unset)
+          ? this.smartNightMaxSessionHours
+          : smartNightMaxSessionHours as double?,
+      smartNightDefaultAfCadenceFrames: smartNightDefaultAfCadenceFrames ??
+          this.smartNightDefaultAfCadenceFrames,
+      smartNightDefaultIntegrationBudgetMinsPerTarget:
+          smartNightDefaultIntegrationBudgetMinsPerTarget ??
+              this.smartNightDefaultIntegrationBudgetMinsPerTarget,
+      smartNightIncludeFlatsAtEnd:
+          smartNightIncludeFlatsAtEnd ?? this.smartNightIncludeFlatsAtEnd,
+      smartNightUseSchedulerForMultiTarget:
+          smartNightUseSchedulerForMultiTarget ??
+              this.smartNightUseSchedulerForMultiTarget,
+      smartNightSchedulerTargetThreshold: smartNightSchedulerTargetThreshold ??
+          this.smartNightSchedulerTargetThreshold,
+      smartNightDefaultStrategy:
+          smartNightDefaultStrategy ?? this.smartNightDefaultStrategy,
+      smartNightPolarAlignmentStaleAfterDays:
+          smartNightPolarAlignmentStaleAfterDays ??
+              this.smartNightPolarAlignmentStaleAfterDays,
+      smartNightSubExposureFloorSecs:
+          smartNightSubExposureFloorSecs ?? this.smartNightSubExposureFloorSecs,
+      smartNightSubExposureCeilingSecs: smartNightSubExposureCeilingSecs ??
+          this.smartNightSubExposureCeilingSecs,
+      smartNightTargetSnr: smartNightTargetSnr ?? this.smartNightTargetSnr,
+      smartNightAutoPromptEnabled:
+          smartNightAutoPromptEnabled ?? this.smartNightAutoPromptEnabled,
+      // Wave 6 Agent 5 â€” Notes prompt toggle.
+      promptForNotesAfterRun:
+          promptForNotesAfterRun ?? this.promptForNotesAfterRun,
+      // Wave 7 â€” Session lifecycle.
+      sessionHandoffAutoPrompt:
+          sessionHandoffAutoPrompt ?? this.sessionHandoffAutoPrompt,
+      campaignRollupSurfaceTargetsTab: campaignRollupSurfaceTargetsTab ??
+          this.campaignRollupSurfaceTargetsTab,
+      campaignRollupGroupingMode:
+          campaignRollupGroupingMode ?? this.campaignRollupGroupingMode,
+      // Wave 8 â€” Adaptive sky-conditions defaults.
+      adaptiveSwapEnabledByDefault:
+          adaptiveSwapEnabledByDefault ?? this.adaptiveSwapEnabledByDefault,
+      adaptiveSwapDefaultThreshold:
+          adaptiveSwapDefaultThreshold ?? this.adaptiveSwapDefaultThreshold,
+      adaptiveSwapDefaultHysteresisSecs: adaptiveSwapDefaultHysteresisSecs ??
+          this.adaptiveSwapDefaultHysteresisSecs,
+      conditionsScoreWeights:
+          conditionsScoreWeights ?? this.conditionsScoreWeights,
+    );
+  }
+}

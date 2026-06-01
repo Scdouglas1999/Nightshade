@@ -11,6 +11,12 @@ class RadarFetchResult {
   /// Timestamp when the data was fetched.
   final DateTime fetchedAt;
 
+  /// Human-readable name of the provider that produced these frames
+  /// (e.g. "GOES Satellite", "NOAA NEXRAD"). Null when the producing provider
+  /// is unknown (e.g. the raw provider call doesn't tag itself; the
+  /// [WeatherRadarService] fills this in when it selects a provider).
+  final String? providerName;
+
   /// Error message if the fetch failed, null otherwise.
   final String? errorMessage;
 
@@ -20,14 +26,36 @@ class RadarFetchResult {
   const RadarFetchResult._({
     required this.frames,
     required this.fetchedAt,
+    this.providerName,
     this.errorMessage,
   });
 
   /// Creates a successful result with the given frames.
-  factory RadarFetchResult.success(List<RadarFrame> frames) {
+  ///
+  /// [providerName] optionally records which provider produced the frames so
+  /// the UI can attribute the data source.
+  factory RadarFetchResult.success(
+    List<RadarFrame> frames, {
+    String? providerName,
+  }) {
     return RadarFetchResult._(
       frames: frames,
       fetchedAt: DateTime.now(),
+      providerName: providerName,
+    );
+  }
+
+  /// Returns a copy of this result tagged with the producing provider's name.
+  ///
+  /// Used by the [WeatherRadarService] to attach attribution after it selects
+  /// a provider, without each provider having to know its own display name in
+  /// the result payload.
+  RadarFetchResult withProviderName(String name) {
+    return RadarFetchResult._(
+      frames: frames,
+      fetchedAt: fetchedAt,
+      providerName: name,
+      errorMessage: errorMessage,
     );
   }
 

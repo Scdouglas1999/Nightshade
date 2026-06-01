@@ -166,7 +166,12 @@ class RotatorRotationConflictRule implements RefAwareSequenceValidator {
 
     for (final target in sequence.targetHeaders) {
       final rotation = target.rotation;
-      if (rotation == null) continue;
+      // A null or 0° rotation requests no rotation at all — it never needs a
+      // rotator (0° = leave the camera at its current angle). Auto-built (Plan
+      // Tonight) targets request no rotation, but carry a spurious 0.0 from
+      // persistence/serialization defaults; warning on that is noise. Only a
+      // genuinely non-zero target angle requires a connected rotator.
+      if (rotation == null || rotation.abs() < 0.01) continue;
       issues.add(ValidationIssue(
         severity: ValidationSeverity.warning,
         category: ValidationCategory.equipment,

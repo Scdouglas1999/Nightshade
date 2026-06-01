@@ -1,7 +1,7 @@
-/// Render quality configuration for the planetarium
-///
-/// Provides three quality tiers to support devices from Raspberry Pi
-/// to high-end desktops.
+// Render quality configuration for the planetarium.
+//
+// Provides three quality tiers to support devices from Raspberry Pi
+// to high-end desktops.
 
 /// Quality tier for planetarium rendering
 enum RenderQuality {
@@ -90,8 +90,26 @@ class RenderQualityConfig {
   /// Star point-spread function quality (0.0 = circle, 0.5 = gradient, 1.0 = full PSF)
   final double starPsfQuality;
 
+  /// Softness of the baked star-glow sprite (1.0 = tight bloom, 2.0 = soft,
+  /// wide bloom). Higher tiers bake a softer, wider halo so bright stars read as
+  /// a gentler glow. This replaces the old per-object `MaskFilter.blur` /
+  /// gradient-glow softness knob; the glow now lives in the sprite texture.
+  final double spriteSoftness;
+
+  /// Whether the brightest stars use the spiked star sprite (diffraction spikes
+  /// baked into the texture). The spikes used to be drawn per-star with cached
+  /// line-gradient shaders; they now live in a second baked sprite variant.
+  final bool useDiffractionSpikes;
+
   /// Ground plane detail: 0 = solid color, 0.5 = gradient, 1.0 = gradient + silhouette
   final double groundPlaneDetail;
+
+  /// When true, suppress the non-essential labels (DSO labels and bright-star
+  /// names) to cut per-frame text layout/paint work on low-end devices.
+  /// Constellation/cardinal/solar-system labels are always kept. Enabled only
+  /// on the minimal/performance tiers; balanced/quality keep the full label set
+  /// so their look is unchanged.
+  final bool reduceLabels;
 
   const RenderQualityConfig._({
     required this.quality,
@@ -116,7 +134,10 @@ class RenderQualityConfig {
     required this.enableDsoPopin,
     required this.enableParallax,
     required this.starPsfQuality,
+    required this.spriteSoftness,
+    required this.useDiffractionSpikes,
     required this.groundPlaneDetail,
+    required this.reduceLabels,
   });
 
   /// Minimal mode: Ultra-low power for Raspberry Pi and similar SBCs.
@@ -150,7 +171,10 @@ class RenderQualityConfig {
         enableDsoPopin = false,
         enableParallax = false,
         starPsfQuality = 0.0,
-        groundPlaneDetail = 0.0;
+        spriteSoftness = 1.0,
+        useDiffractionSpikes = false,
+        groundPlaneDetail = 0.0,
+        reduceLabels = true;
 
   /// Performance mode: Minimal effects for low-powered devices like Raspberry Pi
   ///
@@ -183,7 +207,10 @@ class RenderQualityConfig {
         enableDsoPopin = false,
         enableParallax = false,
         starPsfQuality = 0.0,
-        groundPlaneDetail = 0.0;
+        spriteSoftness = 1.0,
+        useDiffractionSpikes = false,
+        groundPlaneDetail = 0.0,
+        reduceLabels = true;
 
   /// Balanced mode: Gradient-based effects for mid-range devices
   ///
@@ -216,7 +243,10 @@ class RenderQualityConfig {
         enableDsoPopin = true,
         enableParallax = false,
         starPsfQuality = 0.5,
-        groundPlaneDetail = 0.5;
+        spriteSoftness = 1.5,
+        useDiffractionSpikes = false,
+        groundPlaneDetail = 0.5,
+        reduceLabels = false;
 
   /// Quality mode: Full effects for desktops with dedicated GPU
   ///
@@ -249,7 +279,10 @@ class RenderQualityConfig {
         enableDsoPopin = true,
         enableParallax = true,
         starPsfQuality = 1.0,
-        groundPlaneDetail = 1.0;
+        spriteSoftness = 2.0,
+        useDiffractionSpikes = true,
+        groundPlaneDetail = 1.0,
+        reduceLabels = false;
 
   /// Create a custom configuration
   const RenderQualityConfig.custom({
@@ -275,7 +308,10 @@ class RenderQualityConfig {
     this.enableDsoPopin = true,
     this.enableParallax = false,
     this.starPsfQuality = 0.5,
+    this.spriteSoftness = 1.5,
+    this.useDiffractionSpikes = false,
     this.groundPlaneDetail = 0.5,
+    this.reduceLabels = false,
   });
 
   /// Get configuration for a specific quality tier
@@ -316,7 +352,10 @@ class RenderQualityConfig {
     bool? enableDsoPopin,
     bool? enableParallax,
     double? starPsfQuality,
+    double? spriteSoftness,
+    bool? useDiffractionSpikes,
     double? groundPlaneDetail,
+    bool? reduceLabels,
   }) {
     return RenderQualityConfig._(
       quality: quality ?? this.quality,
@@ -330,18 +369,25 @@ class RenderQualityConfig {
       smoothZoomAnimation: smoothZoomAnimation ?? this.smoothZoomAnimation,
       starMagnitudeLimit: starMagnitudeLimit ?? this.starMagnitudeLimit,
       dsoMagnitudeLimit: dsoMagnitudeLimit ?? this.dsoMagnitudeLimit,
-      enableTwilightGradient: enableTwilightGradient ?? this.enableTwilightGradient,
+      enableTwilightGradient:
+          enableTwilightGradient ?? this.enableTwilightGradient,
       enableHorizonGlow: enableHorizonGlow ?? this.enableHorizonGlow,
       enableLightPollution: enableLightPollution ?? this.enableLightPollution,
-      enableAtmosphericExtinction: enableAtmosphericExtinction ?? this.enableAtmosphericExtinction,
-      enableEnhancedDsoSymbols: enableEnhancedDsoSymbols ?? this.enableEnhancedDsoSymbols,
+      enableAtmosphericExtinction:
+          enableAtmosphericExtinction ?? this.enableAtmosphericExtinction,
+      enableEnhancedDsoSymbols:
+          enableEnhancedDsoSymbols ?? this.enableEnhancedDsoSymbols,
       enablePlanetDetails: enablePlanetDetails ?? this.enablePlanetDetails,
-      enableSelectionAnimation: enableSelectionAnimation ?? this.enableSelectionAnimation,
+      enableSelectionAnimation:
+          enableSelectionAnimation ?? this.enableSelectionAnimation,
       enableStarPopin: enableStarPopin ?? this.enableStarPopin,
       enableDsoPopin: enableDsoPopin ?? this.enableDsoPopin,
       enableParallax: enableParallax ?? this.enableParallax,
       starPsfQuality: starPsfQuality ?? this.starPsfQuality,
+      spriteSoftness: spriteSoftness ?? this.spriteSoftness,
+      useDiffractionSpikes: useDiffractionSpikes ?? this.useDiffractionSpikes,
       groundPlaneDetail: groundPlaneDetail ?? this.groundPlaneDetail,
+      reduceLabels: reduceLabels ?? this.reduceLabels,
     );
   }
 
@@ -371,7 +417,10 @@ class RenderQualityConfig {
         other.enableDsoPopin == enableDsoPopin &&
         other.enableParallax == enableParallax &&
         other.starPsfQuality == starPsfQuality &&
-        other.groundPlaneDetail == groundPlaneDetail;
+        other.spriteSoftness == spriteSoftness &&
+        other.useDiffractionSpikes == useDiffractionSpikes &&
+        other.groundPlaneDetail == groundPlaneDetail &&
+        other.reduceLabels == reduceLabels;
   }
 
   @override
@@ -398,7 +447,10 @@ class RenderQualityConfig {
         enableDsoPopin,
         enableParallax,
         starPsfQuality,
+        spriteSoftness,
+        useDiffractionSpikes,
         groundPlaneDetail,
+        reduceLabels,
       ]);
 
   @override

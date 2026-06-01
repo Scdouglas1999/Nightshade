@@ -87,7 +87,7 @@ void main() {
   );
   await _writeDoc(
     root,
-    'apps/desktop/lib/headless_api_server.dart',
+    'apps/desktop/lib/headless_api/handlers/system_handlers.dart',
     '''
 void info() {
   final platformCapabilities = PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem);

@@ -208,6 +208,16 @@ async fn run_target_body(
     // doesn't currently spawn tasks per-target, and (b) the most natural
     // pre-emption point is at child boundaries — between exposures, after a
     // dither, etc. — which the existing loops already visit.
+    //
+    // Expose the effective `end_when` on the context for the duration of the
+    // child subtree. Children that loop internally (e.g. a SmartExposure
+    // node in `loop_until_stopped` mode) never hand the parent a boundary to
+    // probe, so they poll the trigger themselves via
+    // `context.active_target_end_trigger_satisfied()` and stop when the
+    // window closes. We restore the prior value on every exit path so the
+    // trigger does not leak into sibling subtrees (a nested TargetHeader,
+    // however unusual, would push/pop its own).
+    let prior_end_trigger = context.install_active_target_end_trigger(end_when.clone());
     let result = if let Some(budget) = budget {
         execute_children_with_budget(
             node,
@@ -222,6 +232,7 @@ async fn run_target_body(
     } else {
         execute_children_with_end_when(node, context, end_when.clone(), config).await
     };
+    context.install_active_target_end_trigger(prior_end_trigger);
 
     // Leaving the target clears `active_target` on the registry so any
     // post-target work (e.g. a between-target Wait node) does NOT credit

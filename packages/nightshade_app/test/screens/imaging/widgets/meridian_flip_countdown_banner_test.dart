@@ -31,8 +31,9 @@ MeridianCountdownState _state({
 
 Future<void> _pump(
   WidgetTester tester,
-  MeridianCountdownState state,
-) async {
+  MeridianCountdownState state, {
+  int? dismissedSeverityIndex,
+}) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = const Size(900, 600);
   addTearDown(() {
@@ -47,6 +48,9 @@ Future<void> _pump(
         // fixed state. (The banner owns its own 15s ticker, cancelled on dispose,
         // so no timer leaks past this test's teardown.)
         meridianCountdownProvider.overrideWith((ref) => state),
+        if (dismissedSeverityIndex != null)
+          meridianBannerDismissedSeverityProvider
+              .overrideWith((ref) => dismissedSeverityIndex),
       ],
       child: MaterialApp(
         theme: NightshadeTheme.dark,
@@ -269,7 +273,7 @@ void main() {
       expect(find.textContaining('Pier'), findsNothing);
     });
 
-    testWidgets('does not offer a manual-action button (status only)',
+    testWidgets('is dismissable but offers no manual flip-action button',
         (tester) async {
       await _pump(
         tester,
@@ -279,10 +283,57 @@ void main() {
         ),
       );
 
-      // The banner is status; it must never present an actionable button that
-      // would contradict the "automatic watchdog" promise.
+      // It must never present an action that triggers/cancels the flip (that
+      // would contradict the "automatic watchdog" promise)...
       expect(find.byType(NightshadeButton), findsNothing);
-      expect(find.byType(IconButton), findsNothing);
+      // ...but it IS dismissable: a quiet close affordance silences the status.
+      expect(find.byTooltip('Dismiss'), findsOneWidget);
+      expect(find.byIcon(LucideIcons.x), findsOneWidget);
+    });
+
+    testWidgets('tapping dismiss hides the banner', (tester) async {
+      await _pump(
+        tester,
+        _state(isArmed: true, timeToFlip: const Duration(minutes: 25)),
+      );
+      expect(find.textContaining('Meridian flip in'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Dismiss'));
+      await tester.pump();
+
+      expect(find.textContaining('Meridian flip in'), findsNothing);
+      expect(
+        tester.getSize(find.byType(MeridianFlipCountdownBanner)),
+        Size.zero,
+      );
+    });
+
+    testWidgets('stays hidden at or below the dismissed severity',
+        (tester) async {
+      // Dismissed at the calm info tone; a still-calm countdown stays silenced.
+      await _pump(
+        tester,
+        _state(isArmed: true, timeToFlip: const Duration(minutes: 30)),
+        dismissedSeverityIndex: NightshadeAlertSeverity.info.index,
+      );
+
+      expect(
+        tester.getSize(find.byType(MeridianFlipCountdownBanner)),
+        Size.zero,
+      );
+    });
+
+    testWidgets('re-surfaces when the flip escalates past the dismissed tone',
+        (tester) async {
+      // Dismissed at info, but the flip is now within the warning threshold —
+      // the more-urgent banner must come back despite the earlier dismissal.
+      await _pump(
+        tester,
+        _state(isArmed: true, timeToFlip: const Duration(minutes: 6)),
+        dismissedSeverityIndex: NightshadeAlertSeverity.info.index,
+      );
+
+      expect(find.textContaining('Meridian flip in'), findsOneWidget);
     });
   });
 }

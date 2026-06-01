@@ -10,7 +10,46 @@ part 'targets_dao.g.dart';
 @DriftAccessor(tables: [Targets])
 class TargetsDao extends DatabaseAccessor<NightshadeDatabase>
     with _$TargetsDaoMixin {
-  TargetsDao(NightshadeDatabase db) : super(db);
+  TargetsDao(super.db);
+
+  /// Predicate identifying "untracked" library targets that are safe to remove
+  /// in the Analytics → Projects cleanup. A target is untracked only when it has
+  /// NO integration goal, is NOT a favorite, has NO captured data, and is NOT
+  /// referenced by any imaging session. This deliberately preserves every target
+  /// the user has invested in (favorites, goals, captures, sessions).
+  Expression<bool> _untrackedPredicate($TargetsTable t) {
+    final sessions = attachedDatabase.imagingSessions;
+    final referencedBySession = existsQuery(
+      selectOnly(sessions)
+        ..addColumns([sessions.id])
+        ..where(sessions.targetId.equalsExp(t.id) &
+            sessions.targetId.isNotNull()),
+    );
+    return t.goalIntegrationSecs.isSmallerOrEqualValue(0.0) &
+        t.isFavorite.equals(false) &
+        t.capturedSubs.equals(0) &
+        t.totalIntegrationSecs.equals(0.0) &
+        referencedBySession.not();
+  }
+
+  /// Counts library targets matching [_untrackedPredicate]. Drives the opt-in
+  /// "Remove untracked targets" affordance (button is hidden when this is 0).
+  Future<int> countUntrackedTargets() async {
+    final count = targets.id.count();
+    final query = selectOnly(targets)
+      ..addColumns([count])
+      ..where(_untrackedPredicate(targets));
+    final row = await query.getSingle();
+    return row.read(count) ?? 0;
+  }
+
+  /// Permanently deletes every library target matching [_untrackedPredicate].
+  /// Returns the number of rows removed. Favorites, goal-tracked targets,
+  /// targets with captured data, and session-referenced targets are never
+  /// touched. This is irreversible — callers must confirm with the user first.
+  Future<int> deleteUntrackedTargets() {
+    return (delete(targets)..where(_untrackedPredicate)).go();
+  }
 
   /// Get all targets
   Future<List<Target>> getAllTargets() => select(targets).get();

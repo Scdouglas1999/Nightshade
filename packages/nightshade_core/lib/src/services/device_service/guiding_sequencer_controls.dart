@@ -1,0 +1,129 @@
+part of '../device_service.dart';
+
+extension _DeviceServiceGuidingSequencerControls on DeviceService {
+// ===========================================================================
+// Guiding Control
+// ===========================================================================
+
+  /// Get the connected guider device ID
+  /// First checks the currently connected guider state, then falls back to active profile
+  Future<String?> _getGuiderDeviceId() async {
+    // First check if we have a currently connected guider
+    final guiderState = _ref.read(guiderStateProvider);
+    if (guiderState.connectionState == DeviceConnectionState.connected &&
+        guiderState.deviceId != null &&
+        guiderState.deviceId!.isNotEmpty) {
+      return guiderState.deviceId;
+    }
+
+    return _activeProfileDeviceId((profile) => profile.guiderId);
+  }
+
+  /// Start guiding
+  Future<void> _startGuiding({
+    double settlePixels = 1.0,
+    double settleTime = 10.0,
+    double settleTimeout = 60.0,
+  }) async {
+    final deviceId = await _getGuiderDeviceId();
+    if (deviceId == null || deviceId.isEmpty) {
+      throw Exception('No guider connected');
+    }
+
+    final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
+    operationsNotifier.startOperation(
+      type: OperationType.guideSettle,
+      description: 'Starting guiding and settling',
+      currentStep: 'Calibrating...',
+    );
+
+    try {
+      await _backend.guiderStartGuiding(
+        deviceId: deviceId,
+        settlePixels: settlePixels,
+        settleTime: settleTime,
+        settleTimeout: settleTimeout,
+      );
+
+      final guiderNotifier = _ref.read(guiderStateProvider.notifier);
+      guiderNotifier.setGuiding(true);
+    } finally {
+      operationsNotifier.completeOperation(OperationType.guideSettle);
+    }
+  }
+
+  /// Stop guiding
+  Future<void> _stopGuiding() async {
+    final deviceId = await _getGuiderDeviceId();
+    if (deviceId == null || deviceId.isEmpty) {
+      throw Exception('No guider connected');
+    }
+
+    await _backend.guiderStopGuiding(deviceId: deviceId);
+
+    final guiderNotifier = _ref.read(guiderStateProvider.notifier);
+    guiderNotifier.setGuiding(false);
+  }
+
+  /// Dither
+  Future<void> _dither({
+    double amount = 5.0,
+    bool raOnly = false,
+    double settlePixels = 1.0,
+    double settleTime = 10.0,
+    double settleTimeout = 60.0,
+  }) async {
+    final deviceId = await _getGuiderDeviceId();
+    if (deviceId == null || deviceId.isEmpty) {
+      throw Exception('No guider connected');
+    }
+
+    final operationsNotifier = _ref.read(activeOperationsProvider.notifier);
+    operationsNotifier.startOperation(
+      type: OperationType.dither,
+      description: 'Dithering ${amount.toStringAsFixed(1)} px',
+      currentStep: 'Moving...',
+    );
+
+    try {
+      await _backend.guiderDither(
+        deviceId: deviceId,
+        amount: amount,
+        raOnly: raOnly,
+        settlePixels: settlePixels,
+        settleTime: settleTime,
+        settleTimeout: settleTimeout,
+      );
+    } finally {
+      operationsNotifier.completeOperation(OperationType.dither);
+    }
+  }
+
+// ===========================================================================
+// Sequencer Control
+// ===========================================================================
+
+  Future<void> _startSequence() async {
+    await _backend.sequencerStart();
+  }
+
+  Future<void> _stopSequence() async {
+    await _backend.sequencerStop();
+  }
+
+  Future<void> _pauseSequence() async {
+    await _backend.sequencerPause();
+  }
+
+  Future<void> _resumeSequence() async {
+    await _backend.sequencerResume();
+  }
+
+  Future<void> _loadSequence(String json) async {
+    await _backend.sequencerLoadJson(json);
+  }
+
+  Future<SequencerStatus> _getSequencerStatus() async {
+    return await _backend.sequencerGetStatus();
+  }
+}

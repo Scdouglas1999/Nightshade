@@ -20,8 +20,11 @@ const _loggingServicePath =
 const _loggingServiceTestPath =
     'packages/nightshade_core/test/services/logging_service_test.dart';
 const _headlessServerPath = 'apps/desktop/lib/headless_api_server.dart';
+const _headlessServerPartsDirectory = 'apps/desktop/lib/headless_api_server';
 const _networkBackendPath =
     'packages/nightshade_core/lib/src/backend/network_backend.dart';
+const _networkBackendPartsDirectory =
+    'packages/nightshade_core/lib/src/backend/network_backend';
 
 Future<void> main(List<String> args) async {
   final root = Directory(_argValue(args, '--root') ?? Directory.current.path);
@@ -355,6 +358,8 @@ _QualityCheck _oversizedQuality(Directory root) {
   final criticalFileCount = (data['criticalFileCount'] as num?)?.toInt() ?? 0;
   final prioritySplitCandidateCount =
       (data['prioritySplitCandidateCount'] as num?)?.toInt() ?? 0;
+  final modularizedSourceFamilyCount =
+      (data['modularizedSourceFamilyCount'] as num?)?.toInt() ?? 0;
   final issues = <String>[];
   if (scannedFileCount <= 0) {
     issues.add('Oversized file audit scanned no files.');
@@ -369,6 +374,7 @@ _QualityCheck _oversizedQuality(Directory root) {
       'warningFileCount': warningFileCount,
       'criticalFileCount': criticalFileCount,
       'prioritySplitCandidateCount': prioritySplitCandidateCount,
+      'modularizedSourceFamilyCount': modularizedSourceFamilyCount,
       'warningLineLimit': (data['warningLineLimit'] as num?)?.toInt(),
       'criticalLineLimit': (data['criticalLineLimit'] as num?)?.toInt(),
       'releaseBlocking': false,
@@ -398,8 +404,8 @@ _QualityCheck _structuredLoggingQuality(Directory root) {
     ],
     _networkBackendPath: [
       "static const _requestIdHeader = 'x-request-id';",
-      "request.headers.set(_requestIdHeader, _nextRequestId('compat'));",
-      'headers[_requestIdHeader] = _nextRequestId(endpoint);',
+      "_NetworkBackendTransport._requestIdHeader: _nextRequestId('compat'),",
+      'headers[_NetworkBackendTransport._requestIdHeader] =',
       'RemoteApiCompatibility.apiVersionHeader',
     ],
   };
@@ -413,7 +419,13 @@ _QualityCheck _structuredLoggingQuality(Directory root) {
       missingTextCount += entry.value.length;
       continue;
     }
-    final text = file.readAsStringSync();
+    final text = switch (entry.key) {
+      _headlessServerPath =>
+        _readSourceTree(root, file, _headlessServerPartsDirectory),
+      _networkBackendPath =>
+        _readSourceTree(root, file, _networkBackendPartsDirectory),
+      _ => file.readAsStringSync(),
+    };
     for (final requiredText in entry.value) {
       if (!text.contains(requiredText)) {
         issues.add(
@@ -439,6 +451,24 @@ _QualityCheck _structuredLoggingQuality(Directory root) {
     },
     issues: issues,
   );
+}
+
+String _readSourceTree(Directory root, File source, String partsPath) {
+  final sources = <String>[source.readAsStringSync()];
+  final partsDirectory = Directory('${root.path}/$partsPath');
+  if (!partsDirectory.existsSync()) {
+    return sources.single;
+  }
+  final partFiles = partsDirectory
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((file) => file.path.endsWith('.dart'))
+      .toList()
+    ..sort((a, b) => a.path.compareTo(b.path));
+  for (final file in partFiles) {
+    sources.add(file.readAsStringSync());
+  }
+  return sources.join('\n');
 }
 
 String _renderMarkdown({

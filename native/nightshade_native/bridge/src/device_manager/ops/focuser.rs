@@ -24,6 +24,14 @@ impl DeviceManager {
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
         drop(devices);
 
+        // Suppress this focuser's heartbeat while the move runs. The ASCOM move
+        // holds the focuser write lock (and the single STA COM thread) for the
+        // whole move, so a heartbeat status read issued mid-move blocks or is
+        // rejected by the driver and gets miscounted as a failure — the cause
+        // of focuser disconnects during autofocus. The guard clears the marker
+        // when this function returns (success, error, or panic).
+        let _op = self.begin_operation(device_id);
+
         match info.driver_type {
             DriverType::Ascom => {
                 #[cfg(windows)]
@@ -162,6 +170,11 @@ impl DeviceManager {
             .map(|d| d.info.clone())
             .ok_or_else(|| format!("Device not found: {}", device_id))?;
         drop(devices);
+
+        // See focuser_move_abs: suppress the heartbeat for the move's duration
+        // so a status read contended with the move is not miscounted as a
+        // heartbeat failure.
+        let _op = self.begin_operation(device_id);
 
         match info.driver_type {
             DriverType::Ascom => {

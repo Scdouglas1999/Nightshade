@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+part 'public_release_gate/result_models.dart';
+
 const _jsonOutputPath = 'docs/production-readiness/public-release-gate.json';
 const _markdownOutputPath = 'docs/production-readiness/public-release-gate.md';
 const _checklistAuditPath =
@@ -94,16 +96,54 @@ _GateCheck _checkPlaceholderAudit() {
       'Placeholder audit artifact .audit_highrisk.txt is missing.',
     );
   }
-  final text = highRisk.readAsStringSync();
-  final highRiskHits =
-      text.split('\n').where((line) => line.trim().isNotEmpty).length;
+  final highRiskLines = highRisk
+      .readAsLinesSync()
+      .map((line) => line.trim())
+      .where((line) => line.isNotEmpty)
+      .toSet();
+  final highRiskSignatures =
+      highRiskLines.map(_highRiskBaselineSignature).toSet();
+  final baseline = _readLineSet(
+    'docs/production-readiness/highrisk-baseline.txt',
+  );
+  final baselineSignatures = baseline?.map(_highRiskBaselineSignature).toSet();
+  final newHighRisk = baseline == null
+      ? highRiskSignatures
+      : highRiskSignatures.difference(baselineSignatures!).toSet();
+  final removedBaseline = baseline == null
+      ? const <String>{}
+      : baselineSignatures!.difference(highRiskSignatures).toSet();
   return _GateCheck(
     id: 'placeholder_audit',
     label: 'Placeholder audit',
-    passed: highRiskHits == 0,
-    evidence: '.audit_highrisk.txt',
-    detail: 'High-risk marker hits=$highRiskHits.',
+    passed: baseline != null && newHighRisk.isEmpty,
+    evidence:
+        '.audit_highrisk.txt; docs/production-readiness/highrisk-baseline.txt',
+    detail: baseline == null
+        ? 'High-risk baseline is missing; hits=${highRiskLines.length}.'
+        : 'High-risk marker hits=${highRiskLines.length}; acceptedBaseline=${baseline.length}; '
+            'newHighRisk=${newHighRisk.length}; removedBaseline=${removedBaseline.length}.',
   );
+}
+
+String _highRiskBaselineSignature(String entry) {
+  final match = RegExp(r'^([^:]+):\d+:(.*)$').firstMatch(entry);
+  if (match == null) {
+    return entry;
+  }
+  return '${match.group(1)}:${match.group(2)}';
+}
+
+Set<String>? _readLineSet(String path) {
+  final file = File(path);
+  if (!file.existsSync()) {
+    return null;
+  }
+  return file
+      .readAsLinesSync()
+      .map((line) => line.trim())
+      .where((line) => line.isNotEmpty)
+      .toSet();
 }
 
 _GateCheck _checkFailClosedAudit() {
@@ -764,8 +804,10 @@ _GateCheck _checkMobileReconnectSmoke() {
       'docs/production-readiness/android-emulator-remote-reconnect-smoke-log.txt';
   final exists = File(path).existsSync();
   final text = exists ? File(path).readAsStringSync() : '';
-  final hasReconnect = text.contains('WebSocket connected successfully') &&
-      text.contains('Reconnecting in');
+  final hasReconnect =
+      text.contains('Server-observed mobile WebSocket viewer:') &&
+          text.contains('"viewers": [') &&
+          text.contains('"viewerId":');
   return _GateCheck(
     id: 'mobile_reconnect_smoke',
     label: 'Android emulator reconnect smoke',
@@ -902,26 +944,6 @@ _GateCheck _missing(String id, String detail) {
   );
 }
 
-class _ExternalEvidenceResult {
-  final bool passed;
-  final String detail;
-
-  const _ExternalEvidenceResult({
-    required this.passed,
-    required this.detail,
-  });
-}
-
-class _SplitPlanCoverage {
-  final bool valid;
-  final String detail;
-
-  const _SplitPlanCoverage({
-    required this.valid,
-    required this.detail,
-  });
-}
-
 Map<String, dynamic>? _readJson(String path) {
   final file = File(path);
   if (!file.existsSync()) return null;
@@ -972,28 +994,4 @@ String _renderMarkdown({
 
 String _escapeTable(String value) {
   return value.replaceAll('|', r'\|').replaceAll('\n', ' ');
-}
-
-class _GateCheck {
-  final String id;
-  final String label;
-  final bool passed;
-  final String? evidence;
-  final String detail;
-
-  const _GateCheck({
-    required this.id,
-    required this.label,
-    required this.passed,
-    required this.evidence,
-    required this.detail,
-  });
-
-  Map<String, Object?> toJson() => {
-        'id': id,
-        'label': label,
-        'passed': passed,
-        'evidence': evidence,
-        'detail': detail,
-      };
 }

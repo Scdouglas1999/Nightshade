@@ -42,8 +42,7 @@ class ExposureParamsRule implements SequenceValidator {
           severity: ValidationSeverity.error,
           category: ValidationCategory.exposures,
           title: 'Invalid Frame Count',
-          description:
-              'Exposure "${node.name}" has count of ${node.count}.',
+          description: 'Exposure "${node.name}" has count of ${node.count}.',
           affectedNodeId: node.id,
           resolutionHint: 'Set at least 1 frame to capture.',
         ));
@@ -90,9 +89,15 @@ class NoExposuresRule implements SequenceValidator {
 
   @override
   List<ValidationIssue> validate(Sequence sequence) {
-    final hasEnabledExposure = sequence.nodes.values
-        .whereType<ExposureNode>()
-        .any((n) => n.isEnabled);
+    // Count both standalone ExposureNodes and SmartExposure nodes (whose
+    // captures live in per-filter plans) so an auto-built sequence — whose
+    // imaging is a single SmartExposure node — is not falsely flagged as
+    // capturing no images.
+    final hasEnabledExposure = sequence.nodes.values.any(
+      (n) =>
+          (n is ExposureNode && n.isEnabled) ||
+          (n is SmartExposureNode && n.isEnabled && n.plans.isNotEmpty),
+    );
     if (hasEnabledExposure) return const [];
 
     // Don't fire if the sequence is itself empty — EmptySequenceRule covers

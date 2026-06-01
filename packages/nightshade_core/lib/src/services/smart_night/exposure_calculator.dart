@@ -22,27 +22,77 @@ class CameraExposureSpec {
   });
 }
 
+/// Coarse photometric class of a filter. Drives the sky-background model and
+/// keeps the per-filter exposure ordering (L < color channels < narrowband)
+/// honest even when several filters share a similar bandwidth.
+enum FilterCategory {
+  luminance,
+  red,
+  green,
+  blue,
+  narrowband,
+}
+
 /// Filter values needed by the light-frame exposure calculator.
+///
+/// [relativeSkyFlux] is the fraction of the *broadband* (luminance) night-sky
+/// photon flux that this filter actually passes. The Bortle table encodes a
+/// broadband V-band surface brightness; scaling it by raw bandwidth alone
+/// (`bandwidthNm / referenceBandwidth`) wrongly treats every 80 nm color
+/// filter as identical and hugely over-counts the in-band sky for the green
+/// and red channels where light-pollution emission (Na 589 nm, Hg 546 nm) and
+/// airglow (OI 558/630 nm) concentrate. Carrying an explicit per-band sky
+/// fraction lets L / R / G / B produce *distinct*, correctly-ordered subs
+/// instead of all collapsing onto the floor, while narrowband filters keep the
+/// physically-correct optically-thin `bandwidth / referenceBandwidth` scaling.
 class FilterExposureSpec {
   final String name;
   final double bandwidthNm;
   final double peakTransmission;
+  final FilterCategory category;
+
+  /// Fraction (0..~1) of the broadband luminance sky flux this filter passes.
+  /// Luminance is the 1.0 reference. Color channels each pass a portion of the
+  /// visible band weighted by where skyglow/LP energy lands; narrowband passes
+  /// only the sky continuum inside the line.
+  final double relativeSkyFlux;
 
   const FilterExposureSpec({
     required this.name,
     required this.bandwidthNm,
     required this.peakTransmission,
+    required this.category,
+    required this.relativeSkyFlux,
   });
 
   const FilterExposureSpec.luminance()
       : name = 'L',
         bandwidthNm = 100,
-        peakTransmission = 0.95;
+        peakTransmission = 0.95,
+        category = FilterCategory.luminance,
+        relativeSkyFlux = 1.0;
 
   const FilterExposureSpec.narrowbandHa()
       : name = 'Ha',
         bandwidthNm = 3,
-        peakTransmission = 0.9;
+        peakTransmission = 0.9,
+        category = FilterCategory.narrowband,
+        // Narrowband sky = sky continuum inside the line: bandwidth / reference.
+        relativeSkyFlux = 3 / _referenceBandwidthNm;
+
+  // Reference broadband passband (luminance) in nm. Narrowband relative-sky
+  // flux is measured against this. Kept here so the const constructors above
+  // can reference it.
+  static const double _referenceBandwidthNm = 100;
+
+  // Per-channel fraction of the broadband sky flux passed by each Bayer-style
+  // color channel. Green carries the bulk of light-pollution + airglow energy,
+  // red somewhat less, blue is the darkest band. These sum to a little over
+  // 1.0 (the channels overlap and the luminance band is not a perfect union),
+  // which is physically fine — each is taken relative to the luminance sky.
+  static const double _redSkyFraction = 0.34;
+  static const double _greenSkyFraction = 0.40;
+  static const double _blueSkyFraction = 0.22;
 
   factory FilterExposureSpec.fromName(String? rawName) {
     final normalized = (rawName ?? '').trim().toLowerCase();
@@ -59,6 +109,8 @@ class FilterExposureSpec {
         name: 'OIII',
         bandwidthNm: 3,
         peakTransmission: 0.9,
+        category: FilterCategory.narrowband,
+        relativeSkyFlux: 3 / _referenceBandwidthNm,
       );
     }
     if (normalized == 'sii' ||
@@ -69,6 +121,8 @@ class FilterExposureSpec {
         name: 'SII',
         bandwidthNm: 3,
         peakTransmission: 0.9,
+        category: FilterCategory.narrowband,
+        relativeSkyFlux: 3 / _referenceBandwidthNm,
       );
     }
     if (normalized.contains('l-extreme') ||
@@ -77,29 +131,51 @@ class FilterExposureSpec {
         normalized.contains('lultimate') ||
         normalized.contains('l-enhance') ||
         normalized.contains('lenhance')) {
+      final bw = normalized.contains('ultimate') ? 3.0 : 7.0;
       return FilterExposureSpec(
         name:
             rawName?.trim().isNotEmpty == true ? rawName!.trim() : 'Multi-band',
-        bandwidthNm: normalized.contains('ultimate') ? 3 : 7,
+        bandwidthNm: bw,
         peakTransmission: 0.9,
+        category: FilterCategory.narrowband,
+        // Dual/tri-band sky = the two narrow line windows it passes; model it
+        // as the summed line bandwidth against the broadband reference.
+        relativeSkyFlux: (2 * bw) / _referenceBandwidthNm,
       );
     }
-    if (normalized == 'r' ||
-        normalized == 'red' ||
-        normalized == 'g' ||
-        normalized == 'green' ||
-        normalized == 'b' ||
-        normalized == 'blue') {
+    if (normalized == 'r' || normalized == 'red') {
       return FilterExposureSpec(
-        name: rawName?.trim().isNotEmpty == true ? rawName!.trim() : 'RGB',
+        name: rawName?.trim().isNotEmpty == true ? rawName!.trim() : 'R',
         bandwidthNm: 80,
         peakTransmission: 0.9,
+        category: FilterCategory.red,
+        relativeSkyFlux: _redSkyFraction,
+      );
+    }
+    if (normalized == 'g' || normalized == 'green') {
+      return FilterExposureSpec(
+        name: rawName?.trim().isNotEmpty == true ? rawName!.trim() : 'G',
+        bandwidthNm: 80,
+        peakTransmission: 0.9,
+        category: FilterCategory.green,
+        relativeSkyFlux: _greenSkyFraction,
+      );
+    }
+    if (normalized == 'b' || normalized == 'blue') {
+      return FilterExposureSpec(
+        name: rawName?.trim().isNotEmpty == true ? rawName!.trim() : 'B',
+        bandwidthNm: 80,
+        peakTransmission: 0.9,
+        category: FilterCategory.blue,
+        relativeSkyFlux: _blueSkyFraction,
       );
     }
     return FilterExposureSpec(
       name: rawName?.trim().isNotEmpty == true ? rawName!.trim() : 'L',
       bandwidthNm: 100,
       peakTransmission: 0.95,
+      category: FilterCategory.luminance,
+      relativeSkyFlux: 1.0,
     );
   }
 }
@@ -275,14 +351,20 @@ class SmartNightExposureCalculator {
     final pixelAreaArcsec2 = pixelScaleArcsec * pixelScaleArcsec;
     final apertureAreaCm2 =
         math.pi * (input.apertureMm / 20) * (input.apertureMm / 20);
-    final bandpassScale = input.filter.bandwidthNm / _referenceBandwidthNm;
+    // The Bortle table is a broadband (luminance) surface brightness, so the
+    // in-band sky a filter sees is the luminance sky scaled by the fraction
+    // that filter actually passes — NOT the raw bandwidth ratio, which treats
+    // every color channel as identical and over-counts green/red where
+    // light-pollution + airglow energy concentrates. Narrowband filters set
+    // relativeSkyFlux == bandwidth/reference, so their behaviour is unchanged.
+    final skyFluxFraction = input.filter.relativeSkyFlux;
 
     return (photonFlux *
             pixelAreaArcsec2 *
             apertureAreaCm2 *
             input.camera.qePeak *
             input.filter.peakTransmission *
-            bandpassScale)
+            skyFluxFraction)
         .clamp(1e-9, double.infinity)
         .toDouble();
   }

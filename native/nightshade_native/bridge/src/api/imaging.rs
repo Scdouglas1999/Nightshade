@@ -2627,20 +2627,12 @@ pub async fn api_save_rgba_jpeg_file(
     })?;
 
     let path = Path::new(&file_path);
-    let file =
-        File::create(path).map_err(|e| NightshadeError::ImageError(format!(
-            "Failed to create JPEG file: {}",
-            e
-        )))?;
+    let file = File::create(path)
+        .map_err(|e| NightshadeError::ImageError(format!("Failed to create JPEG file: {}", e)))?;
     let writer = BufWriter::new(file);
     let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(writer, quality);
     encoder
-        .write_image(
-            rgb_image.as_raw(),
-            width,
-            height,
-            image::ColorType::Rgb8,
-        )
+        .write_image(rgb_image.as_raw(), width, height, image::ColorType::Rgb8)
         .map_err(|e| NightshadeError::ImageError(format!("Failed to encode RGBA JPEG: {}", e)))?;
 
     tracing::info!("RGBA JPEG file saved: {}", file_path);
@@ -2668,14 +2660,9 @@ mod rgba_save_tests {
         let dir = tempfile::tempdir().expect("create temp dir");
         let path = dir.path().join("share_card.png");
 
-        api_save_rgba_png_file(
-            path.to_string_lossy().into_owned(),
-            2,
-            2,
-            fixture_2x2(),
-        )
-        .await
-        .expect("RGBA PNG should write successfully");
+        api_save_rgba_png_file(path.to_string_lossy().into_owned(), 2, 2, fixture_2x2())
+            .await
+            .expect("RGBA PNG should write successfully");
 
         // Read it back through the image crate and assert geometry + channels.
         let decoded = image::open(&path).expect("decoded PNG should open");
@@ -2697,15 +2684,9 @@ mod rgba_save_tests {
         let dir = tempfile::tempdir().expect("create temp dir");
         let path = dir.path().join("share_card.jpg");
 
-        api_save_rgba_jpeg_file(
-            path.to_string_lossy().into_owned(),
-            2,
-            2,
-            fixture_2x2(),
-            90,
-        )
-        .await
-        .expect("RGBA JPEG should write successfully");
+        api_save_rgba_jpeg_file(path.to_string_lossy().into_owned(), 2, 2, fixture_2x2(), 90)
+            .await
+            .expect("RGBA JPEG should write successfully");
 
         let decoded = image::open(&path).expect("decoded JPEG should open");
         let rgb = decoded.to_rgb8();
@@ -2732,18 +2713,16 @@ mod rgba_save_tests {
         let path = dir.path().join("bad.png");
 
         // 2x2 needs 16 bytes; provide 12 (a "short" buffer).
-        let err = api_save_rgba_png_file(
-            path.to_string_lossy().into_owned(),
-            2,
-            2,
-            vec![0u8; 12],
-        )
-        .await
-        .expect_err("short RGBA buffer must be rejected, not silently truncated");
+        let err = api_save_rgba_png_file(path.to_string_lossy().into_owned(), 2, 2, vec![0u8; 12])
+            .await
+            .expect_err("short RGBA buffer must be rejected, not silently truncated");
 
         assert!(matches!(err, NightshadeError::ImageError(_)));
         // Nothing should have been written for an invalid input.
-        assert!(!path.exists(), "no file should be created on validation failure");
+        assert!(
+            !path.exists(),
+            "no file should be created on validation failure"
+        );
     }
 
     #[tokio::test]
@@ -2751,18 +2730,16 @@ mod rgba_save_tests {
         let dir = tempfile::tempdir().expect("create temp dir");
         let path = dir.path().join("bad.jpg");
 
-        let err = api_save_rgba_jpeg_file(
-            path.to_string_lossy().into_owned(),
-            2,
-            2,
-            vec![0u8; 12],
-            85,
-        )
-        .await
-        .expect_err("short RGBA buffer must be rejected, not silently truncated");
+        let err =
+            api_save_rgba_jpeg_file(path.to_string_lossy().into_owned(), 2, 2, vec![0u8; 12], 85)
+                .await
+                .expect_err("short RGBA buffer must be rejected, not silently truncated");
 
         assert!(matches!(err, NightshadeError::ImageError(_)));
-        assert!(!path.exists(), "no file should be created on validation failure");
+        assert!(
+            !path.exists(),
+            "no file should be created on validation failure"
+        );
     }
 }
 

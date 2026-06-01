@@ -96,6 +96,11 @@ Future<void> _writeRequiredFiles(
 }) async {
   await _writeFile(
     root,
+    'docs/production-readiness/fail_closed_rules.yaml',
+    _rulesFixture,
+  );
+  await _writeFile(
+    root,
     'packages/nightshade_bridge/lib/src/bridge_stub.dart',
     bridgeStub,
   );
@@ -130,6 +135,41 @@ class DisconnectedBackend {
     'class TargetsDao {}\n',
   );
 }
+
+const _rulesFixture = r'''
+rules:
+  - id: bridge_unimplemented
+    description: Disallow UnimplementedError in production backend paths
+    glob: packages/nightshade_bridge/lib/src/bridge_stub.dart
+    forbidden_pattern: 'UnimplementedError\('
+    require_present: true
+
+  - id: ffi_backend_unimplemented
+    description: Disallow UnimplementedError in production backend paths
+    glob: packages/nightshade_core/lib/src/backend/ffi_backend.dart
+    forbidden_pattern: 'UnimplementedError\('
+    require_present: true
+
+  - id: network_backend_unimplemented
+    description: Disallow UnimplementedError in production backend paths
+    glob: packages/nightshade_core/lib/src/backend/network_backend.dart
+    forbidden_pattern: 'UnimplementedError\('
+    require_present: true
+
+  - id: bridge_stub_noop_log
+    description: Disallow sequencer checkpoint no-op stub logging
+    glob: packages/nightshade_bridge/lib/src/bridge_stub.dart
+    forbidden_pattern: 'sequencer.*no-op in stub mode'
+    case_sensitive: false
+    require_present: true
+
+  - id: focuser_halt_noop
+    description: Disconnected backend focuserHalt must not be a no-op
+    glob: packages/nightshade_core/lib/src/backend/disconnected_backend.dart
+    forbidden_pattern: 'Future<void>\s+focuserHalt\s*\([^)]*\)\s*async\s*\{\s*\}'
+    multi_line: true
+    require_present: true
+''';
 
 Future<void> _resetWorkspace(Directory root) async {
   for (final path in ['packages', 'docs']) {

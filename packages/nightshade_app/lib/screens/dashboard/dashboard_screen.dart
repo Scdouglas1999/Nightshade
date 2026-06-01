@@ -5,14 +5,19 @@ import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../localization/nightshade_localizations.dart';
 import '../../widgets/contextual_tour_prompt.dart';
+import '../sequencer/widgets/run_dashboard/critical_event_banner.dart';
+import '../sequencer/widgets/run_dashboard/recovery_banner.dart';
+import '../sequencer/widgets/run_dashboard/run_dashboard_providers.dart';
 import 'dashboard_layout.dart';
 import 'dashboard_layout_provider.dart';
+import 'widgets/cockpit_run_controls.dart';
+import 'widgets/cockpit_standby.dart';
 import 'widgets/command_bar.dart';
 import 'widgets/dashboard_header_actions.dart';
 import 'widgets/dashboard_tile.dart';
+import 'widgets/glass_card.dart';
 import 'widgets/dashboard_widget_registry.dart';
 import 'widgets/next_use_prompt_card.dart';
-import 'widgets/readiness_dashboard_overlay.dart';
 import 'widgets/smart_night_prompt_card.dart';
 import 'widgets/widget_picker_dialog.dart';
 import 'widgets/zone_layout.dart';
@@ -52,6 +57,10 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
     // Ensure PHD2 controller is active and listening to events
     ref.watch(phd2ControllerProvider);
+    // Keep the critical-events → notifications bridge alive while the
+    // dashboard is shown. It's a Provider<void> whose side effects only run
+    // while watched; the deleted Run tab used to own this watch.
+    ref.watch(runDashboardCriticalEventsBridgeProvider);
     final layoutAsync = ref.watch(dashboardLayoutProvider);
 
     // Drive the pulse only while there is something to indicate. Watching the
@@ -76,6 +85,30 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
         mountConnected ||
         guiderConnected ||
         focuserConnected;
+
+    // The cockpit "wakes up" — shows its live tiles — as soon as the operator
+    // is set up: any core device connected OR a real sequence loaded (has a
+    // target or exposures). Its panels populate immediately (equipment
+    // telemetry from the connected gear, target header / plan from the loaded
+    // sequence, weather, etc.) so the dashboard reflects "ready to image"
+    // rather than sitting on a generic standby. The standby hero only takes
+    // over when there's genuinely nothing connected and nothing loaded. A
+    // running / capturing session, and edit mode (so the cockpit stays
+    // arrangeable anytime), always show the tiles too.
+    final executionState = ref.watch(sequenceExecutionStateProvider);
+    final anyDeviceConnected = cameraConnected ||
+        mountConnected ||
+        guiderConnected ||
+        focuserConnected;
+    final loadedSequence = ref.watch(currentSequenceProvider);
+    final hasLoadedSequence = loadedSequence != null &&
+        (loadedSequence.targetHeaders.isNotEmpty ||
+            loadedSequence.totalExposures > 0);
+    final showStandby = executionState == SequenceExecutionState.idle &&
+        !sessionCapturing &&
+        !_isEditing &&
+        !anyDeviceConnected &&
+        !hasLoadedSequence;
     if (shouldPulse) {
       if (!_pulseController.isAnimating) {
         _pulseController.repeat(reverse: true);
@@ -99,6 +132,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               colors: colors,
               pulseController: _pulseController,
               isEditing: _isEditing,
+              showStandby: showStandby,
               onToggleEdit: _toggleEdit,
               onManageWidgets: _showWidgetPicker,
               onResetLayout: _resetLayout,
@@ -124,21 +158,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     .setTileZone(id, zone);
               },
             ),
-            // C14: floating "ready to image" overlay. Self-collapses when the
-            // rig is fully ready, so it only surfaces outstanding setup work.
-            //
-            // De-overlap with the first-launch coach: both surfaces anchor
-            // top-centre, so suppress the per-issue readiness nudge while the
-            // progressive coach is active (status == pending). A NEW user sees
-            // only the coach; a RETURNING user (coach completed/dismissed, or
-            // status still resolving) still gets the readiness overlay. Loading
-            // and error states fail open to showing the overlay, since the coach
-            // launcher itself fails closed to "not shown" in those states.
-            if (ref.watch(firstLaunchCoachStatusProvider).valueOrNull !=
-                FirstLaunchCoachStatus.pending)
-              const ReadinessDashboardOverlay()
-            else
-              const SizedBox.shrink(),
             // Both prompt cards anchor bottom-centre. They are mutually
             // exclusive by construction: NextUsePromptCard reads the same Smart
             // Night base-eligibility signal and stands down whenever Smart
@@ -192,6 +211,7 @@ class _ZoneBasedDashboard extends StatelessWidget {
   final NightshadeColors colors;
   final AnimationController pulseController;
   final bool isEditing;
+  final bool showStandby;
   final VoidCallback onToggleEdit;
   final VoidCallback onManageWidgets;
   final VoidCallback onResetLayout;
@@ -206,6 +226,7 @@ class _ZoneBasedDashboard extends StatelessWidget {
     required this.colors,
     required this.pulseController,
     required this.isEditing,
+    required this.showStandby,
     required this.onToggleEdit,
     required this.onManageWidgets,
     required this.onResetLayout,
@@ -240,6 +261,33 @@ class _ZoneBasedDashboard extends StatelessWidget {
   // Width at which the full three-column split has enough room for both the
   // hero zone and a usable secondary column without starving either.
   static const double _twoColumnFullThreshold = 1280.0;
+
+  /// Pinned safety + control strip rendered directly below the command bar in
+  /// every responsive layout. Contains, top to bottom:
+  ///   * [RunDashboardRecoveryBanner] — full-bleed recovery banner (self-hides)
+  ///   * [RunDashboardCriticalBanner] — full-bleed critical-event banner
+  ///     (self-hides) — recovery above critical matches the old Run-tab order
+  ///   * [CockpitRunControls] — inline run controls (self-hides when idle),
+  ///     padded to align with the command bar.
+  ///
+  /// [horizontalPadding] aligns the run-control strip with the surrounding
+  /// command bar; the banners stay full-bleed so their edge-to-edge borders
+  /// read as a hard system alert.
+  Widget _buildPinnedStrip({required double horizontalPadding}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const RunDashboardRecoveryBanner(),
+        const RunDashboardCriticalBanner(),
+        Padding(
+          padding:
+              EdgeInsets.fromLTRB(horizontalPadding, 12, horizontalPadding, 0),
+          child: CockpitRunControls(colors: colors),
+        ),
+      ],
+    );
+  }
 
   /// Full three-zone layout for wide screens (>1024px)
   Widget _buildFullLayout(BuildContext context, BoxConstraints constraints) {
@@ -283,122 +331,129 @@ class _ZoneBasedDashboard extends StatelessWidget {
           ),
         ),
 
+        // Pinned safety banners + inline run controls.
+        _buildPinnedStrip(horizontalPadding: 24),
+
         if (isEditing)
           Padding(
             padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
             child: EditModeBanner(colors: colors),
           ),
 
-        // Main content area
-        Expanded(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Left column: Primary + Mount/Focus (scrollable)
-                SizedBox(
-                  width: primaryWidth,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Primary Zone (Live Preview + Capture)
-                        DashboardZoneColumn(
-                          zone: DashboardZone.primary,
-                          tiles: primaryTiles,
-                          registry: registry,
-                          colors: colors,
-                          pulseController: pulseController,
-                          isEditing: isEditing,
-                          cardVariant: CardVariant.elevated,
-                          isHeroZone: true,
-                          onReorder: onReorder,
-                          onResize: onResize,
-                          onToggleEnabled: onToggleEnabled,
-                        ),
-
-                        // Mount & Focus below primary
-                        if (tertiaryForPrimary.isNotEmpty) ...[
-                          const SizedBox(height: 16),
-                          TertiaryZoneRow(
-                            tiles: tertiaryForPrimary,
+        // Main content area: standby hero when idle, else the zone cockpit.
+        if (showStandby)
+          Expanded(child: CockpitStandby(colors: colors))
+        else
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Left column: Primary + Mount/Focus (scrollable)
+                  SizedBox(
+                    width: primaryWidth,
+                    child: DashboardScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Primary Zone (Live Preview + Capture)
+                          DashboardZoneColumn(
+                            zone: DashboardZone.primary,
+                            tiles: primaryTiles,
                             registry: registry,
                             colors: colors,
                             pulseController: pulseController,
                             isEditing: isEditing,
+                            cardVariant: CardVariant.elevated,
+                            isHeroZone: true,
                             onReorder: onReorder,
                             onResize: onResize,
                             onToggleEnabled: onToggleEnabled,
                           ),
+
+                          // Mount & Focus below primary
+                          if (tertiaryForPrimary.isNotEmpty) ...[
+                            const SizedBox(height: 16),
+                            TertiaryZoneRow(
+                              tiles: tertiaryForPrimary,
+                              registry: registry,
+                              colors: colors,
+                              pulseController: pulseController,
+                              isEditing: isEditing,
+                              onReorder: onReorder,
+                              onResize: onResize,
+                              onToggleEnabled: onToggleEnabled,
+                            ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
-                ),
 
-                const SizedBox(width: 16),
+                  const SizedBox(width: 16),
 
-                // Right column: Secondary + Weather/Tonight/Alerts (scrollable)
-                SizedBox(
-                  width: secondaryWidth,
-                  child: SingleChildScrollView(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        // Secondary Zone (Sequence, Guiding, Equipment, Quick Actions)
-                        DashboardZoneColumn(
-                          zone: DashboardZone.secondary,
-                          tiles: secondaryTiles,
-                          registry: registry,
-                          colors: colors,
-                          pulseController: pulseController,
-                          isEditing: isEditing,
-                          cardVariant: CardVariant.elevated,
-                          isHeroZone: false,
-                          onReorder: onReorder,
-                          onResize: onResize,
-                          onToggleEnabled: onToggleEnabled,
-                        ),
+                  // Right column: Secondary + Weather/Tonight/Alerts (scrollable)
+                  SizedBox(
+                    width: secondaryWidth,
+                    child: DashboardScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Secondary Zone (Sequence, Guiding, Equipment, Quick Actions)
+                          DashboardZoneColumn(
+                            zone: DashboardZone.secondary,
+                            tiles: secondaryTiles,
+                            registry: registry,
+                            colors: colors,
+                            pulseController: pulseController,
+                            isEditing: isEditing,
+                            cardVariant: CardVariant.elevated,
+                            isHeroZone: false,
+                            onReorder: onReorder,
+                            onResize: onResize,
+                            onToggleEnabled: onToggleEnabled,
+                          ),
 
-                        // Weather, Tonight, Alerts below secondary
-                        if (tertiaryForSecondary.isNotEmpty) ...[
-                          const SizedBox(height: 12),
-                          ...tertiaryForSecondary.map((tile) {
-                            final definition = registry[tile.widgetId];
-                            if (definition == null) {
-                              return const SizedBox.shrink();
-                            }
-                            return Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: DashboardTile(
-                                tile: tile,
-                                width: double.infinity,
-                                colors: colors,
-                                isEditing: isEditing,
-                                cardVariant: CardVariant.standard,
-                                isHero: false,
-                                onReorder: onReorder,
-                                onResize: onResize,
-                                onToggleEnabled: onToggleEnabled,
-                                child: Builder(
-                                  builder: (context) => definition.builder(
-                                      context, colors, pulseController),
+                          // Weather, Tonight, Alerts below secondary
+                          if (tertiaryForSecondary.isNotEmpty) ...[
+                            const SizedBox(height: 12),
+                            ...tertiaryForSecondary.map((tile) {
+                              final definition = registry[tile.widgetId];
+                              if (definition == null) {
+                                return const SizedBox.shrink();
+                              }
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 12),
+                                child: DashboardTile(
+                                  tile: tile,
+                                  width: double.infinity,
+                                  colors: colors,
+                                  isEditing: isEditing,
+                                  cardVariant: CardVariant.standard,
+                                  isHero: false,
+                                  selfChromed: definition.selfChromed,
+                                  onReorder: onReorder,
+                                  onResize: onResize,
+                                  onToggleEnabled: onToggleEnabled,
+                                  child: Builder(
+                                    builder: (context) => definition.builder(
+                                        context, colors, pulseController),
+                                  ),
                                 ),
-                              ),
-                            );
-                          }),
+                              );
+                            }),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -419,7 +474,10 @@ class _ZoneBasedDashboard extends StatelessWidget {
     // the secondary tiles can be skimmed via scroll without losing context.
     const horizontalPadding = 32.0;
     const columnGap = 16.0;
-    final availableWidth = constraints.maxWidth - horizontalPadding;
+    // Subtract the scrollbar gutter that DashboardScrollView reserves on the
+    // trailing edge so the two-column Row doesn't overflow into it.
+    final availableWidth =
+        constraints.maxWidth - horizontalPadding - DashboardScrollView.gutter;
     final secondaryWidth =
         ((availableWidth - columnGap) * 0.36).clamp(300.0, 380.0);
     final primaryWidth = availableWidth - secondaryWidth - columnGap;
@@ -438,73 +496,77 @@ class _ZoneBasedDashboard extends StatelessWidget {
             onResetLayout: onResetLayout,
           ),
         ),
+        _buildPinnedStrip(horizontalPadding: 16),
         if (isEditing)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: EditModeBanner(colors: colors),
           ),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: primaryWidth,
-                      child: DashboardZoneColumn(
-                        zone: DashboardZone.primary,
-                        tiles: primaryTiles,
-                        registry: registry,
-                        colors: colors,
-                        pulseController: pulseController,
-                        isEditing: isEditing,
-                        cardVariant: CardVariant.elevated,
-                        isHeroZone: true,
-                        onReorder: onReorder,
-                        onResize: onResize,
-                        onToggleEnabled: onToggleEnabled,
+        if (showStandby)
+          Expanded(child: CockpitStandby(colors: colors))
+        else
+          Expanded(
+            child: DashboardScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: primaryWidth,
+                        child: DashboardZoneColumn(
+                          zone: DashboardZone.primary,
+                          tiles: primaryTiles,
+                          registry: registry,
+                          colors: colors,
+                          pulseController: pulseController,
+                          isEditing: isEditing,
+                          cardVariant: CardVariant.elevated,
+                          isHeroZone: true,
+                          onReorder: onReorder,
+                          onResize: onResize,
+                          onToggleEnabled: onToggleEnabled,
+                        ),
                       ),
-                    ),
-                    const SizedBox(width: columnGap),
-                    SizedBox(
-                      width: secondaryWidth,
-                      child: DashboardZoneColumn(
-                        zone: DashboardZone.secondary,
-                        tiles: secondaryTiles,
-                        registry: registry,
-                        colors: colors,
-                        pulseController: pulseController,
-                        isEditing: isEditing,
-                        cardVariant: CardVariant.standard,
-                        isHeroZone: false,
-                        onReorder: onReorder,
-                        onResize: onResize,
-                        onToggleEnabled: onToggleEnabled,
+                      const SizedBox(width: columnGap),
+                      SizedBox(
+                        width: secondaryWidth,
+                        child: DashboardZoneColumn(
+                          zone: DashboardZone.secondary,
+                          tiles: secondaryTiles,
+                          registry: registry,
+                          colors: colors,
+                          pulseController: pulseController,
+                          isEditing: isEditing,
+                          cardVariant: CardVariant.standard,
+                          isHeroZone: false,
+                          onReorder: onReorder,
+                          onResize: onResize,
+                          onToggleEnabled: onToggleEnabled,
+                        ),
                       ),
+                    ],
+                  ),
+                  if (tertiaryTiles.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    TertiaryZoneRow(
+                      tiles: tertiaryTiles,
+                      registry: registry,
+                      colors: colors,
+                      pulseController: pulseController,
+                      isEditing: isEditing,
+                      onReorder: onReorder,
+                      onResize: onResize,
+                      onToggleEnabled: onToggleEnabled,
                     ),
                   ],
-                ),
-                if (tertiaryTiles.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  TertiaryZoneRow(
-                    tiles: tertiaryTiles,
-                    registry: registry,
-                    colors: colors,
-                    pulseController: pulseController,
-                    isEditing: isEditing,
-                    onReorder: onReorder,
-                    onResize: onResize,
-                    onToggleEnabled: onToggleEnabled,
-                  ),
                 ],
-              ],
+              ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -532,70 +594,75 @@ class _ZoneBasedDashboard extends StatelessWidget {
           ),
         ),
 
+        _buildPinnedStrip(horizontalPadding: 16),
+
         if (isEditing)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: EditModeBanner(colors: colors),
           ),
 
-        // Scrollable content
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Primary Zone
-                DashboardZoneColumn(
-                  zone: DashboardZone.primary,
-                  tiles: primaryTiles,
-                  registry: registry,
-                  colors: colors,
-                  pulseController: pulseController,
-                  isEditing: isEditing,
-                  cardVariant: CardVariant.elevated,
-                  isHeroZone: true,
-                  onReorder: onReorder,
-                  onResize: onResize,
-                  onToggleEnabled: onToggleEnabled,
-                ),
-
-                // Tertiary Zone immediately after primary (compact status cards)
-                if (tertiaryTiles.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  TertiaryZoneRow(
-                    tiles: tertiaryTiles,
+        // Scrollable content: standby hero when idle, else the zone cockpit.
+        if (showStandby)
+          Expanded(child: CockpitStandby(colors: colors))
+        else
+          Expanded(
+            child: DashboardScrollView(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // Primary Zone
+                  DashboardZoneColumn(
+                    zone: DashboardZone.primary,
+                    tiles: primaryTiles,
                     registry: registry,
                     colors: colors,
                     pulseController: pulseController,
                     isEditing: isEditing,
+                    cardVariant: CardVariant.elevated,
+                    isHeroZone: true,
+                    onReorder: onReorder,
+                    onResize: onResize,
+                    onToggleEnabled: onToggleEnabled,
+                  ),
+
+                  // Tertiary Zone immediately after primary (compact status cards)
+                  if (tertiaryTiles.isNotEmpty) ...[
+                    const SizedBox(height: 16),
+                    TertiaryZoneRow(
+                      tiles: tertiaryTiles,
+                      registry: registry,
+                      colors: colors,
+                      pulseController: pulseController,
+                      isEditing: isEditing,
+                      onReorder: onReorder,
+                      onResize: onResize,
+                      onToggleEnabled: onToggleEnabled,
+                    ),
+                  ],
+
+                  const SizedBox(height: 16),
+
+                  // Secondary Zone (last in stacked layout)
+                  DashboardZoneColumn(
+                    zone: DashboardZone.secondary,
+                    tiles: secondaryTiles,
+                    registry: registry,
+                    colors: colors,
+                    pulseController: pulseController,
+                    isEditing: isEditing,
+                    cardVariant: CardVariant.standard,
+                    isHeroZone: false,
                     onReorder: onReorder,
                     onResize: onResize,
                     onToggleEnabled: onToggleEnabled,
                   ),
                 ],
-
-                const SizedBox(height: 16),
-
-                // Secondary Zone (last in stacked layout)
-                DashboardZoneColumn(
-                  zone: DashboardZone.secondary,
-                  tiles: secondaryTiles,
-                  registry: registry,
-                  colors: colors,
-                  pulseController: pulseController,
-                  isEditing: isEditing,
-                  cardVariant: CardVariant.standard,
-                  isHeroZone: false,
-                  onReorder: onReorder,
-                  onResize: onResize,
-                  onToggleEnabled: onToggleEnabled,
-                ),
-              ],
+              ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -658,109 +725,114 @@ class _ZoneBasedDashboard extends StatelessWidget {
           ),
         ),
 
+        _buildPinnedStrip(horizontalPadding: 12),
+
         if (isEditing)
           Padding(
             padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
             child: EditModeBanner(colors: colors),
           ),
 
-        // Mobile-optimized scrollable content
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 1. Weather - full width at top (important for field use)
-                if (weatherTile != null) ...[
-                  _buildTile(
-                    context: context,
-                    tile: weatherTile,
-                    registry: registry,
-                    cardVariant: CardVariant.standard,
-                    isHero: false,
-                  ),
-                  const SizedBox(height: 12),
-                ],
+        // Mobile-optimized scrollable content: standby hero when idle.
+        if (showStandby)
+          Expanded(child: CockpitStandby(colors: colors))
+        else
+          Expanded(
+            child: DashboardScrollView(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  // 1. Weather - full width at top (important for field use)
+                  if (weatherTile != null) ...[
+                    _buildTile(
+                      context: context,
+                      tile: weatherTile,
+                      registry: registry,
+                      cardVariant: CardVariant.standard,
+                      isHero: false,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
 
-                // 2. Live Preview - full width hero
-                if (livePreviewTile != null) ...[
-                  _buildTile(
-                    context: context,
-                    tile: livePreviewTile,
-                    registry: registry,
-                    cardVariant: CardVariant.elevated,
-                    isHero: true,
-                  ),
-                  const SizedBox(height: 12),
-                ],
+                  // 2. Live Preview - full width hero
+                  if (livePreviewTile != null) ...[
+                    _buildTile(
+                      context: context,
+                      tile: livePreviewTile,
+                      registry: registry,
+                      cardVariant: CardVariant.elevated,
+                      isHero: true,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
 
-                // 3. Capture Settings - full width
-                if (captureSettingsTile != null) ...[
-                  _buildTile(
-                    context: context,
-                    tile: captureSettingsTile,
-                    registry: registry,
-                    cardVariant: CardVariant.standard,
-                    isHero: false,
-                  ),
-                  const SizedBox(height: 12),
-                ],
+                  // 3. Capture Settings - full width
+                  if (captureSettingsTile != null) ...[
+                    _buildTile(
+                      context: context,
+                      tile: captureSettingsTile,
+                      registry: registry,
+                      cardVariant: CardVariant.standard,
+                      isHero: false,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
 
-                // 4. Quick Actions - full width (responsive wrap inside)
-                if (quickActionsTile != null) ...[
-                  _buildTile(
-                    context: context,
-                    tile: quickActionsTile,
-                    registry: registry,
-                    cardVariant: CardVariant.standard,
-                    isHero: false,
-                  ),
-                  const SizedBox(height: 12),
-                ],
+                  // 4. Quick Actions - full width (responsive wrap inside)
+                  if (quickActionsTile != null) ...[
+                    _buildTile(
+                      context: context,
+                      tile: quickActionsTile,
+                      registry: registry,
+                      cardVariant: CardVariant.standard,
+                      isHero: false,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
 
-                // 5. Session Status - full width
-                if (sessionTile != null) ...[
-                  _buildTile(
-                    context: context,
-                    tile: sessionTile,
-                    registry: registry,
-                    cardVariant: CardVariant.standard,
-                    isHero: false,
-                  ),
-                  const SizedBox(height: 12),
-                ],
+                  // 5. Session Status - full width
+                  if (sessionTile != null) ...[
+                    _buildTile(
+                      context: context,
+                      tile: sessionTile,
+                      registry: registry,
+                      cardVariant: CardVariant.standard,
+                      isHero: false,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
 
-                // 6. Equipment tiles in responsive wrap layout
-                if (equipmentTiles.isNotEmpty) ...[
-                  MobileEquipmentSection(
-                    tiles: equipmentTiles,
-                    registry: registry,
-                    colors: colors,
-                    pulseController: pulseController,
-                    isEditing: isEditing,
-                    onReorder: onReorder,
-                    onResize: onResize,
-                    onToggleEnabled: onToggleEnabled,
-                  ),
-                  const SizedBox(height: 12),
-                ],
+                  // 6. Equipment tiles in responsive wrap layout
+                  if (equipmentTiles.isNotEmpty) ...[
+                    MobileEquipmentSection(
+                      tiles: equipmentTiles,
+                      registry: registry,
+                      colors: colors,
+                      pulseController: pulseController,
+                      isEditing: isEditing,
+                      onReorder: onReorder,
+                      onResize: onResize,
+                      onToggleEnabled: onToggleEnabled,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
 
-                // 7. Other tiles stacked vertically
-                for (final tile in otherTiles) ...[
-                  _buildTile(
-                    context: context,
-                    tile: tile,
-                    registry: registry,
-                    cardVariant: CardVariant.standard,
-                    isHero: false,
-                  ),
-                  const SizedBox(height: 12),
+                  // 7. Other tiles stacked vertically
+                  for (final tile in otherTiles) ...[
+                    _buildTile(
+                      context: context,
+                      tile: tile,
+                      registry: registry,
+                      cardVariant: CardVariant.standard,
+                      isHero: false,
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -788,6 +860,7 @@ class _ZoneBasedDashboard extends StatelessWidget {
       isEditing: isEditing,
       cardVariant: cardVariant,
       isHero: isHero,
+      selfChromed: definition.selfChromed,
       onReorder: onReorder,
       onResize: onResize,
       onToggleEnabled: onToggleEnabled,

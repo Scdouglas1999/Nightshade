@@ -6,6 +6,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../localization/nightshade_localizations.dart';
+import '../../../utils/snackbar_helper.dart';
 import 'campaign_rollup_dialog.dart';
 
 // =============================================================================
@@ -56,6 +57,31 @@ final perFilterIntegrationProvider =
   }
 
   return AsyncValue.data(result);
+});
+
+// =============================================================================
+// Untracked-Targets Cleanup Count
+// =============================================================================
+
+/// Number of "untracked" library targets eligible for the opt-in cleanup, or
+/// `null` when the active backend can't compute it (remote host). Re-evaluates
+/// whenever the targets or sessions data changes so the button count stays live.
+///
+/// "Untracked" is defined in [TargetsDao.deleteUntrackedTargets]: no integration
+/// goal, not a favorite, no captured subs, no integration time, and not
+/// referenced by any imaging session.
+final untrackedTargetsCountProvider = FutureProvider<int?>((ref) async {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    // The cleanup runs a session-aware SQL predicate against the local Drift DB.
+    // There is no equivalent host RPC, so signal "unavailable" rather than fake
+    // a count. The UI disables the button with an explanatory tooltip.
+    return null;
+  }
+  // Recompute when the underlying data changes.
+  ref.watch(allDbTargetsProvider);
+  ref.watch(allSessionsProvider);
+  return ref.read(targetsDaoProvider).countUntrackedTargets();
 });
 
 // =============================================================================
@@ -148,6 +174,8 @@ class _ProjectTrackingPanelState extends ConsumerState<ProjectTrackingPanel> {
 
         return Column(
           children: [
+            // Header actions: opt-in cleanup of phantom/untracked targets.
+            const _CleanupHeaderRow(),
             // Summary stats header
             _SummaryStatsHeader(projects: projects, colors: colors),
             const SizedBox(height: 12),
@@ -186,6 +214,127 @@ class _ProjectTrackingPanelState extends ConsumerState<ProjectTrackingPanel> {
         child: Text(
           'Error loading projects: $error',
           style: TextStyle(color: colors.error),
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Cleanup Header Row
+// =============================================================================
+
+/// Opt-in affordance to remove "untracked" library targets (no goal, no
+/// favorite, no captured data, no sessions) that accumulated as phantom rows.
+/// Hidden entirely when there is nothing to remove; disabled with an
+/// explanatory tooltip when running against a remote imaging host where the
+/// session-aware cleanup can't be performed.
+class _CleanupHeaderRow extends ConsumerWidget {
+  const _CleanupHeaderRow();
+
+  Future<void> _runCleanup(
+    BuildContext context,
+    WidgetRef ref,
+    int count,
+  ) async {
+    final l10n = context.l10n;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Remove untracked targets?'),
+          content: ConstrainedBox(
+            constraints: AdaptiveDialogConstraints.hybrid(
+              dialogContext,
+              designMaxWidth: 420,
+            ),
+            child: Text(
+              'This permanently removes $count target'
+              '${count == 1 ? '' : 's'} that have no integration goal, no '
+              'captured data, and no imaging sessions. Favorites and any target '
+              'you have imaged are kept. This cannot be undone.',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: Text(l10n.text('cancel')),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Remove'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (confirmed != true) return;
+    if (!context.mounted) return;
+
+    try {
+      final deleted =
+          await ref.read(targetsDaoProvider).deleteUntrackedTargets();
+      // Refresh the library-backed views and this panel's count.
+      ref.invalidate(allDbTargetsProvider);
+      ref.invalidate(favoriteDbTargetsProvider);
+      ref.invalidate(untrackedTargetsCountProvider);
+      if (!context.mounted) return;
+      context.showSuccessSnackBar(
+        'Removed $deleted untracked target${deleted == 1 ? '' : 's'}',
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      context.showErrorSnackBar('Failed to remove untracked targets: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+    final countAsync = ref.watch(untrackedTargetsCountProvider);
+    final backend = ref.watch(backendProvider);
+    final isRemote = backend is NetworkBackend;
+
+    // On a remote host the cleanup can't run; surface a disabled, explained
+    // button instead of hiding it or silently no-op'ing.
+    if (isRemote) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Tooltip(
+            message: 'Available on the imaging host',
+            child: TextButton.icon(
+              onPressed: null,
+              icon: const Icon(LucideIcons.trash2, size: 14),
+              label: const Text(
+                'Remove untracked targets',
+                style: TextStyle(fontSize: 12),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    final count = countAsync.valueOrNull ?? 0;
+    if (count <= 0) {
+      // Nothing to clean up — don't clutter the header.
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: TextButton.icon(
+          onPressed: () => _runCleanup(context, ref, count),
+          icon: Icon(LucideIcons.trash2, size: 14, color: colors.error),
+          label: Text(
+            'Remove untracked targets ($count)',
+            style: TextStyle(fontSize: 12, color: colors.error),
+          ),
         ),
       ),
     );

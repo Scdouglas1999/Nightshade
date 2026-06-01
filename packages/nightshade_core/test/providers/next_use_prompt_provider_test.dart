@@ -7,7 +7,6 @@ import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/models/onboarding/next_use_steps.dart';
 import 'package:nightshade_core/src/models/readiness/readiness_models.dart';
 import 'package:nightshade_core/src/providers/database_provider.dart';
-import 'package:nightshade_core/src/providers/first_launch_coach_provider.dart';
 import 'package:nightshade_core/src/providers/next_use_prompt_provider.dart';
 import 'package:nightshade_core/src/providers/readiness_provider.dart';
 import 'package:nightshade_core/src/providers/tutorial_provider.dart'
@@ -50,17 +49,6 @@ void main() {
     test('returns null when readiness is blocked, regardless of steps', () {
       final step = selectNextUseStep(
         readiness: _blockedReport(),
-        coachPending: false,
-        completedActions: const {},
-        dismissedActions: const {},
-      );
-      expect(step, isNull);
-    });
-
-    test('returns null when the coach is still pending', () {
-      final step = selectNextUseStep(
-        readiness: _readyReport(),
-        coachPending: true,
         completedActions: const {},
         dismissedActions: const {},
       );
@@ -68,11 +56,10 @@ void main() {
     });
 
     test(
-        'returns the first step when ready, coach done, nothing complete or '
+        'returns the first step when ready, nothing complete or '
         'dismissed', () {
       final step = selectNextUseStep(
         readiness: _readyReport(),
-        coachPending: false,
         completedActions: const {},
         dismissedActions: const {},
       );
@@ -85,7 +72,6 @@ void main() {
     test('skips completed steps and returns the first incomplete one', () {
       final step = selectNextUseStep(
         readiness: _readyReport(),
-        coachPending: false,
         completedActions: const {
           NextUseActionId.buildSmartNight,
           NextUseActionId.frameTarget,
@@ -100,7 +86,6 @@ void main() {
     test('skips dismissed steps and returns the first undismissed one', () {
       final step = selectNextUseStep(
         readiness: _readyReport(),
-        coachPending: false,
         completedActions: const {},
         dismissedActions: const {NextUseActionId.buildSmartNight},
       );
@@ -111,7 +96,6 @@ void main() {
     test('skips a step that is both completed and dismissed', () {
       final step = selectNextUseStep(
         readiness: _readyReport(),
-        coachPending: false,
         completedActions: const {NextUseActionId.buildSmartNight},
         dismissedActions: const {NextUseActionId.buildSmartNight},
       );
@@ -122,7 +106,6 @@ void main() {
     test('returns null when every step is completed', () {
       final step = selectNextUseStep(
         readiness: _readyReport(),
-        coachPending: false,
         completedActions: NextUseActionId.values.toSet(),
         dismissedActions: const {},
       );
@@ -132,7 +115,6 @@ void main() {
     test('returns null when every step is dismissed', () {
       final step = selectNextUseStep(
         readiness: _readyReport(),
-        coachPending: false,
         completedActions: const {},
         dismissedActions: NextUseActionId.values.toSet(),
       );
@@ -144,7 +126,6 @@ void main() {
         'with full coverage', () {
       final step = selectNextUseStep(
         readiness: _readyReport(),
-        coachPending: false,
         completedActions: const {
           NextUseActionId.buildSmartNight,
           NextUseActionId.frameTarget,
@@ -167,7 +148,6 @@ void main() {
           .toSet();
       final step = selectNextUseStep(
         readiness: _readyReport(),
-        coachPending: false,
         completedActions: allButLast,
         dismissedActions: const {},
       );
@@ -198,7 +178,7 @@ void main() {
     });
 
     test('non-next_use screen ids are ignored (return null)', () {
-      expect(nextUseActionIdFromScreenId('firstLaunchCoach'), isNull);
+      expect(nextUseActionIdFromScreenId('firstLaunchTour'), isNull);
       expect(nextUseActionIdFromScreenId('equipmentOnboarding'), isNull);
       expect(nextUseActionIdFromScreenId('some_other_prompt'), isNull);
       expect(nextUseActionIdFromScreenId(''), isNull);
@@ -220,19 +200,12 @@ void main() {
 
     ProviderContainer buildContainer({
       required ReadinessReport readiness,
-      FirstLaunchCoachStatus? coachStatus = FirstLaunchCoachStatus.completed,
-      bool coachLoading = false,
       Set<NextUseActionId> completed = const {},
       Set<NextUseActionId>? dismissed = const {},
     }) {
       final container = ProviderContainer(
         overrides: [
           readinessReportProvider.overrideWithValue(readiness),
-          firstLaunchCoachStatusProvider.overrideWith(
-            (ref) => coachLoading
-                ? Completer<FirstLaunchCoachStatus>().future // never completes
-                : Future.value(coachStatus!),
-          ),
           nextUseCompletedActionsProvider.overrideWithValue(completed),
           nextUseDismissedActionsProvider.overrideWith(
             (ref) => dismissed == null
@@ -248,12 +221,8 @@ void main() {
     /// Resolves the async inputs the prompt depends on, then reads it.
     Future<NextUseStep?> resolvePrompt(
       ProviderContainer container, {
-      bool awaitCoach = true,
       bool awaitDismissed = true,
     }) async {
-      if (awaitCoach) {
-        await container.read(firstLaunchCoachStatusProvider.future);
-      }
       if (awaitDismissed) {
         // Drive the dismissed-actions stream to its first value.
         await container.read(nextUseDismissedActionsProvider.future);
@@ -264,25 +233,6 @@ void main() {
     test('blocked readiness -> null', () async {
       final container = buildContainer(readiness: _blockedReport());
       expect(await resolvePrompt(container), isNull);
-    });
-
-    test('coach still pending -> null', () async {
-      final container = buildContainer(
-        readiness: _readyReport(),
-        coachStatus: FirstLaunchCoachStatus.pending,
-      );
-      expect(await resolvePrompt(container), isNull);
-    });
-
-    test('coach status still loading -> null (fail-closed)', () async {
-      final container = buildContainer(
-        readiness: _readyReport(),
-        coachLoading: true,
-      );
-      // Do not await the coach future — it never completes; the prompt must
-      // fail closed to null while the status is unknown.
-      final step = await resolvePrompt(container, awaitCoach: false);
-      expect(step, isNull);
     });
 
     test('dismissed-actions stream still loading -> null (fail-closed)',
@@ -296,8 +246,7 @@ void main() {
       expect(step, isNull);
     });
 
-    test('ready + coach done + nothing complete/dismissed -> first step',
-        () async {
+    test('ready + nothing complete/dismissed -> first step', () async {
       final container = buildContainer(readiness: _readyReport());
       final step = await resolvePrompt(container);
       expect(step?.id, NextUseActionId.buildSmartNight);
@@ -319,16 +268,6 @@ void main() {
       );
       final step = await resolvePrompt(container);
       expect(step?.id, NextUseActionId.frameTarget);
-    });
-
-    test('coach dismissed (not completed) still counts as not-pending',
-        () async {
-      final container = buildContainer(
-        readiness: _readyReport(),
-        coachStatus: FirstLaunchCoachStatus.dismissed,
-      );
-      final step = await resolvePrompt(container);
-      expect(step?.id, NextUseActionId.buildSmartNight);
     });
   });
 
@@ -380,8 +319,9 @@ void main() {
       );
       // A dismissal from an unrelated namespace must be filtered out.
       await dao.dismissPromptForScreen('some_other_screen');
-      // A coach dismissal lives in the same table but is not a next-use row.
-      await dao.markDismissed('firstLaunchCoach');
+      // A dismissal from an unrelated category lives in the same table but is
+      // not a next-use row, so it must be filtered out too.
+      await dao.markDismissed('someOtherCategory');
 
       final dismissed =
           await container.read(nextUseDismissedActionsProvider.future);
