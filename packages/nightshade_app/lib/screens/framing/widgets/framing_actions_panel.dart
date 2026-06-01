@@ -629,8 +629,9 @@ class _SolveOutcomeView extends StatelessWidget {
     final against = outcome.against;
     final deltaMessage = against != null
         ? _formatDelta(result: result, target: against)
-        : 'Solved center: ${_formatRaHours(result.ra)} '
-            '${_formatDecDegrees(result.dec)}';
+        : 'Solved center: '
+            '${CoordinateFormat.ra(result.ra, seconds: SecondsPrecision.integerRounded)} '
+            '${CoordinateFormat.dec(result.dec, seconds: SecondsPrecision.integerRounded)}';
 
     return NightshadeAlert(
       severity: NightshadeAlertSeverity.success,
@@ -666,30 +667,11 @@ class _SolveOutcomeView extends StatelessWidget {
     final raDir = raDeltaDeg >= 0 ? 'E' : 'W';
     final decDir = decDeltaDeg >= 0 ? 'N' : 'S';
 
-    return 'Solved center ${_formatRaHours(result.ra)} '
-        '${_formatDecDegrees(result.dec)}\n'
+    return 'Solved center '
+        '${CoordinateFormat.ra(result.ra, seconds: SecondsPrecision.integerRounded)} '
+        '${CoordinateFormat.dec(result.dec, seconds: SecondsPrecision.integerRounded)}\n'
         'Offset from target: '
         '${raDeltaArcmin.toStringAsFixed(1)}\' $raDir, '
         '${decDeltaArcmin.toStringAsFixed(1)}\' $decDir';
-  }
-
-  String _formatRaHours(double raHours) {
-    final h = raHours.floor();
-    final m = ((raHours - h) * 60).floor();
-    final s = (((raHours - h) * 60 - m) * 60).round();
-    return '${h.toString().padLeft(2, '0')}h '
-        '${m.toString().padLeft(2, '0')}m '
-        '${s.toString().padLeft(2, '0')}s';
-  }
-
-  String _formatDecDegrees(double decDeg) {
-    final sign = decDeg >= 0 ? '+' : '-';
-    final abs = decDeg.abs();
-    final d = abs.floor();
-    final m = ((abs - d) * 60).floor();
-    final s = (((abs - d) * 60 - m) * 60).round();
-    return '$sign${d.toString().padLeft(2, '0')}° '
-        '${m.toString().padLeft(2, '0')}\' '
-        '${s.toString().padLeft(2, '0')}"';
   }
 }

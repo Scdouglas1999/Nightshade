@@ -59,12 +59,9 @@ export 'src/widgets/accessible_icon_button.dart';
 export 'src/widgets/focus_traversal_scaffold.dart';
 export 'src/widgets/design_system_gallery.dart';
 export 'src/widgets/empty_state.dart';
-export 'src/widgets/raw_preview_status_badge.dart';
 
 // PHD2 Widgets
 export 'src/widgets/phd2/guide_star_view.dart';
-export 'src/widgets/phd2/guide_target_display.dart';
 export 'src/widgets/phd2/guide_graph_advanced.dart';
 export 'src/widgets/phd2/brain_settings_panel.dart';
-export 'src/widgets/phd2/guide_controls_panel.dart';
 export 'src/widgets/phd2/calibration_panel.dart';

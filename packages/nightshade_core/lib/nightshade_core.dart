@@ -475,4 +475,5 @@ export 'src/services/disk_space_guard.dart';
 
 // Utilities
 export 'src/utils/coordinate_parser.dart';
+export 'src/utils/coordinate_format.dart';
 export 'src/utils/plate_solver_utils.dart';

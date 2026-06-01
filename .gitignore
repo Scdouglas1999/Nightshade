@@ -261,3 +261,7 @@ nightshade.db
 
 # HiPS framing verification scratch output (rendered PNGs for human inspection)
 .hips_verify/
+
+# Release build output
+dist-linux/
+dist-release/

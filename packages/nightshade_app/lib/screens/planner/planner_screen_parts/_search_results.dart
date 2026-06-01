@@ -84,7 +84,7 @@ class _CatalogResultRow extends StatelessWidget {
       if (match.magnitude != null) 'mag ${match.magnitude!.toStringAsFixed(1)}',
       if (match.constellation != null && match.constellation!.isNotEmpty)
         match.constellation!,
-      'RA ${_SimbadResultRow._formatRa(match.ra / 15.0)}  Dec ${_SimbadResultRow._formatDec(match.dec)}',
+      'RA ${CoordinateFormat.ra(match.ra / 15.0)}  Dec ${CoordinateFormat.dec(match.dec)}',
     ];
 
     return Container(
@@ -233,7 +233,7 @@ class _SimbadResultRow extends ConsumerWidget {
       metaParts.add('mag ${match.magnitudeV!.toStringAsFixed(1)}');
     }
     metaParts.add(
-      'RA ${_formatRa(match.raHours)}  Dec ${_formatDec(match.decDegrees)}',
+      'RA ${CoordinateFormat.ra(match.raHours)}  Dec ${CoordinateFormat.dec(match.decDegrees)}',
     );
 
     return Container(
@@ -291,23 +291,5 @@ class _SimbadResultRow extends ConsumerWidget {
         ],
       ),
     );
-  }
-
-  static String _formatRa(double hours) {
-    final h = hours.floor();
-    final mDec = (hours - h) * 60;
-    final m = mDec.floor();
-    final s = ((mDec - m) * 60);
-    return '${h.toString().padLeft(2, '0')}h ${m.toString().padLeft(2, '0')}m ${s.toStringAsFixed(1)}s';
-  }
-
-  static String _formatDec(double degrees) {
-    final sign = degrees < 0 ? '-' : '+';
-    final v = degrees.abs();
-    final d = v.floor();
-    final mDec = (v - d) * 60;
-    final m = mDec.floor();
-    final s = ((mDec - m) * 60);
-    return '$sign${d.toString().padLeft(2, '0')}° ${m.toString().padLeft(2, '0')}\' ${s.toStringAsFixed(1)}"';
   }
 }

@@ -171,7 +171,8 @@ class _TransientCardState extends State<TransientCard> {
               const SizedBox(width: NightshadeTokens.spaceXs),
               Flexible(
                 child: Text(
-                  '${_formatRA(widget.alert.raHours)}  ${_formatDec(widget.alert.decDegrees)}',
+                  '${CoordinateFormat.ra(widget.alert.raHours, seconds: SecondsPrecision.integerFloored)}  '
+                  '${CoordinateFormat.dec(widget.alert.decDegrees, seconds: SecondsPrecision.integerFloored)}',
                   style: TextStyle(
                     fontSize: 12,
                     fontFamily: 'monospace',
@@ -462,25 +463,6 @@ class _TransientCardState extends State<TransientCard> {
     }
   }
 
-  /// Format RA in hours to "XXh XXm XXs" format.
-  String _formatRA(double raHours) {
-    final totalSeconds = raHours * 3600;
-    final hours = (totalSeconds / 3600).floor();
-    final minutes = ((totalSeconds % 3600) / 60).floor();
-    final seconds = (totalSeconds % 60).floor();
-    return '${hours.toString().padLeft(2, '0')}h ${minutes.toString().padLeft(2, '0')}m ${seconds.toString().padLeft(2, '0')}s';
-  }
-
-  /// Format Dec in degrees to "+/-XX deg XX' XX''" format.
-  String _formatDec(double decDegrees) {
-    final sign = decDegrees >= 0 ? '+' : '-';
-    final absDec = decDegrees.abs();
-    final degrees = absDec.floor();
-    final minutesDecimal = (absDec - degrees) * 60;
-    final minutes = minutesDecimal.floor();
-    final seconds = ((minutesDecimal - minutes) * 60).floor();
-    return "$sign${degrees.toString().padLeft(2, '0')}° ${minutes.toString().padLeft(2, '0')}' ${seconds.toString().padLeft(2, '0')}\"";
-  }
 
   String _formatDateTime(DateTime dateTime) {
     final now = DateTime.now();

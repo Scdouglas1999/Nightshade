@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/annotation_settings.dart';
+import '../services/logging_service.dart';
 import 'database_provider.dart';
 
 /// Built-in annotation presets
@@ -400,6 +401,15 @@ class AnnotationPresetsNotifier extends AsyncNotifier<List<AnnotationPreset>> {
             .map((e) => AnnotationPreset.fromJson(e as Map<String, dynamic>))
             .toList();
       } catch (e) {
+        // Corrupt preset JSON is a real data-corruption bug, not an expected
+        // empty state. Surface it loudly (per project "errors are a feature"
+        // policy) while still degrading gracefully to an empty preset list so
+        // the UI remains usable.
+        ref.read(loggingServiceProvider).warning(
+              'Failed to decode annotation presets; returning empty list. '
+              'Stored value may be corrupt: $e',
+              source: 'AnnotationPresetsNotifier',
+            );
         return const [];
       }
     }

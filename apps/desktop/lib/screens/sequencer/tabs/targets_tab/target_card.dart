@@ -49,22 +49,6 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
     }
   }
 
-  String _formatRa(double raHours) {
-    final hours = raHours.floor();
-    final minutes = ((raHours - hours) * 60).floor();
-    final seconds = (((raHours - hours) * 60 - minutes) * 60).round();
-    return '${hours.toString().padLeft(2, '0')}h ${minutes.toString().padLeft(2, '0')}m ${seconds.toString().padLeft(2, '0')}s';
-  }
-
-  String _formatDec(double decDegrees) {
-    final sign = decDegrees >= 0 ? '+' : '-';
-    final absDec = decDegrees.abs();
-    final degrees = absDec.floor();
-    final minutes = ((absDec - degrees) * 60).floor();
-    final seconds = (((absDec - degrees) * 60 - minutes) * 60).round();
-    return '$sign${degrees.toString().padLeft(2, '0')}° ${minutes.toString().padLeft(2, '0')}\' ${seconds.toString().padLeft(2, '0')}"';
-  }
-
   String _formatIntegration(double secs) {
     final hours = (secs / 3600).floor();
     final minutes = ((secs % 3600) / 60).floor();
@@ -175,13 +159,15 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                               _InfoChip(
                                 colors: widget.colors,
                                 label: 'RA',
-                                value: _formatRa(widget.target.ra),
+                                value: CoordinateFormat.ra(widget.target.ra,
+                                    seconds: SecondsPrecision.integerRounded),
                               ),
                               const SizedBox(width: 16),
                               _InfoChip(
                                 colors: widget.colors,
                                 label: 'Dec',
-                                value: _formatDec(widget.target.dec),
+                                value: CoordinateFormat.dec(widget.target.dec,
+                                    seconds: SecondsPrecision.integerRounded),
                               ),
                               if (widget.target.magnitude != null) ...[
                                 const SizedBox(width: 16),

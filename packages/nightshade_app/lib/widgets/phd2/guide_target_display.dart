@@ -1,7 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import '../../theme/nightshade_colors.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 // GuideErrorPoint is owned by nightshade_core (phd2_models.dart) so the entire
 // app can share one canonical model rather than duplicating it per layer.

@@ -488,8 +488,8 @@ class PlanetariumHandlers {
       'catalogId': exactMatch.catalogId,
       'ra': exactMatch.ra,
       'dec': exactMatch.dec,
-      'raFormatted': _formatRA(exactMatch.ra),
-      'decFormatted': _formatDec(exactMatch.dec),
+      'raFormatted': CoordinateFormat.ra(exactMatch.ra / 15.0),
+      'decFormatted': CoordinateFormat.dec(exactMatch.dec),
       'type': exactMatch.type,
       'magnitude': exactMatch.magnitude,
       'constellation': exactMatch.constellation,
@@ -691,20 +691,4 @@ class PlanetariumHandlers {
   }
 
   /// Format RA in hours to HH:MM:SS string
-  String _formatRA(double raDeg) {
-    final raHours = raDeg / 15.0;
-    final h = raHours.floor();
-    final m = ((raHours - h) * 60).floor();
-    final s = ((raHours - h - m / 60) * 3600);
-    return '${h.toString().padLeft(2, '0')}h ${m.toString().padLeft(2, '0')}m ${s.toStringAsFixed(1)}s';
-  }
-
-  /// Format Dec in degrees to DD:MM:SS string
-  String _formatDec(double dec) {
-    final sign = dec >= 0 ? '+' : '-';
-    final d = dec.abs().floor();
-    final m = ((dec.abs() - d) * 60).floor();
-    final s = ((dec.abs() - d - m / 60) * 3600);
-    return "$sign${d.toString().padLeft(2, '0')}° ${m.toString().padLeft(2, '0')}' ${s.toStringAsFixed(1)}\"";
-  }
 }

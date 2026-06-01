@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import '../../theme/nightshade_colors.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 // Phd2GuidingState (and its displayName extension) are owned by nightshade_core.
 // This UI-only extension layers on the icon mapping that's specific to widgets.

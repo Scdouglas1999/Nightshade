@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-
-import '../theme/nightshade_colors.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Badge for progressive capture preview (JPEG first, raw/HQ in background).
 class RawPreviewStatusBadge extends StatelessWidget {

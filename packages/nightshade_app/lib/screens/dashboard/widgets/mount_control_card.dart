@@ -15,13 +15,8 @@ class MountControlCard extends ConsumerWidget {
 
   static const double _expandedThreshold = 280.0;
 
-  String _formatRa(double ra) {
-    final hours = ra.floor();
-    final minutes = ((ra - hours) * 60).floor();
-    final seconds = (((ra - hours) * 60 - minutes) * 60).round();
-    return '${hours.toString().padLeft(2, '0')}:${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-  }
-
+  // Dec keeps a bespoke formatter because this card renders it without spaces
+  // between the components (±DD°MM'SS"), which no shared SexagesimalStyle emits.
   String _formatDec(double dec) {
     final sign = dec >= 0 ? '+' : '-';
     final absDec = dec.abs();
@@ -62,7 +57,11 @@ class MountControlCard extends ConsumerWidget {
       trackingRateOptions.insert(0, mountState.trackingRate);
     }
 
-    final raText = mountState.ra != null ? _formatRa(mountState.ra!) : '---';
+    final raText = mountState.ra != null
+        ? CoordinateFormat.ra(mountState.ra!,
+            style: SexagesimalStyle.paddedColons,
+            seconds: SecondsPrecision.integerRounded)
+        : '---';
     final decText =
         mountState.dec != null ? _formatDec(mountState.dec!) : '---';
     final pierText =

@@ -412,26 +412,6 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
     );
   }
 
-  /// Format RA hours (0-24) as HH:MM:SS
-  String _formatRA(double raHours) {
-    final h = raHours.floor();
-    final remainder = (raHours - h) * 60;
-    final m = remainder.floor();
-    final s = ((remainder - m) * 60).round();
-    return '${h.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-  }
-
-  /// Format Dec degrees (-90 to +90) as +/-DD:MM:SS
-  String _formatDec(double decDegrees) {
-    final sign = decDegrees >= 0 ? '+' : '-';
-    final abs = decDegrees.abs();
-    final d = abs.floor();
-    final remainder = (abs - d) * 60;
-    final m = remainder.floor();
-    final s = ((remainder - m) * 60).round();
-    return '$sign${d.toString().padLeft(2, '0')}:${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-  }
-
   List<_DeviceMetric> _getMetrics() {
     switch (widget.type) {
       case ConnectedDeviceType.camera:
@@ -459,11 +439,19 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
         final state = ref.watch(mountStateProvider);
         return [
           _DeviceMetric(
-            value: state.ra != null ? _formatRA(state.ra!) : '---',
+            value: state.ra != null
+                ? CoordinateFormat.ra(state.ra!,
+                    style: SexagesimalStyle.paddedColons,
+                    seconds: SecondsPrecision.integerRounded)
+                : '---',
             label: 'RA',
           ),
           _DeviceMetric(
-            value: state.dec != null ? _formatDec(state.dec!) : '---',
+            value: state.dec != null
+                ? CoordinateFormat.dec(state.dec!,
+                    style: SexagesimalStyle.paddedColons,
+                    seconds: SecondsPrecision.integerRounded)
+                : '---',
             label: 'Dec',
           ),
           _DeviceMetric(
