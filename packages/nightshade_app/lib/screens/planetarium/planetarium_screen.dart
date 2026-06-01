@@ -21,6 +21,7 @@ import 'widgets/search_header.dart';
 import 'widgets/sidebar_tabs.dart';
 import 'widgets/object_info_popup.dart';
 import 'widgets/mobile_widgets.dart';
+import 'widgets/mobile_overlay_layout.dart';
 import 'providers/device_orientation_provider.dart';
 import '../../services/mount_command_service.dart';
 import '../../utils/snackbar_helper.dart';
@@ -231,9 +232,12 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
             },
             child: LayoutBuilder(
               builder: (context, constraints) {
-                final isMobile =
-                    constraints.maxWidth < NightshadeTokens.breakpointTablet;
-                if (isMobile) {
+                // Phone tier (< 600): the full-bleed sky canvas with floating,
+                // orientation-aware overlays. Tablets/desktop (>= 600) keep the
+                // resizable sidebar split, which already clamps its panel widths
+                // down to a 600 px window.
+                final isPhone = BreakpointTokens.isPhone(constraints.maxWidth);
+                if (isPhone) {
                   return _buildMobileLayout(context, colors, selectedObject);
                 }
                 return _buildDesktopLayout(context, colors, selectedObject);

@@ -104,11 +104,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
-    final isMobile = Responsive.isMobile(context);
+    // Phone tier (< 600): list -> full-screen detail navigation. Tablets and
+    // desktop (>= 600) keep the sidebar + detail split. (Was Responsive.isMobile
+    // at < 768, which forced small tablets into the cramped phone flow.)
+    final isPhone = Responsive.isPhone(context);
     final l10n = context.l10n;
     final groups = buildSettingsGroups(context);
 
-    final child = isMobile
+    final child = isPhone
         ? _buildMobileLayout(colors, groups)
         : _buildDesktopLayout(colors, groups);
 
@@ -183,7 +186,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
         ),
-        Expanded(child: section.build(true)),
+        // SafeArea (sides + bottom) so a rotated phone's notch/home indicator
+        // never clips the detail content; top is already handled by the header.
+        Expanded(
+          child: SafeArea(
+            top: false,
+            child: section.build(true),
+          ),
+        ),
       ],
     );
   }
@@ -568,7 +578,11 @@ class _MobileSectionList extends StatelessWidget {
           ),
         ),
         Expanded(
-          child: searching
+          // Sides + bottom SafeArea so list rows clear a rotated phone's notch
+          // / home indicator in landscape (the header above handles the top).
+          child: SafeArea(
+            top: false,
+            child: searching
               ? _MobileSearchResults(
                   results: results,
                   colors: colors,
@@ -603,6 +617,7 @@ class _MobileSectionList extends StatelessWidget {
                     );
                   },
                 ),
+          ),
         ),
       ],
     );

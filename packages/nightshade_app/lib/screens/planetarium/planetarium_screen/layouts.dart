@@ -3,243 +3,273 @@ part of '../planetarium_screen.dart';
 extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
   Widget _buildMobileLayout(BuildContext context, NightshadeColors colors,
       SelectedObjectState selectedObject) {
-    final sizing = AdaptiveSizing.of(context);
-    final media = MediaQuery.of(context);
-    final topBarHeight = media.padding.top + 48;
-    final viewControlsTop = topBarHeight + 8;
-    final slewControlsTop = viewControlsTop + 128;
-    final bottomHudInset = media.padding.bottom + 48;
-    final timePanelBottom = bottomHudInset + 2;
-    final fabColumnBottom = bottomHudInset + 12;
+    // Orientation-aware overlay placement. Every floating overlay's rectangle
+    // is recomputed from the live viewport + SafeArea (see
+    // [MobileOverlaySlots]) so the controls/compass/minimap/time-panel never
+    // overlap or clip when the phone rotates — the old code pinned them with
+    // fixed offsets tuned for portrait and broke in landscape.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final media = MediaQuery.of(context);
+        final viewport = Size(constraints.maxWidth, constraints.maxHeight);
+        final sizing = AdaptiveSizing.of(context);
 
-    return Stack(
-      key: _skyViewKey,
-      children: [
-        Positioned.fill(
-          child: GestureDetector(
-            onSecondaryTapUp: (details) =>
-                _showContextMenu(context, details.globalPosition),
-            child: Consumer(
-              builder: (context, ref, _) {
-                final observedIds =
-                    ref.watch(observedCatalogIdsProvider).valueOrNull ?? {};
-                final listedIds =
-                    ref.watch(listedCatalogIdsProvider).valueOrNull ?? {};
-                final bortleClass = ref.watch(bortleClassProvider);
-                final horizonProfile = ref.watch(horizonProfileProvider);
-                return FullScreenSkyView(
-                  key: PlanetariumTutorialKeys.skyView,
-                  showFOV: _showFOV,
-                  onObjectTapped: _handleObjectTapped,
-                  observedObjectIds: observedIds,
-                  listedObjectIds: listedIds,
-                  bortleClass: bortleClass,
-                  horizonAltitudes: horizonProfile.isFlat
-                      ? null
-                      : List<double>.generate(
-                          360,
-                          (az) =>
-                              horizonProfile.altitudeAtAzimuth(az.toDouble())),
-                );
-              },
-            ),
-          ),
-        ),
+        // FAB column height: search + filter FABs (40 each) plus a tall info
+        // FAB (56) when an object is selected, with 12 px gaps. Estimated up
+        // front so the resolver can keep the mini-map clear of it.
+        final hasInfoFab = selectedObject.object != null;
+        final fabHeight = hasInfoFab ? (40 + 12 + 40 + 12 + 56) : (40 + 12 + 40);
+        final slots = MobileOverlaySlots.resolve(
+          viewport: viewport,
+          safeArea: media.padding,
+          edge: sizing.edgePadding,
+          compassSize: sizing.compassSize,
+          minimapSize: sizing.minimapSize,
+          // TimeControlPanel(compact: true) is a small pill; the resolver only
+          // needs an upper-bound box so it can stack the compass clear of it.
+          timePanelSize: const Size(150, 40),
+          fabColumnSize: Size(56, fabHeight.toDouble()),
+        );
 
-        // FOV reference rings (Telrad / finder) — non-interactive angular
-        // overlay centered on the view center. Scales with zoom.
-        Positioned.fill(
-          child: Consumer(
-            builder: (context, ref, _) {
-              if (!ref.watch(showFovRingsProvider)) {
-                return const SizedBox.shrink();
-              }
-              final viewState = ref.watch(skyViewStateProvider);
-              return IgnorePointer(
-                child: FovRingsOverlay(
-                  fieldOfView: viewState.fieldOfView,
-                  centerRA: viewState.centerRA,
-                  centerDec: viewState.centerDec,
+        return Stack(
+          key: _skyViewKey,
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                onSecondaryTapUp: (details) =>
+                    _showContextMenu(context, details.globalPosition),
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final observedIds =
+                        ref.watch(observedCatalogIdsProvider).valueOrNull ?? {};
+                    final listedIds =
+                        ref.watch(listedCatalogIdsProvider).valueOrNull ?? {};
+                    final bortleClass = ref.watch(bortleClassProvider);
+                    final horizonProfile = ref.watch(horizonProfileProvider);
+                    return FullScreenSkyView(
+                      key: PlanetariumTutorialKeys.skyView,
+                      showFOV: _showFOV,
+                      onObjectTapped: _handleObjectTapped,
+                      observedObjectIds: observedIds,
+                      listedObjectIds: listedIds,
+                      bortleClass: bortleClass,
+                      horizonAltitudes: horizonProfile.isFlat
+                          ? null
+                          : List<double>.generate(
+                              360,
+                              (az) => horizonProfile
+                                  .altitudeAtAzimuth(az.toDouble())),
+                    );
+                  },
                 ),
-              );
-            },
-          ),
-        ),
+              ),
+            ),
 
-        Positioned(
-          top: 0,
-          left: 0,
-          right: 0,
-          child: MobileTopOverlay(colors: colors),
-        ),
-
-        Positioned(
-          top: viewControlsTop,
-          left: sizing.edgePadding,
-          child: MobileViewControls(
-            colors: colors,
-            showFOV: _showFOV,
-            onToggleFOV: () => _update(() => _showFOV = !_showFOV),
-          ),
-        ),
-
-        Positioned(
-          top: slewControlsTop,
-          left: sizing.edgePadding,
-          child: MobileSlewControls(
-            colors: colors,
-            slewMode: _slewMode,
-            onToggleSlewMode: _toggleSlewMode,
-            onStopSlew: _handleStopSlew,
-          ),
-        ),
-
-        Positioned(
-          left: sizing.edgePadding,
-          bottom: 90 + sizing.edgePadding,
-          child: Consumer(
-            builder: (context, ref, _) {
-              final showCompass = ref.watch(showCompassHudProvider);
-              if (!showCompass) return const SizedBox.shrink();
-
-              final (az, alt) = ref.watch(viewCenterAltAzProvider);
-              return CompassHud(
-                azimuth: az,
-                altitude: alt,
-                size: 60,
-                showAltitude: false,
-              );
-            },
-          ),
-        ),
-
-        Positioned(
-          right: sizing.edgePadding,
-          bottom: 200 + sizing.edgePadding,
-          child: Consumer(
-            builder: (context, ref, _) {
-              final showMinimap = ref.watch(showMinimapProvider);
-              if (!showMinimap) return const SizedBox.shrink();
-
-              final (az, alt) = ref.watch(viewCenterAltAzProvider);
-              final viewState = ref.watch(skyViewStateProvider);
-
-              return SkyMinimap(
-                azimuth: az,
-                altitude: alt,
-                fieldOfView: viewState.fieldOfView,
-                rotation: viewState.rotation,
-                size: 80,
-                onTap: (tapAz, tapAlt) {
-                  final location = ref.read(observerLocationProvider);
-                  final time = ref.read(observationTimeProvider);
-                  final lst = AstronomyCalculations.localSiderealTime(
-                      time.time, location.longitude);
-
-                  final (ra, dec) =
-                      AstronomyCalculations.horizontalToEquatorial(
-                    altDeg: tapAlt,
-                    azDeg: tapAz,
-                    latitudeDeg: location.latitude,
-                    lstHours: lst,
+            // FOV reference rings (Telrad / finder) — non-interactive angular
+            // overlay centered on the view center. Scales with zoom.
+            Positioned.fill(
+              child: Consumer(
+                builder: (context, ref, _) {
+                  if (!ref.watch(showFovRingsProvider)) {
+                    return const SizedBox.shrink();
+                  }
+                  final viewState = ref.watch(skyViewStateProvider);
+                  return IgnorePointer(
+                    child: FovRingsOverlay(
+                      fieldOfView: viewState.fieldOfView,
+                      centerRA: viewState.centerRA,
+                      centerDec: viewState.centerDec,
+                    ),
                   );
-
-                  ref
-                      .read(skyViewStateProvider.notifier)
-                      .setCenter(ra / 15, dec);
                 },
-              );
-            },
-          ),
-        ),
-
-        Positioned(
-          bottom: 0,
-          left: 0,
-          right: 0,
-          child: MobileBottomInfoBar(colors: colors),
-        ),
-
-        Positioned(
-          bottom: timePanelBottom,
-          left: sizing.edgePadding,
-          child: TimeControlPanel(
-            backgroundColor: colors.surface.withValues(alpha: 0.9),
-            textColor: colors.textPrimary,
-            accentColor: colors.accent,
-            compact: true,
-          ),
-        ),
-
-        Positioned(
-          right: sizing.edgePadding,
-          bottom: fabColumnBottom,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              FloatingActionButton.small(
-                key: PlanetariumTutorialKeys.search,
-                heroTag: 'search_fab',
-                backgroundColor: colors.surface.withValues(alpha: 0.9),
-                onPressed: () => _showMobileSearchDialog(context, colors),
-                child: Icon(LucideIcons.search,
-                    size: 20, color: colors.textPrimary),
               ),
-              const SizedBox(height: 12),
-              FloatingActionButton.small(
-                key: PlanetariumTutorialKeys.filterBtn,
-                heroTag: 'filter_fab',
-                backgroundColor: colors.surface.withValues(alpha: 0.9),
-                onPressed: () => _showFilterBottomSheet(context),
-                child: Icon(LucideIcons.slidersHorizontal,
-                    size: 20, color: colors.textPrimary),
-              ),
-              const SizedBox(height: 12),
-              if (selectedObject.object != null)
-                FloatingActionButton(
-                  heroTag: 'info_fab',
-                  backgroundColor: colors.primary,
-                  onPressed: () => _showObjectInfoBottomSheet(context, colors),
-                  child: const Icon(LucideIcons.info,
-                      size: 24, color: Colors.white),
+            ),
+
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: MobileTopOverlay(colors: colors),
+            ),
+
+            // Left tool rail — view controls stacked above slew controls in a
+            // single scrollable column bounded between the top and bottom bars.
+            // Scrolling (rather than fixed offsets) is what keeps the rail from
+            // colliding with the bottom panels when the height collapses in
+            // landscape.
+            Positioned.fromRect(
+              rect: slots.leftRail,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    MobileViewControls(
+                      colors: colors,
+                      showFOV: _showFOV,
+                      onToggleFOV: () => _update(() => _showFOV = !_showFOV),
+                    ),
+                    const SizedBox(height: 8),
+                    MobileSlewControls(
+                      colors: colors,
+                      slewMode: _slewMode,
+                      onToggleSlewMode: _toggleSlewMode,
+                      onStopSlew: _handleStopSlew,
+                    ),
+                  ],
                 ),
-            ],
-          ),
-        ),
-
-        // MobileSelectedObjectHud removed: the ObjectInfoPopup (shown on click)
-        // provides the same information plus detailed coordinates, alt/az,
-        // and multiple action buttons. Having both caused duplicate cards.
-
-        if (_showPopup && _popupObject != null)
-          ObjectInfoPopup(
-            colors: colors,
-            object: _popupObject!,
-            coordinates: _popupCoordinates ?? _popupObject!.coordinates,
-            selectedObjectState: selectedObject,
-            position: _popupPosition,
-            onDismiss: _dismissPopup,
-            onSendToFraming: _sendToFraming,
-            onAddToSequencer: _addToSequencer,
-            onSlewToTarget: _handleSlewToTarget,
-            onSlewAndCenter: () => _handleSlewAndCenter(
-              _popupCoordinates ?? _popupObject!.coordinates,
-              _popupObject!.name,
+              ),
             ),
-            onSlewCenterRotate: () => _handleSlewCenterRotate(
-              _popupCoordinates ?? _popupObject!.coordinates,
-              _popupObject!.name,
-            ),
-            onExportChart: () => _exportFinderChart(context),
-            hasRotator: ref.watch(rotatorStateProvider).connectionState ==
-                DeviceConnectionState.connected,
-          ),
 
-        if (_showHelpOverlay)
-          _KeyboardShortcutsOverlay(
-            onDismiss: () => _update(() => _showHelpOverlay = false),
-          ),
-      ],
+            Positioned(
+              left: slots.compass.left,
+              top: slots.compass.top,
+              child: Consumer(
+                builder: (context, ref, _) {
+                  final showCompass = ref.watch(showCompassHudProvider);
+                  if (!showCompass) return const SizedBox.shrink();
+
+                  final (az, alt) = ref.watch(viewCenterAltAzProvider);
+                  return CompassHud(
+                    azimuth: az,
+                    altitude: alt,
+                    size: sizing.compassSize,
+                    showAltitude: false,
+                  );
+                },
+              ),
+            ),
+
+            Positioned(
+              left: slots.minimap.left,
+              top: slots.minimap.top,
+              child: Consumer(
+                builder: (context, ref, _) {
+                  final showMinimap = ref.watch(showMinimapProvider);
+                  if (!showMinimap) return const SizedBox.shrink();
+
+                  final (az, alt) = ref.watch(viewCenterAltAzProvider);
+                  final viewState = ref.watch(skyViewStateProvider);
+
+                  return SkyMinimap(
+                    azimuth: az,
+                    altitude: alt,
+                    fieldOfView: viewState.fieldOfView,
+                    rotation: viewState.rotation,
+                    size: sizing.minimapSize,
+                    onTap: (tapAz, tapAlt) {
+                      final location = ref.read(observerLocationProvider);
+                      final time = ref.read(observationTimeProvider);
+                      final lst = AstronomyCalculations.localSiderealTime(
+                          time.time, location.longitude);
+
+                      final (ra, dec) =
+                          AstronomyCalculations.horizontalToEquatorial(
+                        altDeg: tapAlt,
+                        azDeg: tapAz,
+                        latitudeDeg: location.latitude,
+                        lstHours: lst,
+                      );
+
+                      ref
+                          .read(skyViewStateProvider.notifier)
+                          .setCenter(ra / 15, dec);
+                    },
+                  );
+                },
+              ),
+            ),
+
+            Positioned(
+              bottom: 0,
+              left: 0,
+              right: 0,
+              child: MobileBottomInfoBar(colors: colors),
+            ),
+
+            Positioned(
+              left: slots.timePanel.left,
+              top: slots.timePanel.top,
+              child: TimeControlPanel(
+                backgroundColor: colors.surface.withValues(alpha: 0.9),
+                textColor: colors.textPrimary,
+                accentColor: colors.accent,
+                compact: true,
+              ),
+            ),
+
+            Positioned(
+              left: slots.fabColumn.left,
+              top: slots.fabColumn.top,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FloatingActionButton.small(
+                    key: PlanetariumTutorialKeys.search,
+                    heroTag: 'search_fab',
+                    backgroundColor: colors.surface.withValues(alpha: 0.9),
+                    onPressed: () => _showMobileSearchDialog(context, colors),
+                    child: Icon(LucideIcons.search,
+                        size: 20, color: colors.textPrimary),
+                  ),
+                  const SizedBox(height: 12),
+                  FloatingActionButton.small(
+                    key: PlanetariumTutorialKeys.filterBtn,
+                    heroTag: 'filter_fab',
+                    backgroundColor: colors.surface.withValues(alpha: 0.9),
+                    onPressed: () => _showFilterBottomSheet(context),
+                    child: Icon(LucideIcons.slidersHorizontal,
+                        size: 20, color: colors.textPrimary),
+                  ),
+                  const SizedBox(height: 12),
+                  if (selectedObject.object != null)
+                    FloatingActionButton(
+                      heroTag: 'info_fab',
+                      backgroundColor: colors.primary,
+                      onPressed: () =>
+                          _showObjectInfoBottomSheet(context, colors),
+                      child: const Icon(LucideIcons.info,
+                          size: 24, color: Colors.white),
+                    ),
+                ],
+              ),
+            ),
+
+            // MobileSelectedObjectHud removed: the ObjectInfoPopup (shown on
+            // click) provides the same information plus detailed coordinates,
+            // alt/az, and multiple action buttons.
+
+            if (_showPopup && _popupObject != null)
+              ObjectInfoPopup(
+                colors: colors,
+                object: _popupObject!,
+                coordinates: _popupCoordinates ?? _popupObject!.coordinates,
+                selectedObjectState: selectedObject,
+                position: _popupPosition,
+                onDismiss: _dismissPopup,
+                onSendToFraming: _sendToFraming,
+                onAddToSequencer: _addToSequencer,
+                onSlewToTarget: _handleSlewToTarget,
+                onSlewAndCenter: () => _handleSlewAndCenter(
+                  _popupCoordinates ?? _popupObject!.coordinates,
+                  _popupObject!.name,
+                ),
+                onSlewCenterRotate: () => _handleSlewCenterRotate(
+                  _popupCoordinates ?? _popupObject!.coordinates,
+                  _popupObject!.name,
+                ),
+                onExportChart: () => _exportFinderChart(context),
+                hasRotator: ref.watch(rotatorStateProvider).connectionState ==
+                    DeviceConnectionState.connected,
+              ),
+
+            if (_showHelpOverlay)
+              _KeyboardShortcutsOverlay(
+                onDismiss: () => _update(() => _showHelpOverlay = false),
+              ),
+          ],
+        );
+      },
     );
   }
 
