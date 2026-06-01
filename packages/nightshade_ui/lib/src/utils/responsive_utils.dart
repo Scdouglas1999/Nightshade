@@ -1,4 +1,6 @@
 import 'dart:math' as math;
+import 'package:flutter/foundation.dart'
+    show defaultTargetPlatform, TargetPlatform;
 import 'package:flutter/widgets.dart';
 import '../theme/nightshade_tokens.dart';
 import '../tokens/breakpoint_tokens.dart';
@@ -30,19 +32,48 @@ abstract final class Responsive {
   /// stay in one row.
   static const double compactPhoneMaxWidth = 480.0;
 
-  /// Returns true on a true **phone** viewport (`width < 600`).
+  /// Returns true on a true **phone**.
   ///
-  /// This is the first-class phone tier. Prefer this — or, better, a
-  /// [LayoutBuilder] reading the region's own width — when building NEW phone
-  /// layouts. [isMobile] (`< 768`) lumps small tablets in with phones and is
-  /// kept only for back-compat with existing screens.
+  /// This is the first-class phone tier and it is **orientation-independent on
+  /// mobile**: a phone is a phone whether held in portrait or landscape.
+  ///
+  /// - On a mobile OS (Android/iOS) phone-ness is a *device-class* fact, keyed
+  ///   off the **shortest side** (`shortestSide < 600`). A phone's short edge is
+  ///   under 600 logical px in both orientations, so this correctly stays true
+  ///   when the device rotates — whereas a width-based check would flip to
+  ///   `false` in landscape (long edge ≥ 600) and wrongly send the phone down
+  ///   the tablet/desktop layout path. Tablets (`shortestSide >= 600`) are not
+  ///   phones.
+  /// - On desktop the phone tier is a *window-size* fact, keyed off the live
+  ///   **width**, so narrowing a desktop window still reflows to the single
+  ///   column exactly as before.
+  ///
+  /// Prefer this — or, better, a [LayoutBuilder] reading the region's own width
+  /// for *how much space is available right now* — when building phone layouts.
+  /// [isMobile] (`< 768`) lumps small tablets in with phones and is kept only
+  /// for back-compat with existing screens. Pair with [isPhoneLandscape] /
+  /// [isPhonePortrait] to choose the per-orientation reflow.
   ///
   /// IMPORTANT: the global [scaleFactor]/[fontSize]/[spacing] helpers are NOT
   /// the phone-fit mechanism. They miniaturize a wide layout; a phone layout
   /// must **reflow** (stack columns, wrap dense rows, push secondary controls
   /// into sheets/collapsibles) so content stays legible and nothing overflows.
-  static bool isPhone(BuildContext context) =>
-      MediaQuery.sizeOf(context).width < phoneMaxWidth;
+  static bool isPhone(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    if (_isMobilePlatform) {
+      // Device class: the short edge is orientation-stable.
+      return math.min(size.width, size.height) < phoneMaxWidth;
+    }
+    // Desktop: the available window width drives the reflow.
+    return size.width < phoneMaxWidth;
+  }
+
+  /// True when running on a phone/tablet operating system (Android or iOS),
+  /// where "is this a phone?" is a device-class question answered by the
+  /// shortest side rather than the current window width.
+  static bool get _isMobilePlatform =>
+      defaultTargetPlatform == TargetPlatform.android ||
+      defaultTargetPlatform == TargetPlatform.iOS;
 
   /// Returns true on a **compact phone** (`width < 480`).
   ///
@@ -301,15 +332,18 @@ abstract final class Responsive {
   /// Returns true if the screen is in landscape orientation.
   static bool isLandscape(BuildContext context) => !isPortrait(context);
 
-  /// True on a phone-sized viewport (`width < 600`) held in landscape.
+  /// True on a **phone held in landscape** (see [isPhone] — device-class on
+  /// mobile, so this fires correctly when a phone is rotated).
   ///
   /// In this configuration there is usually enough width to place the
   /// image/canvas beside its controls (a side-by-side split) even though the
-  /// device is a phone. Pair with [TwoPane] / [AdaptivePanelLayout].
+  /// device is a phone. Pair with [TwoPane] / [AdaptivePanelLayout]. Do NOT
+  /// fall through to the tablet/desktop layout here — a landscape phone is
+  /// still a phone and must reflow, not show desktop chrome.
   static bool isPhoneLandscape(BuildContext context) =>
       isPhone(context) && isLandscape(context);
 
-  /// True on a phone-sized viewport held in portrait — the canonical
+  /// True on a **phone held in portrait** — the canonical
   /// "single vertically-scrolling column" case.
   static bool isPhonePortrait(BuildContext context) =>
       isPhone(context) && isPortrait(context);
