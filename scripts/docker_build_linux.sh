@@ -11,7 +11,7 @@ apt-get update -y
 apt-get install -y clang cmake ninja-build pkg-config \
   libgtk-3-dev libsecret-1-dev libjsoncpp-dev libssl-dev \
   libudev-dev libusb-1.0-0-dev \
-  curl git tar ca-certificates
+  curl git tar ca-certificates rsync
 
 echo "== [2/7] rust toolchain =="
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
@@ -19,10 +19,16 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profil
 . "$HOME/.cargo/env"
 rustc --version
 
-echo "== [3/7] clean source snapshot from committed HEAD =="
-git config --global --add safe.directory /host
+echo "== [3/7] source snapshot from the working tree (includes local edits) =="
+# Copy the live working tree (so an iterating developer's uncommitted edits are
+# built) while excluding the .git dir and the heavy, platform-specific build
+# caches that don't belong in a fresh Linux build.
 rm -rf /work && mkdir -p /work
-git -C /host archive HEAD | tar -x -C /work
+rsync -a \
+  --exclude='.git' \
+  --exclude='dist-linux' --exclude='dist-release' \
+  --exclude='build/' --exclude='.dart_tool/' --exclude='target/' \
+  /host/ /work/
 cd /work
 
 # This is a Linux DESKTOP build. The mobile app is not built here, and its
