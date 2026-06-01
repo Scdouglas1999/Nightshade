@@ -9,7 +9,8 @@ echo "== [1/7] apt deps =="
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y clang cmake ninja-build pkg-config \
-  libgtk-3-dev libsecret-1-dev libjsoncpp-dev \
+  libgtk-3-dev libsecret-1-dev libjsoncpp-dev libssl-dev \
+  libudev-dev libusb-1.0-0-dev \
   curl git tar ca-certificates
 
 echo "== [2/7] rust toolchain =="
@@ -23,6 +24,13 @@ git config --global --add safe.directory /host
 rm -rf /work && mkdir -p /work
 git -C /host archive HEAD | tar -x -C /work
 cd /work
+
+# This is a Linux DESKTOP build. The mobile app is not built here, and its
+# path-dependency on the desktop app trips `melos bootstrap` on Linux. Drop the
+# mobile app from the workspace so bootstrap only has to resolve the desktop
+# dependency graph (mobile is a leaf app — nothing the desktop build needs
+# depends on it).
+rm -rf /work/apps/mobile
 
 echo "== [4/7] flutter linux desktop =="
 flutter config --enable-linux-desktop >/dev/null
