@@ -124,13 +124,17 @@ pub async fn execute_target_scheduler(
 
         // Build TargetInputs from the live children.
         let now = context.clock.now_utc();
+        // P1-16: feed the scheduler a real moon position + illumination and a
+        // twilight bracket. These drive ~40% of the scoring weight (moon
+        // avoidance + darkness) and were previously hardcoded to dead inputs,
+        // so the "self-driving" scheduler ignored the moon and sky darkness.
         let observer = ObserverContext {
             latitude_deg: lat,
             longitude_deg: lon,
             now,
-            moon: None,
-            moon_illumination: 0.0,
-            twilight: None,
+            moon: Some(crate::scheduling::ephemeris::moon_equatorial(&now)),
+            moon_illumination: crate::scheduling::ephemeris::moon_illumination_percent(&now),
+            twilight: Some(crate::scheduling::ephemeris::twilight_bracket(&now, lat, lon)),
         };
 
         // Collect inputs + a parallel index so we can resolve back to the

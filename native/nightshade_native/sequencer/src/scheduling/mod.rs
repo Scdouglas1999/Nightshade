@@ -15,6 +15,7 @@ pub mod adaptive_exposure;
 pub mod adaptive_swap;
 pub mod astronomy;
 pub mod clock;
+pub mod ephemeris;
 pub mod frame_context;
 pub mod integration_budget;
 pub mod scoring;
