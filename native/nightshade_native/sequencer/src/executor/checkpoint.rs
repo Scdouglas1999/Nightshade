@@ -199,6 +199,23 @@ impl SequenceExecutor {
             checkpoint.loop_iterations = loop_iterations;
         }
 
+        // P1-15: this public writer (driven by the Dart ~30s checkpoint
+        // watchdog) does NOT hold the live budget / smart-exposure / scheduler
+        // / wizard registries — those belong to the running ExecutionContext
+        // and are persisted by the streaming-checkpoint task. Writing them
+        // EMPTY here would overwrite the full-fidelity streaming checkpoint, so
+        // a crash-resume would read zeroed budgets and re-image already-completed
+        // targets. Carry the rich state forward from the existing on-disk
+        // checkpoint so this writer only updates the fields it actually owns
+        // (node statuses, current node, progress, trigger state, loop
+        // iterations) and never wipes the rest.
+        if let Ok(Some(existing)) = manager.load() {
+            checkpoint.budget_states = existing.budget_states;
+            checkpoint.smart_exposure_states = existing.smart_exposure_states;
+            checkpoint.scheduler_states = existing.scheduler_states;
+            checkpoint.wizard_states = existing.wizard_states;
+        }
+
         manager.save(&checkpoint)?;
 
         Ok(())
