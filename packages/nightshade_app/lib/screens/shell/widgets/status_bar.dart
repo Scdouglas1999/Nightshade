@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../utils/device_format_utils.dart';
 import '../../../widgets/equipment_status_indicator.dart';
 import '../../../widgets/operation_status_bar.dart';
+import '../../../widgets/remote_connection_indicator.dart';
 import '../../sequencer/widgets/run_dashboard/recovery_banner.dart';
 
 part 'status_bar/sequence_indicator.dart';
@@ -207,6 +208,16 @@ class _StatusBarState extends ConsumerState<StatusBar>
     ];
 
     final trailing = <Widget>[
+      // On phone, the remote-connection state lives here as a small ambient
+      // dot (tap opens the connection sheet) instead of a dedicated top strip,
+      // reclaiming the cover-screen's scarce height. Desktop keeps the full
+      // indicator in the TitleBar, so the dot is phone-only here.
+      if (widget.compact) ...[
+        const RemoteConnectionIndicator(dot: true),
+        const SizedBox(width: 6),
+        _divider(colors),
+        const SizedBox(width: 8),
+      ],
       _InfoChip(
         icon: LucideIcons.thermometer,
         value: cameraConnected && cameraState.temperature != null

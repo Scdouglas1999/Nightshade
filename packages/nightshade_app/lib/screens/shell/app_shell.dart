@@ -19,13 +19,14 @@ import '../../widgets/autofocus_progress_overlay.dart';
 import '../../widgets/connection_stale_banner.dart';
 import '../../widgets/ios_background_banner.dart';
 import '../../widgets/android_notifications_banner.dart';
-import '../../widgets/remote_connection_indicator.dart';
 import '../../widgets/weather/weather_alert_banner.dart';
 import 'widgets/title_bar.dart';
 import 'widgets/status_bar.dart';
 import 'widgets/side_navigation.dart';
 import 'shell_chrome.dart';
 import 'shell_navigation.dart';
+import 'immersive_chrome.dart';
+import 'widgets/immersive_bottom_chrome.dart';
 import 'widgets/nightshade_bottom_navigation.dart';
 
 // Conditional import for window_manager (desktop only)
@@ -394,6 +395,16 @@ class _AppShellState extends ConsumerState<AppShell> {
         final useBottomNav =
             ShellChrome.useBottomNavigation(constraints.maxWidth);
 
+        // Phone "immersive" chrome: the bottom nav + status bar auto-hide when
+        // idle so content gets the (very short, on a foldable cover) height,
+        // and reappear on any interaction or a swipe up from the grabber.
+        // Pinned visible on desktop/tablet (enabled = false → no timer).
+        final chromeVisible = ref.watch(immersiveChromeProvider);
+        final immersive = ref.read(immersiveChromeProvider.notifier);
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          immersive.enabled = useBottomNav;
+        });
+
         // The first-launch tour is replay-only (C13): OnboardingTourReplayLauncher
         // watches firstLaunchTourStatusProvider and overlays OnboardingOverlay on
         // top of the whole shell when the user re-runs it from Settings → Help.
@@ -407,32 +418,27 @@ class _AppShellState extends ConsumerState<AppShell> {
           child: TutorialOverlay(
           child: Scaffold(
             backgroundColor: colors.background,
-            body: Column(
+            // On phone, any interaction reveals the immersive chrome and
+            // restarts its idle countdown (deferToChild so taps still reach the
+            // content underneath).
+            body: Listener(
+              behavior: HitTestBehavior.deferToChild,
+              onPointerDown:
+                  useBottomNav ? (_) => immersive.poke() : null,
+              child: Column(
               children: [
                 // Desktop title bar (window drag + global actions). Hidden on
                 // mobile â€” bottom nav covers primary routes; saves vertical space.
                 if (!useBottomNav) const TitleBar(),
 
-                // Mobile-only persistent connection indicator strip (audit
-                // P1-15 bug 5). On desktop the indicator lives inside the
-                // TitleBar; on mobile there is no shared AppBar to mount
-                // it in, so we add a thin row right above the banners.
-                // Stays visible across every GoRouter route.
-                if (useBottomNav)
-                  Container(
-                    color: colors.surface,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    child: const Align(
-                      alignment: Alignment.centerRight,
-                      child: RemoteConnectionIndicator(compact: false),
-                    ),
-                  ),
-
-                // Disconnected Banner
-                if (ref.watch(sequencerBackendProvider) is DisconnectedBackend)
+                // Disconnected banner — DESKTOP ONLY. On phone the dedicated
+                // connection strip is gone (it wasted the cover screen's scarce
+                // height); remote-connection state lives as a small ambient dot
+                // in the status bar (tap → connection sheet). On desktop the
+                // indicator stays in the TitleBar and this full-width banner
+                // still flags a dropped server connection.
+                if (!useBottomNav &&
+                    ref.watch(sequencerBackendProvider) is DisconnectedBackend)
                   Container(
                     width: double.infinity,
                     color: colors.error,
@@ -553,22 +559,37 @@ class _AppShellState extends ConsumerState<AppShell> {
                   ),
                 ),
 
-                // Status bar at bottom (compact + scrollable on mobile).
-                StatusBar(compact: useBottomNav),
-              ],
-            ),
-            bottomNavigationBar: useBottomNav
-                ? NightshadeBottomNavigation(
-                    currentRoute: currentLocation,
-                    onRouteSelected: (route) {
-                      try {
-                        context.go(route);
-                      } catch (_) {
-                        // Router might not be available yet, ignore.
-                      }
-                    },
+                // Bottom chrome. On phone the status bar + bottom nav live in
+                // one auto-hiding block (immersive) so they reclaim the short
+                // cover-screen height when idle; on desktop the status bar is
+                // pinned and navigation is the side rail (no bottom nav).
+                if (useBottomNav)
+                  ImmersiveBottomChrome(
+                    visible: chromeVisible,
+                    onReveal: immersive.reveal,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const StatusBar(compact: true),
+                        NightshadeBottomNavigation(
+                          currentRoute: currentLocation,
+                          onRouteSelected: (route) {
+                            try {
+                              context.go(route);
+                            } catch (_) {
+                              // Router might not be available yet, ignore.
+                            }
+                          },
+                        ),
+                      ],
+                    ),
                   )
-                : null,
+                else
+                  const StatusBar(compact: false),
+              ],
+              ),
+            ),
+            bottomNavigationBar: null,
           ),
           ),
         );

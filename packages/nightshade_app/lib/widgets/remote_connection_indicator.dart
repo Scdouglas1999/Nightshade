@@ -44,9 +44,16 @@ class RemoteConnectionIndicator extends ConsumerStatefulWidget {
   /// When true, render only the icon (used in tight AppBar slots).
   final bool compact;
 
+  /// When true, render an ambient ~10px status **dot** only — no pill, no
+  /// label. Used by the immersive phone shell, where a dedicated connection
+  /// strip would waste the very short cover-screen height; the dot sits in a
+  /// corner overlay (zero layout cost) and still opens the detail sheet on tap.
+  final bool dot;
+
   const RemoteConnectionIndicator({
     super.key,
     this.compact = false,
+    this.dot = false,
   });
 
   @override
@@ -140,9 +147,37 @@ class _RemoteConnectionIndicatorState
   }) {
     return GestureDetector(
       onTap: () => _showDetails(context, status, backend),
-      child: widget.compact
-          ? _buildCompact(context, status)
-          : _buildFull(context, status, backend),
+      child: widget.dot
+          ? _buildDot(context, status)
+          : widget.compact
+              ? _buildCompact(context, status)
+              : _buildFull(context, status, backend),
+    );
+  }
+
+  Widget _buildDot(BuildContext context, RemoteConnectionStatus status) {
+    final color = _colorFor(context, status);
+    final pulsing = status == RemoteConnectionStatus.connecting ||
+        status == RemoteConnectionStatus.reconnecting;
+    // A generous transparent hit area around a small visible dot so it stays
+    // tappable without claiming visual space.
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: Container(
+        width: 10,
+        height: 10,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          boxShadow: [
+            BoxShadow(
+              color: color.withValues(alpha: pulsing ? 0.6 : 0.4),
+              blurRadius: pulsing ? 6 : 3,
+              spreadRadius: pulsing ? 1 : 0,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
