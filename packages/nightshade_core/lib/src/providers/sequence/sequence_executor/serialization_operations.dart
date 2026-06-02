@@ -462,7 +462,12 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
             conditionValue = n.repeatUntilAltitude;
             break;
           case LoopConditionType.integrationTime:
-            conditionValue = n.repeatCount;
+            // Audit P1-20: the engine reads `condition_value` as the
+            // target integration in SECONDS (loop_node.rs IntegrationTime
+            // arm). It must carry `integrationTimeTarget`, NOT the
+            // repeat count — previously this shipped `repeatCount`, so an
+            // integration-time loop ran the wrong number of frames.
+            conditionValue = n.integrationTimeTarget;
             break;
           case LoopConditionType.forever:
           case LoopConditionType.whileDark:

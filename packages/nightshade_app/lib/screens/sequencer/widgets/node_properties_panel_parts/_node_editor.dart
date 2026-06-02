@@ -137,7 +137,7 @@ class _NodeEditor extends ConsumerWidget {
     // (no more `as ExposureNode` casts in each arm).
     final Widget propertiesWidget = switch (node) {
       ExposureNode n => _ExposureProperties(colors: colors, node: n),
-      TargetHeaderNode n => _TargetGroupProperties(colors: colors, node: n),
+      TargetHeaderNode n => TargetGroupProperties(colors: colors, node: n),
       LoopNode n => _LoopProperties(colors: colors, node: n),
       TargetSchedulerNode n =>
         TargetSchedulerProperties(colors: colors, node: n),
@@ -148,6 +148,11 @@ class _NodeEditor extends ConsumerWidget {
       FilterChangeNode n => _FilterChangeProperties(colors: colors, node: n),
       DelayNode n => _DelayProperties(colors: colors, node: n),
       DitherNode n => _DitherProperties(colors: colors, node: n),
+      StartGuidingNode n => _StartGuidingProperties(colors: colors, node: n),
+      StopGuidingNode n => _StopGuidingProperties(colors: colors, node: n),
+      LiveStackingNode n => LiveStackingProperties(colors: colors, node: n),
+      PluginInstructionNode n =>
+        _PluginInstructionProperties(colors: colors, node: n),
       WarmCameraNode n => _WarmCameraProperties(colors: colors, node: n),
       RotatorNode n => _RotatorProperties(colors: colors, node: n),
       SlewNode n => _SlewProperties(colors: colors, node: n),

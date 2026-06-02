@@ -356,6 +356,31 @@ class TargetGroupProperties extends ConsumerWidget {
             node: node,
             isStart: false,
           ),
+          // Wave 4 — trigger poll cadence. Only meaningful when a
+          // start/end crossing is configured (the runtime polls these
+          // on the interval); hidden otherwise to keep the panel quiet
+          // for the common no-window case.
+          if (node.hasCrossingTriggers) ...[
+            const SizedBox(height: 8),
+            NodePropertyField(
+              colors: colors,
+              label: 'Trigger Poll Interval',
+              child: NodeNumberInput(
+                colors: colors,
+                value: node.triggerPollIntervalSecs.toDouble(),
+                suffix: 's',
+                min: 5,
+                max: 600,
+                onChanged: (value) {
+                  ref.read(currentSequenceProvider.notifier).updateNode(
+                        node.copyWith(
+                          triggerPollIntervalSecs: value.round(),
+                        ),
+                      );
+                },
+              ),
+            ),
+          ],
           // Wave 3 Agent 3 — Per-target integration budget editor.
           const SizedBox(height: 16),
           _IntegrationBudgetSection(colors: colors, node: node),

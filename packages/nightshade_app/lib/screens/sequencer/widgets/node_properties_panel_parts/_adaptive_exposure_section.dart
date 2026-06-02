@@ -1,7 +1,7 @@
-// Part of ../instruction_node_properties.dart -- extracted for maintainability.
-//
-// Adaptive exposure configuration and per-filter override widgets.
-part of '../instruction_node_properties.dart';
+// Part of ../node_properties_panel.dart -- migrated from the former
+// instruction_node_properties library (Wave 4 consolidation).
+// Sky-brightness adaptive-exposure config block + per-filter override row.
+part of '../node_properties_panel.dart';
 
 class _AdaptiveExposureSection extends ConsumerStatefulWidget {
   const _AdaptiveExposureSection({
@@ -80,16 +80,19 @@ class _AdaptiveExposureSectionState
             children: [
               Icon(LucideIcons.barChart3, size: 14, color: colors.primary),
               const SizedBox(width: 8),
-              Text(
-                'Adaptive Exposure (sky-brightness)',
-                style: TextStyle(
-                  fontSize: Responsive.fontSize(context, 12),
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 0.4,
-                  color: colors.textPrimary,
+              Expanded(
+                child: Text(
+                  'Adaptive Exposure (sky-brightness)',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: Responsive.fontSize(context, 12),
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.4,
+                    color: colors.textPrimary,
+                  ),
                 ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               Text(
                 _hasOverride ? 'Per-node' : 'Inherit',
                 style: TextStyle(fontSize: 10, color: colors.textMuted),

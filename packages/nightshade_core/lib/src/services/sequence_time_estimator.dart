@@ -289,9 +289,18 @@ class SequenceTimeEstimator {
     if (node.childIds.isNotEmpty) {
       final children = sequence.getChildren(node.id);
 
-      // Handle loop nodes specially - only estimate one iteration
+      // Handle loop nodes specially - the timeline still renders detail for a
+      // SINGLE iteration (with a "1 of N" warning), but the cumulative clock
+      // must advance by the full loop so downstream nodes + the
+      // meridian/dawn conflict checks see the real end time. Previously the
+      // clock only advanced one pass, so a Count loop under-reported its
+      // duration by the loop factor (e.g. Loop(count=50) over a 5-min body
+      // showed ~5 min instead of ~250 min). For unbounded / condition-based
+      // loops the iteration count isn't known statically, so we keep the
+      // single-pass estimate (documented by the warning note).
       if (node is LoopNode) {
         final loopNote = _getLoopIterationNote(node);
+        final loopStartTime = currentTime;
         for (final child in children) {
           currentTime = _processNode(
             node: child,
@@ -302,6 +311,16 @@ class SequenceTimeEstimator {
             loopIterationNote: loopNote,
             locationContext: locationContext,
           );
+        }
+        if (node.conditionType == LoopConditionType.count) {
+          final iterations = node.repeatCount ?? 1;
+          if (iterations > 1) {
+            final singlePass = currentTime.difference(loopStartTime);
+            // Advance the clock by the remaining (count - 1) iterations'
+            // worth of body time. The first pass is already reflected in
+            // `currentTime` (and rendered in the timeline).
+            currentTime = currentTime.add(singlePass * (iterations - 1));
+          }
         }
       } else {
         for (final child in children) {
@@ -888,7 +907,72 @@ class SequenceTimeEstimator {
       return Duration.zero;
     }
 
+    // The cumulative end clock is the latest end across all timing entries
+    // PLUS any time the walk advanced past the last rendered entry. The
+    // latter matters for Count loops: the timeline renders one iteration of
+    // body detail (the last timing entry ends at the first pass), but the
+    // walk advances the clock by the full loop. Re-walk to recover that
+    // end-of-sequence clock and take the max so a loop-bounded sequence
+    // reports its real duration.
+    final walkEnd = _walkEndTime(
+      sequence,
+      startTime,
+      latitude: latitude,
+      longitude: longitude,
+    );
     final lastTiming = timings.last;
-    return lastTiming.estimatedEnd.difference(startTime);
+    final end = lastTiming.estimatedEnd.isAfter(walkEnd)
+        ? lastTiming.estimatedEnd
+        : walkEnd;
+    return end.difference(startTime);
+  }
+
+  /// Walks the sequence the same way [estimateSequenceTiming] does but returns
+  /// the final cumulative clock instead of the per-node timing list. Used by
+  /// [estimateTotalDuration] so loop-multiplied time (which advances the clock
+  /// without adding a timeline entry) is reflected in the total.
+  DateTime _walkEndTime(
+    Sequence sequence,
+    DateTime startTime, {
+    double? latitude,
+    double? longitude,
+  }) {
+    final throwaway = <NodeTiming>[];
+    final locationContext = (latitude != null && longitude != null)
+        ? _LocationContext(
+            latitude: latitude,
+            longitude: longitude,
+            date: startTime,
+          )
+        : null;
+
+    var currentTime = startTime;
+    if (sequence.rootNodeId == null) {
+      for (final target in sequence.targetHeaders) {
+        currentTime = _processNode(
+          node: target,
+          sequence: sequence,
+          currentTime: currentTime,
+          timings: throwaway,
+          currentTargetHeaderId: target.id,
+          loopIterationNote: null,
+          locationContext: locationContext,
+        );
+      }
+    } else {
+      final rootNode = sequence.nodes[sequence.rootNodeId];
+      if (rootNode != null && rootNode.isEnabled) {
+        currentTime = _processNode(
+          node: rootNode,
+          sequence: sequence,
+          currentTime: currentTime,
+          timings: throwaway,
+          currentTargetHeaderId: null,
+          loopIterationNote: null,
+          locationContext: locationContext,
+        );
+      }
+    }
+    return currentTime;
   }
 }

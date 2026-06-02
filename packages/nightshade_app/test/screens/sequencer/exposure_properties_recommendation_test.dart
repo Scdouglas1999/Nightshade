@@ -3,7 +3,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nightshade_app/screens/sequencer/widgets/instruction_node_properties.dart';
+import 'package:nightshade_app/screens/sequencer/widgets/node_properties_panel.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/smart_exposure_properties.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -113,6 +113,31 @@ Future<void> _pump(
   await tester.pump();
 }
 
+/// Pumps the public [NodePropertiesPanel] (the dispatcher) inside a bounded
+/// box. The panel's desktop layout uses an Expanded child, so it needs a
+/// finite height — it provides its own internal scroll view for the editor
+/// body, so `ensureVisible` still works for off-screen controls.
+Future<void> _pumpPanel(
+  WidgetTester tester,
+  ProviderContainer container,
+) async {
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: const MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 880,
+            height: 2400,
+            child: NodePropertiesPanel(colors: NightshadeColors.dark),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
+}
+
 void main() {
   testWidgets('Exposure properties can apply shared Smart Night recommendation',
       (tester) async {
@@ -132,12 +157,9 @@ void main() {
       },
     );
     final container = _seed(sequence);
+    container.read(selectedNodeIdProvider.notifier).state = exposure.id;
 
-    await _pump(
-      tester,
-      container,
-      ExposureProperties(colors: NightshadeColors.dark, node: exposure),
-    );
+    await _pumpPanel(tester, container);
 
     expect(find.text('Recommended exposure'), findsOneWidget);
     expect(find.text('Apply 30s'), findsOneWidget);
@@ -203,12 +225,9 @@ void main() {
     );
     final spy = _CaptureSpy();
     final container = _seed(sequence, captureSpy: spy);
+    container.read(selectedNodeIdProvider.notifier).state = exposure.id;
 
-    await _pump(
-      tester,
-      container,
-      ExposureProperties(colors: NightshadeColors.dark, node: exposure),
-    );
+    await _pumpPanel(tester, container);
 
     await tester.ensureVisible(find.text('Run Test Exposure'));
     await tester.tap(find.text('Run Test Exposure'));

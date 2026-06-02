@@ -205,12 +205,14 @@ class _TextInput extends StatefulWidget {
   final String value;
   final ValueChanged<String> onChanged;
   final String? hint;
+  final int? maxLines;
 
   const _TextInput({
     required this.colors,
     required this.value,
     required this.onChanged,
     this.hint,
+    this.maxLines,
   });
 
   @override
@@ -252,6 +254,8 @@ class _TextInputState extends State<_TextInput> {
       child: TextField(
         controller: _controller,
         onChanged: widget.onChanged,
+        maxLines: widget.maxLines ?? 1,
+        minLines: widget.maxLines != null ? 1 : null,
         style: TextStyle(
           fontSize: 13,
           color: widget.colors.textPrimary,
@@ -570,116 +574,6 @@ class _DangerButtonState extends State<_DangerButton> {
               ),
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NumberInputWithHint extends StatefulWidget {
-  final NightshadeColors colors;
-  final double value;
-  final ValueChanged<double> onChanged;
-  final double? min;
-  final double? max;
-  final String? hintText;
-
-  const _NumberInputWithHint({
-    required this.colors,
-    required this.value,
-    required this.onChanged,
-    this.min,
-    this.max,
-    this.hintText,
-  });
-
-  @override
-  State<_NumberInputWithHint> createState() => _NumberInputWithHintState();
-}
-
-class _NumberInputWithHintState extends State<_NumberInputWithHint> {
-  late TextEditingController _controller;
-  late FocusNode _focusNode;
-  bool _hasFocus = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = TextEditingController(
-      text: widget.value.toInt().toString(),
-    );
-    _focusNode = FocusNode();
-    _focusNode.addListener(_onFocusChange);
-  }
-
-  void _onFocusChange() {
-    final hadFocus = _hasFocus;
-    _hasFocus = _focusNode.hasFocus;
-
-    // When losing focus, update to the canonical value format
-    if (hadFocus && !_hasFocus) {
-      final newText = widget.value.toInt().toString();
-      if (_controller.text != newText) {
-        _controller.text = newText;
-      }
-    }
-  }
-
-  @override
-  void didUpdateWidget(_NumberInputWithHint oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Only update text if the field doesn't have focus (user isn't typing)
-    if (!_hasFocus && oldWidget.value != widget.value) {
-      final newText = widget.value.toInt().toString();
-      if (newText != _controller.text) {
-        _controller.text = newText;
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _focusNode.removeListener(_onFocusChange);
-    _focusNode.dispose();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      decoration: BoxDecoration(
-        color: widget.colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: widget.colors.border),
-      ),
-      child: TextField(
-        controller: _controller,
-        focusNode: _focusNode,
-        keyboardType: TextInputType.number,
-        onChanged: (value) {
-          final parsed = double.tryParse(value);
-          if (parsed != null) {
-            var clamped = parsed;
-            if (widget.min != null) {
-              clamped = clamped.clamp(widget.min!, double.infinity);
-            }
-            if (widget.max != null) {
-              clamped = clamped.clamp(double.negativeInfinity, widget.max!);
-            }
-            widget.onChanged(clamped);
-          }
-        },
-        style: TextStyle(
-          fontSize: 13,
-          color: widget.colors.textPrimary,
-          fontFeatures: const [FontFeature.tabularFigures()],
-        ),
-        decoration: const InputDecoration(
-          border: InputBorder.none,
-          isDense: true,
-          contentPadding: EdgeInsets.symmetric(vertical: 10),
         ),
       ),
     );

@@ -1,20 +1,22 @@
-// Part of ../instruction_node_properties.dart -- extracted for maintainability.
-//
-// Exposure-node properties surface: ExposureProperties + state class, _ExposureRecommendationCard hint card, and the sky-brightness Adaptive Exposure section + per-filter override row.
-part of '../instruction_node_properties.dart';
+// Part of ../node_properties_panel.dart -- migrated from the former
+// instruction_node_properties library (Wave 4 consolidation). The richer
+// exposure editor: duration + sky-brightness recommendation card, count,
+// frame type, filter, binning/gain/offset profile-default tracking, dither,
+// the adaptive-exposure sub-section, and a Run Test Exposure action.
+part of '../node_properties_panel.dart';
 
-class ExposureProperties extends ConsumerStatefulWidget {
+class _ExposureProperties extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final ExposureNode node;
 
-  const ExposureProperties(
-      {super.key, required this.colors, required this.node});
+  const _ExposureProperties(
+      {required this.colors, required this.node});
 
   @override
-  ConsumerState<ExposureProperties> createState() => _ExposurePropertiesState();
+  ConsumerState<_ExposureProperties> createState() => _ExposureRichState();
 }
 
-class _ExposurePropertiesState extends ConsumerState<ExposureProperties> {
+class _ExposureRichState extends ConsumerState<_ExposureProperties> {
   // Track whether values have been explicitly overridden by the user in this
   // editing session. When false, the displayed value is the profile default.
   // We use a Set of property names to track which properties the user has
@@ -29,7 +31,7 @@ class _ExposurePropertiesState extends ConsumerState<ExposureProperties> {
   }
 
   @override
-  void didUpdateWidget(ExposureProperties oldWidget) {
+  void didUpdateWidget(_ExposureProperties oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.node.id != widget.node.id) {
       _userOverrides.clear();
@@ -711,7 +713,7 @@ class _ExposureRecommendationCard extends StatelessWidget {
 
 // ============================================================================
 // Wave 5 Agent 2 — Sky-brightness adaptive exposure UI block for the
-// ExposureProperties panel. Off by default; expanding shows SNR / reference
+// _ExposureProperties panel. Off by default; expanding shows SNR / reference
 // / min / max + per-filter overrides + a live preview the user can glance
 // at to see what the next burst will actually capture at.
 // ============================================================================

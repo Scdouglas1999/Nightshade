@@ -3,121 +3,6 @@
 // Properties widgets for flow-control nodes: target group, loop, delay, wait-time, conditional, parallel, recovery.
 part of '../node_properties_panel.dart';
 
-class _TargetGroupProperties extends ConsumerWidget {
-  final NightshadeColors colors;
-  final TargetHeaderNode node;
-
-  const _TargetGroupProperties({required this.colors, required this.node});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Target Settings',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 12),
-        _PropertyField(
-          colors: colors,
-          label: 'Target Name',
-          child: _TextInput(
-            colors: colors,
-            value: node.targetName,
-            onChanged: (value) {
-              ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(targetName: value),
-                  );
-            },
-          ),
-        ),
-        Row(
-          children: [
-            Expanded(
-              child: _PropertyField(
-                colors: colors,
-                label: 'RA (hours)',
-                child: _NumberInput(
-                  colors: colors,
-                  value: node.raHours,
-                  suffix: 'h',
-                  min: 0,
-                  max: 24,
-                  decimals: 4,
-                  onChanged: (value) {
-                    ref.read(currentSequenceProvider.notifier).updateNode(
-                          node.copyWith(raHours: value),
-                        );
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: _PropertyField(
-                colors: colors,
-                label: 'Dec (degrees)',
-                child: _NumberInput(
-                  colors: colors,
-                  value: node.decDegrees,
-                  suffix: '°',
-                  min: -90,
-                  max: 90,
-                  decimals: 4,
-                  onChanged: (value) {
-                    ref.read(currentSequenceProvider.notifier).updateNode(
-                          node.copyWith(decDegrees: value),
-                        );
-                  },
-                ),
-              ),
-            ),
-          ],
-        ),
-        _PropertyField(
-          colors: colors,
-          label: 'Rotation (optional)',
-          child: _NumberInput(
-            colors: colors,
-            value: node.rotation ?? 0,
-            suffix: '°',
-            min: 0,
-            max: 360,
-            decimals: 1,
-            onChanged: (value) {
-              ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(rotation: value),
-                  );
-            },
-          ),
-        ),
-        _PropertyField(
-          colors: colors,
-          label: 'Min Altitude',
-          child: _NumberInput(
-            colors: colors,
-            value: node.minAltitude ?? 30,
-            suffix: '°',
-            min: 0,
-            max: 90,
-            decimals: 0,
-            onChanged: (value) {
-              ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(minAltitude: value),
-                  );
-            },
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _LoopProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final LoopNode node;
@@ -332,6 +217,49 @@ class _LoopProperties extends ConsumerWidget {
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
                       node.copyWith(repeatUntilAltitude: value),
+                    );
+              },
+            ),
+          ),
+        // AltitudeAbove keeps looping WHILE the target is below the
+        // threshold, stopping once it climbs above it. Shares the
+        // `repeatUntilAltitude` field with UntilAltitude (the Rust
+        // serializer maps both modes onto `condition_value`).
+        if (node.conditionType == LoopConditionType.altitudeAbove)
+          _PropertyField(
+            colors: colors,
+            label: 'Stop Above Altitude',
+            child: _NumberInput(
+              colors: colors,
+              value: node.repeatUntilAltitude ?? 30,
+              suffix: '°',
+              min: 0,
+              max: 90,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(repeatUntilAltitude: value),
+                    );
+              },
+            ),
+          ),
+        // IntegrationTime loops until the accumulated accepted-frame
+        // integration reaches the target. Stored in
+        // `integrationTimeTarget` (seconds) and serialized to the
+        // engine's `condition_value`.
+        if (node.conditionType == LoopConditionType.integrationTime)
+          _PropertyField(
+            colors: colors,
+            label: 'Target Integration',
+            child: _NumberInput(
+              colors: colors,
+              value: (node.integrationTimeTarget ?? 3600) / 60.0,
+              suffix: 'min',
+              min: 1,
+              max: 1440,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(integrationTimeTarget: value * 60.0),
                     );
               },
             ),
@@ -617,7 +545,115 @@ class _ConditionalProperties extends ConsumerWidget {
               },
             ),
           ),
+        // Audit C2 — multi-safety-monitor targeting. When more than one
+        // safety monitor is configured the user can pin this conditional
+        // to a specific monitor; the default (null) consults the
+        // aggregated / profile-default safety state.
+        if (node.conditionType == ConditionalType.safetyMonitorSafe)
+          _SafetyMonitorPicker(colors: colors, node: node),
       ],
+    );
+  }
+}
+
+/// Audit C2 — safety-monitor selector for a SafetyMonitorSafe conditional.
+///
+/// Lists every discovered safety monitor by display name plus an
+/// "Aggregated (all monitors)" option that maps to `safetyMonitorId == null`.
+/// Selecting the aggregated option must CLEAR the id, but
+/// [ConditionalNode.copyWith] uses plain `?? this.safetyMonitorId`
+/// keep-or-replace semantics, so we rebuild a fresh node to null it out.
+class _SafetyMonitorPicker extends ConsumerWidget {
+  final NightshadeColors colors;
+  final ConditionalNode node;
+
+  const _SafetyMonitorPicker({required this.colors, required this.node});
+
+  static const String _aggregatedSentinel = '__aggregated__';
+
+  void _setMonitor(WidgetRef ref, String? monitorId) {
+    final notifier = ref.read(currentSequenceProvider.notifier);
+    if (monitorId == null) {
+      // Rebuild to clear — copyWith can't null the field.
+      notifier.updateNode(
+        ConditionalNode(
+          id: node.id,
+          name: node.name,
+          isEnabled: node.isEnabled,
+          childIds: node.childIds,
+          parentId: node.parentId,
+          orderIndex: node.orderIndex,
+          comment: node.comment,
+          conditionType: node.conditionType,
+          thresholdValue: node.thresholdValue,
+          thresholdTime: node.thresholdTime,
+        ),
+      );
+    } else {
+      notifier.updateNode(node.copyWith(safetyMonitorId: monitorId));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final monitors = ref.watch(unifiedSafetyMonitorsProvider);
+
+    // Build the option list: aggregated sentinel first, then one entry per
+    // discovered monitor keyed by its active device id.
+    final options = <({String key, String label})>[
+      (key: _aggregatedSentinel, label: 'Aggregated (all monitors)'),
+      for (final m in monitors)
+        (key: m.activeDeviceId, label: m.displayName),
+    ];
+
+    // If the node references a monitor that's no longer discovered (e.g. it
+    // was unplugged or the sequence was built on another rig), keep it
+    // visible so the user sees what is configured rather than silently
+    // snapping to aggregated.
+    final currentId = node.safetyMonitorId;
+    if (currentId != null && !options.any((o) => o.key == currentId)) {
+      options.add((key: currentId, label: '$currentId (not connected)'));
+    }
+
+    final selectedKey = currentId ?? _aggregatedSentinel;
+
+    return _PropertyField(
+      colors: colors,
+      label: 'Safety Monitor',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: colors.border),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: selectedKey,
+            isExpanded: true,
+            icon: Icon(
+              LucideIcons.chevronDown,
+              size: 16,
+              color: colors.textMuted,
+            ),
+            dropdownColor: colors.surface,
+            style: TextStyle(fontSize: 13, color: colors.textPrimary),
+            items: options
+                .map((o) => DropdownMenuItem(
+                      value: o.key,
+                      child: Text(o.label),
+                    ))
+                .toList(),
+            onChanged: (newKey) {
+              if (newKey == null) return;
+              _setMonitor(
+                ref,
+                newKey == _aggregatedSentinel ? null : newKey,
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 }

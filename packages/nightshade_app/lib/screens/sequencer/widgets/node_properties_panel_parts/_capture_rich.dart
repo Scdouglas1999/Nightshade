@@ -1,14 +1,280 @@
-// Part of ../instruction_node_properties.dart -- extracted for maintainability.
-//
-// Notification + script properties: NotificationProperties with its transport multi-select and live preview, plus ScriptProperties.
-part of '../instruction_node_properties.dart';
+// Part of ../node_properties_panel.dart -- migrated from the former
+// instruction_node_properties library (Wave 4 consolidation). Richer
+// capture-side editors: Cool/Warm camera, Filter change, and Notification
+// (template title/message + transport multi-select + live preview).
+part of '../node_properties_panel.dart';
 
-class NotificationProperties extends ConsumerWidget {
+class _CoolCameraProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final CoolCameraNode node;
+
+  const _CoolCameraProperties(
+      {required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Cooling Settings',
+          style: TextStyle(
+            fontSize: Responsive.fontSize(context, 13),
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        NodePropertyField(
+          colors: colors,
+          label: 'Target Temperature',
+          child: NodeNumberInput(
+            colors: colors,
+            value: node.targetTemp,
+            suffix: '\u00B0C',
+            min: -50,
+            max: 30,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(targetTemp: value),
+                  );
+            },
+          ),
+        ),
+        NodePropertyField(
+          colors: colors,
+          label: 'Max Duration',
+          child: NodeNumberInput(
+            colors: colors,
+            value: node.durationMins ?? 10,
+            suffix: 'min',
+            min: 1,
+            max: 60,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(durationMins: value),
+                  );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _FilterChangeProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final FilterChangeNode node;
+
+  const _FilterChangeProperties(
+      {required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Get filter names from active profile
+    final profile = ref.watch(activeEquipmentProfileProvider);
+    final filterNames = profile?.filterNames ?? <String>[];
+
+    // Build list of filter options with their indices
+    // Each item is a record of (index, name)
+    final filterOptions = <({int index, String name})>[
+      for (int i = 0; i < filterNames.length; i++)
+        (index: i, name: filterNames[i]),
+    ];
+
+    // Find current selection, or default to first if not found
+    final currentFilter = filterOptions.isEmpty
+        ? null
+        : filterOptions.firstWhere(
+            (f) => f.name == node.filterName || f.index == node.filterPosition,
+            orElse: () => filterOptions.first,
+          );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Filter Settings',
+          style: TextStyle(
+            fontSize: Responsive.fontSize(context, 13),
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        NodePropertyField(
+          colors: colors,
+          label: 'Filter',
+          child: filterOptions.isEmpty
+              ? NodeTextInput(
+                  colors: colors,
+                  value: node.filterName,
+                  hint: 'No filters in profile',
+                  onChanged: (value) {
+                    ref.read(currentSequenceProvider.notifier).updateNode(
+                          node.copyWith(filterName: value),
+                        );
+                  },
+                )
+              : Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  decoration: BoxDecoration(
+                    color: colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: colors.border),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<({int index, String name})>(
+                      value: currentFilter,
+                      isExpanded: true,
+                      icon: Icon(
+                        LucideIcons.chevronDown,
+                        size: 16,
+                        color: colors.textMuted,
+                      ),
+                      dropdownColor: colors.surface,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colors.textPrimary,
+                      ),
+                      items: filterOptions.map((filter) {
+                        return DropdownMenuItem(
+                          value: filter,
+                          child: Text(filter.name),
+                        );
+                      }).toList(),
+                      onChanged: (newValue) {
+                        if (newValue != null) {
+                          // Set BOTH name and position for reliable filter changes
+                          ref.read(currentSequenceProvider.notifier).updateNode(
+                                node.copyWith(
+                                  filterName: newValue.name,
+                                  filterPosition: newValue.index,
+                                ),
+                              );
+                        }
+                      },
+                    ),
+                  ),
+                ),
+        ),
+        const SizedBox(height: 4),
+        InkWell(
+          onTap: () => ProfileEditorDialog.show(
+            context,
+            profile: ref.read(activeEquipmentProfileProvider),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.settings, size: 12, color: colors.textMuted),
+                const SizedBox(width: 4),
+                Text(
+                  'Edit filters...',
+                  style: TextStyle(
+                    fontSize: Responsive.fontSize(context, 12),
+                    color: colors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _WarmCameraProperties extends ConsumerWidget {
+  final NightshadeColors colors;
+  final WarmCameraNode node;
+
+  const _WarmCameraProperties(
+      {required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Warming Settings',
+          style: TextStyle(
+            fontSize: Responsive.fontSize(context, 13),
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        NodePropertyField(
+          colors: colors,
+          label: 'Warming Rate',
+          child: NodeNumberInput(
+            colors: colors,
+            value: node.ratePerMin,
+            suffix: '\u00B0C/min',
+            min: 0.5,
+            max: 10,
+            decimals: 1,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(ratePerMin: value),
+                  );
+            },
+          ),
+        ),
+        NodePropertyField(
+          colors: colors,
+          label: 'Target Temp',
+          child: NodeNumberInput(
+            colors: colors,
+            value: node.targetTemp,
+            suffix: '\u00B0C',
+            min: 0,
+            max: 35,
+            decimals: 1,
+            onChanged: (value) {
+              ref.read(currentSequenceProvider.notifier).updateNode(
+                    node.copyWith(targetTemp: value),
+                  );
+            },
+          ),
+        ),
+        Container(
+          padding: const EdgeInsets.all(12),
+          decoration: NightshadeDecorations.tintedBadge(
+            colors.warning,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            children: [
+              Icon(LucideIcons.alertTriangle, size: 14, color: colors.warning),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Gradual warming prevents thermal shock while warming toward ${node.targetTemp.toStringAsFixed(1)}°C',
+                  style: TextStyle(
+                    fontSize: Responsive.fontSize(context, 12),
+                    color: colors.warning,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NotificationProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final NotificationNode node;
 
-  const NotificationProperties(
-      {super.key, required this.colors, required this.node});
+  const _NotificationProperties(
+      {required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -285,98 +551,3 @@ class _NotificationPreview extends StatelessWidget {
   }
 }
 
-class ScriptProperties extends ConsumerWidget {
-  final NightshadeColors colors;
-  final ScriptNode node;
-
-  const ScriptProperties({super.key, required this.colors, required this.node});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Script Settings',
-          style: TextStyle(
-            fontSize: Responsive.fontSize(context, 13),
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 12),
-        NodePropertyField(
-          colors: colors,
-          label: 'Script Path',
-          child: NodeTextInput(
-            colors: colors,
-            value: node.scriptPath,
-            hint: 'Path to script file',
-            onChanged: (value) {
-              ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(scriptPath: value),
-                  );
-            },
-          ),
-        ),
-        NodePropertyField(
-          colors: colors,
-          label: 'Arguments',
-          child: NodeTextInput(
-            colors: colors,
-            value: node.arguments.join(' '),
-            hint: 'Space-separated arguments',
-            onChanged: (value) {
-              ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(
-                        arguments: value
-                            .split(' ')
-                            .where((s) => s.isNotEmpty)
-                            .toList()),
-                  );
-            },
-          ),
-        ),
-        NodePropertyField(
-          colors: colors,
-          label: 'Timeout',
-          child: NodeNumberInput(
-            colors: colors,
-            value: (node.timeoutSecs ?? 300).toDouble(),
-            suffix: 's',
-            min: 1,
-            max: 3600,
-            onChanged: (value) {
-              ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(timeoutSecs: value.toInt()),
-                  );
-            },
-          ),
-        ),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: NightshadeDecorations.tintedBadge(
-            colors.warning,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Icon(LucideIcons.alertTriangle, size: 14, color: colors.warning),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'Scripts run with sequence context variables available as environment variables',
-                  style: TextStyle(
-                    fontSize: Responsive.fontSize(context, 12),
-                    color: colors.warning,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}

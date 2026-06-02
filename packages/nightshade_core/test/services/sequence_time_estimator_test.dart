@@ -490,6 +490,140 @@ void main() {
         );
       });
 
+      test(
+          'Count loop multiplies body duration by the loop factor in the '
+          'cumulative timeline', () {
+        // Loop(count=10) over a 5x60s exposure body (= 5*60 + 5*2 = 310s).
+        // The total must reflect 10 iterations (3100s), not a single pass.
+        final exposureNode = ExposureNode(
+          id: 'exposure1',
+          name: 'Light 60s',
+          durationSecs: 60,
+          count: 5, // 310s per pass
+        );
+        final loopNode = LoopNode(
+          id: 'loop1',
+          name: 'Loop 10x',
+          conditionType: LoopConditionType.count,
+          repeatCount: 10,
+          childIds: const ['exposure1'],
+        );
+        final targetNode = TargetHeaderNode(
+          id: 'target1',
+          name: 'Test Target',
+          targetName: 'Test',
+          raHours: 12.0,
+          decDegrees: 45.0,
+          childIds: const ['loop1'],
+        );
+
+        final sequence = createSequence(
+          nodes: {
+            'target1': targetNode,
+            'loop1': loopNode.copyWith(parentId: 'target1'),
+            'exposure1': exposureNode.copyWith(parentId: 'loop1'),
+          },
+        );
+        final startTime = DateTime(2024, 6, 15, 22, 0);
+
+        final total = estimator.estimateTotalDuration(sequence, startTime);
+
+        // 10 iterations * 310s = 3100s.
+        expect(total.inSeconds, equals(3100));
+      });
+
+      test(
+          'A trailing node after a Count loop starts after the full loop, '
+          'not one pass', () {
+        final exposureNode = ExposureNode(
+          id: 'exposure1',
+          name: 'Light 60s',
+          durationSecs: 60,
+          count: 1, // 60 + 2 = 62s per pass
+        );
+        final loopNode = LoopNode(
+          id: 'loop1',
+          name: 'Loop 4x',
+          conditionType: LoopConditionType.count,
+          repeatCount: 4,
+          childIds: const ['exposure1'],
+        );
+        final delayNode = DelayNode(
+          id: 'delay1',
+          name: 'Delay',
+          seconds: 30.0,
+        );
+        final targetNode = TargetHeaderNode(
+          id: 'target1',
+          name: 'Test Target',
+          targetName: 'Test',
+          raHours: 12.0,
+          decDegrees: 45.0,
+          childIds: const ['loop1', 'delay1'],
+        );
+
+        final sequence = createSequence(
+          nodes: {
+            'target1': targetNode,
+            'loop1': loopNode.copyWith(parentId: 'target1', orderIndex: 0),
+            'exposure1': exposureNode.copyWith(parentId: 'loop1'),
+            'delay1': delayNode.copyWith(parentId: 'target1', orderIndex: 1),
+          },
+        );
+        final startTime = DateTime(2024, 6, 15, 22, 0);
+
+        final timings = estimator.estimateSequenceTiming(sequence, startTime);
+        final delayTiming = timings.firstWhere((t) => t.nodeType == 'Delay');
+
+        // Loop body = 62s/pass * 4 = 248s, so the delay starts 248s after
+        // the loop's start (22:00 + 248s = 22:04:08).
+        expect(
+          delayTiming.estimatedStart,
+          equals(startTime.add(const Duration(seconds: 248))),
+        );
+      });
+
+      test(
+          'Unbounded loop keeps the single-iteration estimate (no factor '
+          'multiplication)', () {
+        final exposureNode = ExposureNode(
+          id: 'exposure1',
+          name: 'Light 60s',
+          durationSecs: 60,
+          count: 5, // 310s per pass
+        );
+        final loopNode = LoopNode(
+          id: 'loop1',
+          name: 'Forever',
+          conditionType: LoopConditionType.forever,
+          maxSafetyIterations: 100,
+          childIds: const ['exposure1'],
+        );
+        final targetNode = TargetHeaderNode(
+          id: 'target1',
+          name: 'Test Target',
+          targetName: 'Test',
+          raHours: 12.0,
+          decDegrees: 45.0,
+          childIds: const ['loop1'],
+        );
+
+        final sequence = createSequence(
+          nodes: {
+            'target1': targetNode,
+            'loop1': loopNode.copyWith(parentId: 'target1'),
+            'exposure1': exposureNode.copyWith(parentId: 'loop1'),
+          },
+        );
+        final startTime = DateTime(2024, 6, 15, 22, 0);
+
+        final total = estimator.estimateTotalDuration(sequence, startTime);
+
+        // Unbounded loops can't be statically counted, so the estimate is a
+        // single pass (310s).
+        expect(total.inSeconds, equals(310));
+      });
+
       test('NotificationNode has zero duration', () {
         final notifyNode = NotificationNode(
           id: 'notify1',
