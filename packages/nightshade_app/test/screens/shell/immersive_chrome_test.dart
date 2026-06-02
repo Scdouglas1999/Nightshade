@@ -11,62 +11,74 @@ void main() {
       c.dispose();
     });
 
-    test('disabled controller ignores poke/conceal (stays pinned visible)', () {
+    test('disabled controller ignores toggle/show/hide', () {
       final c = ImmersiveChromeController();
-      c.conceal();
-      expect(c.state, isTrue, reason: 'conceal is a no-op while disabled');
+      c.hide();
+      expect(c.state, isTrue, reason: 'manual ops are no-ops while disabled');
+      c.toggle();
+      expect(c.state, isTrue);
       c.dispose();
     });
 
-    test('enabling starts an idle countdown that hides the chrome', () {
+    test('onRouteChanged shows and arms a one-shot idle auto-hide', () {
       fakeAsync((async) {
         final c = ImmersiveChromeController()..enabled = true;
+        c.onRouteChanged();
         expect(c.state, isTrue);
         async.elapse(ImmersiveChromeController.idleTimeout +
             const Duration(seconds: 1));
-        expect(c.state, isFalse, reason: 'auto-hides after idle');
+        expect(c.state, isFalse, reason: 'auto-hides once after idle');
         c.dispose();
       });
     });
 
-    test('poke reveals and restarts the idle countdown', () {
+    test('manual hide is sticky — it does NOT auto-reveal', () {
       fakeAsync((async) {
         final c = ImmersiveChromeController()..enabled = true;
-        // Let it hide.
-        async.elapse(const Duration(seconds: 6));
+        c.hide();
         expect(c.state, isFalse);
-        // Interaction brings it back...
-        c.poke();
-        expect(c.state, isTrue);
-        // ...and it stays while interactions keep coming within the window.
-        async.elapse(const Duration(seconds: 4));
-        c.poke();
-        async.elapse(const Duration(seconds: 4));
-        expect(c.state, isTrue, reason: 'repeated pokes keep it visible');
-        // Then idle out.
-        async.elapse(const Duration(seconds: 6));
+        async.elapse(const Duration(seconds: 60));
+        expect(c.state, isFalse, reason: 'stays hidden until explicitly shown');
+        c.dispose();
+      });
+    });
+
+    test('manual show pins visible (cancels the idle auto-hide)', () {
+      fakeAsync((async) {
+        final c = ImmersiveChromeController()..enabled = true;
+        c.onRouteChanged(); // arms auto-hide
+        c.show(); // user pins it visible
+        async.elapse(const Duration(seconds: 60));
+        expect(c.state, isTrue, reason: 'pinned: no auto-hide after manual show');
+        c.dispose();
+      });
+    });
+
+    test('toggle flips and stays put', () {
+      final c = ImmersiveChromeController()..enabled = true;
+      expect(c.state, isTrue);
+      c.toggle();
+      expect(c.state, isFalse);
+      c.toggle();
+      expect(c.state, isTrue);
+      c.dispose();
+    });
+
+    test('navigating again re-shows after a manual hide', () {
+      fakeAsync((async) {
+        final c = ImmersiveChromeController()..enabled = true;
+        c.hide();
         expect(c.state, isFalse);
+        c.onRouteChanged();
+        expect(c.state, isTrue, reason: 'a new screen reveals the chrome again');
         c.dispose();
       });
     });
 
-    test('hold pins visible until released, then resumes auto-hide', () {
+    test('disabling re-pins visible and cancels any timer', () {
       fakeAsync((async) {
         final c = ImmersiveChromeController()..enabled = true;
-        c.pushHold();
-        async.elapse(const Duration(seconds: 30));
-        expect(c.state, isTrue, reason: 'held visible (e.g. a sheet is open)');
-        c.popHold();
-        async.elapse(const Duration(seconds: 6));
-        expect(c.state, isFalse, reason: 'auto-hide resumes after release');
-        c.dispose();
-      });
-    });
-
-    test('disabling re-pins visible and cancels the timer', () {
-      fakeAsync((async) {
-        final c = ImmersiveChromeController()..enabled = true;
-        async.elapse(const Duration(seconds: 6));
+        c.hide();
         expect(c.state, isFalse);
         c.enabled = false;
         expect(c.state, isTrue, reason: 'desktop/tablet pins chrome visible');

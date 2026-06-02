@@ -46,6 +46,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   bool _fallbackSideNavExpanded = true;
   bool _hasCheckedCatalogs = false;
   bool _hasCheckedCheckpoint = false;
+  String? _lastImmersiveLocation;
 
   @override
   void initState() {
@@ -402,7 +403,14 @@ class _AppShellState extends ConsumerState<AppShell> {
         final chromeVisible = ref.watch(immersiveChromeProvider);
         final immersive = ref.read(immersiveChromeProvider.notifier);
         WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
           immersive.enabled = useBottomNav;
+          // Reveal the chrome (and re-arm the one-shot idle auto-hide) whenever
+          // the operator navigates to a different screen.
+          if (useBottomNav && currentLocation != _lastImmersiveLocation) {
+            _lastImmersiveLocation = currentLocation;
+            immersive.onRouteChanged();
+          }
         });
 
         // The first-launch tour is replay-only (C13): OnboardingTourReplayLauncher
@@ -414,18 +422,11 @@ class _AppShellState extends ConsumerState<AppShell> {
         // The progressive first-launch "coach" popup was removed (it was an
         // intrusive readiness nudge whose info is reachable from the Equipment
         // "Ready to image" panel).
-        return OnboardingTourReplayLauncher(
+        final Widget shell = OnboardingTourReplayLauncher(
           child: TutorialOverlay(
           child: Scaffold(
             backgroundColor: colors.background,
-            // On phone, any interaction reveals the immersive chrome and
-            // restarts its idle countdown (deferToChild so taps still reach the
-            // content underneath).
-            body: Listener(
-              behavior: HitTestBehavior.deferToChild,
-              onPointerDown:
-                  useBottomNav ? (_) => immersive.poke() : null,
-              child: Column(
+            body: Column(
               children: [
                 // Desktop title bar (window drag + global actions). Hidden on
                 // mobile â€” bottom nav covers primary routes; saves vertical space.
@@ -566,7 +567,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 if (useBottomNav)
                   ImmersiveBottomChrome(
                     visible: chromeVisible,
-                    onReveal: immersive.reveal,
+                    onToggle: immersive.toggle,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -587,11 +588,26 @@ class _AppShellState extends ConsumerState<AppShell> {
                 else
                   const StatusBar(compact: false),
               ],
-              ),
             ),
             bottomNavigationBar: null,
           ),
           ),
+        );
+
+        if (!useBottomNav) return shell;
+        // Dynamic UI shrink for phones: scale text down as the screen's short
+        // side falls below a ~440px reference so dense cover screens (e.g. a
+        // foldable ~369px) fit more without manual zoom. Multiplies (respects)
+        // the user's own accessibility text scaling. Tablets (short side >=
+        // 440) and desktop are unscaled.
+        final mq = MediaQuery.of(context);
+        final uiScale = (mq.size.shortestSide / 440.0).clamp(0.82, 1.0);
+        return MediaQuery(
+          data: mq.copyWith(
+            textScaler:
+                TextScaler.linear(mq.textScaler.scale(1.0) * uiScale),
+          ),
+          child: shell,
         );
       },
     );

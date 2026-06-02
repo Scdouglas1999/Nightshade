@@ -1,58 +1,80 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Wraps the phone shell's bottom chrome (status bar + bottom navigation) and
-/// collapses it to a slim reveal grabber when [visible] is false, animating the
-/// height so the content above reclaims the space.
-///
-/// When collapsed, a small centered handle hints that chrome is hidden; tapping
-/// it or swiping up brings the chrome back ([onReveal]). (The shell also reveals
-/// on any interaction via a pointer listener, so this is a discoverability aid
-/// as much as a control.)
+/// Wraps the phone shell's bottom chrome (status bar + bottom navigation) with
+/// an **always-visible grabber handle** so the operator can hide or reveal it
+/// at any time — tap the handle, or swipe it up/down. When hidden the content
+/// above reclaims the full height; only the slim handle remains.
 class ImmersiveBottomChrome extends StatelessWidget {
   final bool visible;
   final Widget child;
-  final VoidCallback onReveal;
+
+  /// Toggle hide/show (sticky — see ImmersiveChromeController).
+  final VoidCallback onToggle;
 
   const ImmersiveBottomChrome({
     super.key,
     required this.visible,
     required this.child,
-    required this.onReveal,
+    required this.onToggle,
   });
 
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 220),
-      curve: Curves.easeOutCubic,
-      alignment: Alignment.bottomCenter,
-      child: visible
-          ? child
-          : GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onReveal,
-              onVerticalDragUpdate: (details) {
-                if ((details.primaryDelta ?? 0) < -1.5) onReveal();
-              },
-              child: SafeArea(
-                top: false,
-                child: SizedBox(
-                  height: 16,
-                  child: Center(
-                    child: Container(
-                      width: 40,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: colors.textMuted.withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Always-on handle: tap to toggle, or swipe up/down. The chevron points
+        // the way it will move (down = will hide, up = will reveal).
+        GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onToggle,
+          onVerticalDragEnd: (details) {
+            final v = details.primaryVelocity ?? 0;
+            if (v < -80 && !visible) {
+              onToggle(); // swipe up reveals
+            } else if (v > 80 && visible) {
+              onToggle(); // swipe down hides
+            }
+          },
+          child: Container(
+            width: double.infinity,
+            height: 18,
+            color: colors.surface,
+            alignment: Alignment.center,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 28,
+                  height: 3,
+                  decoration: BoxDecoration(
+                    color: colors.textMuted.withValues(alpha: 0.5),
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
-              ),
+                const SizedBox(width: 6),
+                Icon(
+                  visible ? LucideIcons.chevronDown : LucideIcons.chevronUp,
+                  size: 13,
+                  color: colors.textMuted.withValues(alpha: 0.8),
+                ),
+              ],
             ),
+          ),
+        ),
+        // Collapsible chrome.
+        AnimatedSize(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          alignment: Alignment.bottomCenter,
+          child: visible
+              ? child
+              : const SizedBox(width: double.infinity, height: 0),
+        ),
+      ],
     );
   }
 }

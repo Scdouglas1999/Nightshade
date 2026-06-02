@@ -2,31 +2,33 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// Drives the phone "immersive" shell chrome — the auto-hiding bottom
-/// navigation + status bar.
+/// Drives the phone "immersive" shell chrome — the bottom navigation + status
+/// bar, which can be hidden to give content the whole (very short, on a
+/// foldable cover) height.
 ///
-/// The chrome is visible by default and **auto-hides after a short idle
-/// period** so that when the operator is just watching a live frame / the sky /
-/// a guiding graph, the navigation and status strip slide away and the content
-/// gets the whole (very short, on a foldable cover screen) height. Any
-/// interaction [poke]s it back and restarts the idle timer, so it only ever
-/// disappears when genuinely unused. Tapping the reveal grabber or swiping up
-/// from the bottom edge also brings it back.
+/// Interaction model:
+///  * **Manual is primary and sticky.** [toggle]/[show]/[hide] (the always-on
+///    grabber handle / a swipe) put the chrome exactly where the operator wants
+///    it and it STAYS there — incidental taps never bring it back. This is the
+///    control the operator reaches for.
+///  * **Idle auto-hide is a per-screen convenience.** On arriving at a screen
+///    ([onRouteChanged]) the chrome is shown and, if untouched, tucks away once
+///    after [idleTimeout]. The moment the operator uses the handle, auto-hide
+///    yields for that screen.
 ///
-/// Phone-only: the desktop/tablet shell never reads this (it uses a persistent
-/// side rail), and [enabled] is set false there so the timer never runs.
+/// Phone-only: desktop/tablet set [enabled] false (chrome pinned visible, no
+/// timer).
 class ImmersiveChromeController extends StateNotifier<bool> {
   ImmersiveChromeController() : super(true);
 
   Timer? _idleTimer;
   bool _enabled = false;
-  int _holds = 0;
+  bool _manual = false;
 
-  /// How long the chrome stays after the last interaction before sliding away.
+  /// Idle delay before the chrome tucks itself away on a freshly-entered
+  /// screen (only while the operator hasn't taken manual control).
   static const Duration idleTimeout = Duration(seconds: 5);
 
-  /// Whether immersive auto-hide is active (phone only). When false the chrome
-  /// is pinned visible and no timer runs.
   bool get enabled => _enabled;
 
   set enabled(bool value) {
@@ -36,48 +38,41 @@ class ImmersiveChromeController extends StateNotifier<bool> {
       _idleTimer?.cancel();
       if (!state) state = true; // pin visible on desktop/tablet
     } else {
-      _restartTimer();
+      _arm();
     }
   }
 
-  /// Register an interaction: reveal the chrome and restart the idle countdown.
-  /// Call from a shell-level pointer listener and on route changes.
-  void poke() {
+  /// Fresh screen: reveal and allow the one-shot idle auto-hide again.
+  void onRouteChanged() {
     if (!_enabled) return;
+    _manual = false;
     if (!state) state = true;
-    _restartTimer();
+    _arm();
   }
 
-  /// Force the chrome visible (e.g. entering a list/setup screen) without the
-  /// auto-hide fighting the user. Still restarts the idle timer.
-  void reveal() => poke();
-
-  /// Hide immediately (e.g. the user swiped down, or a canvas went fullscreen).
-  void conceal() {
+  /// Explicitly reveal (grabber tap / swipe up) and pin — no auto-hide until
+  /// the next screen or an explicit hide.
+  void show() {
     if (!_enabled) return;
+    _manual = true;
+    _idleTimer?.cancel();
+    if (!state) state = true;
+  }
+
+  /// Explicitly hide (grabber tap / swipe down) and keep it hidden.
+  void hide() {
+    if (!_enabled) return;
+    _manual = true;
     _idleTimer?.cancel();
     if (state) state = false;
   }
 
-  /// Toggle on an explicit gesture (grabber tap).
-  void toggle() => state ? conceal() : poke();
+  /// Manual toggle from the always-visible grabber handle.
+  void toggle() => state ? hide() : show();
 
-  /// Pause auto-hide while a modal/sheet is open so the chrome can't vanish
-  /// underneath it. Balance every [pushHold] with a [popHold].
-  void pushHold() {
-    _holds++;
+  void _arm() {
     _idleTimer?.cancel();
-    if (!state) state = true;
-  }
-
-  void popHold() {
-    if (_holds > 0) _holds--;
-    if (_holds == 0) _restartTimer();
-  }
-
-  void _restartTimer() {
-    _idleTimer?.cancel();
-    if (!_enabled || _holds > 0) return;
+    if (!_enabled || _manual) return;
     _idleTimer = Timer(idleTimeout, () {
       if (mounted && state) state = false;
     });
