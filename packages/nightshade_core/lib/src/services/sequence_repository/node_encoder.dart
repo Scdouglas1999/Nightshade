@@ -255,16 +255,28 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
           'pluginName': node.pluginName,
           'iconHint': node.iconHint,
         },
+      // Cover / calibrator nodes carry real config (timeout, brightness) that
+      // MUST be persisted — they were previously lumped into the empty-props
+      // group below, silently dropping these fields on save.
+      OpenCoverNode() => {
+          'timeoutSecs': node.timeoutSecs,
+        },
+      CloseCoverNode() => {
+          'timeoutSecs': node.timeoutSecs,
+        },
+      CalibratorOnNode() => {
+          'brightness': node.brightness,
+          'timeoutSecs': node.timeoutSecs,
+        },
+      CalibratorOffNode() => {
+          'timeoutSecs': node.timeoutSecs,
+        },
       // Side-effect-only nodes have no extra properties to persist beyond
       // the base fields (id/name/parentId/orderIndex/isEnabled/comment).
       InstructionSetNode() ||
       StopGuidingNode() ||
       ParkNode() ||
-      UnparkNode() ||
-      OpenCoverNode() ||
-      CloseCoverNode() ||
-      CalibratorOnNode() ||
-      CalibratorOffNode() =>
+      UnparkNode() =>
         const <String, dynamic>{},
     };
   }

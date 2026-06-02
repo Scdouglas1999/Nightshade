@@ -219,6 +219,32 @@ impl UnifiedDeviceOps {
 #[async_trait]
 impl DeviceOps for UnifiedDeviceOps {
     // =========================================================================
+    // CONNECTION / RECOVERY
+    // =========================================================================
+    //
+    // These two overrides are what make device-disconnect recovery actually
+    // work on the live path. Without them the trait defaults
+    // (`device_ops.rs`) return `Err("not supported")`, so the
+    // `DeviceDisconnected` recovery loop fails instantly on every driver and a
+    // USB/comms blip aborts the night. They delegate to the same
+    // `DeviceManager` primitives `RealDeviceOps` uses.
+
+    async fn device_is_connected(&self, device_id: &str) -> DeviceResult<bool> {
+        Ok(get_device_manager().is_connected(device_id).await)
+    }
+
+    async fn connect_device(&self, device_id: &str) -> DeviceResult<()> {
+        // Mark the device auto-reconnectable so the background reconnection
+        // loop keeps retrying it too (camera/focuser/filter-wheel default to
+        // false), then drive an immediate connect attempt. Both together make
+        // recovery actively reconnect instead of waiting out the budget.
+        get_device_manager()
+            .set_auto_reconnect(device_id, true)
+            .await;
+        get_device_manager().connect_device(device_id).await
+    }
+
+    // =========================================================================
     // MOUNT OPERATIONS
     // =========================================================================
 
@@ -469,22 +495,11 @@ impl DeviceOps for UnifiedDeviceOps {
             EventSeverity::Info,
         );
 
-        // Start the exposure
-        // Why (audit-rust §4.3): gain/offset are Option<i32> from the FFI
-        // payload; None means "use the camera's current value, don't change".
-        // Passing 0 to `camera_start_exposure` makes the driver skip the
-        // ASCOM `Gain`/`Offset` setter (the wrapper short-circuits the call
-        // if the requested value equals the cached value, and 0 falls below
-        // the ASCOM minimum so we treat it as "no change requested"). The
-        // camera's actual gain/offset is reported by the next status poll.
-        mgr.camera_start_exposure(
-            camera_id,
-            duration_secs,
-            gain.unwrap_or(0),
-            offset.unwrap_or(0),
-            bin_x,
-            bin_y,
-        )
+        // Start the exposure. gain/offset are Option<i32>; None means "use the
+        // camera's current value, don't change it" and is threaded through to
+        // each driver branch so the setter is genuinely skipped (rather than
+        // the old `unwrap_or(0)` which silently commanded gain/offset 0).
+        mgr.camera_start_exposure(camera_id, duration_secs, gain, offset, bin_x, bin_y)
         .await
         .inspect_err(|_e| {
             // Publish failure event
@@ -1906,6 +1921,43 @@ mod tests {
         assert!(
             poll_count.load(Ordering::SeqCst) > 0,
             "exposure status should be polled before timing out"
+        );
+    }
+
+    /// P0-1 regression: the live `UnifiedDeviceOps` must OVERRIDE
+    /// `device_is_connected` / `connect_device`. The `DeviceOps` trait
+    /// defaults return `Err("… not supported by this driver")`, which made
+    /// every device-disconnect recovery attempt fail instantly on the live
+    /// path (the single most common unattended-night failure mode was
+    /// unrecoverable). This asserts the overrides delegate to the
+    /// `DeviceManager` rather than inheriting the defaults.
+    #[tokio::test]
+    async fn reconnect_overrides_are_wired_not_trait_default() {
+        let ops = UnifiedDeviceOps::new(crate::api::get_state().clone());
+
+        // Unknown device: the override consults the DeviceManager and reports
+        // Ok(false). The trait default would instead return Err("not
+        // supported"), so Ok(false) proves the override is in place.
+        let connected = ops.device_is_connected("native:does_not_exist").await;
+        assert_eq!(
+            connected,
+            Ok(false),
+            "device_is_connected must be overridden (Ok(false) for an unknown \
+             device), not the trait-default Err"
+        );
+
+        // connect_device on an unknown id errors, but it must be a real
+        // DeviceManager "not found" error — NOT the trait-default
+        // "connect_device not supported by this driver".
+        let connect = ops.connect_device("native:does_not_exist").await;
+        assert!(
+            connect.is_err(),
+            "connecting an unknown device should error"
+        );
+        let msg = connect.unwrap_err();
+        assert!(
+            !msg.contains("not supported by this driver"),
+            "connect_device must be overridden; got the trait-default error: {msg}"
         );
     }
 }

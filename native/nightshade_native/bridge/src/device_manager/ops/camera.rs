@@ -68,8 +68,13 @@ impl DeviceManager {
         &self,
         device_id: &str,
         duration: f64,
-        gain: i32,
-        offset: i32,
+        // `None` means "leave the camera's current gain/offset unchanged" — the
+        // node did not specify one. Previously this took a bare `i32` and the
+        // sequencer collapsed `None` to `0`, which both masked the real value
+        // and (on drivers that honor it) actively set gain/offset to 0. Keep it
+        // optional end-to-end so each driver branch can skip the setter.
+        gain: Option<i32>,
+        offset: Option<i32>,
         bin_x: i32,
         bin_y: i32,
     ) -> Result<(), DeviceOpError> {
@@ -95,8 +100,8 @@ impl DeviceManager {
                             duration_secs: duration,
                             bin_x,
                             bin_y,
-                            gain: Some(gain),
-                            offset: Some(offset),
+                            gain,
+                            offset,
                             subframe: None,
                             readout_mode: None,
                         };
@@ -118,15 +123,20 @@ impl DeviceManager {
                 let cameras = self.alpaca_cameras.read().await;
                 if let Some(camera) = cameras.get(device_id) {
                     tracing::info!("DeviceManager: Calling AlpacaCamera.start_exposure()");
-                    // Set gain and offset before exposure - propagate errors
-                    camera
-                        .set_gain(gain)
-                        .await
-                        .map_err(|e| DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to set Alpaca camera gain: {}", e)))?;
-                    camera
-                        .set_offset(offset)
-                        .await
-                        .map_err(|e| DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to set Alpaca camera offset: {}", e)))?;
+                    // Set gain and offset before exposure - propagate errors.
+                    // Only when the node specified them (None = leave unchanged).
+                    if let Some(g) = gain {
+                        camera
+                            .set_gain(g)
+                            .await
+                            .map_err(|e| DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to set Alpaca camera gain: {}", e)))?;
+                    }
+                    if let Some(o) = offset {
+                        camera
+                            .set_offset(o)
+                            .await
+                            .map_err(|e| DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to set Alpaca camera offset: {}", e)))?;
+                    }
                     // Set binning - propagate errors
                     camera
                         .set_bin_x(bin_x)
@@ -154,24 +164,30 @@ impl DeviceManager {
                     if let Some(client) = clients.get(&server_key) {
                         tracing::info!("DeviceManager: Starting INDI exposure on {}", device_name);
                         let mut locked_client = client.write().await;
-                        // Set gain/offset if supported - some INDI cameras don't support these, so warn but continue
-                        if let Err(e) = locked_client
-                            .set_number(&device_name, "CCD_CONTROLS", "Gain", gain as f64)
-                            .await
-                        {
-                            tracing::warn!(
-                                "Failed to set INDI camera gain (device may not support it): {}",
-                                e
-                            );
+                        // Set gain/offset if the node specified them (None =
+                        // leave unchanged). Some INDI cameras don't support
+                        // these, so warn but continue.
+                        if let Some(g) = gain {
+                            if let Err(e) = locked_client
+                                .set_number(&device_name, "CCD_CONTROLS", "Gain", g as f64)
+                                .await
+                            {
+                                tracing::warn!(
+                                    "Failed to set INDI camera gain (device may not support it): {}",
+                                    e
+                                );
+                            }
                         }
-                        if let Err(e) = locked_client
-                            .set_number(&device_name, "CCD_CONTROLS", "Offset", offset as f64)
-                            .await
-                        {
-                            tracing::warn!(
-                                "Failed to set INDI camera offset (device may not support it): {}",
-                                e
-                            );
+                        if let Some(o) = offset {
+                            if let Err(e) = locked_client
+                                .set_number(&device_name, "CCD_CONTROLS", "Offset", o as f64)
+                                .await
+                            {
+                                tracing::warn!(
+                                    "Failed to set INDI camera offset (device may not support it): {}",
+                                    e
+                                );
+                            }
                         }
                         // Set binning - propagate errors since binning is typically supported
                         locked_client
@@ -208,8 +224,8 @@ impl DeviceManager {
                         duration_secs: duration,
                         bin_x,
                         bin_y,
-                        gain: Some(gain),
-                        offset: Some(offset),
+                        gain,
+                        offset,
                         subframe: None,
                         readout_mode: None,
                     };

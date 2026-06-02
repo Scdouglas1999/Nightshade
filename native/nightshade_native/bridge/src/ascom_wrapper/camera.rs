@@ -433,10 +433,91 @@ impl AscomCameraWrapper {
                     }
                     AscomCommand::StartExposure(params, reply) => {
                         tracing::info!(
-                            "ASCOM: StartExposure called with duration={}",
-                            params.duration_secs
+                            "ASCOM: StartExposure called with duration={} bin={}x{} gain={:?} offset={:?}",
+                            params.duration_secs,
+                            params.bin_x,
+                            params.bin_y,
+                            params.gain,
+                            params.offset
                         );
                         if let Some(cam) = &mut camera {
+                            // Apply the per-frame acquisition parameters BEFORE
+                            // exposing. Previously this handler ignored
+                            // gain/offset/binning/subframe and shot every frame
+                            // at the camera's current settings — a silent
+                            // mis-acquisition for any per-filter-gain or binned
+                            // night (Alpaca/INDI/native all apply these). Order
+                            // matters on ASCOM: binning must be set before frame
+                            // geometry because NumX/NumY are in *binned* pixels.
+                            // Fail closed on any setter error.
+                            let mut apply = || -> Result<(), String> {
+                                // 1. Binning (validate against the driver max).
+                                let max_bin_x = cam.max_bin_x().unwrap_or(1);
+                                let max_bin_y = cam.max_bin_y().unwrap_or(1);
+                                if params.bin_x > max_bin_x || params.bin_y > max_bin_y {
+                                    return Err(format!(
+                                        "Binning {}x{} exceeds max {}x{}",
+                                        params.bin_x, params.bin_y, max_bin_x, max_bin_y
+                                    ));
+                                }
+                                cam.set_bin_x(params.bin_x)
+                                    .and_then(|_| cam.set_bin_y(params.bin_y))
+                                    .map_err(|e| format!("Failed to set binning: {}", e))?;
+
+                                // 2. Frame geometry, in binned pixels. A subframe
+                                // is validated against the binned sensor size;
+                                // None means full frame = sensor_size / bin.
+                                let bx = params.bin_x.max(1);
+                                let by = params.bin_y.max(1);
+                                let max_x = cam.camera_x_size().unwrap_or(1) / bx;
+                                let max_y = cam.camera_y_size().unwrap_or(1) / by;
+                                match &params.subframe {
+                                    Some(sf) => {
+                                        if sf.start_x as i32 + sf.width as i32 > max_x
+                                            || sf.start_y as i32 + sf.height as i32 > max_y
+                                        {
+                                            return Err(
+                                                "Subframe exceeds (binned) sensor bounds"
+                                                    .to_string(),
+                                            );
+                                        }
+                                        cam.set_start_x(sf.start_x as i32)
+                                            .and_then(|_| cam.set_start_y(sf.start_y as i32))
+                                            .and_then(|_| cam.set_num_x(sf.width as i32))
+                                            .and_then(|_| cam.set_num_y(sf.height as i32))
+                                            .map_err(|e| format!("Failed to set subframe: {}", e))?;
+                                    }
+                                    None => {
+                                        cam.set_start_x(0)
+                                            .and_then(|_| cam.set_start_y(0))
+                                            .and_then(|_| cam.set_num_x(max_x))
+                                            .and_then(|_| cam.set_num_y(max_y))
+                                            .map_err(|e| {
+                                                format!("Failed to reset to full frame: {}", e)
+                                            })?;
+                                    }
+                                }
+
+                                // 3. Gain / offset, only when the node specified
+                                // them (None = leave the camera's current value).
+                                if let Some(gain) = params.gain {
+                                    cam.set_gain(gain)
+                                        .map_err(|e| format!("Failed to set gain: {}", e))?;
+                                }
+                                if let Some(offset) = params.offset {
+                                    cam.set_offset(offset)
+                                        .map_err(|e| format!("Failed to set offset: {}", e))?;
+                                }
+                                Ok(())
+                            };
+                            if let Err(e) = apply() {
+                                tracing::error!("ASCOM: failed to apply exposure params: {}", e);
+                                let _ = reply.send(Err(format!(
+                                    "Failed to apply exposure parameters: {}",
+                                    e
+                                )));
+                                continue;
+                            }
                             tracing::info!(
                                 "ASCOM: Calling cam.start_exposure({}, true)",
                                 params.duration_secs

@@ -564,6 +564,87 @@ extension _SequenceFileDecoder on SequenceFileService {
           isEnabled: isEnabled,
         );
 
+      // Cover / calibrator / photometry nodes. These are palette-reachable
+      // and exported by the encoder, but had NO decoder case here — so any
+      // exported sequence containing one threw `FormatException` on import
+      // and the WHOLE sequence failed to load (P0). `_normalizeNodeType`
+      // lowercases and strips separators, so 'OpenCover' → 'opencover' etc.
+      case 'opencover':
+        return OpenCoverNode(
+          id: id,
+          name: name ?? 'Open Cover',
+          timeoutSecs: (json['timeoutSecs'] as num?)?.toInt() ?? 60,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'closecover':
+        return CloseCoverNode(
+          id: id,
+          name: name ?? 'Close Cover',
+          timeoutSecs: (json['timeoutSecs'] as num?)?.toInt() ?? 60,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'calibratoron':
+        return CalibratorOnNode(
+          id: id,
+          name: name ?? 'Calibrator On',
+          brightness: (json['brightness'] as num?)?.toInt() ?? 128,
+          timeoutSecs: (json['timeoutSecs'] as num?)?.toInt() ?? 30,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'calibratoroff':
+        return CalibratorOffNode(
+          id: id,
+          name: name ?? 'Calibrator Off',
+          timeoutSecs: (json['timeoutSecs'] as num?)?.toInt() ?? 30,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'sciencephotometry':
+        return SciencePhotometryNode(
+          id: id,
+          name: name ?? 'Science Photometry',
+          targetDesignation: json['targetDesignation'] as String? ?? '',
+          referenceStars: ((json['referenceStars'] as List?) ?? const [])
+              .map((e) => e.toString())
+              .toList(growable: false),
+          maxCadenceGapSecs:
+              (json['maxCadenceGapSecs'] as num?)?.toDouble() ?? 2.0,
+          filter: json['filter'] as String? ?? 'Clear',
+          exposureSecs: (json['exposureSecs'] as num?)?.toDouble() ?? 60.0,
+          count: (json['count'] as num?)?.toInt() ?? 60,
+          reduceLive: json['reduceLive'] as bool? ?? true,
+          applyDifferential: json['applyDifferential'] as bool? ?? true,
+          quality: json['quality'] is Map
+              ? PhotometryQualityGates.fromJson(
+                  (json['quality'] as Map).cast<String, dynamic>())
+              : const PhotometryQualityGates(),
+          gain: (json['gain'] as num?)?.toInt(),
+          offset: (json['offset'] as num?)?.toInt(),
+          binning: BinningMode.values.firstWhere(
+            (b) => b.name == (json['binning'] as String?),
+            orElse: () => BinningMode.one,
+          ),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
       default:
         throw FormatException('Unsupported sequence node type: $rawType');
     }

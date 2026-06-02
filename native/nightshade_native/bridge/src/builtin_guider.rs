@@ -661,8 +661,8 @@ async fn capture_guide_frame() -> Result<GuideFrame, NightshadeError> {
         .camera_start_exposure(
             &camera_id,
             config.exposure_secs,
-            config.gain,
-            config.offset,
+            Some(config.gain),
+            Some(config.offset),
             config.binning,
             config.binning,
         )

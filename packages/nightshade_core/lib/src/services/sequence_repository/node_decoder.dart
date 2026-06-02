@@ -605,6 +605,97 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           comment: props['comment'] as String?,
         );
 
+      // Cover / calibrator / photometry nodes. These are palette-reachable
+      // and were serialised by the encoder but had NO decoder case, so any
+      // saved sequence containing one threw on reload and lost the ENTIRE
+      // sequence (P0). Each accepts the canonical `nodeType` spelling plus a
+      // snake_case alias for resilience against bridge-written rows.
+      case 'openCover':
+      case 'OpenCover':
+      case 'open_cover':
+        return OpenCoverNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
+          timeoutSecs: (props['timeoutSecs'] as num?)?.toInt() ?? 60,
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
+        );
+
+      case 'closeCover':
+      case 'CloseCover':
+      case 'close_cover':
+        return CloseCoverNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
+          timeoutSecs: (props['timeoutSecs'] as num?)?.toInt() ?? 60,
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
+        );
+
+      case 'calibratorOn':
+      case 'CalibratorOn':
+      case 'calibrator_on':
+        return CalibratorOnNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
+          brightness: (props['brightness'] as num?)?.toInt() ?? 128,
+          timeoutSecs: (props['timeoutSecs'] as num?)?.toInt() ?? 30,
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
+        );
+
+      case 'calibratorOff':
+      case 'CalibratorOff':
+      case 'calibrator_off':
+        return CalibratorOffNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
+          timeoutSecs: (props['timeoutSecs'] as num?)?.toInt() ?? 30,
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
+        );
+
+      case 'sciencePhotometry':
+      case 'SciencePhotometry':
+      case 'science_photometry':
+        return SciencePhotometryNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
+          targetDesignation: props['targetDesignation'] as String? ?? '',
+          referenceStars: ((props['referenceStars'] as List?) ?? const [])
+              .map((e) => e.toString())
+              .toList(growable: false),
+          maxCadenceGapSecs:
+              (props['maxCadenceGapSecs'] as num?)?.toDouble() ?? 2.0,
+          filter: props['filter'] as String? ?? 'Clear',
+          exposureSecs: (props['exposureSecs'] as num?)?.toDouble() ?? 60.0,
+          count: (props['count'] as num?)?.toInt() ?? 60,
+          reduceLive: props['reduceLive'] as bool? ?? true,
+          applyDifferential: props['applyDifferential'] as bool? ?? true,
+          quality: props['quality'] is Map
+              ? PhotometryQualityGates.fromJson(
+                  (props['quality'] as Map).cast<String, dynamic>())
+              : const PhotometryQualityGates(),
+          gain: (props['gain'] as num?)?.toInt(),
+          offset: (props['offset'] as num?)?.toInt(),
+          binning: BinningMode.values.firstWhere(
+            (b) => b.name == (props['binning'] as String?),
+            orElse: () => BinningMode.one,
+          ),
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
+        );
+
       default:
         return null;
     }

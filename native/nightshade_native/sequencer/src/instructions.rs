@@ -4872,9 +4872,17 @@ pub async fn execute_park_dome(
         return result;
     }
 
-    // Usually parking involves closing shutter too
+    // Usually parking involves closing shutter too. This is safety-critical:
+    // a swallowed close-error here would report "parked" while the scope sits
+    // exposed under an open shutter all night. Propagate it (mirrors
+    // `execute_close_dome`) rather than discarding the Result.
     tracing::info!("Closing shutter (park sequence)...");
-    let _ = ctx.device_ops.dome_close(&dome_id).await;
+    if let Err(e) = ctx.device_ops.dome_close(&dome_id).await {
+        return InstructionResult::failure(format!(
+            "Dome parked but failed to close shutter: {}",
+            e
+        ));
+    }
 
     // Report completion
     if let Some(cb) = progress_callback {

@@ -440,6 +440,127 @@ void main() {
     expect(restoredSmart.integrationBudgetSecs, 3600);
   });
 
+  test(
+      'cover / calibrator / science-photometry nodes survive export/import '
+      '(P0 data-loss regression)', () async {
+    // These five node types were serialised by the encoder but had NO
+    // decoder case (and the cover/calibrator config was dropped on encode
+    // too). Any saved sequence containing one became permanently
+    // unloadable — the whole sequence threw on reload. This guards the fix.
+    final tempDir = await Directory.systemTemp
+        .createTemp('sequence_file_service_cover_science_');
+    addTearDown(() async => tempDir.delete(recursive: true));
+
+    final filePath = path.join(tempDir.path, 'cover_science.nseq.json');
+    final originalPlatform = FileSelectorPlatform.instance;
+    FileSelectorPlatform.instance = TestFileSelectorPlatform(
+      openPath: filePath,
+      savePath: filePath,
+    );
+    addTearDown(() => FileSelectorPlatform.instance = originalPlatform);
+
+    final root = InstructionSetNode(
+      id: 'root',
+      childIds: const [
+        'open-cover',
+        'calib-on',
+        'science',
+        'calib-off',
+        'close-cover',
+      ],
+    );
+    final openCover =
+        OpenCoverNode(id: 'open-cover', parentId: 'root', timeoutSecs: 90);
+    final calibOn = CalibratorOnNode(
+      id: 'calib-on',
+      parentId: 'root',
+      brightness: 200,
+      timeoutSecs: 45,
+    );
+    final science = SciencePhotometryNode(
+      id: 'science',
+      parentId: 'root',
+      targetDesignation: 'V0376 Per',
+      referenceStars: const ['ref-a', 'ref-b'],
+      maxCadenceGapSecs: 1.5,
+      filter: 'V',
+      exposureSecs: 30,
+      count: 120,
+      reduceLive: false,
+      applyDifferential: false,
+      quality: const PhotometryQualityGates(
+        minSnr: 75,
+        maxFwhmArcsec: 3.5,
+        requireAllRefsVisible: false,
+        maxAirmass: 2.0,
+      ),
+      gain: 100,
+      offset: 20,
+      binning: BinningMode.two,
+    );
+    final calibOff =
+        CalibratorOffNode(id: 'calib-off', parentId: 'root', timeoutSecs: 25);
+    final closeCover =
+        CloseCoverNode(id: 'close-cover', parentId: 'root', timeoutSecs: 75);
+
+    final sequence = Sequence.create(
+      id: 'seq-cover-science',
+      name: 'Cover + science round trip',
+      rootNodeId: 'root',
+      nodes: {
+        'root': root,
+        'open-cover': openCover,
+        'calib-on': calibOn,
+        'science': science,
+        'calib-off': calibOff,
+        'close-cover': closeCover,
+      },
+    );
+
+    final service = SequenceFileService();
+    await service.exportSequence(sequence, forceExport: true);
+    final imported = await service.importSequence();
+
+    expect(imported, isNotNull, reason: 'sequence must reload, not throw');
+    expect(imported!.nodes.length, 6);
+
+    final reOpen = imported.nodes['open-cover'];
+    expect(reOpen, isA<OpenCoverNode>());
+    expect((reOpen as OpenCoverNode).timeoutSecs, 90);
+
+    final reCalibOn = imported.nodes['calib-on'];
+    expect(reCalibOn, isA<CalibratorOnNode>());
+    expect((reCalibOn as CalibratorOnNode).brightness, 200);
+    expect(reCalibOn.timeoutSecs, 45);
+
+    final reCalibOff = imported.nodes['calib-off'];
+    expect(reCalibOff, isA<CalibratorOffNode>());
+    expect((reCalibOff as CalibratorOffNode).timeoutSecs, 25);
+
+    final reClose = imported.nodes['close-cover'];
+    expect(reClose, isA<CloseCoverNode>());
+    expect((reClose as CloseCoverNode).timeoutSecs, 75);
+
+    final reSci = imported.nodes['science'];
+    expect(reSci, isA<SciencePhotometryNode>());
+    final sci = reSci as SciencePhotometryNode;
+    expect(sci.targetDesignation, 'V0376 Per');
+    expect(sci.referenceStars, ['ref-a', 'ref-b']);
+    expect(sci.maxCadenceGapSecs, 1.5);
+    expect(sci.filter, 'V');
+    expect(sci.exposureSecs, 30);
+    expect(sci.count, 120);
+    expect(sci.reduceLive, isFalse);
+    expect(sci.applyDifferential, isFalse);
+    expect(sci.gain, 100);
+    expect(sci.offset, 20);
+    expect(sci.binning, BinningMode.two);
+    expect(sci.quality.minSnr, 75);
+    expect(sci.quality.maxFwhmArcsec, 3.5);
+    expect(sci.quality.requireAllRefsVisible, isFalse);
+    expect(sci.quality.maxAirmass, 2.0);
+  });
+
   test('exportSequence honours forceExport flag and writes even with errors',
       () async {
     final tempDir = await Directory.systemTemp

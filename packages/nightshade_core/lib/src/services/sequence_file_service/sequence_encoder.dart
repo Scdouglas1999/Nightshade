@@ -290,15 +290,27 @@ extension _SequenceFileEncoder on SequenceFileService {
           'pluginName': node.pluginName,
           'iconHint': node.iconHint,
         },
+      // Cover / calibrator nodes carry config (timeout, brightness) that must
+      // be exported — previously lumped into the empty-props group, silently
+      // dropping these fields on save/export.
+      OpenCoverNode() => <String, dynamic>{
+          'timeoutSecs': node.timeoutSecs,
+        },
+      CloseCoverNode() => <String, dynamic>{
+          'timeoutSecs': node.timeoutSecs,
+        },
+      CalibratorOnNode() => <String, dynamic>{
+          'brightness': node.brightness,
+          'timeoutSecs': node.timeoutSecs,
+        },
+      CalibratorOffNode() => <String, dynamic>{
+          'timeoutSecs': node.timeoutSecs,
+        },
       // Side-effect-only nodes have no type-specific fields beyond the base.
       InstructionSetNode() ||
       StopGuidingNode() ||
       ParkNode() ||
-      UnparkNode() ||
-      OpenCoverNode() ||
-      CloseCoverNode() ||
-      CalibratorOnNode() ||
-      CalibratorOffNode() =>
+      UnparkNode() =>
         const <String, dynamic>{},
     };
 
