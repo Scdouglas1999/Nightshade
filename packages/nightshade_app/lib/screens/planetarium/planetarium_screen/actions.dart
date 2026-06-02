@@ -738,6 +738,94 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
     );
   }
 
+  /// Surfaces the desktop side-column (SidebarTabs → Tonight / Catalog / Lists
+  /// / Search / Info) on phones as a draggable bottom sheet. The mobile layout
+  /// has no room for the always-visible side panel, so it lives behind a FAB.
+  ///
+  /// We reuse the exact desktop composition — [SearchHeader] +
+  /// [DefaultTabController] (length 5) hosting [SidebarTabs] and the five tab
+  /// bodies — so there is no divergent mobile state. The tab bodies rely on a
+  /// bounded height (they contain `Expanded`/`ListView`), which the
+  /// [DraggableScrollableSheet]'s sized child provides.
+  void _showSidebarPanelSheet(BuildContext context, NightshadeColors colors) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => DraggableScrollableSheet(
+        // Start near-full so the tabbed content has usable height even in the
+        // very short Z Fold cover-landscape window; allow dragging up to full
+        // and down to a peek.
+        initialChildSize: 0.85,
+        minChildSize: 0.4,
+        maxChildSize: 0.95,
+        expand: false,
+        builder: (context, scrollController) => Container(
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+            border: Border.all(color: colors.border),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              children: [
+                Center(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(vertical: 12),
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colors.textMuted,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                SearchHeader(
+                  colors: colors,
+                  controller: _searchController,
+                  onSearch: (query) {
+                    ref.read(objectSearchProvider.notifier).search(query);
+                  },
+                ),
+                Expanded(
+                  child: DefaultTabController(
+                    length: 5,
+                    child: Column(
+                      children: [
+                        SidebarTabs(colors: colors),
+                        Expanded(
+                          child: TabBarView(
+                            children: [
+                              TonightTab(colors: colors),
+                              CatalogTab(colors: colors),
+                              ListsTab(colors: colors),
+                              SearchResultsTab(colors: colors),
+                              // Live-watch the selection so picking an object in
+                              // Catalog/Search/Tonight immediately populates Info
+                              // without closing the sheet.
+                              Consumer(
+                                builder: (context, ref, _) => InfoTab(
+                                  colors: colors,
+                                  selectedObject:
+                                      ref.watch(selectedObjectProvider),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showMobileSearchDialog(BuildContext context, NightshadeColors colors) {
     showModalBottomSheet(
       context: context,

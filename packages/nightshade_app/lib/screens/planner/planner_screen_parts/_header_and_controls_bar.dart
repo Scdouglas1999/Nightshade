@@ -62,9 +62,17 @@ class _PlannerControlsBar extends ConsumerWidget {
     final magRange = ref.watch(availableMagnitudeRangeProvider);
     final sizeRange = ref.watch(availableSizeRangeProvider);
 
+    // Phone-tier (device-class, orientation-independent) collapses the filter
+    // cluster behind one "Filters" button. Keyed off [Responsive.isPhone] — NOT
+    // the controls bar's own width — so a wide-but-short phone landscape (e.g. a
+    // Fold cover screen at 905x369) still collapses instead of falling through
+    // to the desktop chip wrap because its *width* happens to clear 600px.
+    final isPhone = Responsive.isPhone(context);
+
     final searchField = _SearchField(
       controller: controller,
       colors: colors,
+      compact: isPhone,
       onChanged: (value) {
         final notifier = ref.read(suggestionFilterProvider.notifier);
         notifier.state = notifier.state.copyWith(searchQuery: value);
@@ -74,9 +82,9 @@ class _PlannerControlsBar extends ConsumerWidget {
     );
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(
+      padding: EdgeInsets.fromLTRB(
         NightshadeTokens.spaceLg,
-        NightshadeTokens.spaceMd,
+        isPhone ? NightshadeTokens.spaceSm : NightshadeTokens.spaceMd,
         NightshadeTokens.spaceLg,
         NightshadeTokens.spaceSm,
       ),
@@ -84,72 +92,54 @@ class _PlannerControlsBar extends ConsumerWidget {
         color: colors.surface,
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          // Phone-first: collapse the filter/sort chip cluster behind a single
-          // "Filters" button that opens a bottom sheet, so the controls bar
-          // stays a tidy two-row strip (search + one button) instead of a tall
-          // wrapping pile that pushes the candidate list off-screen. Tablet and
-          // desktop keep the inline chip row.
-          final isPhone =
-              constraints.maxWidth < BreakpointTokens.breakpointPhone;
-
-          if (isPhone) {
-            return Column(
+      child: isPhone
+          ? Row(
+              children: [
+                // Search and the Filters button share one compact row on phone
+                // so the controls bar is a single strip rather than two stacked
+                // rows — reclaiming a whole row's height for the candidate list.
+                Expanded(child: searchField),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                _FiltersSheetButton(
+                  colors: colors,
+                  activeCount: filters.activeCount,
+                  onTap: () => _openFiltersSheet(
+                    context,
+                    ref,
+                    constellations: constellations,
+                    magRange: magRange,
+                    sizeRange: sizeRange,
+                  ),
+                ),
+                if (filters.activeCount > 0) ...[
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  _ResetChip(
+                    colors: colors,
+                    onPressed: () => _resetFilters(ref),
+                  ),
+                ],
+              ],
+            )
+          : Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 searchField,
                 const SizedBox(height: NightshadeTokens.spaceSm),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _FiltersSheetButton(
-                        colors: colors,
-                        activeCount: filters.activeCount,
-                        onTap: () => _openFiltersSheet(
-                          context,
-                          ref,
-                          constellations: constellations,
-                          magRange: magRange,
-                          sizeRange: sizeRange,
-                        ),
-                      ),
-                    ),
-                    if (filters.activeCount > 0) ...[
-                      const SizedBox(width: NightshadeTokens.spaceSm),
-                      _ResetChip(
-                        colors: colors,
-                        onPressed: () => _resetFilters(ref),
-                      ),
-                    ],
-                  ],
+                Wrap(
+                  spacing: NightshadeTokens.spaceSm,
+                  runSpacing: NightshadeTokens.spaceSm,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: _ControlsBarChips(
+                    colors: colors,
+                    filters: filters,
+                    constellations: constellations,
+                    magRange: magRange,
+                    sizeRange: sizeRange,
+                    controller: controller,
+                  ).chips(ref),
                 ),
               ],
-            );
-          }
-
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              searchField,
-              const SizedBox(height: NightshadeTokens.spaceSm),
-              Wrap(
-                spacing: NightshadeTokens.spaceSm,
-                runSpacing: NightshadeTokens.spaceSm,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: _ControlsBarChips(
-                  colors: colors,
-                  filters: filters,
-                  constellations: constellations,
-                  magRange: magRange,
-                  sizeRange: sizeRange,
-                  controller: controller,
-                ).chips(ref),
-              ),
-            ],
-          );
-        },
-      ),
+            ),
     );
   }
 
@@ -336,35 +326,39 @@ class _FiltersSheetButton extends StatelessWidget {
           ).color
         : colors.surfaceAlt;
     return InkWell(
-      borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       onTap: onTap,
       child: Container(
-        height: 48,
-        padding: const EdgeInsets.symmetric(horizontal: 14),
+        // Matches the compact phone search-field height (36) so the two sit on
+        // one tidy row. A label + active-count badge keep it self-explanatory
+        // while staying narrow enough to leave the search field most of the row.
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(
             color:
                 active ? colors.primary.withValues(alpha: 0.5) : colors.border,
           ),
         ),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.slidersHorizontal, size: 16, color: fg),
-            const SizedBox(width: 8),
+            Icon(LucideIcons.slidersHorizontal, size: 15, color: fg),
+            const SizedBox(width: 6),
             Text(
-              'Filters & sort',
+              'Filters',
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: fg,
               ),
             ),
-            const Spacer(),
-            if (active)
+            if (active) ...[
+              const SizedBox(width: 6),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                 decoration: BoxDecoration(
                   color: colors.primary,
                   borderRadius:
@@ -379,8 +373,7 @@ class _FiltersSheetButton extends StatelessWidget {
                   ),
                 ),
               ),
-            const SizedBox(width: 4),
-            Icon(LucideIcons.chevronDown, size: 16, color: fg),
+            ],
           ],
         ),
       ),

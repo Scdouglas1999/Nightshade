@@ -8,14 +8,24 @@ class _SearchField extends StatelessWidget {
   final NightshadeColors colors;
   final ValueChanged<String> onChanged;
 
+  /// On phone the field tightens (shorter, smaller hint) so search + the
+  /// Filters button fit one row and the controls bar stays a single strip.
+  final bool compact;
+
   const _SearchField({
     required this.controller,
     required this.colors,
     required this.onChanged,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    // On a narrow phone row the long hint never fully shows anyway; a short
+    // hint reads better and avoids an awkward mid-word clip.
+    final hint = compact
+        ? 'Search catalogs'
+        : 'Search tonight candidates and installed catalogs';
     return SizedBox(
       height: 36,
       child: TextField(
@@ -24,7 +34,7 @@ class _SearchField extends StatelessWidget {
         style: TextStyle(fontSize: 13, color: colors.textPrimary),
         decoration: InputDecoration(
           isDense: true,
-          hintText: 'Search tonight candidates and installed catalogs',
+          hintText: hint,
           hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
           prefixIcon:
               Icon(LucideIcons.search, size: 16, color: colors.textMuted),
@@ -40,8 +50,10 @@ class _SearchField extends StatelessWidget {
                 ),
           filled: true,
           fillColor: colors.surfaceAlt,
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          contentPadding: EdgeInsets.symmetric(
+            horizontal: compact ? 10 : 12,
+            vertical: 8,
+          ),
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
             borderSide: BorderSide(color: colors.border),

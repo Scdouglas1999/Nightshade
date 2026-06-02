@@ -14,11 +14,13 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
         final viewport = Size(constraints.maxWidth, constraints.maxHeight);
         final sizing = AdaptiveSizing.of(context);
 
-        // FAB column height: search + filter FABs (40 each) plus a tall info
-        // FAB (56) when an object is selected, with 12 px gaps. Estimated up
-        // front so the resolver can keep the mini-map clear of it.
+        // FAB column height: panel + search + filter FABs (40 each) plus a tall
+        // info FAB (56) when an object is selected, with 12 px gaps. Estimated
+        // up front so the resolver can keep the mini-map clear of it.
         final hasInfoFab = selectedObject.object != null;
-        final fabHeight = hasInfoFab ? (40 + 12 + 40 + 12 + 56) : (40 + 12 + 40);
+        final fabHeight = hasInfoFab
+            ? (40 + 12 + 40 + 12 + 40 + 12 + 56)
+            : (40 + 12 + 40 + 12 + 40);
         final slots = MobileOverlaySlots.resolve(
           viewport: viewport,
           safeArea: media.padding,
@@ -204,6 +206,17 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // Opens the desktop side column (Tonight / Catalog / Lists /
+                  // Search / Info) as a draggable sheet — otherwise unreachable
+                  // on phones, which have no room for the always-on panel.
+                  FloatingActionButton.small(
+                    heroTag: 'panel_fab',
+                    backgroundColor: colors.surface.withValues(alpha: 0.9),
+                    onPressed: () => _showSidebarPanelSheet(context, colors),
+                    child: Icon(LucideIcons.layers,
+                        size: 20, color: colors.textPrimary),
+                  ),
+                  const SizedBox(height: 12),
                   FloatingActionButton.small(
                     key: PlanetariumTutorialKeys.search,
                     heroTag: 'search_fab',

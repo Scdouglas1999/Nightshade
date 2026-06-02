@@ -213,6 +213,23 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
       'its enum index and the list must cover every value.',
     );
 
+    // On a phone the bottom nav already names the screen, so the standalone
+    // ~56px "Plan Tonight" title row is dead vertical space — costly on a short
+    // landscape phone (e.g. a Fold cover screen). Fold a compact title inline to
+    // the left of the (scrollable) tab strip so the two collapse into a single
+    // row. Tablet/desktop keep the full title header above the tabs.
+    final isPhone = Responsive.isPhone(context);
+
+    final tabBar = AdaptiveTabBar(
+      tabs: [for (final t in tabs) t.$2],
+      selectedIndex: _currentSubTab,
+      onSelected: (index) => setState(() => _currentSubTab = index),
+      // On phone the leading title icon already supplies the left inset, so the
+      // tab strip starts tight against it.
+      horizontalPadding:
+          isPhone ? NightshadeTokens.spaceSm : NightshadeTokens.spaceLg,
+    );
+
     return Scaffold(
       backgroundColor: colors.background,
       body: SafeArea(
@@ -220,17 +237,30 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
         bottom: false,
         child: Column(
           children: [
-            _PlannerHeader(colors: colors),
+            if (!isPhone) _PlannerHeader(colors: colors),
             Container(
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
                 border: Border(bottom: BorderSide(color: colors.border)),
               ),
-              child: AdaptiveTabBar(
-                tabs: [for (final t in tabs) t.$2],
-                selectedIndex: _currentSubTab,
-                onSelected: (index) => setState(() => _currentSubTab = index),
-              ),
+              child: isPhone
+                  ? Row(
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(
+                            left: NightshadeTokens.spaceLg,
+                            right: NightshadeTokens.spaceSm,
+                          ),
+                          child: Icon(
+                            LucideIcons.moonStar,
+                            size: 18,
+                            color: colors.primary,
+                          ),
+                        ),
+                        Expanded(child: tabBar),
+                      ],
+                    )
+                  : tabBar,
             ),
             Expanded(
               child: IndexedStack(
