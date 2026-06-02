@@ -1039,10 +1039,10 @@ pub struct TargetSchedulerConfig {
     pub finish_iteration_on_switch: bool,
 
     /// Optional HARD moon-avoidance gate in degrees. When set, the scheduler
-    /// marks any target within this angular separation of an up,
-    /// >=10%-illuminated moon as not-runnable (with a skip reason), regardless
-    /// of its score — matching NINA/Ekos moon avoidance. `None` (default) keeps
-    /// only the existing soft moon-distance score.
+    /// marks any target within this angular separation of an up, at-least-10%
+    /// illuminated moon as not-runnable (with a skip reason), regardless of its
+    /// score — matching NINA/Ekos moon avoidance. `None` (default) keeps only
+    /// the existing soft moon-distance score.
     #[serde(default)]
     pub min_moon_separation_deg: Option<f64>,
 
