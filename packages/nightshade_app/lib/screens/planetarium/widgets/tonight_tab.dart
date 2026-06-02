@@ -709,7 +709,7 @@ class _LocationIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(12),
+      padding: EdgeInsets.all(Responsive.isPhone(context) ? 8 : 12),
       decoration: BoxDecoration(
         color: isDefaultLocation
             ? colors.warning.withValues(alpha: 0.1)

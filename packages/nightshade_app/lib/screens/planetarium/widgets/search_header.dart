@@ -481,8 +481,9 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
     final searchState = ref.watch(objectSearchProvider);
     final filters = searchState.filters;
 
+    final phone = Responsive.isPhone(context);
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(phone ? 8 : 16),
       decoration: BoxDecoration(
         border: Border(bottom: BorderSide(color: widget.colors.border)),
       ),

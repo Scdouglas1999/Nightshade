@@ -748,17 +748,18 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
   /// bounded height (they contain `Expanded`/`ListView`), which the
   /// [DraggableScrollableSheet]'s sized child provides.
   void _showSidebarPanelSheet(BuildContext context, NightshadeColors colors) {
+    // On a very short landscape window (e.g. the Z Fold cover ~369px), open the
+    // sheet essentially full-height so the compact header leaves real room for
+    // the tab content; on a roomy portrait phone a smaller initial peek is fine.
+    final shortScreen = MediaQuery.of(context).size.height < 450;
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => DraggableScrollableSheet(
-        // Start near-full so the tabbed content has usable height even in the
-        // very short Z Fold cover-landscape window; allow dragging up to full
-        // and down to a peek.
-        initialChildSize: 0.85,
+        initialChildSize: shortScreen ? 0.97 : 0.85,
         minChildSize: 0.4,
-        maxChildSize: 0.95,
+        maxChildSize: 0.97,
         expand: false,
         builder: (context, scrollController) => Container(
           decoration: BoxDecoration(
@@ -772,7 +773,7 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
               children: [
                 Center(
                   child: Container(
-                    margin: const EdgeInsets.symmetric(vertical: 12),
+                    margin: EdgeInsets.symmetric(vertical: shortScreen ? 5 : 12),
                     width: 40,
                     height: 4,
                     decoration: BoxDecoration(

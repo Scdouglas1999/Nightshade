@@ -34,13 +34,17 @@ class SidebarTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final controller = DefaultTabController.of(context);
+    // On phone (esp. the short cover-screen sheet) use the dense pill + tighter
+    // padding/gaps so the 5-tab row claims far less of the scarce height.
+    final dense = Responsive.isPhone(context);
+    final gap = dense ? 4.0 : 6.0;
 
     return Container(
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
-      padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+      padding: EdgeInsets.all(dense ? 4 : 6),
       child: AnimatedBuilder(
         animation: controller.animation!,
         builder: (context, _) {
@@ -48,7 +52,7 @@ class SidebarTabs extends StatelessWidget {
           return Row(
             children: [
               for (var i = 0; i < _tabs.length; i++) ...[
-                if (i > 0) const SizedBox(width: 6),
+                if (i > 0) SizedBox(width: gap),
                 Expanded(
                   child: PillTab(
                     icon: _tabs[i].$1,
@@ -56,6 +60,7 @@ class SidebarTabs extends StatelessWidget {
                     isSelected: selected == i,
                     onTap: () => controller.animateTo(i),
                     colors: colors,
+                    dense: dense,
                   ),
                 ),
               ],
