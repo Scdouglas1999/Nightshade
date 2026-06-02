@@ -151,6 +151,12 @@ pub struct Trigger {
     /// Only used by HfrDegraded triggers; reset when condition clears.
     #[serde(skip)]
     pub hfr_bad_frame_count: u32,
+    /// P1-9: the `TriggerState::hfr_sample_seq` last consumed by this
+    /// HfrDegraded trigger. `check()` runs on the ~1Hz monitor tick; gating on
+    /// a change here makes `hfr_bad_frame_count` advance once per FRAME instead
+    /// of once per tick (which had turned `consecutive_frames` into seconds).
+    #[serde(skip, default)]
+    pub last_hfr_seq: Option<u64>,
     /// Rolling window of HFR values for FocusDrift detection.
     /// Stores recent HFR measurements to detect monotonic upward trends.
     /// Trust-patch §6: switched from `Vec<f64>` to `VecDeque<f64>` so the
@@ -221,6 +227,7 @@ impl Trigger {
             cooldown_secs: None,
             last_triggered: None,
             hfr_bad_frame_count: 0,
+            last_hfr_seq: None,
             focus_drift_hfr_window: VecDeque::new(),
             clamp_warning,
             cloud_cover_above_threshold_since: None,
@@ -301,6 +308,18 @@ impl Trigger {
                         None => return false,
                     };
 
+                    let required = (*consecutive_frames).max(1);
+                    // P1-9: only advance the consecutive-bad-frame counter when
+                    // a NEW frame has been graded. check() runs on the ~1Hz
+                    // monitor tick, so counting per tick made `consecutive_frames`
+                    // mean "seconds" — the trigger fired partway through a SINGLE
+                    // bad sub. Gate on the per-frame HFR sample sequence; on a
+                    // stale tick return the latched decision unchanged.
+                    if self.last_hfr_seq == Some(state.hfr_sample_seq) {
+                        return self.hfr_bad_frame_count >= required;
+                    }
+                    self.last_hfr_seq = Some(state.hfr_sample_seq);
+
                     // A threshold of 0.0 means "this branch is disabled" — both
                     // modes share the trigger and either alone can fire. Users
                     // typically pick one; the OR below makes the choice
@@ -335,7 +354,6 @@ impl Trigger {
                         self.hfr_bad_frame_count = 0;
                     }
 
-                    let required = (*consecutive_frames).max(1);
                     self.hfr_bad_frame_count >= required
                 }
             }
@@ -852,6 +870,10 @@ pub struct TriggerState {
     // HFR tracking
     pub baseline_hfr: Option<f64>,
     pub current_hfr: Option<f64>,
+    /// P1-9: monotonically increments each time a NEW frame's HFR is recorded
+    /// via `update_hfr`. The HfrDegraded trigger gates its consecutive-bad-frame
+    /// counter on a change here so it counts frames, not ~1Hz monitor ticks.
+    pub hfr_sample_seq: u64,
     pub autofocus_invalidated: bool,
     pub autofocus_invalidation_reason: Option<String>,
 
@@ -1010,6 +1032,7 @@ impl Default for TriggerState {
         Self {
             baseline_hfr: None,
             current_hfr: None,
+            hfr_sample_seq: 0,
             autofocus_invalidated: false,
             autofocus_invalidation_reason: None,
             current_hour_angle: None,
@@ -1086,6 +1109,9 @@ impl TriggerState {
             self.baseline_hfr = Some(hfr);
         }
         self.current_hfr = Some(hfr);
+        // P1-9: mark this as a new HFR sample so the HfrDegraded trigger counts
+        // it once (per frame) rather than once per ~1Hz evaluation tick.
+        self.hfr_sample_seq = self.hfr_sample_seq.wrapping_add(1);
     }
 
     pub fn reset_baseline_hfr(&mut self) {
@@ -1897,16 +1923,18 @@ mod tests {
         let mut state = TriggerState::new();
         state.baseline_hfr = Some(2.0);
 
-        // No change - should not trigger
-        state.current_hfr = Some(2.0);
+        // No change - should not trigger. update_hfr keeps the pre-set
+        // baseline (only sets it when None) and advances the per-frame
+        // sequence so the P1-9 frame-gate lets each check count.
+        state.update_hfr(2.0);
         assert!(!trigger.check(&state).await);
 
         // 10% increase - should not trigger
-        state.current_hfr = Some(2.2);
+        state.update_hfr(2.2);
         assert!(!trigger.check(&state).await);
 
         // 25% increase - should trigger (consecutive_frames=1, so immediate)
-        state.current_hfr = Some(2.5);
+        state.update_hfr(2.5);
         assert!(trigger.check(&state).await);
     }
 
@@ -2005,11 +2033,11 @@ mod tests {
         let mut state = TriggerState::new();
 
         // Below absolute threshold - should not trigger
-        state.current_hfr = Some(3.0);
+        state.update_hfr(3.0);
         assert!(!trigger.check(&state).await);
 
         // Above absolute threshold - should trigger
-        state.current_hfr = Some(4.0);
+        state.update_hfr(4.0);
         assert!(trigger.check(&state).await);
     }
 
@@ -2029,26 +2057,34 @@ mod tests {
         let mut state = TriggerState::new();
 
         // Frame 1: bad - should not trigger yet (need 3)
-        state.current_hfr = Some(4.0);
+        state.update_hfr(4.0);
         assert!(!trigger.check(&state).await);
         assert_eq!(trigger.hfr_bad_frame_count, 1);
 
+        // P1-9: a re-evaluation of the SAME frame (the ~1Hz monitor tick) must
+        // NOT advance the counter — it counts frames, not ticks. Without the
+        // fix this would have bumped the count toward firing within one sub.
+        assert!(!trigger.check(&state).await);
+        assert_eq!(trigger.hfr_bad_frame_count, 1, "same frame must not re-count");
+
         // Frame 2: bad - still not enough
+        state.update_hfr(4.0);
         assert!(!trigger.check(&state).await);
         assert_eq!(trigger.hfr_bad_frame_count, 2);
 
         // Frame 3: bad - now should trigger
+        state.update_hfr(4.0);
         assert!(trigger.check(&state).await);
         assert_eq!(trigger.hfr_bad_frame_count, 3);
 
         // Reset: good frame resets counter
-        state.current_hfr = Some(2.0);
+        state.update_hfr(2.0);
         trigger.hfr_bad_frame_count = 0; // Reset after trigger fired
         assert!(!trigger.check(&state).await);
         assert_eq!(trigger.hfr_bad_frame_count, 0);
 
         // One bad frame after reset - not enough
-        state.current_hfr = Some(4.0);
+        state.update_hfr(4.0);
         assert!(!trigger.check(&state).await);
         assert_eq!(trigger.hfr_bad_frame_count, 1);
     }
