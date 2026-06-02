@@ -1697,7 +1697,23 @@ pub async fn execute_exposure_with_renderer(
                     )
                     .await
                 {
-                    tracing::warn!("Dither failed: {}", e);
+                    // Fail closed, matching the standalone Dither node. A dither
+                    // / settle failure usually means guiding lost the star, so
+                    // silently continuing the burst would keep exposing
+                    // undithered (walking noise) and mask a guiding problem.
+                    // Surface it as a visible event and abort the burst so the
+                    // sequence's recovery / guiding triggers can engage.
+                    let error_message = format!(
+                        "Dither failed after frame {}/{}: {}",
+                        frame, config.count, e
+                    );
+                    tracing::error!("{}", error_message);
+                    if let Some(event_tx) = &ctx.event_tx {
+                        let _ = event_tx.send(crate::executor::ExecutorEvent::Error {
+                            message: error_message.clone(),
+                        });
+                    }
+                    return InstructionResult::failure(error_message);
                 }
             }
         }
@@ -3824,107 +3840,106 @@ pub async fn execute_cool_camera(
         );
     }
 
-    // If duration specified, wait for cooling
-    if let Some(duration_mins) = config.duration_mins {
-        // 6 polls per minute = 10 s cadence; fast enough that the UI feels
-        // responsive, slow enough that a 20-min cool-down does not flood
-        // logs with hundreds of poll lines.
-        // Why: duration_mins is user-config f64 minutes (UI-bounded ~0..120);
-        // *6.0 in same range. f64 -> u32 saturates per Rust 1.45 spec; negatives
-        // clamp to 0 yielding an immediate exit from the cooling loop.
-        let steps = (duration_mins * 6.0) as u32;
+    // Always wait for the setpoint. The configured duration caps HOW LONG we
+    // wait — it does NOT decide WHETHER we wait. Previously a `None` duration
+    // returned Success immediately (camera never verified at temperature) and
+    // a duration that elapsed before convergence ALSO returned Success. Both
+    // let an unattended sequence start exposing a warm / mis-cooled sensor.
+    // Now non-convergence within the deadline is a hard failure (fail-closed).
+    //
+    // When no duration is configured we still bound the wait with a generous
+    // default so a stuck cooler cannot hang the sequence forever.
+    const DEFAULT_COOL_TIMEOUT_SECS: f64 = 900.0; // 15 min — ample for any TEC ramp
+    const POLL_SECS: f64 = 10.0;
+    let deadline_secs = config
+        .duration_mins
+        .map(|m| (m * 60.0).max(0.0))
+        .unwrap_or(DEFAULT_COOL_TIMEOUT_SECS);
+    let mut elapsed_secs = 0.0_f64;
 
-        for step in 0..steps {
-            if let Some(result) = ctx.check_cancelled() {
-                return result;
-            }
-
-            let current_temp = match ctx.device_ops.camera_get_temperature(&camera_id).await {
-                Ok(value) => value,
-                Err(e) => {
-                    return InstructionResult::failure(format!(
-                        "Failed to read camera temperature during cooling: {}",
-                        e
-                    ))
-                }
-            };
-            let cooler_power = match ctx.device_ops.camera_get_cooler_power(&camera_id).await {
-                Ok(value) => value,
-                Err(e) => {
-                    return InstructionResult::failure(format!(
-                        "Failed to read camera cooler power: {}",
-                        e
-                    ))
-                }
-            };
-
-            // Direction-agnostic progress: (current - start) / (target -
-            // start). Works for both cooling and warming because both
-            // numerator and denominator carry the same sign convention.
-            // Clamped to [0, 100] so transient temperature wobbles do not
-            // produce nonsensical progress jumps in the UI.
-            let temp_progress = if temp_range > 0.1 {
-                let raw = (current_temp - start_temp) / (target_temp - start_temp) * 100.0;
-                raw.clamp(0.0, 100.0)
-            } else {
-                100.0
-            };
-
-            // Time-based progress is the floor: even if the camera fails
-            // to cool, the bar advances toward 100% as the user-configured
-            // duration runs out, signalling that the wait is finite.
-            // Why: step and steps are u32 bounded by the cooling-loop config
-            // (UI-bound minutes * 6); lossless to f64.
-            let time_progress = f64::from(step) / f64::from(steps) * 100.0;
-
-            let progress = temp_progress.max(time_progress);
-
-            tracing::debug!(
-                "Cooling progress: {:.1}%, current temp: {:.1}°C, power: {:.0}%",
-                progress,
-                current_temp,
-                cooler_power
-            );
-
-            if let Some(cb) = progress_callback {
-                cb(
-                    progress,
-                    format!(
-                        "Cooling: {:.1}°C → {:.1}°C ({:.0}% power)",
-                        current_temp, target_temp, cooler_power
-                    ),
-                );
-            }
-
-            if (current_temp - target_temp).abs() < 0.5 {
-                let final_power = match ctx.device_ops.camera_get_cooler_power(&camera_id).await {
-                    Ok(value) => value,
-                    Err(e) => {
-                        return InstructionResult::failure(format!(
-                            "Failed to read camera cooler power: {}",
-                            e
-                        ))
-                    }
-                };
-                let msg = format!(
-                    "Target reached: {:.1}°C ({:.0}% power)",
-                    current_temp, final_power
-                );
-                if let Some(cb) = progress_callback {
-                    cb(100.0, msg.clone());
-                }
-                return InstructionResult::success_with_message(msg);
-            }
-
-            sleep(Duration::from_secs(10)).await;
+    loop {
+        if let Some(result) = ctx.check_cancelled() {
+            return result;
         }
-    }
 
-    if let Some(cb) = progress_callback {
-        cb(100.0, format!("Cooling to {}°C initiated", target_temp));
-    }
+        let current_temp = match ctx.device_ops.camera_get_temperature(&camera_id).await {
+            Ok(value) => value,
+            Err(e) => {
+                return InstructionResult::failure(format!(
+                    "Failed to read camera temperature during cooling: {}",
+                    e
+                ))
+            }
+        };
+        let cooler_power = match ctx.device_ops.camera_get_cooler_power(&camera_id).await {
+            Ok(value) => value,
+            Err(e) => {
+                return InstructionResult::failure(format!(
+                    "Failed to read camera cooler power: {}",
+                    e
+                ))
+            }
+        };
 
-    InstructionResult::success_with_message(format!("Camera cooling set to {}°C", target_temp))
+        // Direction-agnostic progress: (current - start) / (target - start).
+        // Works for both cooling and warming because numerator and denominator
+        // share a sign convention. Clamped so transient wobbles don't jump.
+        let temp_progress = if temp_range > 0.1 {
+            let raw = (current_temp - start_temp) / (target_temp - start_temp) * 100.0;
+            raw.clamp(0.0, 100.0)
+        } else {
+            100.0
+        };
+        // Time-based progress is the floor: even if the camera struggles to
+        // cool, the bar advances toward 100% as the deadline runs out, so the
+        // user can see the wait is finite.
+        let time_progress = if deadline_secs > 0.0 {
+            (elapsed_secs / deadline_secs * 100.0).clamp(0.0, 100.0)
+        } else {
+            100.0
+        };
+        let progress = temp_progress.max(time_progress);
+
+        tracing::debug!(
+            "Cooling progress: {:.1}%, current temp: {:.1}°C, power: {:.0}%",
+            progress,
+            current_temp,
+            cooler_power
+        );
+
+        if let Some(cb) = progress_callback {
+            cb(
+                progress,
+                format!(
+                    "Cooling: {:.1}°C → {:.1}°C ({:.0}% power)",
+                    current_temp, target_temp, cooler_power
+                ),
+            );
+        }
+
+        if (current_temp - target_temp).abs() < 0.5 {
+            let msg = format!(
+                "Target reached: {:.1}°C ({:.0}% power)",
+                current_temp, cooler_power
+            );
+            if let Some(cb) = progress_callback {
+                cb(100.0, msg.clone());
+            }
+            return InstructionResult::success_with_message(msg);
+        }
+
+        if elapsed_secs >= deadline_secs {
+            // Fail closed: the sensor did not reach the setpoint in time.
+            return InstructionResult::failure(format!(
+                "Camera did not reach target {:.1}°C within {:.0}s \
+                 (last {:.1}°C, {:.0}% power)",
+                target_temp, deadline_secs, current_temp, cooler_power
+            ));
+        }
+
+        sleep(Duration::from_secs_f64(POLL_SECS)).await;
+        elapsed_secs += POLL_SECS;
+    }
 }
 
 /// Execute camera warming
@@ -4040,7 +4055,33 @@ pub async fn execute_rotator_move(
         cb(0.0, format!("Moving to {:.1}", config.target_angle));
     }
 
-    let result = if config.relative {
+    // Normalise an angle into [0, 360).
+    let normalize = |a: f64| -> f64 {
+        let r = a.rem_euclid(360.0);
+        if r.is_finite() {
+            r
+        } else {
+            0.0
+        }
+    };
+
+    // Resolve the ABSOLUTE target so we can verify arrival even for a relative
+    // move — we must read the current angle BEFORE issuing the move.
+    let target_abs = if config.relative {
+        match ctx.device_ops.rotator_get_angle(&rotator_id).await {
+            Ok(current) => normalize(current + config.target_angle),
+            Err(e) => {
+                return InstructionResult::failure(format!(
+                    "Failed to read rotator angle before relative move: {}",
+                    e
+                ))
+            }
+        }
+    } else {
+        normalize(config.target_angle)
+    };
+
+    let move_result = if config.relative {
         ctx.device_ops
             .rotator_move_relative(&rotator_id, config.target_angle)
             .await
@@ -4049,15 +4090,57 @@ pub async fn execute_rotator_move(
             .rotator_move_to(&rotator_id, config.target_angle)
             .await
     };
+    if let Err(e) = move_result {
+        return InstructionResult::failure(format!("Rotator move failed: {}", e));
+    }
 
-    match result {
-        Ok(_) => {
-            if let Some(cb) = progress_callback {
-                cb(100.0, format!("At {:.1}", config.target_angle));
-            }
-            InstructionResult::success_with_message(format!("Rotator at {}", config.target_angle))
+    // Poll until the rotator actually REACHES the target angle. The move call
+    // only issues the move on most drivers (ASCOM/Alpaca/INDI return as soon
+    // as the command is accepted), so returning here previously let the next
+    // instruction (e.g. an exposure) start while the camera angle was still
+    // slewing — smearing field rotation across the frame and breaking any
+    // rotation-matched mosaic/flat. Verify arrival within tolerance and fail
+    // closed if it never settles.
+    const ROTATOR_TOLERANCE_DEG: f64 = 1.0;
+    const ROTATOR_TIMEOUT_SECS: f64 = 120.0;
+    const POLL_SECS: f64 = 1.0;
+    let mut elapsed = 0.0_f64;
+    loop {
+        if let Some(result) = ctx.check_cancelled() {
+            return result;
         }
-        Err(e) => InstructionResult::failure(format!("Rotator move failed: {}", e)),
+        let current = match ctx.device_ops.rotator_get_angle(&rotator_id).await {
+            Ok(a) => a,
+            Err(e) => {
+                return InstructionResult::failure(format!(
+                    "Failed to read rotator angle during move: {}",
+                    e
+                ))
+            }
+        };
+        // Smallest signed angular distance, accounting for the 360° wrap.
+        let diff = (current - target_abs + 540.0).rem_euclid(360.0) - 180.0;
+        if diff.abs() <= ROTATOR_TOLERANCE_DEG {
+            if let Some(cb) = progress_callback {
+                cb(100.0, format!("At {:.1}", current));
+            }
+            return InstructionResult::success_with_message(format!(
+                "Rotator at {:.1} (target {:.1})",
+                current, target_abs
+            ));
+        }
+        if elapsed >= ROTATOR_TIMEOUT_SECS {
+            return InstructionResult::failure(format!(
+                "Rotator did not reach {:.1} within {:.0}s (last {:.1})",
+                target_abs, ROTATOR_TIMEOUT_SECS, current
+            ));
+        }
+        if let Some(cb) = progress_callback {
+            let pct = (elapsed / ROTATOR_TIMEOUT_SECS * 95.0).min(95.0);
+            cb(pct, format!("Moving to {:.1} (at {:.1})", target_abs, current));
+        }
+        sleep(Duration::from_secs_f64(POLL_SECS)).await;
+        elapsed += POLL_SECS;
     }
 }
 
@@ -4753,6 +4836,101 @@ pub async fn execute_meridian_flip(
 // DOME INSTRUCTIONS
 // =============================================================================
 
+/// Maximum time to wait for a dome shutter to reach a commanded state.
+/// Dome shutters are slow (30–90 s is typical on ASCOM/Alpaca observatory
+/// domes), so this is generous. `DomeConfig` carries no per-node timeout
+/// today (the Dart node only exposes `shutterOnly`), so this is the single
+/// source of truth for the dome-shutter wait.
+const DOME_SHUTTER_TIMEOUT_SECS: f64 = 120.0;
+
+/// Poll the dome shutter status until it reaches `target` ("Open" or
+/// "Closed"), or fail closed on timeout / a reported Error.
+///
+/// P1-2: dome open/close/park were previously fire-and-forget — the command
+/// returned and the sequence moved on (slewing/exposing) while the shutter
+/// was still moving, or never opened/closed at all. The cover/calibrator
+/// nodes already poll for their target state; domes now do too.
+///
+/// Robustness: some domes (e.g. INDI roll-offs without `DOME_SHUTTER`
+/// switches) cannot report shutter state and the bridge returns
+/// Unknown/"Error" for them. We must not fail those — so if EVERY poll comes
+/// back Unknown/"Error" (the device never reports a real state), we degrade
+/// LOUDLY (warn + event) and proceed rather than blocking a working roll-off
+/// roof. If the dome ever reports a real state but never reaches `target`
+/// within the timeout, that is a genuine failure and we fail closed.
+async fn wait_for_dome_shutter_state(
+    ctx: &InstructionContext,
+    dome_id: &str,
+    target: &str,
+    progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+) -> Result<(), InstructionResult> {
+    const POLL_SECS: f64 = 2.0;
+    let mut elapsed = 0.0_f64;
+    // Whether the dome ever reported a definite (non-Unknown) state. If it
+    // never does, the device can't report status and we can't enforce a wait.
+    let mut saw_definite_state = false;
+
+    loop {
+        if let Some(result) = ctx.check_cancelled() {
+            return Err(result);
+        }
+
+        match ctx.device_ops.dome_get_shutter_status(dome_id).await {
+            Ok(status) => {
+                if status == target {
+                    return Ok(());
+                }
+                if status == "Open" || status == "Closed" || status == "Opening"
+                    || status == "Closing"
+                {
+                    saw_definite_state = true;
+                }
+
+                if let Some(cb) = progress_callback {
+                    // Hold progress in the 50–95% band while moving.
+                    let pct = (50.0 + (elapsed / DOME_SHUTTER_TIMEOUT_SECS) * 45.0).min(95.0);
+                    cb(pct, format!("Waiting for shutter ({status})"));
+                }
+            }
+            Err(e) => {
+                // A hard read error (driver fault / disconnect) is fatal —
+                // we cannot verify the shutter, which is exactly the unsafe
+                // case for a close.
+                return Err(InstructionResult::failure(format!(
+                    "Failed to read dome shutter status while waiting for {target}: {e}"
+                )));
+            }
+        }
+
+        if elapsed >= DOME_SHUTTER_TIMEOUT_SECS {
+            if saw_definite_state {
+                // The dome reports status but never reached the target — a
+                // real motor/jam failure. Fail closed.
+                return Err(InstructionResult::failure(format!(
+                    "Dome shutter did not reach {target} within {:.0}s",
+                    DOME_SHUTTER_TIMEOUT_SECS
+                )));
+            }
+            // The dome never reported a real state — it cannot report shutter
+            // position. Degrade loudly rather than failing a working dome.
+            let msg = format!(
+                "Dome shutter status unavailable; cannot confirm {target} \
+                 (proceeding after issuing the command)"
+            );
+            tracing::warn!("{msg}");
+            if let Some(event_tx) = &ctx.event_tx {
+                let _ = event_tx.send(crate::executor::ExecutorEvent::Error {
+                    message: msg,
+                });
+            }
+            return Ok(());
+        }
+
+        sleep(Duration::from_secs_f64(POLL_SECS)).await;
+        elapsed += POLL_SECS;
+    }
+}
+
 /// Execute open dome
 pub async fn execute_open_dome(
     config: &DomeConfig,
@@ -4787,6 +4965,15 @@ pub async fn execute_open_dome(
     if !config.shutter_only {
         // DeviceOps does not currently expose dome_unpark.
         // Operators must ensure dome park state is compatible with opening.
+    }
+
+    // Wait for the shutter to actually reach Open before declaring success —
+    // previously this returned immediately while the shutter was still
+    // moving, so the next instruction could slew/expose against a closed roof.
+    if let Err(failure) =
+        wait_for_dome_shutter_state(ctx, &dome_id, "Open", progress_callback).await
+    {
+        return failure;
     }
 
     // Report completion
@@ -4826,6 +5013,15 @@ pub async fn execute_close_dome(
 
     if let Err(e) = ctx.device_ops.dome_close(&dome_id).await {
         return InstructionResult::failure(format!("Failed to close dome: {}", e));
+    }
+
+    // Confirm the shutter actually reached Closed — a roof that reports
+    // "command accepted" but jams half-open would otherwise leave the scope
+    // exposed for the rest of the night.
+    if let Err(failure) =
+        wait_for_dome_shutter_state(ctx, &dome_id, "Closed", progress_callback).await
+    {
+        return failure;
     }
 
     // Report completion
@@ -4882,6 +5078,13 @@ pub async fn execute_park_dome(
             "Dome parked but failed to close shutter: {}",
             e
         ));
+    }
+
+    // Confirm the shutter reached Closed before claiming the park succeeded.
+    if let Err(failure) =
+        wait_for_dome_shutter_state(ctx, &dome_id, "Closed", progress_callback).await
+    {
+        return failure;
     }
 
     // Report completion

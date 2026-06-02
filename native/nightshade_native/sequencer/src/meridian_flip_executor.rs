@@ -611,7 +611,7 @@ impl MeridianFlipExecutor {
                     }
                 }
                 FlipStep::Refocusing => self.run_autofocus(ctx).await,
-                FlipStep::ResumingGuider => self.resume_guider().await,
+                FlipStep::ResumingGuider => self.resume_guider(ctx).await,
                 FlipStep::Settling => self.wait_settle(ctx).await,
             };
 
@@ -1083,14 +1083,59 @@ impl MeridianFlipExecutor {
         }
     }
 
-    async fn resume_guider(&self) -> Result<(), String> {
+    async fn resume_guider(&self, ctx: &FlipContext) -> Result<(), String> {
         tracing::info!("[MERIDIAN] Resuming guider...");
 
         // 1.5 px settle / 10 s settle time / 60 s timeout match the defaults
         // used by StartGuidingConfig — keeping them aligned avoids surprising
         // users with different post-flip settling behaviour than a regular
         // sequence start.
-        self.device_ops.guider_start(1.5, 10.0, 60.0).await
+        const SETTLE_PIXELS: f64 = 1.5;
+        const SETTLE_TIME: f64 = 10.0;
+        const SETTLE_TIMEOUT: f64 = 60.0;
+        self.device_ops
+            .guider_start(SETTLE_PIXELS, SETTLE_TIME, SETTLE_TIMEOUT)
+            .await?;
+
+        // guider_start() can return Ok before the guider has actually
+        // re-locked onto a star (PHD2 reports the Start accepted while
+        // re-acquisition / calibration is still in progress). Mirror
+        // execute_start_guiding's verification: poll until is_guiding and fail
+        // closed if it never re-locks — otherwise the post-flip exposures
+        // resume UNGUIDED and the rest of the night trails.
+        let poll_interval = std::time::Duration::from_secs(2);
+        let deadline =
+            tokio::time::Instant::now() + std::time::Duration::from_secs_f64(SETTLE_TIMEOUT);
+        while tokio::time::Instant::now() < deadline {
+            if self.is_cancelled(ctx) {
+                return Err("Abort requested while verifying post-flip guiding".to_string());
+            }
+            match self.device_ops.guider_get_status().await {
+                Ok(status) if status.is_guiding => {
+                    tracing::info!(
+                        "[MERIDIAN] Guiding re-locked after flip: RMS total={:.2}\"",
+                        status.rms_total
+                    );
+                    return Ok(());
+                }
+                Ok(status) => {
+                    tracing::debug!(
+                        "[MERIDIAN] Guiding not yet re-locked (is_guiding={}), waiting...",
+                        status.is_guiding
+                    );
+                }
+                Err(e) => {
+                    tracing::warn!("[MERIDIAN] Guider status poll failed: {}", e);
+                }
+            }
+            tokio::time::sleep(poll_interval).await;
+        }
+
+        Err(format!(
+            "Guiding did not re-lock within {:.0}s after the meridian flip. \
+             The guider may have failed to re-acquire a star.",
+            SETTLE_TIMEOUT
+        ))
     }
 
     async fn wait_settle(&self, ctx: &FlipContext) -> Result<(), String> {
