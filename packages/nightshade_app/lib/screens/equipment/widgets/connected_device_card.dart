@@ -254,13 +254,20 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     // overflowing a 360 px viewport.
     final cardWidth = Responsive.isPhone(context) ? double.infinity : 320.0;
 
+    // On a phone (especially landscape, ~410 px tall) the desktop card padding
+    // and inter-section gaps crowd device cards off-screen; tighten them so
+    // more cards fit without clipping.
+    final isPhone = Responsive.isPhone(context);
+    final cardPad = isPhone ? 14.0 : 20.0;
+    final sectionGap = isPhone ? 12.0 : 16.0;
+
     return SizedBox(
       width: cardWidth,
       child: GestureDetector(
         onTap: _toggleExpanded,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.all(20),
+          padding: EdgeInsets.all(cardPad),
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: BorderRadius.circular(8),
@@ -277,7 +284,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
               // affordance, shown only when the device is in an error state.
               _buildErrorSubtitle(colors, connectionState),
 
-              const SizedBox(height: 16),
+              SizedBox(height: sectionGap),
 
               // Primary Metrics Row
               _buildMetricsRow(colors),

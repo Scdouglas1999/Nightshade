@@ -25,18 +25,48 @@ class DashboardCardStyle {
 
   /// Status chip text size used in card headers.
   static const double statusChipTextSize = 10;
+
+  // --- Phone-compact variants -------------------------------------------
+  //
+  // On a phone the cockpit tiles must pack tighter — especially in landscape
+  // (~410 px tall) where desktop-sized padding/fonts crowd content off-screen.
+  // These resolvers return the compact value on the phone tier and the desktop
+  // value otherwise, so every card shrinks together (the same single-knob
+  // philosophy as the constants above). Body/title text stays >= 12.5 sp so it
+  // remains legible at arm's length.
+
+  /// Card body padding, tightened on phone.
+  static EdgeInsets contentPaddingFor(BuildContext context) =>
+      Responsive.isPhone(context)
+          ? const EdgeInsets.all(NightshadeTokens.spaceSm)
+          : contentPadding;
+
+  /// Header→body gap, tightened on phone.
+  static double headerGapFor(BuildContext context) =>
+      Responsive.isPhone(context) ? NightshadeTokens.spaceXs : headerGap;
+
+  /// Header icon glyph size, tightened on phone.
+  static double headerIconSizeFor(BuildContext context) =>
+      Responsive.isPhone(context) ? 13 : headerIconSize;
+
+  /// Header title size, tightened on phone (kept legible).
+  static double headerTitleSizeFor(BuildContext context) =>
+      Responsive.isPhone(context) ? 12.5 : headerTitleSize;
 }
 
 class DashboardGlassCard extends StatelessWidget {
   final NightshadeColors colors;
   final Widget child;
-  final EdgeInsets padding;
+
+  /// Explicit padding override. When null the card uses the phone-aware
+  /// [DashboardCardStyle.contentPaddingFor] so tiles tighten on a phone.
+  final EdgeInsets? padding;
 
   const DashboardGlassCard({
     super.key,
     required this.colors,
     required this.child,
-    this.padding = DashboardCardStyle.contentPadding,
+    this.padding,
   });
 
   @override
@@ -50,7 +80,7 @@ class DashboardGlassCard extends StatelessWidget {
         boxShadow: NightshadeTokens.elevationLevel1,
       ),
       child: Padding(
-        padding: padding,
+        padding: padding ?? DashboardCardStyle.contentPaddingFor(context),
         child: child,
       ),
     );
@@ -98,7 +128,7 @@ class DashboardCardHeader extends StatelessWidget {
           ),
           child: Icon(
             icon,
-            size: DashboardCardStyle.headerIconSize,
+            size: DashboardCardStyle.headerIconSizeFor(context),
             color: tint,
           ),
         ),
@@ -107,7 +137,7 @@ class DashboardCardHeader extends StatelessWidget {
           child: Text(
             title,
             style: TextStyle(
-              fontSize: DashboardCardStyle.headerTitleSize,
+              fontSize: DashboardCardStyle.headerTitleSizeFor(context),
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
             ),

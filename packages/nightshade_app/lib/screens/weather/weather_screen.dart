@@ -17,6 +17,12 @@ part 'weather_screen/header_and_radar_controls.dart';
 part 'weather_screen/safety_and_settings.dart';
 part 'weather_screen/cloud_and_hardware.dart';
 
+/// Internal body padding for the weather data cards, tightened on a phone so
+/// the radar + data columns aren't crowded by desktop-sized padding — most
+/// acute in landscape (~410 px tall) and in the narrow right data column.
+EdgeInsets _weatherCardPadding(BuildContext context) =>
+    EdgeInsets.all(Responsive.isPhone(context) ? 14 : 20);
+
 /// Full weather monitoring screen with radar map, timeline, and status display.
 ///
 /// Provides comprehensive weather monitoring capabilities including:
@@ -151,14 +157,25 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
         opacity: _fadeAnimation,
         child: LayoutBuilder(
           builder: (context, constraints) {
-            final isWide =
+            // A phone is a phone in either orientation: held in landscape it
+            // reports a tablet/desktop-ish WIDTH (~932 px) but is still a phone
+            // and must NOT take the desktop multi-column / tall-radar layouts —
+            // those overflow its short (~430 px) height. Decide the structure
+            // on device class first; the desktop tiers only apply on real
+            // tablets/desktops (or a narrowed desktop window, where
+            // `Responsive.isPhone` falls back to live width).
+            final isPhone = Responsive.isPhone(context) ||
+                MediaQuery.sizeOf(context).shortestSide <
+                    BreakpointTokens.breakpointPhone;
+            final isWide = !isPhone &&
                 constraints.maxWidth > NightshadeTokens.breakpointDesktopLg;
-            final isMedium =
+            final isMedium = !isPhone &&
                 constraints.maxWidth > NightshadeTokens.breakpointTablet;
-            // Phone landscape: enough width to put the map beside the data
-            // column without forcing it. Drive purely off the region's own
-            // constraints so embedded/rotated cases are correct.
-            final isPhoneLandscape = constraints.maxWidth < 600 &&
+            // Phone landscape: enough width to put the map beside the scrolling
+            // data column. Any landscape phone qualifies (a large phone is
+            // ~932 px wide in landscape); below 560 px the stacked fallback
+            // reads better, so keep that floor.
+            final isPhoneLandscape = isPhone &&
                 constraints.maxWidth > constraints.maxHeight &&
                 constraints.maxWidth >= 560;
 
@@ -475,14 +492,41 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
               flex: 3,
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
-                child: Column(
-                  children: [
-                    Expanded(child: radarStack),
-                    const SizedBox(height: 12),
-                    scrubber,
-                    const SizedBox(height: 12),
-                    controlsRow,
-                  ],
+                child: LayoutBuilder(
+                  builder: (context, paneConstraints) {
+                    // The scrubber + control sliders have a fixed intrinsic
+                    // height; on a short landscape phone (~310 px tall pane)
+                    // they can leave no room for the map. Reserve a legible
+                    // minimum for the map and, when the pane is too short to
+                    // fit map + controls together, let the whole left column
+                    // scroll instead of hard-overflowing.
+                    const minRadarHeight = 140.0;
+                    const controlsEstimate = 170.0;
+                    final fits = paneConstraints.maxHeight >=
+                        minRadarHeight + controlsEstimate;
+                    if (fits) {
+                      return Column(
+                        children: [
+                          Expanded(child: radarStack),
+                          const SizedBox(height: 12),
+                          scrubber,
+                          const SizedBox(height: 12),
+                          controlsRow,
+                        ],
+                      );
+                    }
+                    return SingleChildScrollView(
+                      child: Column(
+                        children: [
+                          SizedBox(height: minRadarHeight, child: radarStack),
+                          const SizedBox(height: 12),
+                          scrubber,
+                          const SizedBox(height: 12),
+                          controlsRow,
+                        ],
+                      ),
+                    );
+                  },
                 ),
               ),
             ),

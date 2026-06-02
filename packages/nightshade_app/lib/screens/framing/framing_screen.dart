@@ -327,6 +327,14 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
       onGoToManualCoordinates: _goToManualCoordinates,
     );
 
+    // Phone (device-class) tightens the section rhythm: the controls live in a
+    // short bottom sheet / narrow landscape side panel where the desktop 20 px
+    // gaps + 16 px gutter waste scarce vertical/horizontal space. Tablet/desktop
+    // keep the roomier spacing.
+    final isPhone = Responsive.isPhone(context);
+    final sectionGap = isPhone ? 12.0 : 20.0;
+    final bodyPadding = EdgeInsets.all(isPhone ? 12 : 16);
+
     final panels = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -334,30 +342,30 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
           colors: colors,
           equipmentAsync: equipmentResult,
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: sectionGap),
         FramingControlsSection(
           colors: colors,
           framingState: framingState,
           equipmentAsync: equipmentResult,
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: sectionGap),
         FramingCoordinatesPanel(
           colors: colors,
           framingState: framingState,
           currentAltAz: currentAltAz,
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: sectionGap),
         FramingAltitudePanel(
           colors: colors,
           framingState: framingState,
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: sectionGap),
         FramingMosaicSection(
           colors: colors,
           framingState: framingState,
           equipmentAsync: equipmentResult,
         ),
-        const SizedBox(height: 20),
+        SizedBox(height: sectionGap),
         FramingActionsPanel(
           colors: colors,
           framingState: framingState,
@@ -385,7 +393,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
             children: [
               search,
               Padding(
-                padding: const EdgeInsets.all(16),
+                padding: bodyPadding,
                 child: panels,
               ),
             ],
@@ -398,7 +406,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
             search,
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
+                padding: bodyPadding,
                 child: panels,
               ),
             ),

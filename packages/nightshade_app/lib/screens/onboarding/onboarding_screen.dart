@@ -231,10 +231,18 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Widget _buildWizard(BuildContext context, ThemeData theme,
       NightshadeColors colors, OnboardingDraft draft) {
     // Drive the layout from the wizard's OWN width (not the raw window) so it
-    // reflows correctly when embedded and on every phone/tablet/desktop size.
+    // reflows correctly when embedded and on every phone/tablet/desktop size —
+    // but ALSO treat a real phone held in landscape as a phone. A landscape
+    // phone reports a tablet-ish width (~930) yet only ~410 px of height, where
+    // the wide layout's step sidebar + bordered body + horizontal footer is
+    // both mis-classified and far too tall. Device-class (orientation-stable
+    // short edge) catches that; the width check still handles a narrow embed on
+    // desktop.
+    final isPhoneDevice = Responsive.isPhone(context);
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isPhone = constraints.maxWidth < BreakpointTokens.breakpointPhone;
+        final isPhone = isPhoneDevice ||
+            constraints.maxWidth < BreakpointTokens.breakpointPhone;
 
         final onBack = draft.currentStep == OnboardingStep.welcome ||
                 // On the terminal step the profile is already created; there is
@@ -350,23 +358,31 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     required VoidCallback? onSkipStep,
     required VoidCallback? onFirstLight,
   }) {
+    // A phone in landscape is only ~410 px tall. Tighten the chrome (less outer
+    // padding, slimmer header, single-row footer) so the step body keeps the
+    // height it needs and nothing clips. Portrait keeps the roomier spacing.
+    final compact = Responsive.isPhoneLandscape(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: EdgeInsets.symmetric(
+        horizontal: 16,
+        vertical: compact ? 8 : 12,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _PhoneHeader(
             currentStep: draft.currentStep,
             onExit: _saving ? null : _onExitWizard,
+            compact: compact,
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: compact ? 8 : 12),
           Expanded(
             child: _StepBody(
               currentStep: draft.currentStep,
               onFinishTo: _finishTo,
             ),
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: compact ? 8 : 12),
           _PhoneFooter(
             currentStep: draft.currentStep,
             isSaving: _saving,
@@ -374,6 +390,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             onSkipStep: onSkipStep,
             onNext: _saving ? null : _onNext,
             onFirstLight: onFirstLight,
+            compact: compact,
           ),
         ],
       ),
@@ -440,10 +457,18 @@ class _Header extends StatelessWidget {
 /// (the full label would crowd a 360 px row), and a step progress bar. Replaces
 /// the wide layout's sidebar, which doesn't fit a phone column.
 class _PhoneHeader extends StatelessWidget {
-  const _PhoneHeader({required this.currentStep, required this.onExit});
+  const _PhoneHeader({
+    required this.currentStep,
+    required this.onExit,
+    this.compact = false,
+  });
 
   final OnboardingStep currentStep;
   final VoidCallback? onExit;
+
+  /// Landscape-phone tier: slim the icon chip and tighten the gap between the
+  /// title row and progress bar so the header costs less vertical space.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -452,6 +477,7 @@ class _PhoneHeader extends StatelessWidget {
     final stepNumber = currentStep.order + 1;
     final total = OnboardingStepOrder.total;
     final progress = stepNumber / total;
+    final chipSize = compact ? 30.0 : 36.0;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -459,14 +485,17 @@ class _PhoneHeader extends StatelessWidget {
         Row(
           children: [
             Container(
-              width: 36,
-              height: 36,
+              width: chipSize,
+              height: chipSize,
               decoration: NightshadeDecorations.iconChip(
                 colors.primary,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child:
-                  Icon(LucideIcons.sparkles, color: colors.primary, size: 18),
+              child: Icon(
+                LucideIcons.sparkles,
+                color: colors.primary,
+                size: compact ? 16 : 18,
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -475,7 +504,10 @@ class _PhoneHeader extends StatelessWidget {
                 children: [
                   Text(
                     'Set up your rig',
-                    style: theme.textTheme.titleMedium?.copyWith(
+                    style: (compact
+                            ? theme.textTheme.titleSmall
+                            : theme.textTheme.titleMedium)
+                        ?.copyWith(
                       color: colors.textPrimary,
                       fontWeight: FontWeight.w700,
                     ),
@@ -506,7 +538,7 @@ class _PhoneHeader extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 10),
+        SizedBox(height: compact ? 6 : 10),
         ClipRRect(
           borderRadius: BorderRadius.circular(999),
           child: LinearProgressIndicator(
@@ -532,6 +564,7 @@ class _PhoneFooter extends StatelessWidget {
     required this.onSkipStep,
     required this.onNext,
     required this.onFirstLight,
+    this.compact = false,
   });
 
   final OnboardingStep currentStep;
@@ -540,6 +573,11 @@ class _PhoneFooter extends StatelessWidget {
   final VoidCallback? onSkipStep;
   final VoidCallback? onNext;
   final VoidCallback? onFirstLight;
+
+  /// Landscape-phone tier: lay the secondary actions BESIDE the primary in one
+  /// row (the portrait layout stacks them beneath it) to reclaim vertical space
+  /// on the ~410 px tall viewport.
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
@@ -582,23 +620,43 @@ class _PhoneFooter extends StatelessWidget {
         ),
     ];
 
+    final primaryAction = SizedBox(
+      key: phonePrimaryActionKey,
+      height: 48,
+      child: NightshadeButton(
+        icon: primaryIcon,
+        label: primaryLabel,
+        variant: ButtonVariant.primary,
+        size: ButtonSize.large,
+        isLoading: isSaving,
+        onPressed: onNext,
+      ),
+    );
+
+    // Landscape: one row — secondary actions on the left, primary on the right
+    // (still ≥48 px tall). This trades the portrait two-row stack for a single
+    // row so the short viewport keeps more height for the step body.
+    if (compact) {
+      return Row(
+        children: [
+          for (final action in secondary) ...[
+            action,
+            const SizedBox(width: NightshadeTokens.spaceSm),
+          ],
+          const Spacer(),
+          ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 160),
+            child: primaryAction,
+          ),
+        ],
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        SizedBox(
-          key: phonePrimaryActionKey,
-          width: double.infinity,
-          height: 48,
-          child: NightshadeButton(
-            icon: primaryIcon,
-            label: primaryLabel,
-            variant: ButtonVariant.primary,
-            size: ButtonSize.large,
-            isLoading: isSaving,
-            onPressed: onNext,
-          ),
-        ),
+        SizedBox(width: double.infinity, child: primaryAction),
         if (secondary.isNotEmpty) ...[
           const SizedBox(height: NightshadeTokens.spaceSm),
           Wrap(

@@ -42,7 +42,7 @@ class _CloudCoverCard extends StatelessWidget {
     final icon = _getCloudCoverIcon(percent);
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: _weatherCardPadding(context),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(8),
@@ -91,12 +91,16 @@ class _CloudCoverCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      label,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: colors.textPrimary,
+                    Flexible(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          color: colors.textPrimary,
+                        ),
                       ),
                     ),
                   ],
@@ -158,7 +162,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
     }
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: _weatherCardPadding(context),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(8),

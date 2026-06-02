@@ -14,7 +14,7 @@ class _WeatherSafetyCard extends ConsumerWidget {
     final snoozeUntil = safetyState.snoozeUntil;
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: _weatherCardPadding(context),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(8),
@@ -138,7 +138,7 @@ class _WeatherSettingsCard extends ConsumerWidget {
     final settings = ref.watch(weatherSettingsProvider);
 
     return Container(
-      padding: const EdgeInsets.all(20),
+      padding: _weatherCardPadding(context),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(8),
@@ -162,12 +162,16 @@ class _WeatherSettingsCard extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              Text(
-                'Current Settings',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
+              Expanded(
+                child: Text(
+                  'Current Settings',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
                 ),
               ),
             ],
@@ -243,19 +247,29 @@ class _SettingRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: colors.textSecondary,
+          Flexible(
+            child: Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.textSecondary,
+              ),
             ),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-              color: valueColor ?? colors.textPrimary,
+          const SizedBox(width: 12),
+          Flexible(
+            child: Text(
+              value,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+                color: valueColor ?? colors.textPrimary,
+              ),
             ),
           ),
         ],

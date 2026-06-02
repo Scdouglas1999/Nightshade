@@ -315,55 +315,73 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
     Object error,
   ) {
     final isLocationError = error is StateError;
-    return Center(
-      child: Padding(
-        padding: NightshadeTokens.screenPadding,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              isLocationError ? LucideIcons.mapPin : LucideIcons.alertCircle,
-              size: NightshadeTokens.icon2xl,
-              color: isLocationError ? colors.warning : colors.error,
-            ),
-            const SizedBox(height: NightshadeTokens.spaceLg),
-            Text(
-              isLocationError
-                  ? context.l10n.text('plannerLocationMissingTitle')
-                  : context.l10n.text('plannerPlanFailedTitle'),
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
+    // On a phone in landscape the tab body is only ~200 px tall once the
+    // header/filters are subtracted, which is shorter than this icon + title +
+    // body + action column. Center it when there is room, but fall back to a
+    // scroll when the viewport is too short so the call-to-action button stays
+    // reachable instead of overflowing the bottom edge.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: constraints.maxHeight),
+            child: Center(
+              child: Padding(
+                padding: NightshadeTokens.screenPadding,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      isLocationError
+                          ? LucideIcons.mapPin
+                          : LucideIcons.alertCircle,
+                      size: NightshadeTokens.icon2xl,
+                      color: isLocationError ? colors.warning : colors.error,
+                    ),
+                    const SizedBox(height: NightshadeTokens.spaceLg),
+                    Text(
+                      isLocationError
+                          ? context.l10n.text('plannerLocationMissingTitle')
+                          : context.l10n.text('plannerPlanFailedTitle'),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                    const SizedBox(height: NightshadeTokens.spaceSm),
+                    Text(
+                      isLocationError
+                          ? context.l10n.text('plannerLocationMissingBody')
+                          : context.l10n.text('plannerPlanFailedBody'),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: NightshadeTokens.spaceXl),
+                    if (isLocationError)
+                      NightshadeButton(
+                        label: context.l10n.text('plannerOpenSettings'),
+                        icon: LucideIcons.mapPin,
+                        onPressed: () =>
+                            context.go('/settings?section=location'),
+                      )
+                    else
+                      NightshadeButton(
+                        label: context.l10n.text('plannerRetry'),
+                        icon: LucideIcons.refreshCw,
+                        onPressed: () =>
+                            ref.invalidate(_plannerOptimizationProvider),
+                      ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Text(
-              isLocationError
-                  ? context.l10n.text('plannerLocationMissingBody')
-                  : context.l10n.text('plannerPlanFailedBody'),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: colors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: NightshadeTokens.spaceXl),
-            if (isLocationError)
-              NightshadeButton(
-                label: context.l10n.text('plannerOpenSettings'),
-                icon: LucideIcons.mapPin,
-                onPressed: () => context.go('/settings?section=location'),
-              )
-            else
-              NightshadeButton(
-                label: context.l10n.text('plannerRetry'),
-                icon: LucideIcons.refreshCw,
-                onPressed: () => ref.invalidate(_plannerOptimizationProvider),
-              ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

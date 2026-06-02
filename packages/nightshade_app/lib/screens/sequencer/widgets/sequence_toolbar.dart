@@ -36,6 +36,10 @@ class SequenceToolbar extends ConsumerWidget {
     // running so the user can still write a checkpoint or chase the
     // current target.
     final canEdit = ref.watch(canEditSequenceProvider);
+    // Phone is a device-class fact (short side < 600), so a phone in landscape
+    // — where the ~430 px height is at a premium — still takes the compact
+    // chrome instead of the desktop 64 px bar. isTablet keeps the medium size.
+    final isPhone = Responsive.isPhone(context);
     final isTablet = Responsive.isTablet(context);
     final actionService = ref.read(sequenceActionServiceProvider);
 
@@ -52,8 +56,17 @@ class SequenceToolbar extends ConsumerWidget {
     }
 
     return Container(
-      height: isTablet ? 56 : 64,
-      padding: EdgeInsets.symmetric(horizontal: isTablet ? 12 : 20),
+      height: isPhone
+          ? 48
+          : isTablet
+              ? 56
+              : 64,
+      padding: EdgeInsets.symmetric(
+          horizontal: isPhone
+              ? 8
+              : isTablet
+                  ? 12
+                  : 20),
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(bottom: BorderSide(color: colors.border)),

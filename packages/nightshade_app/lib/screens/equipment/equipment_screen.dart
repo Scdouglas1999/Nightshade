@@ -122,7 +122,14 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       alignment: Alignment.bottomRight,
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final isMobile =
+          // Structure decision is device-class, not viewport width: a phone
+          // held in landscape reports a tablet-ish width (~932 px) but is still
+          // a phone and must take the stacked mobile layout — the desktop
+          // profile sidebar + rail would overflow its short height. On desktop
+          // `Responsive.isPhone` falls back to live width, so narrowing a
+          // window still collapses to the mobile column as before. Genuine
+          // tablets keep the desktop split.
+          final isMobile = Responsive.isPhone(context) ||
               constraints.maxWidth < NightshadeTokens.breakpointTablet;
 
           final profileSidebar = ProfileSidebar(

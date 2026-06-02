@@ -124,7 +124,7 @@ class _RadarControlsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.all(Responsive.isPhone(context) ? 12 : 16),
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(8),

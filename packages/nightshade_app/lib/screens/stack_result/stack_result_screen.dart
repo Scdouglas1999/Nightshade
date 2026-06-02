@@ -211,6 +211,66 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     Uint8List? rgba,
   ) {
     final canExport = !_exporting && rgba != null;
+
+    // On a phone the four export buttons cannot share the ScreenHeader's Row
+    // with the title without overflowing the ~430 px width, so collapse them
+    // into a single overflow menu. The header trailing then stays narrow in
+    // both orientations. Wider layouts keep the inline button row.
+    if (Responsive.isPhone(context)) {
+      return PopupMenuButton<_StackResultAction>(
+        icon: Icon(LucideIcons.share2, color: colors.textPrimary),
+        tooltip: 'Export / share',
+        enabled: !_exporting,
+        onSelected: (action) {
+          switch (action) {
+            case _StackResultAction.png:
+              if (rgba != null) _export(result, rgba, ShareExportFormat.png);
+            case _StackResultAction.jpeg:
+              if (rgba != null) _export(result, rgba, ShareExportFormat.jpeg);
+            case _StackResultAction.shareCard:
+              if (rgba != null) {
+                _export(result, rgba, ShareExportFormat.shareCard);
+              }
+            case _StackResultAction.astroBin:
+              _exportAstroBin(result);
+          }
+        },
+        itemBuilder: (context) => [
+          PopupMenuItem(
+            value: _StackResultAction.png,
+            enabled: canExport,
+            child: const _ActionMenuRow(
+              icon: LucideIcons.fileImage,
+              label: 'Export PNG',
+            ),
+          ),
+          PopupMenuItem(
+            value: _StackResultAction.jpeg,
+            enabled: canExport,
+            child: const _ActionMenuRow(
+              icon: LucideIcons.image,
+              label: 'Export JPEG',
+            ),
+          ),
+          PopupMenuItem(
+            value: _StackResultAction.shareCard,
+            enabled: canExport,
+            child: const _ActionMenuRow(
+              icon: LucideIcons.share2,
+              label: 'Share Card',
+            ),
+          ),
+          const PopupMenuItem(
+            value: _StackResultAction.astroBin,
+            child: _ActionMenuRow(
+              icon: LucideIcons.fileText,
+              label: 'AstroBin',
+            ),
+          ),
+        ],
+      );
+    }
+
     return Wrap(
       spacing: NightshadeTokens.spaceSm,
       crossAxisAlignment: WrapCrossAlignment.center,
@@ -285,23 +345,32 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     Uint8List? rgba,
     Uint16List? mono,
   ) {
-    return Column(
-      children: [
-        Expanded(child: _buildViewer(context, colors, result, rgba)),
-        Container(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            border: Border(top: BorderSide(color: colors.border)),
+    // Phone portrait is too short to give the viewer a flexible Expanded AND a
+    // 40%-capped panel without the viewer's contents (e.g. the EmptyState
+    // column, or the stat list) clipping. Scroll the whole surface instead and
+    // give the viewer a fixed, generous slice of the viewport height. The panel
+    // flows beneath it and the page scrolls if the combined height exceeds the
+    // screen — nothing is hidden behind a rigid flex.
+    final viewerHeight =
+        (MediaQuery.sizeOf(context).height * 0.5).clamp(240.0, 520.0);
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          SizedBox(
+            height: viewerHeight,
+            child: _buildViewer(context, colors, result, rgba),
           ),
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.of(context).size.height * 0.4,
-          ),
-          child: SingleChildScrollView(
+          Container(
+            decoration: BoxDecoration(
+              color: colors.surface,
+              border: Border(top: BorderSide(color: colors.border)),
+            ),
             padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
             child: _buildSidePanel(context, colors, result, mono),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -708,6 +777,36 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
+  }
+}
+
+/// Export/share actions surfaced through the phone overflow menu (the four
+/// inline header buttons do not fit a phone-width [ScreenHeader] Row).
+enum _StackResultAction { png, jpeg, shareCard, astroBin }
+
+/// Icon + label row for a [_StackResultAction] popup-menu entry.
+class _ActionMenuRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+
+  const _ActionMenuRow({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: NightshadeTokens.iconSm, color: colors.textSecondary),
+        const SizedBox(width: NightshadeTokens.spaceMd),
+        Text(
+          label,
+          style: NightshadeTypography.bodySm.copyWith(
+            color: colors.textPrimary,
+          ),
+        ),
+      ],
+    );
   }
 }
 

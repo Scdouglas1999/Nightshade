@@ -268,3 +268,8 @@ dist-release/
 
 # Local render-capture screenshots (dev verification, not goldens)
 **/test/**/captures/
+
+# Local landscape render-capture tooling (dev verification, not goldens)
+**/captures_landscape_test.dart
+**/imaging_landscape_capture_test.dart
+**/test/screens/landscape_capture_util.dart

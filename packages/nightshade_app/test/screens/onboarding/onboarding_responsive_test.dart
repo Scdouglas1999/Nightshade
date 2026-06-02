@@ -88,11 +88,15 @@ void main() {
     ]) {
       final (orientation, size) = entry;
 
-      // The wizard tiers on its own WIDTH (< 600 = phone column, otherwise the
-      // sidebar layout). A phone rotated to landscape is often ≥ 600 px wide
-      // (e.g. 640/844/932), so landscape legitimately uses the wide layout and
-      // gets the extra room — both must lay out cleanly.
-      final isPhoneColumn = size.width < BreakpointTokens.breakpointPhone;
+      // The wizard now tiers on DEVICE CLASS, not raw width: a phone is a phone
+      // in either orientation (Responsive.isPhone uses the orientation-stable
+      // short edge on a mobile platform — the test binding defaults to Android).
+      // So a reference phone rotated to landscape (e.g. 844x390 / 932x430) still
+      // gets the single-column phone wizard, NOT the desktop step-sidebar that
+      // would clip the ~410 px height. Both orientations must lay out cleanly.
+      final isPhoneColumn =
+          (size.shortestSide < BreakpointTokens.breakpointPhone) ||
+              (size.width < BreakpointTokens.breakpointPhone);
 
       testWidgets('onboarding fits $name $orientation without overflow',
           (tester) async {
