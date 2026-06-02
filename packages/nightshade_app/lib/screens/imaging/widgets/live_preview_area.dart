@@ -13,6 +13,7 @@ import '../../../widgets/catalog_overlay_widget.dart';
 import '../../../widgets/tutorial_keys/imaging_keys.dart';
 import 'annotation_widgets.dart';
 import 'custom_annotation_drawing.dart';
+import 'fullscreen_image_viewer.dart';
 import 'guiding_active_chip.dart';
 import 'image_display.dart';
 import 'overlay_painters.dart';
@@ -256,6 +257,13 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
             onHover: (_) => _onPointerActivity(),
             child: GestureDetector(
               onPanUpdate: (details) => onPanUpdate(details.delta),
+              // Tap the frame on a phone to inspect it fullscreen (pinch-zoom +
+              // pan), since the in-place preview shares the short cover-screen
+              // height with the controls. No-op when empty or on desktop, where
+              // the preview already has room and a tap shouldn't hijack.
+              onTap: (currentImage != null && Responsive.isPhone(context))
+                  ? () => FullscreenImageViewer.show(context, currentImage)
+                  : null,
               child: Container(
                 color: const Color(0xFF08080C),
                 child: Stack(
