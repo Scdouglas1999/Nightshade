@@ -232,11 +232,15 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
             },
             child: LayoutBuilder(
               builder: (context, constraints) {
-                // Phone tier (< 600): the full-bleed sky canvas with floating,
-                // orientation-aware overlays. Tablets/desktop (>= 600) keep the
+                // Phone tier: the full-bleed sky canvas with floating,
+                // orientation-aware overlays. Tablets/desktop keep the
                 // resizable sidebar split, which already clamps its panel widths
-                // down to a 600 px window.
-                final isPhone = BreakpointTokens.isPhone(constraints.maxWidth);
+                // down to a 600 px window. Use device-class detection so a phone
+                // in LANDSCAPE (wide viewport) still gets the overlay layout
+                // rather than the desktop sidebar; a narrow desktop window
+                // (width < 600) also collapses to it.
+                final isPhone = Responsive.isPhone(context) ||
+                    BreakpointTokens.isPhone(constraints.maxWidth);
                 if (isPhone) {
                   return _buildMobileLayout(context, colors, selectedObject);
                 }
