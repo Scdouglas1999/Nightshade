@@ -696,6 +696,36 @@ impl ExecutionContext {
         }
     }
 
+    /// If execution is currently paused — by an operator Pause or a recovery
+    /// freeze — block until it resumes or is cancelled, WITHOUT itself
+    /// initiating a pause (unlike [`pause_and_wait_for_resume`], which is for
+    /// a node/trigger that wants to *request* a pause).
+    ///
+    /// Returns `false` if cancelled while waiting (the caller should unwind),
+    /// `true` otherwise (not paused, or resumed). Called at container/burst
+    /// boundaries so an operator Pause and recovery freeze actually halt the
+    /// node tree between instructions instead of being silently ignored.
+    pub async fn wait_while_paused(&self) -> bool {
+        if !self.is_paused.load(Ordering::Relaxed) {
+            return true;
+        }
+        tracing::info!("Execution paused at boundary, waiting for resume...");
+        loop {
+            if self.is_cancelled.load(Ordering::Relaxed) {
+                tracing::info!("Cancelled while paused at boundary");
+                return false;
+            }
+            if !self.is_paused.load(Ordering::Relaxed) {
+                tracing::info!("Execution resumed at boundary");
+                return true;
+            }
+            tokio::select! {
+                _ = self.resume_notify.notified() => {}
+                _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {}
+            }
+        }
+    }
+
     /// Resume execution (called by executor)
     pub fn resume(&self) {
         self.is_paused.store(false, Ordering::Relaxed);

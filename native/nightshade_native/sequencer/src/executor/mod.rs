@@ -2982,6 +2982,13 @@ impl SequenceExecutor {
                 // Separating them lets the trigger monitor keep watching
                 // while the recovery driver drives its loop on its own
                 // cadence.
+                // P1-13: set when the recovery loop gives up due to a real
+                // (non-operator-abort) failure. Checked after the main
+                // `select!` so the run reports `Failed` instead of the benign
+                // `Cancelled` the node-tree cancellation would otherwise win.
+                let recovery_gave_up =
+                    std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+                let recovery_driver_gave_up = recovery_gave_up.clone();
                 let recovery_driver_state = state.clone();
                 let recovery_driver_progress = progress.clone();
                 let recovery_driver_event_tx = event_tx.clone();
@@ -3000,6 +3007,10 @@ impl SequenceExecutor {
                 let recovery_driver_device_ops = device_ops_for_triggers.clone();
                 let recovery_driver_mount_id = trigger_action_context.mount_id.clone();
                 let recovery_driver_device_ids = trigger_action_context.connected_device_ids();
+                // P1-14/P1-10: ids used to leave hardware safe if recovery
+                // exhausts on an unattended night (park mount, close cover/dome).
+                let recovery_driver_dome_id = trigger_action_context.dome_id.clone();
+                let recovery_driver_cover_id = trigger_action_context.cover_calibrator_id.clone();
                 let recovery_driver_trigger_mgr = trigger_manager.clone();
                 let recovery_driver = async move {
                     while let Some(cause) = recovery_request_rx.recv().await {
@@ -3332,6 +3343,75 @@ impl SequenceExecutor {
                                 aborted_by_user
                             );
                             *recovery_driver_current.write() = None;
+
+                            // P1-14/P1-10: when recovery exhausts on a real
+                            // failure (NOT an operator abort), the rig is being
+                            // abandoned mid-night. Leave hardware in a SAFE
+                            // end-state before failing: park the mount (so the
+                            // OTA can't track into the Sun at dawn) and close
+                            // the cover + dome. Operator-aborts are skipped —
+                            // the operator is present and may be intervening.
+                            if !aborted_by_user {
+                                recovery_driver_gave_up.store(true, Ordering::Relaxed);
+
+                                if let Some(mount_id) = &recovery_driver_mount_id {
+                                    let park = crate::device_ops::try_park_with_retry(
+                                        &recovery_driver_device_ops,
+                                        mount_id,
+                                        2,
+                                        2.0,
+                                    )
+                                    .await;
+                                    if park.success {
+                                        tracing::info!(
+                                            "[RECOVERY] Parked mount '{}' on give-up ({} attempt(s))",
+                                            mount_id,
+                                            park.attempts_made
+                                        );
+                                    } else {
+                                        let msg = format!(
+                                            "Recovery exhausted and the mount could not be parked ({}): {} — mount may be UNSAFE.",
+                                            mount_id,
+                                            park.last_error.unwrap_or_else(|| "unknown".to_string())
+                                        );
+                                        tracing::error!("[RECOVERY] {}", msg);
+                                        let _ = recovery_driver_event_tx
+                                            .send(ExecutorEvent::Error { message: msg });
+                                    }
+                                }
+
+                                // Close the flat-panel cover, then the dome
+                                // shutter, so the optics are protected and the
+                                // scope isn't left exposed under an open roof.
+                                if let Some(cover_id) = &recovery_driver_cover_id {
+                                    if let Err(e) = recovery_driver_device_ops
+                                        .cover_calibrator_close_cover(cover_id)
+                                        .await
+                                    {
+                                        let msg = format!(
+                                            "Recovery give-up: failed to close cover '{}': {}",
+                                            cover_id, e
+                                        );
+                                        tracing::error!("[RECOVERY] {}", msg);
+                                        let _ = recovery_driver_event_tx
+                                            .send(ExecutorEvent::Error { message: msg });
+                                    }
+                                }
+                                if let Some(dome_id) = &recovery_driver_dome_id {
+                                    if let Err(e) =
+                                        recovery_driver_device_ops.dome_close(dome_id).await
+                                    {
+                                        let msg = format!(
+                                            "Recovery give-up: failed to close dome '{}': {} — scope may be exposed.",
+                                            dome_id, e
+                                        );
+                                        tracing::error!("[RECOVERY] {}", msg);
+                                        let _ = recovery_driver_event_tx
+                                            .send(ExecutorEvent::Error { message: msg });
+                                    }
+                                }
+                            }
+
                             // Transition to Failed and emit the gave-up
                             // event. Leave `is_paused` set — the node tree
                             // is going to be cancelled by the outer logic
@@ -5044,6 +5124,21 @@ impl SequenceExecutor {
                             NodeStatus::Cancelled
                         }
                     },
+                };
+
+                // P1-13: when recovery exhausted on a real failure it set
+                // `is_cancelled` to unwind the node tree, so the `execution`
+                // branch of the select! above resolves to `Cancelled` and would
+                // otherwise overwrite the `Failed` state the recovery driver
+                // set — the run would be reported as a benign cancellation in
+                // the UI / session report. Coerce it back to `Failure` so the
+                // give-up is recorded as the failure it actually is.
+                let result = if recovery_gave_up.load(Ordering::Relaxed)
+                    && !matches!(result, NodeStatus::Failure)
+                {
+                    NodeStatus::Failure
+                } else {
+                    result
                 };
 
                 let final_state = executor_state_for_result(result);
