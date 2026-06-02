@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
-import '../tokens/breakpoint_tokens.dart';
 import '../utils/adaptive_dialog_constraints.dart';
+import '../utils/responsive_utils.dart';
 
 /// How a phone-tier [showAdaptiveModal] presents itself.
 enum PhoneModalMode {
@@ -43,9 +43,9 @@ Future<T?> showAdaptiveModal<T>({
   bool useRootNavigator = true,
   String? barrierLabel,
 }) {
-  final width = MediaQuery.sizeOf(context).width;
-
-  if (BreakpointTokens.isPhone(width)) {
+  // Device-class, not width: a phone in landscape (wide viewport) must still
+  // present as a sheet / full-screen route, never a centered desktop dialog.
+  if (Responsive.isPhone(context)) {
     switch (phoneMode) {
       case PhoneModalMode.fullScreen:
         return Navigator.of(context, rootNavigator: useRootNavigator).push<T>(

@@ -4,6 +4,7 @@ import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
 import '../tokens/breakpoint_tokens.dart';
+import '../utils/responsive_utils.dart';
 
 /// How [AdaptivePanelLayout] collapses its secondary panel(s) on a phone.
 enum PhonePanelStrategy {
@@ -128,14 +129,21 @@ class _AdaptivePanelLayoutState extends State<AdaptivePanelLayout> {
 
   @override
   Widget build(BuildContext context) {
+    // A phone DEVICE must use a phone strategy in BOTH orientations — never
+    // desktop chrome. In landscape the region is wide (e.g. 900 px), so a
+    // width-only check would wrongly take the desktop split. We also keep the
+    // width check so a narrow embedded region on desktop still collapses.
+    final isPhoneDevice = Responsive.isPhone(context);
     return LayoutBuilder(
       builder: (context, constraints) {
         final w = constraints.maxWidth;
         final h = constraints.maxHeight;
         final isLandscape = w > h;
 
-        if (BreakpointTokens.isPhone(w)) {
-          // Phone landscape with enough width: a fixed side-by-side split.
+        if (isPhoneDevice || BreakpointTokens.isPhone(w)) {
+          // Phone landscape with enough width: a fixed side-by-side split
+          // (image/canvas beside its controls) instead of a wasteful single
+          // wide column.
           if (isLandscape && w >= widget.landscapeSplitMinWidth) {
             return _buildFixedSplit(
               context,

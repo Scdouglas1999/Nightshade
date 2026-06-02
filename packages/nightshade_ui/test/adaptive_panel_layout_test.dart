@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -28,13 +29,25 @@ Widget _host({
   );
 }
 
-Future<void> _pumpAt(WidgetTester tester, Size size, Widget child) async {
+Future<void> _pumpAt(
+  WidgetTester tester,
+  Size size,
+  Widget child, {
+  TargetPlatform? platform,
+}) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
+  if (platform != null) debugDefaultTargetPlatformOverride = platform;
   addTearDown(tester.view.reset);
   await tester.pumpWidget(child);
   await tester.pumpAndSettle();
+  // Build has consumed the platform; clear before the end-of-body invariant.
+  debugDefaultTargetPlatformOverride = null;
 }
+
+Finder get _resizeHandle => find.byWidgetPredicate(
+      (w) => w is MouseRegion && w.cursor == SystemMouseCursors.resizeColumn,
+    );
 
 void main() {
   group('phone portrait', () {
@@ -97,6 +110,33 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.text('PRIMARY'), findsOneWidget);
       expect(find.text('CONTROLS'), findsOneWidget);
+    });
+  });
+
+  group('phone device in landscape (wide viewport)', () {
+    // The regression: a phone in landscape reports a desktop-class WIDTH, so a
+    // width-only check took the desktop resizable split. On a mobile OS the
+    // device is still a phone and must use the phone split — no desktop chrome.
+    testWidgets('android phone at 1100x480 uses the phone split, not desktop',
+        (tester) async {
+      await _pumpAt(tester, const Size(1100, 480), _host(),
+          platform: TargetPlatform.android);
+      expect(tester.takeException(), isNull);
+      // Side-by-side phone split: both visible...
+      expect(find.text('PRIMARY'), findsOneWidget);
+      expect(find.text('CONTROLS'), findsOneWidget);
+      // ...but NOT the desktop resizable split (no drag handle).
+      expect(_resizeHandle, findsNothing);
+    });
+
+    testWidgets('android phone at 932x430 (Pro Max landscape) is a phone split',
+        (tester) async {
+      await _pumpAt(tester, const Size(932, 430), _host(),
+          platform: TargetPlatform.iOS);
+      expect(tester.takeException(), isNull);
+      expect(find.text('PRIMARY'), findsOneWidget);
+      expect(find.text('CONTROLS'), findsOneWidget);
+      expect(_resizeHandle, findsNothing);
     });
   });
 
