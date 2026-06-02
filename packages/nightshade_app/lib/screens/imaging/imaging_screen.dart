@@ -387,6 +387,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
               selectedIndex: selectedPanel,
               onSelected: _selectPanel,
               colors: colors,
+              compact: phone,
             );
             if (constraints.maxHeight.isFinite) {
               return Column(

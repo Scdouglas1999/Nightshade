@@ -33,6 +33,11 @@ class PillTab extends StatefulWidget {
   /// Theme colors used for the fill, border, and text.
   final NightshadeColors colors;
 
+  /// Compact density for phones (especially landscape, where vertical space is
+  /// tight): smaller icon, label, padding and gap so a grid of these fits
+  /// without crowding the short viewport. Defaults to the desktop sizing.
+  final bool dense;
+
   const PillTab({
     super.key,
     required this.icon,
@@ -41,6 +46,7 @@ class PillTab extends StatefulWidget {
     required this.onTap,
     required this.colors,
     this.tooltip,
+    this.dense = false,
   });
 
   @override
@@ -67,7 +73,9 @@ class _PillTabState extends State<PillTab> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOutCubic,
-              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+              padding: widget.dense
+                  ? const EdgeInsets.symmetric(horizontal: 5, vertical: 5)
+                  : const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
               decoration: widget.isSelected
                   ? NightshadeDecorations.selectedSurface(
                       widget.colors.primary,
@@ -90,19 +98,19 @@ class _PillTabState extends State<PillTab> {
                 children: [
                   Icon(
                     widget.icon,
-                    size: 16,
+                    size: widget.dense ? 14 : 16,
                     color: widget.isSelected
                         ? widget.colors.primary
                         : widget.colors.textSecondary,
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: widget.dense ? 2 : 4),
                   Text(
                     widget.label,
                     overflow: TextOverflow.ellipsis,
                     maxLines: 1,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: widget.dense ? 9 : 10,
                       fontWeight: widget.isSelected
                           ? FontWeight.w600
                           : FontWeight.w500,

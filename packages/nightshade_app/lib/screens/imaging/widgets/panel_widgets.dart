@@ -52,11 +52,16 @@ class PanelTabs extends ConsumerWidget {
   final ValueChanged<int> onSelected;
   final NightshadeColors colors;
 
+  /// Compact density for phones — denser pills + tighter padding/gaps so the
+  /// 4x2 selector grid claims less of a short landscape viewport.
+  final bool compact;
+
   const PanelTabs({
     super.key,
     required this.selectedIndex,
     required this.onSelected,
     required this.colors,
+    this.compact = false,
   });
 
   static const _tabs = [
@@ -90,12 +95,14 @@ class PanelTabs extends ConsumerWidget {
           bottom: BorderSide(color: colors.border),
         ),
       ),
-      padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+      padding: compact
+          ? const EdgeInsets.all(4)
+          : const EdgeInsets.fromLTRB(6, 6, 6, 6),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           for (var row = 0; row < rowCount; row++) ...[
-            if (row > 0) const SizedBox(height: 6),
+            if (row > 0) SizedBox(height: compact ? 4 : 6),
             _buildRow(row, objectCount),
           ],
         ],
@@ -126,13 +133,14 @@ class PanelTabs extends ConsumerWidget {
 
         return Expanded(
           child: Padding(
-            padding: EdgeInsets.only(left: col == 0 ? 0 : 6),
+            padding: EdgeInsets.only(left: col == 0 ? 0 : (compact ? 4 : 6)),
             child: _PanelTab(
               icon: icon,
               label: displayLabel,
               isSelected: isSelected,
               onTap: () => onSelected(tabIndex),
               colors: colors,
+              dense: compact,
             ),
           ),
         );
@@ -149,6 +157,7 @@ class _PanelTab extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
   final NightshadeColors colors;
+  final bool dense;
 
   const _PanelTab({
     required this.icon,
@@ -156,6 +165,7 @@ class _PanelTab extends StatelessWidget {
     required this.isSelected,
     required this.onTap,
     required this.colors,
+    this.dense = false,
   });
 
   @override
@@ -166,6 +176,7 @@ class _PanelTab extends StatelessWidget {
       isSelected: isSelected,
       onTap: onTap,
       colors: colors,
+      dense: dense,
     );
   }
 }
