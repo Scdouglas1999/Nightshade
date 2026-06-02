@@ -357,6 +357,13 @@ where
         let mut below_threshold_start: Option<std::time::Instant> = None;
         const AUTO_COMPLETE_HOLD_SECS: u64 = 3;
 
+        // P1-3: the reference star's solved position on the FIRST adjustment
+        // frame. As the operator turns the alt/az bolts, the live solved
+        // position drifts from this; the rigid rotation between them is applied
+        // to the measured axis so the displayed error actually tracks the
+        // adjustment instead of being frozen at the initial measurement.
+        let mut initial_solved: Option<(f64, f64)> = None;
+
         let (observer_latitude, observer_longitude) = match (ctx.latitude, ctx.longitude) {
             (Some(lat), Some(lon)) => (lat, lon),
             _ => match ctx.device_ops.get_observer_location() {
@@ -415,10 +422,17 @@ where
 
             let pole_dec = if self.config.is_north { 90.0 } else { -90.0 };
 
+            // Anchor the reference star on the first solved frame, then track
+            // the mechanical axis as the mount is adjusted (P1-3).
+            let current_solved = (solve_result.ra_degrees, solve_result.dec_degrees);
+            let star_initial = *initial_solved.get_or_insert(current_solved);
+            let (live_axis_ra, live_axis_dec) =
+                math::rotate_axis_by_star_motion((center_ra, center_dec), star_initial, current_solved);
+
             let (az_error_am, alt_error_am, total_error_am) =
                 math::calculate_alignment_error_arcmin(
-                    center_ra,
-                    center_dec,
+                    live_axis_ra,
+                    live_axis_dec,
                     self.config.is_north,
                     observer_latitude,
                     observer_longitude,

@@ -125,6 +125,81 @@ fn normalize_signed_angle_degrees(angle_degrees: f64) -> f64 {
     }
 }
 
+/// (RA, Dec) in degrees → Cartesian unit vector (same convention as
+/// `calculate_center_of_rotation`).
+fn radec_to_unit(ra_deg: f64, dec_deg: f64) -> (f64, f64, f64) {
+    let ra = ra_deg.to_radians();
+    let dec = dec_deg.to_radians();
+    (dec.cos() * ra.cos(), dec.cos() * ra.sin(), dec.sin())
+}
+
+/// Cartesian unit vector → (RA, Dec) in degrees, RA normalised to [0, 360).
+fn unit_to_radec(v: (f64, f64, f64)) -> (f64, f64) {
+    let dec = v.2.clamp(-1.0, 1.0).asin();
+    let mut ra = v.1.atan2(v.0);
+    if ra < 0.0 {
+        ra += 2.0 * std::f64::consts::PI;
+    }
+    (ra.to_degrees(), dec.to_degrees())
+}
+
+/// Track the mount's mechanical axis through a live adjustment.
+///
+/// During the adjustment phase the operator turns the alt/az bolts, which
+/// moves the whole mount head — both the optics and the mechanical rotation
+/// axis — rigidly. The geodesic (minimal) rotation that carried the reference
+/// star from its INITIAL solved position to its CURRENT solved position is
+/// therefore the same rigid rotation that moved the axis (exact in the
+/// small-angle limit, and convergent: the displayed error reaches zero exactly
+/// when the live axis reaches the pole). Applying it to the measured initial
+/// axis yields the LIVE axis.
+///
+/// P1-3: previously the adjustment loop recomputed the error from the FIXED
+/// initial axis every frame, so the displayed error vector never responded to
+/// the user's adjustments — they were aligning blind. Returns the live axis
+/// (RA, Dec) in degrees.
+pub(super) fn rotate_axis_by_star_motion(
+    axis: (f64, f64),
+    star_initial: (f64, f64),
+    star_current: (f64, f64),
+) -> (f64, f64) {
+    let a = radec_to_unit(star_initial.0, star_initial.1);
+    let b = radec_to_unit(star_current.0, star_current.1);
+    let v = radec_to_unit(axis.0, axis.1);
+
+    // Rotation taking a → b: axis k = (a × b) normalised, angle = atan2(|a×b|, a·b).
+    let cross = (
+        a.1 * b.2 - a.2 * b.1,
+        a.2 * b.0 - a.0 * b.2,
+        a.0 * b.1 - a.1 * b.0,
+    );
+    let cross_mag = (cross.0 * cross.0 + cross.1 * cross.1 + cross.2 * cross.2).sqrt();
+    let dot = a.0 * b.0 + a.1 * b.1 + a.2 * b.2;
+
+    // No appreciable motion (a ≈ b), or the degenerate antipodal case that
+    // cannot arise from a small adjustment → leave the axis unchanged.
+    if cross_mag < 1e-12 {
+        return axis;
+    }
+    let k = (cross.0 / cross_mag, cross.1 / cross_mag, cross.2 / cross_mag);
+    let angle = cross_mag.atan2(dot);
+    let (sin_t, cos_t) = (angle.sin(), angle.cos());
+
+    // Rodrigues' rotation: v_rot = v cosθ + (k × v) sinθ + k (k·v)(1 − cosθ).
+    let kv = k.0 * v.0 + k.1 * v.1 + k.2 * v.2;
+    let kxv = (
+        k.1 * v.2 - k.2 * v.1,
+        k.2 * v.0 - k.0 * v.2,
+        k.0 * v.1 - k.1 * v.0,
+    );
+    let rotated = (
+        v.0 * cos_t + kxv.0 * sin_t + k.0 * kv * (1.0 - cos_t),
+        v.1 * cos_t + kxv.1 * sin_t + k.1 * kv * (1.0 - cos_t),
+        v.2 * cos_t + kxv.2 * sin_t + k.2 * kv * (1.0 - cos_t),
+    );
+    unit_to_radec(rotated)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -146,5 +221,24 @@ mod tests {
         assert!(az_error.abs() < 1e-6);
         assert!(alt_error.abs() < 1e-6);
         assert!(total_error.abs() < 1e-6);
+    }
+
+    #[test]
+    fn rotate_axis_no_star_motion_leaves_axis_unchanged() {
+        let axis = (10.0, 89.0);
+        let (ra, dec) = rotate_axis_by_star_motion(axis, (5.0, 45.0), (5.0, 45.0));
+        assert!((ra - axis.0).abs() < 1e-9, "ra {ra}");
+        assert!((dec - axis.1).abs() < 1e-9, "dec {dec}");
+    }
+
+    #[test]
+    fn rotate_axis_tracks_a_pure_polar_rotation() {
+        // A reference star on the equator rotated 30° about the celestial pole
+        // (Z axis) moves along a great circle, so the recovered geodesic
+        // rotation IS the +30° Z-rotation. Applied to an axis at (50°, 80°) it
+        // must add 30° of RA and leave Dec fixed.
+        let (ra, dec) = rotate_axis_by_star_motion((50.0, 80.0), (0.0, 0.0), (30.0, 0.0));
+        assert!((ra - 80.0).abs() < 1e-6, "ra {ra}");
+        assert!((dec - 80.0).abs() < 1e-6, "dec {dec}");
     }
 }
