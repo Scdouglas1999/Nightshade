@@ -2367,9 +2367,37 @@ async fn emit_grade_progress(
                         message: escalation,
                     });
                 }
-                // The executor watches its own pause flag separately; we
-                // can't reach across into ExecutionContext from here, so we
-                // signal via Error which Pack C handles as critical.
+
+                // P1-17: actually escalate to a real recovery/pause. The
+                // recovery system has a `ConsecutiveRejectsExceeded` cause
+                // whose driver pauses the run for inspection, but nothing ever
+                // SENT it — so a reject storm (clouds rolling in, focus lost,
+                // bad target) only raised a banner and kept burning the night
+                // capturing rejects. Send the cause once, exactly at the
+                // crossing, so it doesn't flood the recovery channel every
+                // subsequent frame. `consecutive` resets to 0 on the next
+                // accepted frame, so a later storm escalates again.
+                if consecutive == max_consecutive {
+                    if let Some(tx) = ctx.recovery_request_tx.as_ref() {
+                        match tx.try_send(
+                            crate::recovery::RecoveryCause::ConsecutiveRejectsExceeded,
+                        ) {
+                            Ok(()) => tracing::warn!(
+                                "[RECOVERY] Promoted consecutive-reject storm to recovery ({} in a row)",
+                                consecutive
+                            ),
+                            Err(e) => tracing::warn!(
+                                "[RECOVERY] Could not enqueue consecutive-reject recovery: {}",
+                                e
+                            ),
+                        }
+                    } else {
+                        tracing::warn!(
+                            "[RECOVERY] {} consecutive rejects but no recovery channel installed; banner only",
+                            consecutive
+                        );
+                    }
+                }
             }
             // _ silence — used only for tracing above.
             let _ = (hfr, eccentricity, star_count);
