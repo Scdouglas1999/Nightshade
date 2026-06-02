@@ -1090,7 +1090,10 @@ impl Default for TargetSchedulerConfig {
             darkness_weight: default_scheduler_darkness_weight(),
             airmass_weight: default_scheduler_airmass_weight(),
             min_score_to_run: default_scheduler_min_score_to_run(),
-            recompute_every_n_exposures: 0,
+            // Sane self-driving default (matches the Dart node default): re-rank
+            // every 5 exposures so the scheduler adapts over the night instead
+            // of picking a target once and never reconsidering.
+            recompute_every_n_exposures: 5,
             finish_iteration_on_switch: default_scheduler_finish_iteration_on_switch(),
             swap_on_conditions_below: None,
             swap_hysteresis_secs: default_scheduler_swap_hysteresis_secs(),

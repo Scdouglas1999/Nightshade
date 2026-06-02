@@ -64,7 +64,12 @@ class TargetSchedulerNode extends SequenceNode {
     this.darknessWeight = 0.15,
     this.airmassWeight = 0.15,
     this.minScoreToRun = 30.0,
-    this.recomputeEveryNExposures = 0,
+    // Sane self-driving default: re-rank the target list every 5 exposures so
+    // the scheduler actually adapts to the changing sky over a night. 0 (the
+    // old default) meant "pick once, never re-rank" — the adaptive engine
+    // never engaged out of the box. Existing saved sequences keep their
+    // persisted value (the decoder fallback is unchanged).
+    this.recomputeEveryNExposures = 5,
     this.finishIterationOnSwitch = true,
     this.swapOnConditionsBelow,
     this.swapHysteresisSecs = 180.0,
