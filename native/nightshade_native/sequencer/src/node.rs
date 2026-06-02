@@ -146,6 +146,70 @@ mod tests {
         assert!(ctx.is_paused.load(Ordering::Relaxed));
     }
 
+    fn count_loop_def(id: &str, iterations: u32) -> NodeDefinition {
+        use crate::{LoopCondition, LoopConfig};
+        NodeDefinition {
+            id: id.to_string(),
+            name: "Loop".to_string(),
+            node_type: NodeType::Loop(LoopConfig {
+                iterations: Some(iterations),
+                condition: LoopCondition::Count,
+                condition_value: None,
+            }),
+            enabled: true,
+            children: vec![],
+        }
+    }
+
+    /// P1-7: a node restored as Success from a checkpoint (via mark_completed)
+    /// must short-circuit on the next execute() instead of re-running. A
+    /// childless Count loop is a clean observable: if it re-runs it advances
+    /// current_iteration to the count; if it short-circuits it stays 0.
+    #[tokio::test]
+    async fn p1_7_resume_short_circuits_completed_node() {
+        // Baseline: an un-marked loop DOES run (advances to the count).
+        let mut fresh = RuntimeNode::from_definition(count_loop_def("loop1", 3));
+        let mut ctx = ExecutionContext::new("loop1".to_string());
+        assert_eq!(fresh.execute(&mut ctx).await, NodeStatus::Success);
+        assert_eq!(
+            fresh.current_iteration, 3,
+            "a fresh Count loop must run all iterations"
+        );
+
+        // Resume: the checkpoint marked this node completed.
+        let mut resumed = RuntimeNode::from_definition(count_loop_def("loop1", 3));
+        resumed.mark_completed(&"loop1".to_string());
+        assert_eq!(resumed.status, NodeStatus::Success);
+        let mut ctx2 = ExecutionContext::new("loop1".to_string());
+        assert_eq!(resumed.execute(&mut ctx2).await, NodeStatus::Success);
+        assert_eq!(
+            resumed.current_iteration, 0,
+            "a completed node must NOT re-run its body on resume"
+        );
+    }
+
+    /// P1-8: a Loop's current_iteration must survive a checkpoint round-trip
+    /// so a resumed Count loop continues from where it stopped rather than
+    /// restarting at iteration 1.
+    #[test]
+    fn p1_8_loop_iteration_snapshot_and_restore_roundtrip() {
+        let mut node = RuntimeNode::from_definition(count_loop_def("loop1", 60));
+        node.current_iteration = 30;
+
+        let mut snap = std::collections::HashMap::new();
+        node.snapshot_loop_iterations(&mut snap);
+        assert_eq!(snap.get(&"loop1".to_string()), Some(&30));
+
+        // A freshly built tree starts at 0 and is restored to the snapshot.
+        let mut fresh = RuntimeNode::from_definition(count_loop_def("loop1", 60));
+        assert_eq!(fresh.current_iteration, 0);
+        fresh.restore_loop_iterations(&snap);
+        assert_eq!(
+            fresh.current_iteration, 30,
+            "restore must continue the loop from the persisted iteration"
+        );
+    }
+
     #[test]
     fn test_progress_update_creation() {
         let mut update =

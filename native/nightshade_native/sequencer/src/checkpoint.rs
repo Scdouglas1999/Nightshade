@@ -300,6 +300,13 @@ pub struct SessionCheckpoint {
     /// key namespace collision risk.
     #[serde(default)]
     pub smart_exposure_states: HashMap<String, SmartExposureCheckpoint>,
+    /// P1-8: per-`Loop` node `current_iteration` at checkpoint time, keyed by
+    /// the loop node's id. `#[serde(default)]` keeps older checkpoints loading
+    /// (missing field → empty map → loops resume from iteration 1, the prior
+    /// behaviour). With it populated, a resumed Count loop continues from the
+    /// iteration it reached instead of re-imaging every completed iteration.
+    #[serde(default)]
+    pub loop_iterations: HashMap<NodeId, u32>,
 }
 
 impl SessionCheckpoint {
@@ -337,6 +344,9 @@ impl SessionCheckpoint {
             // SmartExposure node writes state through
             // `set_smart_exposure_state`.
             smart_exposure_states: HashMap::new(),
+            // P1-8: empty by default; populated from the live tree at
+            // save_checkpoint time (loop nodes with current_iteration > 0).
+            loop_iterations: HashMap::new(),
         }
     }
 

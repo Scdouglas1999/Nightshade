@@ -190,6 +190,15 @@ impl SequenceExecutor {
             self.filter_focus_offsets.clone(),
         ));
 
+        // P1-8: snapshot every Loop node's live current_iteration so a resumed
+        // Count loop continues from where it stopped instead of restarting at
+        // iteration 1 and re-imaging completed iterations.
+        if let Some(ref root) = self.root_node {
+            let mut loop_iterations = std::collections::HashMap::new();
+            root.snapshot_loop_iterations(&mut loop_iterations);
+            checkpoint.loop_iterations = loop_iterations;
+        }
+
         manager.save(&checkpoint)?;
 
         Ok(())
@@ -259,6 +268,9 @@ impl SequenceExecutor {
             for node_id in checkpoint.get_completed_nodes() {
                 root.mark_completed(&node_id);
             }
+            // P1-8: restore each Loop node's current_iteration so a resumed
+            // Count loop continues from where it stopped.
+            root.restore_loop_iterations(&checkpoint.loop_iterations);
         }
 
         if let Some(snapshot) = checkpoint.trigger_state.as_ref() {

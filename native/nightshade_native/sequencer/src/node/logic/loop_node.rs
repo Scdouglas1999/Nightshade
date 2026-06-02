@@ -12,7 +12,12 @@ pub async fn execute_loop(
     config: LoopConfig,
     context: &mut ExecutionContext,
 ) -> NodeStatus {
-    node.current_iteration = 0;
+    // P1-8: do NOT reset current_iteration here. A fresh run already has it at
+    // 0 (from_definition / reset), and a nested re-run is preceded by the
+    // parent's reset() — so the only time it's non-zero on entry is a RESUME,
+    // where `resume_from_checkpoint` restored it via restore_loop_iterations.
+    // Unconditionally zeroing it made a resumed Count loop restart at iteration
+    // 1 and re-image every already-captured iteration.
 
     // Count-based loops have an explicit upper bound; condition-based loops
     // (UntilTime, AltitudeBelow, WhileDark, etc.) terminate via runtime

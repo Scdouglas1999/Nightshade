@@ -49,6 +49,17 @@ pub trait Node: Send + Sync {
     fn children(&self) -> &[Box<dyn Node>];
     fn children_mut(&mut self) -> &mut Vec<Box<dyn Node>>;
     fn mark_completed(&mut self, node_id: &NodeId);
+
+    /// P1-8: record the live `current_iteration` of every Loop node in this
+    /// subtree into `out` (keyed by node id), for checkpointing. Default is a
+    /// no-op recursion is supplied by [`RuntimeNode`]; leaf mocks don't loop.
+    fn snapshot_loop_iterations(&self, _out: &mut std::collections::HashMap<NodeId, u32>) {}
+
+    /// P1-8: restore the persisted `current_iteration` of Loop nodes in this
+    /// subtree from `map`, so a resumed Count loop continues from where it
+    /// stopped instead of restarting at iteration 1.
+    fn restore_loop_iterations(&mut self, _map: &std::collections::HashMap<NodeId, u32>) {}
+
     /// Trust-patch §7: does this subtree contain `node_id`?
     fn contains_node(&self, node_id: &NodeId) -> bool {
         if self.id() == node_id {
@@ -108,6 +119,24 @@ impl Node for RuntimeNode {
         if !self.definition.enabled {
             self.status = NodeStatus::Skipped;
             return NodeStatus::Skipped;
+        }
+
+        // P1-7: resume short-circuit. On resume, `resume_from_checkpoint`
+        // walks the freshly-built tree and calls `mark_completed` on every
+        // already-Success node, then the executor re-walks the WHOLE tree.
+        // The intended (and documented) behaviour is to skip those completed
+        // nodes — but that short-circuit never existed, so this `execute`
+        // overwrote the restored `Success` with `Running` below and re-ran
+        // finished steps (re-slewing, re-exposing completed frames). Honour
+        // the restored completion here. Loops call `child.reset()` (→ Pending)
+        // before each iteration, so a legitimately-repeating child is never
+        // wrongly skipped.
+        if self.status == NodeStatus::Success {
+            tracing::debug!(
+                "Resume short-circuit: node '{}' already Success, skipping re-execution",
+                self.id()
+            );
+            return NodeStatus::Success;
         }
 
         self.status = NodeStatus::Running;
@@ -213,6 +242,26 @@ impl Node for RuntimeNode {
             for child in &mut self.children {
                 child.mark_completed(node_id);
             }
+        }
+    }
+
+    fn snapshot_loop_iterations(&self, out: &mut std::collections::HashMap<NodeId, u32>) {
+        if matches!(self.definition.node_type, NodeType::Loop(_)) && self.current_iteration > 0 {
+            out.insert(self.id().clone(), self.current_iteration);
+        }
+        for child in &self.children {
+            child.snapshot_loop_iterations(out);
+        }
+    }
+
+    fn restore_loop_iterations(&mut self, map: &std::collections::HashMap<NodeId, u32>) {
+        if matches!(self.definition.node_type, NodeType::Loop(_)) {
+            if let Some(&iter) = map.get(self.id()) {
+                self.current_iteration = iter;
+            }
+        }
+        for child in &mut self.children {
+            child.restore_loop_iterations(map);
         }
     }
 }
