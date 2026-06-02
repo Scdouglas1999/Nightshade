@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:typed_data';
 import '../models/autofocus_progress.dart' show StarCrop;
 import '../models/imaging/imaging_models.dart';
+import '../models/plate_solver.dart'
+    show PlateSolverDetection, PlateSolverInfo, PlateSolverPreference;
 import '../models/equipment_profile.dart';
 import '../models/phd2_models.dart';
 import '../models/settings/app_settings.dart' as models;
@@ -71,6 +73,11 @@ class DisconnectedBackend
 
   @override
   Future<List<DeviceInfo>> getConnectedDevices() async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> rescanDevices() async {
     _throwNotConnected();
   }
 

@@ -19,4 +19,6 @@ List<HeadlessRoute> buildDeviceDiscoveryRoutes(DeviceDiscoveryHandlers h) =>
           h.handleDiscoverAlpacaAtAddress),
       HeadlessRoute(HttpMethod.get, '/api/devices/connected',
           h.handleGetConnectedDevices),
+      HeadlessRoute(
+          HttpMethod.post, '/api/devices/rescan', h.handleRescanDevices),
     ];

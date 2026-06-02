@@ -3,7 +3,6 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import 'package:nightshade_bridge/nightshade_bridge.dart'
     show PlateSolveResult;
 import '../models/plate_solver.dart' as ps_model;
@@ -436,20 +435,19 @@ class PlateSolveService {
   }
 
   /// Probe disk for installed solvers + ASTAP catalog. Returns a snapshot
-  /// the UI can render directly without any extra FFI / IO. Calls the Rust
+  /// the UI can render directly.
+  ///
+  /// Routed through the imaging backend so it runs against the machine that
+  /// owns the solver binaries: locally on the host (FFI), and on the HOST
+  /// (over HTTP) when this is a remote phone client. This is the fix for the
+  /// phone probing its own (empty) filesystem and showing a false "Set up
+  /// plate solver" banner. The host-side detection ultimately calls the Rust
   /// `api_platesolve_detect` so platform-specific path enumeration stays in
   /// one place (`platesolve_paths.rs`).
   Future<ps_model.PlateSolverDetection> detect() async {
     final logging = _ref.read(loggingServiceProvider);
     try {
-      final native = bridge_api.apiPlatesolveDetect();
-      return ps_model.PlateSolverDetection(
-        astapPath: native.astapPath,
-        astrometryPath: native.astrometryPath,
-        catalogName: native.catalogName,
-        catalogMagnitudeLimit: native.catalogMagnitudeLimit?.toDouble(),
-        catalogPath: native.catalogPath,
-      );
+      return await _ref.read(imagingBackendProvider).detectPlateSolvers();
     } catch (e) {
       logging.error(
         'plate-solver detection failed: $e',
@@ -462,17 +460,15 @@ class PlateSolveService {
   /// Run the given solver binary's `--help` to confirm the install is
   /// healthy. Surfaces the version banner so the settings UI can display
   /// "ASTAP 2024.05.10" alongside the path.
+  ///
+  /// Routed through the backend so a remote phone verifies the binary on the
+  /// HOST (where the path is meaningful), not on the phone.
   Future<ps_model.PlateSolverInfo> verify(String executablePath) async {
     final logging = _ref.read(loggingServiceProvider);
     try {
-      final info = bridge_api.apiPlatesolveVerify(
-        executablePath: executablePath,
-      );
-      return ps_model.PlateSolverInfo(
-        path: info.path,
-        flavour: info.flavour,
-        versionLine: info.versionLine,
-      );
+      return await _ref
+          .read(imagingBackendProvider)
+          .verifyPlateSolver(executablePath);
     } catch (e) {
       logging.warning(
         'plate-solver verify failed for $executablePath: $e',
@@ -484,28 +480,21 @@ class PlateSolveService {
 
   /// Load persisted plate-solver UX configuration. Falls back to defaults
   /// when no `platesolver.json` exists yet.
+  ///
+  /// Routed through the backend so the phone reads the HOST's persisted
+  /// config rather than its own.
   Future<ps_model.PlateSolverPreference> getConfig() async {
-    final payload = bridge_api.apiPlatesolveGetConfig();
-    return ps_model.PlateSolverPreference(
-      astapPath: payload.astapPath,
-      astrometryPath: payload.astrometryPath,
-      catalogPath: payload.catalogPath,
-      choice: ps_model.PlateSolverChoice.fromSerialized(payload.solverChoice),
-    );
+    return _ref.read(imagingBackendProvider).getPlateSolverConfig();
   }
 
   /// Persist plate-solver UX configuration. Invalidates the solver-
   /// availability cache so the next `is_plate_solver_available` call
   /// re-probes the filesystem with the new paths.
+  ///
+  /// Routed through the backend so the phone writes config to the HOST (the
+  /// machine that actually runs the solver), not to the phone.
   Future<void> setConfig(ps_model.PlateSolverPreference pref) async {
-    bridge_api.apiPlatesolveSetConfig(
-      config: bridge_api.PlateSolverConfigPayload(
-        astapPath: pref.astapPath,
-        astrometryPath: pref.astrometryPath,
-        catalogPath: pref.catalogPath,
-        solverChoice: pref.choice.serialized,
-      ),
-    );
+    await _ref.read(imagingBackendProvider).setPlateSolverConfig(pref);
   }
 
   /// Solve `imagePath` honouring the user's `PlateSolverChoice`.

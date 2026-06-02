@@ -220,6 +220,18 @@ mixin _NetworkBackendDeviceOperations on _NetworkBackendTransport {
   }
 
   @override
+  Future<void> rescanDevices() async {
+    // Remote client: ask the HOST to re-enumerate its hardware buses. The host
+    // handler runs the same Rust hot-plug diff the local path does. After the
+    // host rescans we drop our 30s device cache so the next discoverDevices()
+    // call re-fetches the fresh host-side list (mirrors invalidateDeviceCache()
+    // on "Scan Network"). Errors propagate so the UI shows a real failure
+    // instead of a fake "rescan complete" toast.
+    await _post('devices/rescan');
+    invalidateDeviceCache();
+  }
+
+  @override
   Future<List<DeviceInfo>> getConnectedDevices() async {
     final response = await _get('devices/connected');
     final deviceList = response['devices'] as List;

@@ -273,3 +273,4 @@ dist-release/
 **/captures_landscape_test.dart
 **/imaging_landscape_capture_test.dart
 **/test/screens/landscape_capture_util.dart
+**/captures_fold_cover_test.dart

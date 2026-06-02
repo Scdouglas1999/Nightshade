@@ -14,7 +14,6 @@
 // of every endpoint is the follow-on scope of W-TEST.
 
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,6 +22,7 @@ import 'package:nightshade_core/src/backend/network_backend.dart';
 import 'package:nightshade_core/src/models/backend/device_types.dart';
 import 'package:nightshade_core/src/models/backend/image_result.dart';
 import 'package:nightshade_core/src/models/errors/nightshade_error.dart';
+import 'package:nightshade_core/src/models/plate_solver.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 
 import '../fakes/fakes.dart';
@@ -296,19 +296,84 @@ void main() {
       expect(image, isNull);
     });
 
-    test('getImageStats rejects client pixel upload on remote backend',
-        () async {
+    test(
+        'detectPlateSolvers GETs the HOST /api/plate-solver/detect and '
+        'decodes the host filesystem probe', () async {
+      // Remote-parity: a phone's plate-solver setup must probe the HOST,
+      // not the phone. This proves the NetworkBackend forwards detection to
+      // the host endpoint and returns what the host found on its disk.
+      fake.setResponse(
+        '/api/plate-solver/detect',
+        method: 'GET',
+        body: '{"astapPath":"C:/ASTAP/astap.exe",'
+            '"astrometryPath":null,'
+            '"catalogName":"V17",'
+            '"catalogMagnitudeLimit":17.0,'
+            '"catalogPath":"C:/ASTAP"}',
+      );
       backend = _buildBackend(fake);
 
-      await expectLater(
-        backend.getImageStats(10, 10, Uint16List(100)),
-        throwsA(isA<NightshadeError>().having(
-          (e) => e.message,
-          'message',
-          contains('host-only'),
-        )),
+      final detection = await backend.detectPlateSolvers();
+
+      expect(fake.requestsFor('/api/plate-solver/detect'), hasLength(1));
+      expect(detection.astapPath, 'C:/ASTAP/astap.exe');
+      expect(detection.astrometryPath, isNull);
+      expect(detection.catalogName, 'V17');
+      expect(detection.catalogMagnitudeLimit, 17.0);
+      expect(detection.catalogPath, 'C:/ASTAP');
+      expect(detection.hasAnySolver, isTrue);
+    });
+
+    test(
+        'getPlateSolverConfig GETs the HOST /api/plate-solver/config and '
+        'decodes the host-persisted preference', () async {
+      fake.setResponse(
+        '/api/plate-solver/config',
+        method: 'GET',
+        body: '{"astapPath":"C:/ASTAP/astap.exe",'
+            '"astrometryPath":"",'
+            '"catalogPath":"C:/ASTAP",'
+            '"solverChoice":"astap"}',
       );
-      expect(fake.requests, isEmpty);
+      backend = _buildBackend(fake);
+
+      final pref = await backend.getPlateSolverConfig();
+
+      expect(fake.requestsFor('/api/plate-solver/config'), hasLength(1));
+      expect(pref.astapPath, 'C:/ASTAP/astap.exe');
+      expect(pref.astrometryPath, '');
+      expect(pref.catalogPath, 'C:/ASTAP');
+      expect(pref.choice, PlateSolverChoice.astap);
+    });
+
+    test(
+        'setPlateSolverConfig POSTs the preference to the HOST '
+        '/api/plate-solver/config', () async {
+      fake.setResponse(
+        '/api/plate-solver/config',
+        method: 'POST',
+        body: '{"status":"saved"}',
+      );
+      backend = _buildBackend(fake);
+
+      await backend.setPlateSolverConfig(
+        const PlateSolverPreference(
+          astapPath: 'C:/ASTAP/astap.exe',
+          astrometryPath: '',
+          catalogPath: 'C:/ASTAP',
+          choice: PlateSolverChoice.astap,
+        ),
+      );
+
+      final posts = fake
+          .requestsFor('/api/plate-solver/config')
+          .where((r) => r.method == 'POST')
+          .toList();
+      expect(posts, hasLength(1));
+      final sent = jsonDecode(posts.single.body!) as Map<String, dynamic>;
+      expect(sent['astapPath'], 'C:/ASTAP/astap.exe');
+      expect(sent['catalogPath'], 'C:/ASTAP');
+      expect(sent['solverChoice'], 'astap');
     });
 
     test('getConnectedDevices decodes deviceType field from host API', () async {

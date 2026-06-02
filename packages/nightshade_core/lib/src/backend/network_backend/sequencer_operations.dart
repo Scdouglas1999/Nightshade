@@ -33,6 +33,63 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   }
 
   // =========================================================================
+  // Plate Solver Setup
+  // =========================================================================
+  //
+  // These run against the HOST's filesystem (the machine wired to the rig).
+  // On the phone the settings page must probe the host — never the phone —
+  // so we forward to the host's `/api/plate-solver/*` endpoints which call
+  // the host's `bridge_api.apiPlatesolve*`.
+
+  @override
+  Future<PlateSolverDetection> detectPlateSolvers() async {
+    final response = await _get('plate-solver/detect');
+    return PlateSolverDetection(
+      astapPath: response['astapPath'] as String?,
+      astrometryPath: response['astrometryPath'] as String?,
+      catalogName: response['catalogName'] as String?,
+      catalogMagnitudeLimit:
+          (response['catalogMagnitudeLimit'] as num?)?.toDouble(),
+      catalogPath: response['catalogPath'] as String?,
+    );
+  }
+
+  @override
+  Future<PlateSolverInfo> verifyPlateSolver(String executablePath) async {
+    final response = await _post('plate-solver/verify', {
+      'executablePath': executablePath,
+    });
+    return PlateSolverInfo(
+      path: response['path'] as String,
+      flavour: response['flavour'] as String,
+      versionLine: response['versionLine'] as String,
+    );
+  }
+
+  @override
+  Future<PlateSolverPreference> getPlateSolverConfig() async {
+    final response = await _get('plate-solver/config');
+    return PlateSolverPreference(
+      astapPath: (response['astapPath'] as String?) ?? '',
+      astrometryPath: (response['astrometryPath'] as String?) ?? '',
+      catalogPath: (response['catalogPath'] as String?) ?? '',
+      choice: PlateSolverChoice.fromSerialized(
+        (response['solverChoice'] as String?) ?? 'auto',
+      ),
+    );
+  }
+
+  @override
+  Future<void> setPlateSolverConfig(PlateSolverPreference pref) async {
+    await _post('plate-solver/config', {
+      'astapPath': pref.astapPath,
+      'astrometryPath': pref.astrometryPath,
+      'catalogPath': pref.catalogPath,
+      'solverChoice': pref.choice.serialized,
+    });
+  }
+
+  // =========================================================================
   // Sequencer Control
   // =========================================================================
 

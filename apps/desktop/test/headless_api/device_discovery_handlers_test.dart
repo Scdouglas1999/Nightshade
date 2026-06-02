@@ -33,11 +33,29 @@ class _FakeDeviceBackend implements DeviceBackend {
   /// swept exactly once (no duplicate probing).
   final Map<DeviceType, int> callCounts = {};
 
+  /// Number of times `rescanDevices` was invoked — proves the rescan route
+  /// reaches the host backend rather than no-op'ing.
+  int rescanCallCount = 0;
+
+  /// When set, `rescanDevices` throws with this message so the test can assert
+  /// the handler surfaces host-side failure as a 500 instead of a fake success.
+  final String? rescanFailure;
+
   _FakeDeviceBackend({
     this.devicesByType = const {},
     this.failures = const {},
     this.delays = const {},
+    this.rescanFailure,
   });
+
+  @override
+  Future<void> rescanDevices() async {
+    rescanCallCount++;
+    final failure = rescanFailure;
+    if (failure != null) {
+      throw StateError(failure);
+    }
+  }
 
   @override
   Future<List<DeviceInfo>> discoverDevices(DeviceType deviceType) async {
@@ -261,6 +279,75 @@ void main() {
       // Only the requested type was swept.
       expect(backend.callCounts[DeviceType.camera], 1);
       expect(backend.callCounts[DeviceType.mount], isNull);
+    });
+  });
+
+  group('DeviceDiscoveryHandlers.handleRescanDevices', () {
+    late Directory loggerTempDir;
+    late LoggingService logger;
+
+    setUp(() async {
+      loggerTempDir = await Directory.systemTemp
+          .createTemp('ns_device_rescan_handlers_test_');
+      logger = LoggingService(
+        applicationSupportDirectoryProvider: () async => loggerTempDir,
+        nativeInitWithLogging: ({logDirectory}) {},
+        nativeInit: () {},
+        currentLogFileProvider: () => null,
+      );
+      await logger.ensureInitialized();
+    });
+
+    tearDown(() async {
+      await logger.dispose();
+      if (await loggerTempDir.exists()) {
+        await loggerTempDir.delete(recursive: true);
+      }
+    });
+
+    ProviderContainer containerWith(DeviceBackend backend) => ProviderContainer(
+          overrides: [
+            loggingServiceProvider.overrideWithValue(logger),
+            deviceBackendProvider.overrideWithValue(backend),
+          ],
+        );
+
+    test('routes the rescan to the host backend and returns 200', () async {
+      // Proves the remote-parity fix: POST /api/devices/rescan reaches the
+      // host's DeviceBackend.rescanDevices() (on the real host this is the
+      // FfiBackend driving the native hot-plug pass) rather than no-op'ing.
+      final backend = _FakeDeviceBackend();
+      final container = containerWith(backend);
+      addTearDown(container.dispose);
+      final handlers = DeviceDiscoveryHandlers(container);
+
+      final response =
+          await translateHandlerErrors(handlers.handleRescanDevices(
+        Request('POST', Uri.parse('http://localhost/api/devices/rescan')),
+      ));
+
+      expect(response.statusCode, HttpStatus.ok);
+      expect(backend.rescanCallCount, 1,
+          reason: 'rescan must reach the host backend exactly once');
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['status'], 'ok');
+    });
+
+    test('surfaces a host-side rescan failure as 500 (no fake success)',
+        () async {
+      // Errors are a feature: a failing host rescan must NOT report success.
+      final backend = _FakeDeviceBackend(rescanFailure: 'ASI SDK init failed');
+      final container = containerWith(backend);
+      addTearDown(container.dispose);
+      final handlers = DeviceDiscoveryHandlers(container);
+
+      final response =
+          await translateHandlerErrors(handlers.handleRescanDevices(
+        Request('POST', Uri.parse('http://localhost/api/devices/rescan')),
+      ));
+
+      expect(response.statusCode, HttpStatus.internalServerError);
+      expect(backend.rescanCallCount, 1);
     });
   });
 }

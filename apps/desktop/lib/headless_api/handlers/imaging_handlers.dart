@@ -129,6 +129,72 @@ class ImagingHandlers {
   }
 
   // ===========================================================================
+  // Plate Solver Setup
+  // ===========================================================================
+  //
+  // These run on the HOST, which owns the solver binaries + catalog. Remote
+  // (phone) clients route their settings-page detect/verify/get/set calls
+  // here so they operate on the host's filesystem and persist host config —
+  // not the phone's. The host implementation goes through the imaging
+  // backend (FfiBackend), which calls the Rust `api_platesolve_*`.
+
+  Future<Response> handleDetectPlateSolvers(Request request) async {
+    _logInfo('[API] GET /api/plate-solver/detect');
+    final backend = container.read(imagingBackendProvider);
+    final detection = await backend.detectPlateSolvers();
+    return jsonOk({
+      'astapPath': detection.astapPath,
+      'astrometryPath': detection.astrometryPath,
+      'catalogName': detection.catalogName,
+      'catalogMagnitudeLimit': detection.catalogMagnitudeLimit,
+      'catalogPath': detection.catalogPath,
+    });
+  }
+
+  Future<Response> handleVerifyPlateSolver(Request request) async {
+    _logInfo('[API] POST /api/plate-solver/verify');
+    final payload = await readJsonObject(request);
+    final executablePath = requireString(payload, 'executablePath');
+
+    final backend = container.read(imagingBackendProvider);
+    final info = await backend.verifyPlateSolver(executablePath);
+    return jsonOk({
+      'path': info.path,
+      'flavour': info.flavour,
+      'versionLine': info.versionLine,
+    });
+  }
+
+  Future<Response> handleGetPlateSolverConfig(Request request) async {
+    _logInfo('[API] GET /api/plate-solver/config');
+    final backend = container.read(imagingBackendProvider);
+    final pref = await backend.getPlateSolverConfig();
+    return jsonOk({
+      'astapPath': pref.astapPath,
+      'astrometryPath': pref.astrometryPath,
+      'catalogPath': pref.catalogPath,
+      'solverChoice': pref.choice.serialized,
+    });
+  }
+
+  Future<Response> handleSetPlateSolverConfig(Request request) async {
+    _logInfo('[API] POST /api/plate-solver/config');
+    final payload = await readJsonObject(request);
+    final pref = PlateSolverPreference(
+      astapPath: requireString(payload, 'astapPath'),
+      astrometryPath: requireString(payload, 'astrometryPath'),
+      catalogPath: requireString(payload, 'catalogPath'),
+      choice: PlateSolverChoice.fromSerialized(
+        requireString(payload, 'solverChoice'),
+      ),
+    );
+
+    final backend = container.read(imagingBackendProvider);
+    await backend.setPlateSolverConfig(pref);
+    return jsonOk({'status': 'saved'});
+  }
+
+  // ===========================================================================
   // Image Processing
   // ===========================================================================
 

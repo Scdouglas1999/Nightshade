@@ -4,7 +4,6 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../mixins/device_connection_mixin.dart';
@@ -172,7 +171,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
     }
   }
 
-  /// Trigger the Rust-side hot-plug diff pass.
+  /// Trigger the host-side hot-plug diff pass.
   ///
   /// This is the lightweight cousin of `_scanForDevices`. The Rust bridge
   /// has a hybrid hot-plug architecture (`bridge/src/hotplug.rs`):
@@ -184,11 +183,18 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
   /// install, etc.). Arrival / removal events flow over the equipment
   /// event stream and trigger the unified discovery provider to refresh
   /// without a full backend scan.
+  ///
+  /// Routed through [DeviceBackend.rescanDevices] rather than calling the
+  /// `bridge_api` FFI directly so it reaches the backend that actually owns
+  /// the hardware buses. On a remote client (phone) a direct FFI call would
+  /// rescan the phone's empty local backend and falsely report success; the
+  /// backend op POSTs to the HOST instead. On the desktop host the same op
+  /// resolves to the FfiBackend and drives the local hot-plug pass unchanged.
   Future<void> _rescanEquipment() async {
     setState(() => _isRescanning = true);
     final messenger = ScaffoldMessenger.maybeOf(context);
     try {
-      await bridge_api.apiRescanDevices();
+      await ref.read(deviceBackendProvider).rescanDevices();
       if (mounted) {
         context.showSuccessSnackBar('Equipment rescan complete');
       }

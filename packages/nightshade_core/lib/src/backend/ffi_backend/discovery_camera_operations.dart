@@ -100,6 +100,14 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
   }
 
   @override
+  Future<void> rescanDevices() async {
+    // Local host: drive the Rust hot-plug diff pass directly. This invalidates
+    // the native discovery cache and emits device_discovered/device_lost events
+    // for any deltas (see bridge/src/api/hotplug.rs::api_rescan_devices).
+    await bridge_api.apiRescanDevices();
+  }
+
+  @override
   Future<List<DeviceInfo>> getConnectedDevices() async {
     final bridgeDevices = await bridge.NativeBridge.getConnectedDevices();
 
@@ -183,22 +191,6 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
     return await bridge_api.apiGetLastRawImageData(deviceId: deviceId);
   }
 
-  @override
-  Future<void> saveFitsFile({
-    required String filePath,
-    required int width,
-    required int height,
-    required List<int> data,
-    required FitsWriteHeader headerData,
-  }) async {
-    await bridge_api.apiSaveFitsFile(
-      filePath: filePath,
-      width: width,
-      height: height,
-      data: data,
-      headerData: _toBridgeFitsHeader(headerData),
-    );
-  }
 
   @override
   Future<void> saveFitsFromLastCapture({

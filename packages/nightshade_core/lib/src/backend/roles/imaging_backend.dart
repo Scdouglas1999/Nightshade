@@ -6,8 +6,9 @@ import 'package:nightshade_bridge/nightshade_bridge.dart'
 
 import '../../models/autofocus_progress.dart' show StarCrop;
 import '../../models/backend/backend_types.dart';
-import '../../models/imaging/imaging_models.dart'
-    show CapturedImage, ImageStats;
+import '../../models/imaging/imaging_models.dart' show CapturedImage;
+import '../../models/plate_solver.dart'
+    show PlateSolverDetection, PlateSolverInfo, PlateSolverPreference;
 
 /// Role interface covering image-data operations.
 ///
@@ -32,15 +33,6 @@ abstract class ImagingBackend {
   // FITS Save
   // =========================================================================
 
-  /// Save FITS file to disk
-  Future<void> saveFitsFile({
-    required String filePath,
-    required int width,
-    required int height,
-    required List<int> data,
-    required FitsWriteHeader headerData,
-  });
-
   /// Save FITS file directly from the last captured image stored server-side.
   /// This eliminates raw pixel data transfer across FFI/network boundaries.
   /// More efficient than saveFitsFile for normal capture workflows.
@@ -63,23 +55,39 @@ abstract class ImagingBackend {
   });
 
   // =========================================================================
+  // Plate Solver Setup
+  // =========================================================================
+  //
+  // Detection / verification / config read+write run against the machine
+  // that owns the plate-solver binaries and catalog — i.e. the host wired
+  // to the rig. On a remote (phone) client these MUST be routed to the host
+  // so the settings page probes the host filesystem and persists solver
+  // config on the host, not on the phone. [FfiBackend] runs them locally
+  // via the Rust `api_platesolve_*` bridge; [NetworkBackend] forwards them
+  // to the host over HTTP.
+
+  /// Probe disk for installed solvers + ASTAP catalog and return a snapshot
+  /// the settings UI can render directly.
+  Future<PlateSolverDetection> detectPlateSolvers();
+
+  /// Run the given solver binary's `--help` to confirm the install is
+  /// healthy, surfacing its version banner.
+  Future<PlateSolverInfo> verifyPlateSolver(String executablePath);
+
+  /// Load the persisted plate-solver UX configuration (paths + choice).
+  Future<PlateSolverPreference> getPlateSolverConfig();
+
+  /// Persist plate-solver UX configuration. Invalidates the solver-
+  /// availability cache so subsequent solves re-probe with the new paths.
+  Future<void> setPlateSolverConfig(PlateSolverPreference pref);
+
+  // =========================================================================
   // Image Processing
   // =========================================================================
-
-  Future<ImageStats> getImageStats(int width, int height, Uint16List data);
-  Future<Uint8List> autoStretchImage(int width, int height, Uint16List data);
 
   /// Get star crops from the last captured image for autofocus UI
   Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId,
       {int maxCrops = 5});
-
-  Future<Uint8List> debayerImage(
-    int width,
-    int height,
-    Uint16List data,
-    String pattern,
-    String algorithm,
-  );
 
   /// Calibrate a light frame file on the host filesystem using optional
   /// master dark/flat/bias paths (also host-local when remote).

@@ -506,4 +506,55 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
           )
         : bridge.NativeBridge.plateSolveBlind(imagePath);
   }
+
+  // =======================================================================
+  // Plate Solver Setup (local — runs against this machine's filesystem)
+  // =======================================================================
+
+  @override
+  Future<PlateSolverDetection> detectPlateSolvers() async {
+    final native = bridge_api.apiPlatesolveDetect();
+    return PlateSolverDetection(
+      astapPath: native.astapPath,
+      astrometryPath: native.astrometryPath,
+      catalogName: native.catalogName,
+      catalogMagnitudeLimit: native.catalogMagnitudeLimit?.toDouble(),
+      catalogPath: native.catalogPath,
+    );
+  }
+
+  @override
+  Future<PlateSolverInfo> verifyPlateSolver(String executablePath) async {
+    final info = bridge_api.apiPlatesolveVerify(
+      executablePath: executablePath,
+    );
+    return PlateSolverInfo(
+      path: info.path,
+      flavour: info.flavour,
+      versionLine: info.versionLine,
+    );
+  }
+
+  @override
+  Future<PlateSolverPreference> getPlateSolverConfig() async {
+    final payload = bridge_api.apiPlatesolveGetConfig();
+    return PlateSolverPreference(
+      astapPath: payload.astapPath,
+      astrometryPath: payload.astrometryPath,
+      catalogPath: payload.catalogPath,
+      choice: PlateSolverChoice.fromSerialized(payload.solverChoice),
+    );
+  }
+
+  @override
+  Future<void> setPlateSolverConfig(PlateSolverPreference pref) async {
+    bridge_api.apiPlatesolveSetConfig(
+      config: bridge_api.PlateSolverConfigPayload(
+        astapPath: pref.astapPath,
+        astrometryPath: pref.astrometryPath,
+        catalogPath: pref.catalogPath,
+        solverChoice: pref.choice.serialized,
+      ),
+    );
+  }
 }

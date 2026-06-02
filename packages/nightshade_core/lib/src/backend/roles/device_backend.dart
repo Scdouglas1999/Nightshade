@@ -53,6 +53,25 @@ abstract class DeviceBackend {
   /// Get list of currently connected devices
   Future<List<DeviceInfo>> getConnectedDevices();
 
+  /// Force an immediate hot-plug re-enumeration on the *active backend's host*.
+  ///
+  /// This is the backend-routed cousin of [discoverDevices]: where discovery
+  /// returns a snapshot list, rescan re-walks the native vendor SDKs and (on
+  /// Windows) the ASCOM registry on the host, invalidates the host-side
+  /// discovery cache, and emits `device_discovered` / `device_lost` events for
+  /// any deltas. Wired to the equipment-screen "Rescan equipment" button.
+  ///
+  /// Why this must be a backend op and not a direct `bridge_api` FFI call: on a
+  /// remote client (phone) a direct FFI call rescans the *phone's* empty local
+  /// backend and falsely reports success. Routing through the active backend
+  /// makes rescan reach the HOST that actually owns the hardware buses.
+  ///
+  /// Completes when the host-side diff pass finishes. The UI awaits this for
+  /// its spinner and only reports success on genuine completion. Throws if the
+  /// routed call fails (e.g. transport error on a remote client) — errors are a
+  /// feature and must surface, not be swallowed behind a fake success toast.
+  Future<void> rescanDevices();
+
   // =========================================================================
   // Camera Control
   // =========================================================================

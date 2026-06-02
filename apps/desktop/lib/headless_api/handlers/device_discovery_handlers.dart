@@ -200,6 +200,29 @@ class DeviceDiscoveryHandlers {
     }
   }
 
+  /// `POST /api/devices/rescan` â€” force the host to re-enumerate its hardware
+  /// buses. Counterpart to the equipment-screen "Rescan equipment" button on a
+  /// remote client: the host runs the native hot-plug diff (re-walks vendor
+  /// SDKs + ASCOM registry, invalidates its discovery cache, emits
+  /// device_discovered/device_lost deltas over the event stream).
+  ///
+  /// On the host the [deviceBackendProvider] resolves to the FfiBackend, so
+  /// `rescanDevices()` here calls the same `apiRescanDevices()` the local
+  /// desktop path uses. Mutating action (re-enumeration with side effects), so
+  /// it is a POST. Failures surface as 500 rather than a silent no-op.
+  Future<Response> handleRescanDevices(Request request) async {
+    final requestId = requestIdFrom(request);
+    _logInfo('[API][$requestId] POST /api/devices/rescan');
+    try {
+      final backend = container.read(deviceBackendProvider);
+      await backend.rescanDevices();
+      return jsonOk({'status': 'ok'});
+    } catch (e, stackTrace) {
+      _logError('[API][$requestId] Rescan devices error: $e\n$stackTrace');
+      return jsonInternalServerError({'error': 'Internal server error'});
+    }
+  }
+
   /// `GET /api/devices/connected` â€” currently-connected devices. The
   /// response payload mirrors the GET /api/devices envelope so a client
   /// can render both lists with one renderer.

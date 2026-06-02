@@ -6,27 +6,6 @@ mixin _FfiImagePolarOperations on _FfiBackendBase {
 // =========================================================================
 
   @override
-  Future<ImageStats> getImageStats(
-      int width, int height, Uint16List data) async {
-    final bridgeStats = await bridge.NativeBridge.apiGetImageStats(
-      width: width,
-      height: height,
-      data: data,
-    );
-    return _fromBridgeImageStats(bridgeStats);
-  }
-
-  @override
-  Future<Uint8List> autoStretchImage(
-      int width, int height, Uint16List data) async {
-    return await bridge.NativeBridge.apiAutoStretchImage(
-      width: width,
-      height: height,
-      data: data,
-    );
-  }
-
-  @override
   Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId,
       {int maxCrops = 5}) async {
     final bridgeCrops = await bridge_api.apiGetStarCropsFromLastImage(
@@ -42,23 +21,6 @@ mixin _FfiImagePolarOperations on _FfiBackendBase {
               snr: crop.snr,
             ))
         .toList();
-  }
-
-  @override
-  Future<Uint8List> debayerImage(
-    int width,
-    int height,
-    Uint16List data,
-    String pattern,
-    String algorithm,
-  ) async {
-    return await bridge.NativeBridge.apiDebayerImage(
-      width: width,
-      height: height,
-      data: data,
-      patternStr: pattern,
-      algoStr: algorithm,
-    );
   }
 
   @override

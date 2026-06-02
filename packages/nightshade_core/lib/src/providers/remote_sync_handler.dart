@@ -10,10 +10,15 @@ import '../models/backend/sequencer_status.dart';
 import '../models/equipment/equipment_models.dart' show DeviceConnectionState;
 import '../models/sequence/sequence_models.dart';
 import '../models/backend/host_mutation_event.dart';
+import '../models/imaging/imaging_models.dart'
+    show CapturePreviewSource, ExposureSettings;
+import '../services/capture_preview_loader.dart'
+    show capturePreviewPublisherProvider, capturedImageDataFromResult;
 import '../services/phd2_status_poll.dart';
 import 'database_provider.dart';
 import 'equipment_provider.dart';
 import 'framing_provider.dart';
+import 'imaging_provider.dart' show exposureSettingsProvider;
 import 'profiles_provider.dart';
 import 'remote_sync_events.dart';
 import 'sequence/sequence_catalog_sync.dart';
@@ -54,6 +59,23 @@ Future<void> applyRemoteSyncEvent(
       if (event.eventType == 'ImageCaptured' ||
           event.eventType == 'ImageSaved') {
         _invalidateHostCapturedImages(reader);
+      }
+      // Remote parity: the host-local capture path publishes
+      // `currentImageProvider` via [CapturePreviewPublisher]; that path never
+      // runs on a remote companion (NetworkBackend, no local executor), so the
+      // dashboard's "current frame" hero tile would stay blank during a
+      // host-run sequence. When the host reports a fresh frame, pull it over
+      // the existing remoted JPEG path and publish it locally so the tile +
+      // histogram/stats update exactly as they do on the host.
+      //
+      // `ImageReady` is the canonical "host has a freshly decoded frame"
+      // event (carries width/height); `ImageSaved`/`ImageCaptured` are also
+      // accepted so the tile still populates if the ready event is missed.
+      if (networkBackend != null &&
+          (event.eventType == 'ImageReady' ||
+              event.eventType == 'ImageSaved' ||
+              event.eventType == 'ImageCaptured')) {
+        unawaited(_publishRemoteCurrentFrame(reader, networkBackend));
       }
       break;
     case EventCategory.safety:
@@ -431,6 +453,103 @@ Future<void> _refreshSequencerStatus(
     _applySequencerStatus(reader, status);
   } catch (_) {
     // Fail closed on the event path — hydration/polling will recover.
+  }
+}
+
+/// Guards against re-entrant / chatty frame fetches. Host frame events
+/// (`ImageReady`, `ImageSaved`, `ImageCaptured`) often arrive back-to-back for
+/// the same capture; we only ever want one in-flight `cameraGetLastImage` at a
+/// time. A coalescing flag is sufficient here — a fresh frame event always
+/// triggers another fetch once the prior one resolves, so we never miss the
+/// latest frame, but we never stack redundant network round-trips either.
+bool _remoteFrameFetchInFlight = false;
+bool _remoteFrameFetchPending = false;
+
+/// Remote-only: fetch the host's latest frame and publish it into
+/// `currentImageProvider` so the dashboard cockpit "current frame" tile (and
+/// its histogram/stats) updates during a host-run sequence.
+///
+/// Reuses the exact remoted path the Camera tab uses
+/// ([NetworkBackend.cameraGetLastImage] → JPEG wire), builds the same
+/// [CapturedImageData] shape via [capturedImageDataFromResult], and hands it to
+/// the shared [CapturePreviewPublisher] so the remote source tag and background
+/// raw-pixel load behave identically to a local capture.
+Future<void> _publishRemoteCurrentFrame(
+  Object reader,
+  NetworkBackend backend,
+) async {
+  // Coalesce: if a fetch is already running, mark that another frame arrived
+  // and let the current fetch re-run once on completion.
+  if (_remoteFrameFetchInFlight) {
+    _remoteFrameFetchPending = true;
+    return;
+  }
+  _remoteFrameFetchInFlight = true;
+
+  try {
+    // The imaging events do not carry a device id; resolve the connected
+    // camera from local equipment state (mirrored from the host).
+    final cameraState = _read(reader, cameraStateProvider);
+    final deviceId = cameraState.deviceId;
+    if (deviceId == null ||
+        cameraState.connectionState != DeviceConnectionState.connected) {
+      return;
+    }
+
+    final result = await backend.cameraGetLastImage(deviceId);
+    if (result == null) {
+      // No frame cached host-side yet — leave the tile as-is.
+      return;
+    }
+
+    DateTime capturedAt;
+    try {
+      capturedAt = DateTime.parse(result.timestamp);
+    } catch (_) {
+      capturedAt = DateTime.now();
+    }
+
+    // Mirror the operator's current exposure controls, but let the host's
+    // reported exposure time win so the frame badge matches the real frame.
+    final baseSettings = _read(reader, exposureSettingsProvider);
+    final filterState = _readDeviceState(reader, DeviceType.filterWheel);
+    final settings = ExposureSettings(
+      exposureTime: result.exposureTime,
+      gain: baseSettings.gain,
+      offset: baseSettings.offset,
+      binningX: baseSettings.binningX,
+      binningY: baseSettings.binningY,
+      filter: filterState.currentFilterName ?? baseSettings.filter,
+      frameType: baseSettings.frameType,
+      fastReadout: baseSettings.fastReadout,
+      readoutModeIndex: baseSettings.readoutModeIndex,
+    );
+
+    final imageData = capturedImageDataFromResult(
+      capturedImage: result,
+      settings: settings,
+      capturedAt: capturedAt,
+      previewSource: CapturePreviewSource.remote,
+    );
+
+    // Publish through the shared publisher: it tags the source from the live
+    // backend, schedules the background raw-pixel load, and writes both
+    // `currentImageProvider` and `lastImageStatsProvider`.
+    _read(reader, capturePreviewPublisherProvider).publish(
+      reader,
+      imageData,
+      deviceId,
+    );
+  } catch (_) {
+    // Degrade gracefully: a failed/aborted fetch must never crash the event
+    // pump or spam logs. The tile simply keeps its previous frame; the next
+    // frame event will try again.
+  } finally {
+    _remoteFrameFetchInFlight = false;
+    if (_remoteFrameFetchPending) {
+      _remoteFrameFetchPending = false;
+      unawaited(_publishRemoteCurrentFrame(reader, backend));
+    }
   }
 }
 

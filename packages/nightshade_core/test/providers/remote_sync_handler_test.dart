@@ -9,6 +9,8 @@ import 'package:nightshade_core/src/models/backend/event_types.dart';
 import 'package:nightshade_core/src/providers/remote_sync_handler.dart';
 import 'package:nightshade_core/src/providers/sequence/sequence_catalog_sync.dart';
 
+import '../services/imaging_service_test.dart' show makeCapturedImageResult;
+
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
 class _FixedBackendNotifier extends BackendNotifier {
@@ -158,6 +160,104 @@ void main() {
 
       await container.read(allTargetProgressProvider.future);
       expect(progressReads, greaterThan(readsBefore));
+    });
+
+    test('ImageReady on remote populates currentImageProvider', () async {
+      final backend = _MockNetworkBackend();
+      when(() => backend.eventStream).thenAnswer(
+        (_) => const Stream<NightshadeEvent>.empty(),
+      );
+      when(() => backend.cameraGetLastImage('asi:0')).thenAnswer(
+        (_) async => makeCapturedImageResult(
+          width: 4,
+          height: 2,
+          exposureTime: 12.0,
+          timestamp: '2026-06-02T03:00:00Z',
+        ),
+      );
+      // Publisher schedules a background raw-pixel load on NetworkBackend;
+      // stub it so the coalesced fetch completes cleanly.
+      when(() => backend.getLastRawImageData('asi:0'))
+          .thenAnswer((_) async => List<int>.filled(4 * 2 * 2, 0));
+
+      final container = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      // The frame fetch resolves the camera device id from local equipment
+      // state (mirrored from the host); simulate a connected camera.
+      container.read(cameraStateProvider.notifier)
+        ..setConnecting('asi:0', 'ASI Camera')
+        ..setConnected();
+
+      expect(container.read(currentImageProvider), isNull);
+
+      await applyRemoteSyncEvent(
+        container,
+        NightshadeEvent(
+          timestamp: 5,
+          severity: EventSeverity.info,
+          category: EventCategory.imaging,
+          eventType: 'ImageReady',
+          data: const {'width': 4, 'height': 2},
+        ),
+        networkBackend: backend,
+      );
+
+      // Let the unawaited fetch + publish microtasks run.
+      await pumpEventQueue();
+
+      final frame = container.read(currentImageProvider);
+      expect(frame, isNotNull);
+      expect(frame!.width, 4);
+      expect(frame.height, 2);
+      expect(frame.settings.exposureTime, 12.0);
+      expect(frame.previewSource, CapturePreviewSource.remote);
+      verify(() => backend.cameraGetLastImage('asi:0')).called(1);
+    });
+
+    test(
+        'ImageReady without networkBackend leaves currentImageProvider blank',
+        () async {
+      final backend = _MockNetworkBackend();
+      when(() => backend.eventStream).thenAnswer(
+        (_) => const Stream<NightshadeEvent>.empty(),
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => _FixedBackendNotifier(ref, backend),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(cameraStateProvider.notifier)
+        ..setConnecting('asi:0', 'ASI Camera')
+        ..setConnected();
+
+      // No networkBackend passed → desktop/host-local path: the host-local
+      // publisher owns currentImageProvider, so the remote fetch must NOT run.
+      await applyRemoteSyncEvent(
+        container,
+        NightshadeEvent(
+          timestamp: 6,
+          severity: EventSeverity.info,
+          category: EventCategory.imaging,
+          eventType: 'ImageReady',
+          data: const {'width': 4, 'height': 2},
+        ),
+      );
+      await pumpEventQueue();
+
+      expect(container.read(currentImageProvider), isNull);
+      verifyNever(() => backend.cameraGetLastImage(any()));
     });
 
     test('SequenceUpdated over WS invalidates savedSequencesProvider', () async {

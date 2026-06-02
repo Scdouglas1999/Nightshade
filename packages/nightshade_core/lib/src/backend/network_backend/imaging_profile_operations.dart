@@ -95,18 +95,6 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
   // =========================================================================
 
   @override
-  Future<ImageStats> getImageStats(
-      int width, int height, Uint16List data) async {
-    _throwHostOnlyRemoteProcessing('POST /api/imaging/stats');
-  }
-
-  @override
-  Future<Uint8List> autoStretchImage(
-      int width, int height, Uint16List data) async {
-    _throwHostOnlyRemoteProcessing('POST /api/imaging/stretch');
-  }
-
-  @override
   Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId,
       {int maxCrops = 5}) async {
     final response = await _get('imaging/star-crops', {
@@ -117,17 +105,6 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
     return crops
         .map((crop) => StarCrop.fromJson(crop as Map<String, dynamic>))
         .toList();
-  }
-
-  @override
-  Future<Uint8List> debayerImage(
-    int width,
-    int height,
-    Uint16List data,
-    String pattern,
-    String algorithm,
-  ) async {
-    _throwHostOnlyRemoteProcessing('POST /api/imaging/debayer');
   }
 
   @override
@@ -496,17 +473,6 @@ mixin _NetworkBackendImagingProfileOperations on _NetworkBackendTransport {
       final bytes = await consolidateHttpClientResponseBytes(response);
       return bytes;
     });
-  }
-
-  @override
-  Future<void> saveFitsFile({
-    required String filePath,
-    required int width,
-    required int height,
-    required List<int> data,
-    required FitsWriteHeader headerData,
-  }) async {
-    _throwHostOnlyRemoteProcessing('POST /api/imaging/save-fits');
   }
 
   @override

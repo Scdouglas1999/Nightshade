@@ -392,16 +392,6 @@ extension _NetworkBackendHttpTransport on _NetworkBackendTransport {
     });
   }
 
-  Never _throwHostOnlyRemoteProcessing(String operation) {
-    throw dart_error.NightshadeError(
-      category: dart_error.BackendErrorCategory.validation,
-      message:
-          '$operation is host-only over the remote API. Use a host-authoritative '
-          'endpoint (for example GET /api/camera/last-image/jpeg or '
-          'POST /api/imaging/save-fits-from-capture).',
-    );
-  }
-
   Future<Map<String, dynamic>> _postRaw(
     String endpoint,
     Map<String, dynamic> queryParams,

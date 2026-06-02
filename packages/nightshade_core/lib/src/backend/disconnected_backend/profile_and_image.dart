@@ -53,31 +53,28 @@ mixin _DisconnectedBackendProfileAndImage on Object
   }
 
   @override
-  Future<ImageStats> getImageStats(
-      int width, int height, Uint16List data) async {
-    _throwNotConnected();
-  }
-
-  @override
-  Future<Uint8List> autoStretchImage(
-      int width, int height, Uint16List data) async {
-    _throwNotConnected();
-  }
-
-  @override
   Future<List<StarCrop>> getStarCropsFromLastImage(String deviceId,
       {int maxCrops = 5}) async {
     _throwNotConnected();
   }
 
   @override
-  Future<Uint8List> debayerImage(
-    int width,
-    int height,
-    Uint16List data,
-    String pattern,
-    String algorithm,
-  ) async {
+  Future<PlateSolverDetection> detectPlateSolvers() async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<PlateSolverInfo> verifyPlateSolver(String executablePath) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<PlateSolverPreference> getPlateSolverConfig() async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> setPlateSolverConfig(PlateSolverPreference pref) async {
     _throwNotConnected();
   }
 
@@ -157,17 +154,6 @@ mixin _DisconnectedBackendProfileAndImage on Object
 
   @override
   Future<List<int>> getLastRawImageData(String deviceId) async {
-    _throwNotConnected();
-  }
-
-  @override
-  Future<void> saveFitsFile({
-    required String filePath,
-    required int width,
-    required int height,
-    required List<int> data,
-    required FitsWriteHeader headerData,
-  }) async {
     _throwNotConnected();
   }
 

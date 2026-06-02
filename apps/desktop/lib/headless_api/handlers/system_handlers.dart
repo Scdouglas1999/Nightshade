@@ -76,6 +76,7 @@ List<String> availableHeadlessEndpoints() {
     'GET /api/devices/connected',
     'POST /api/devices/connect',
     'POST /api/devices/disconnect',
+    'POST /api/devices/rescan',
     // Camera
     'POST /api/camera/expose',
     'POST /api/camera/abort',
@@ -168,6 +169,11 @@ List<String> availableHeadlessEndpoints() {
     'GET /api/broadcast/sse',
     // Plate Solving
     'POST /api/plate-solve',
+    // Plate Solver Setup (host-owned detect/verify/config for remote clients)
+    'GET /api/plate-solver/detect',
+    'POST /api/plate-solver/verify',
+    'GET /api/plate-solver/config',
+    'POST /api/plate-solver/config',
     // Legacy Sequencer
     'GET /api/sequences/status',
     'POST /api/sequences/start',

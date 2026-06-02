@@ -207,17 +207,6 @@ extension _FfiBackendBridgeModelMappers on _FfiBackendBase {
     }
   }
 
-  ImageStats _fromBridgeImageStats(bridge.ImageStats s) {
-    return ImageStats(
-      min: s.min,
-      max: s.max,
-      mean: s.mean,
-      median: s.median,
-      stdDev: s.stdDev,
-      mad: s.mad,
-    );
-  }
-
 // Mappers
   models.AppSettings _fromBridgeSettings(bridge.AppSettings s) {
     final loc = s.location != null ? _fromBridgeLocation(s.location!) : null;
