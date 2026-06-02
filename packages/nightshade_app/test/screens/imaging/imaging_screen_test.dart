@@ -600,18 +600,38 @@ void main() {
             reason:
                 'ImagingScreen at $size ($orientation) must not overflow.');
 
-        // Primary capture action present and reachable without opening the
-        // controls sheet.
-        expect(find.byKey(ImagingTutorialKeys.snapshotBtn), findsOneWidget,
-            reason:
-                'The Snapshot button must be present at $size ($orientation).');
-        final snapshotBtn = tester.widget<BigActionButton>(
-          find.byKey(ImagingTutorialKeys.snapshotBtn),
-        );
-        expect(snapshotBtn.isEnabled, isTrue,
-            reason:
-                'With a connected camera the Snapshot button must be enabled '
-                'at $size ($orientation).');
+        // Primary capture action reachable without opening a sheet — but HOW
+        // differs by orientation:
+        //  * Portrait: controls collapse to a sheet, so the persistent bottom
+        //    capture bar carries the Snapshot button (its tutorial key).
+        //  * Landscape: the controls sit in a side-by-side split already
+        //    visible beside the image (the Capture tab's own Snapshot/Loop), so
+        //    the redundant bottom bar is omitted — adding it would overflow the
+        //    short (~390 px) landscape height and float over the preview. We
+        //    therefore assert the controls strip (PanelTabs) is visible instead
+        //    of the bottom-bar key.
+        if (orientation == 'portrait') {
+          expect(find.byKey(ImagingTutorialKeys.snapshotBtn), findsOneWidget,
+              reason:
+                  'Portrait must keep the bottom capture bar Snapshot button '
+                  'at $size.');
+          final snapshotBtn = tester.widget<BigActionButton>(
+            find.byKey(ImagingTutorialKeys.snapshotBtn),
+          );
+          expect(snapshotBtn.isEnabled, isTrue,
+              reason:
+                  'With a connected camera the Snapshot button must be enabled '
+                  'at $size ($orientation).');
+        } else {
+          expect(find.byType(PanelTabs), findsOneWidget,
+              reason:
+                  'Landscape shows the controls beside the image (split), so '
+                  'the tab strip must be visible at $size.');
+          expect(find.byKey(ImagingTutorialKeys.snapshotBtn), findsNothing,
+              reason:
+                  'The redundant bottom capture bar must NOT render in the '
+                  'landscape split (it overflows the short height).');
+        }
 
         // The live preview keeps the dominant region.
         expect(find.byType(LivePreviewArea), findsOneWidget);

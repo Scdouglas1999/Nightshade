@@ -265,3 +265,6 @@ nightshade.db
 # Release build output
 dist-linux/
 dist-release/
+
+# Local render-capture screenshots (dev verification, not goldens)
+**/test/**/captures/

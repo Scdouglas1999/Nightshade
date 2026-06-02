@@ -223,6 +223,20 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                   ],
                 );
                 if (!compact) return panel;
+                // When the controls sit in a landscape side-by-side SPLIT, the
+                // Capture tab's Snapshot/Loop are already visible beside the
+                // image — so a persistent bottom capture bar is both redundant
+                // AND overflows the short (~430 px) landscape height, floating
+                // over the preview. Only add the bar when the controls are
+                // COLLAPSED (portrait, or a very narrow landscape that falls
+                // back to the sheet), where the primary action would otherwise
+                // be hidden behind the controls handle. This mirrors
+                // AdaptivePanelLayout's own landscape-split condition
+                // (landscape && width >= landscapeSplitMinWidth, default 560).
+                final controlsInLandscapeSplit =
+                    constraints.maxWidth > constraints.maxHeight &&
+                        constraints.maxWidth >= 560;
+                if (controlsInLandscapeSplit) return panel;
                 return Column(
                   children: [
                     Expanded(child: panel),
