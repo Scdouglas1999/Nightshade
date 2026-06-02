@@ -154,6 +154,77 @@ class TargetSchedulerProperties extends ConsumerWidget {
               ],
             ),
           ),
+          NodePropertyField(
+            colors: colors,
+            label: 'Moon avoidance (skip targets near a bright Moon)',
+            child: Row(
+              children: [
+                NightshadeSwitch(
+                  value: node.minMoonSeparationDeg != null,
+                  onChanged: canEdit
+                      ? (v) {
+                          if (v) {
+                            _update(ref,
+                                node.copyWith(minMoonSeparationDeg: 30.0));
+                          } else {
+                            // copyWith is keep-or-replace, so clearing to null
+                            // needs a fresh node. Carry every field through —
+                            // including the other nullable (swap threshold).
+                            _update(
+                              ref,
+                              TargetSchedulerNode(
+                                id: node.id,
+                                name: node.name,
+                                isEnabled: node.isEnabled,
+                                childIds: node.childIds,
+                                parentId: node.parentId,
+                                orderIndex: node.orderIndex,
+                                comment: node.comment,
+                                altitudeWeight: node.altitudeWeight,
+                                moonDistanceWeight: node.moonDistanceWeight,
+                                transitProximityWeight:
+                                    node.transitProximityWeight,
+                                darknessWeight: node.darknessWeight,
+                                airmassWeight: node.airmassWeight,
+                                minScoreToRun: node.minScoreToRun,
+                                recomputeEveryNExposures:
+                                    node.recomputeEveryNExposures,
+                                finishIterationOnSwitch:
+                                    node.finishIterationOnSwitch,
+                                swapOnConditionsBelow:
+                                    node.swapOnConditionsBelow,
+                                swapHysteresisSecs: node.swapHysteresisSecs,
+                                brightnessTierPreferences:
+                                    node.brightnessTierPreferences,
+                                maxConditionsScoreAgeSecs:
+                                    node.maxConditionsScoreAgeSecs,
+                              ),
+                            );
+                          }
+                        }
+                      : null,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  node.minMoonSeparationDeg != null ? 'On' : 'Off',
+                  style: TextStyle(color: colors.textSecondary),
+                ),
+              ],
+            ),
+          ),
+          if (node.minMoonSeparationDeg != null)
+            NodePropertyField(
+              colors: colors,
+              label: 'Minimum Moon separation (degrees)',
+              child: NodeNumberInput(
+                colors: colors,
+                value: node.minMoonSeparationDeg ?? 30.0,
+                min: 0,
+                max: 180,
+                onChanged: (v) =>
+                    _update(ref, node.copyWith(minMoonSeparationDeg: v)),
+              ),
+            ),
           const SizedBox(height: 16),
 
           _AdaptiveSwapSection(
@@ -422,6 +493,10 @@ class _AdaptiveSwapSection extends StatelessWidget {
                                 node.brightnessTierPreferences,
                             maxConditionsScoreAgeSecs:
                                 node.maxConditionsScoreAgeSecs,
+                            // Carry the OTHER nullable through the explicit
+                            // rebuild so toggling swap off doesn't wipe the
+                            // moon gate.
+                            minMoonSeparationDeg: node.minMoonSeparationDeg,
                           ));
                         }
                       }

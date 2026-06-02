@@ -50,6 +50,13 @@ class TargetSchedulerNode extends SequenceNode {
   /// Default 300s (5 minutes).
   final int maxConditionsScoreAgeSecs;
 
+  /// Optional HARD moon-avoidance gate in degrees. When set, any target
+  /// within this angular separation of an up, >=10%-illuminated moon is
+  /// excluded from scheduling (with a skip reason), regardless of its score —
+  /// the NINA/Ekos-style moon-avoidance gate. `null` (default) keeps only the
+  /// soft moon-distance score weight.
+  final double? minMoonSeparationDeg;
+
   TargetSchedulerNode({
     super.id,
     super.name = 'Scheduler',
@@ -75,6 +82,7 @@ class TargetSchedulerNode extends SequenceNode {
     this.swapHysteresisSecs = 180.0,
     this.brightnessTierPreferences = const BrightnessTierPreferences(),
     this.maxConditionsScoreAgeSecs = 300,
+    this.minMoonSeparationDeg,
   });
 
   /// Stable nodeType identifier. Must match the Rust `NodeType` discriminant
@@ -157,6 +165,9 @@ class TargetSchedulerNode extends SequenceNode {
     double? swapHysteresisSecs,
     BrightnessTierPreferences? brightnessTierPreferences,
     int? maxConditionsScoreAgeSecs,
+    // Keep-or-replace like swapOnConditionsBelow; clearing to null (disable the
+    // gate) is rebuild-explicit at the editor.
+    double? minMoonSeparationDeg,
   }) {
     return TargetSchedulerNode(
       id: id ?? this.id,
@@ -184,6 +195,7 @@ class TargetSchedulerNode extends SequenceNode {
           brightnessTierPreferences ?? this.brightnessTierPreferences,
       maxConditionsScoreAgeSecs:
           maxConditionsScoreAgeSecs ?? this.maxConditionsScoreAgeSecs,
+      minMoonSeparationDeg: minMoonSeparationDeg ?? this.minMoonSeparationDeg,
     );
   }
 
@@ -202,6 +214,7 @@ class TargetSchedulerNode extends SequenceNode {
         swapHysteresisSecs,
         brightnessTierPreferences,
         maxConditionsScoreAgeSecs,
+        minMoonSeparationDeg,
       ];
 }
 

@@ -197,6 +197,7 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
           'swapHysteresisSecs': node.swapHysteresisSecs,
           'brightnessTierPreferences': node.brightnessTierPreferences.toJson(),
           'maxConditionsScoreAgeSecs': node.maxConditionsScoreAgeSecs,
+          'minMoonSeparationDeg': node.minMoonSeparationDeg,
         },
       // Wave 3 Agent 2: SmartExposure — plans are serialised as a list of
       // FilterPlan JSON maps. We re-use FilterPlan.toJson() (which mirrors

@@ -23,6 +23,13 @@ pub struct ScoringWeights {
     pub transit_proximity_weight: f64,
     pub darkness_weight: f64,
     pub airmass_weight: f64,
+    /// Optional HARD moon-avoidance gate (companion to the soft
+    /// `moon_distance_weight` score): when set, a target within this many
+    /// degrees of an up, sufficiently-illuminated moon is marked
+    /// `runnable=false` regardless of its score. `None` = no hard gate (the
+    /// pre-existing behaviour). Matches NINA/Ekos moon-avoidance.
+    #[serde(default)]
+    pub min_moon_separation_deg: Option<f64>,
 }
 
 impl Default for ScoringWeights {
@@ -33,6 +40,7 @@ impl Default for ScoringWeights {
             transit_proximity_weight: 0.20,
             darkness_weight: 0.15,
             airmass_weight: 0.15,
+            min_moon_separation_deg: None,
         }
     }
 }
@@ -207,6 +215,33 @@ pub fn score_target(
                 runnable = false;
                 skip_reason = Some(format!(
                     "altitude {alt:.1}° below per-target floor {min_alt:.1}°"
+                ));
+            }
+        }
+    }
+    // Hard moon-avoidance gate. Only avoid a moon that is actually above the
+    // horizon AND bright enough to matter — a set or near-new moon needs no
+    // avoidance, so the gate stays out of the way on dark nights.
+    if runnable {
+        if let (Some(min_sep), Some((moon_ra, moon_dec))) =
+            (weights.min_moon_separation_deg, observer.moon)
+        {
+            const MOON_AVOID_MIN_ILLUM: f64 = 10.0;
+            let (moon_alt, _) = object_alt_az(
+                moon_ra,
+                moon_dec,
+                &observer.now,
+                observer.latitude_deg,
+                observer.longitude_deg,
+            );
+            if moon_alt > 0.0
+                && observer.moon_illumination >= MOON_AVOID_MIN_ILLUM
+                && moon_dist < min_sep
+            {
+                runnable = false;
+                skip_reason = Some(format!(
+                    "within {moon_dist:.0}° of the moon (gate {min_sep:.0}°; moon {moon_alt:.0}° alt, {:.0}% illum)",
+                    observer.moon_illumination
                 ));
             }
         }
@@ -421,6 +456,58 @@ mod tests {
     fn moon_distance_bright_moon_far_target_is_100() {
         // illumination 100 → min_good_dist = 100; d >= 100 → 100.
         assert_eq!(score_moon_distance(120.0, 100.0), 100.0);
+    }
+
+    #[test]
+    fn hard_moon_gate_marks_targets_near_an_up_bright_moon_unrunnable() {
+        let now = Utc.with_ymd_and_hms(2026, 1, 15, 6, 0, 0).unwrap();
+        // Place the moon at M42's position (known to be UP from 40N at this
+        // time, per the parity test below) so the gate's "moon above horizon"
+        // check is satisfied.
+        let moon_up = (83.82, -5.39);
+        let target = |ra: f64, dec: f64| TargetInput {
+            id: "t".into(),
+            name: "T".into(),
+            ra_deg: ra,
+            dec_deg: dec,
+            min_altitude: None,
+            start_after: None,
+            end_before: None,
+            priority: 0,
+            completed: false,
+        };
+        let observer = |moon: Option<(f64, f64)>, illum: f64| ObserverContext {
+            latitude_deg: 40.0,
+            longitude_deg: -74.0,
+            now,
+            moon,
+            moon_illumination: illum,
+            twilight: None,
+        };
+        let mut gated = ScoringWeights::default();
+        gated.min_moon_separation_deg = Some(30.0);
+
+        // Target ON the moon, bright moon up → gated out.
+        let near = score_target(&target(83.9, -5.3), &observer(Some(moon_up), 80.0), &gated);
+        assert!(!near.runnable, "target on a bright up moon must be gated");
+        assert!(near.skip_reason.as_deref().unwrap_or("").contains("moon"));
+
+        // Far from the moon → not gated.
+        let far = score_target(&target(250.0, 40.0), &observer(Some(moon_up), 80.0), &gated);
+        assert!(far.runnable, "target far from the moon must stay runnable");
+
+        // Same near target but NO gate configured → runnable (soft score only).
+        let ungated = score_target(&target(83.9, -5.3), &observer(Some(moon_up), 80.0), &ScoringWeights::default());
+        assert!(ungated.runnable, "without a gate the soft score never marks unrunnable");
+
+        // Near a DOWN moon (opposite hemisphere of sky) → gate must not fire.
+        let moon_down = (264.0, -5.0);
+        let near_down = score_target(&target(264.1, -5.0), &observer(Some(moon_down), 80.0), &gated);
+        assert!(near_down.runnable, "a moon below the horizon needs no avoidance");
+
+        // Near an up but near-NEW moon (<10% illum) → gate must not fire.
+        let near_new = score_target(&target(83.9, -5.3), &observer(Some(moon_up), 3.0), &gated);
+        assert!(near_new.runnable, "a near-new moon needs no avoidance");
     }
 
     #[test]

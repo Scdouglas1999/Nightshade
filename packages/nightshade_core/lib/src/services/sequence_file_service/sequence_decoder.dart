@@ -491,6 +491,9 @@ extension _SequenceFileDecoder on SequenceFileService {
               (json['maxConditionsScoreAgeSecs'] as num?)?.toInt() ??
                   (json['max_conditions_score_age_secs'] as num?)?.toInt() ??
                   300,
+          minMoonSeparationDeg:
+              (json['minMoonSeparationDeg'] as num?)?.toDouble() ??
+                  (json['min_moon_separation_deg'] as num?)?.toDouble(),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,

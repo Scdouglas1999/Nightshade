@@ -523,6 +523,9 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
               (props['maxConditionsScoreAgeSecs'] as num?)?.toInt() ??
                   (props['max_conditions_score_age_secs'] as num?)?.toInt() ??
                   300,
+          minMoonSeparationDeg:
+              (props['minMoonSeparationDeg'] as num?)?.toDouble() ??
+                  (props['min_moon_separation_deg'] as num?)?.toDouble(),
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,

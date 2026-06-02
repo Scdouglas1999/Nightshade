@@ -1038,6 +1038,14 @@ pub struct TargetSchedulerConfig {
     #[serde(default = "default_scheduler_finish_iteration_on_switch")]
     pub finish_iteration_on_switch: bool,
 
+    /// Optional HARD moon-avoidance gate in degrees. When set, the scheduler
+    /// marks any target within this angular separation of an up,
+    /// >=10%-illuminated moon as not-runnable (with a skip reason), regardless
+    /// of its score — matching NINA/Ekos moon avoidance. `None` (default) keeps
+    /// only the existing soft moon-distance score.
+    #[serde(default)]
+    pub min_moon_separation_deg: Option<f64>,
+
     // -----------------------------------------------------------------------
     // Wave 8 — Sky-conditions-aware adaptive target swap.
     //
@@ -1095,6 +1103,7 @@ impl Default for TargetSchedulerConfig {
             // of picking a target once and never reconsidering.
             recompute_every_n_exposures: 5,
             finish_iteration_on_switch: default_scheduler_finish_iteration_on_switch(),
+            min_moon_separation_deg: None,
             swap_on_conditions_below: None,
             swap_hysteresis_secs: default_scheduler_swap_hysteresis_secs(),
             brightness_tier_preferences: crate::scheduling::BrightnessTierPreferences::default(),
@@ -1113,6 +1122,7 @@ impl TargetSchedulerConfig {
             transit_proximity_weight: self.transit_proximity_weight,
             darkness_weight: self.darkness_weight,
             airmass_weight: self.airmass_weight,
+            min_moon_separation_deg: self.min_moon_separation_deg,
         }
     }
 

@@ -595,6 +595,8 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'min_score_to_run': n.minScoreToRun,
           'recompute_every_n_exposures': n.recomputeEveryNExposures,
           'finish_iteration_on_switch': n.finishIterationOnSwitch,
+          // Hard moon-avoidance gate (degrees). null => no hard gate.
+          'min_moon_separation_deg': n.minMoonSeparationDeg,
           // Wave 8 â€” adaptive sky-conditions swap. `null` swap threshold
           // disables the feature for this scheduler instance.
           'swap_on_conditions_below': n.swapOnConditionsBelow,

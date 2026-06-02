@@ -248,6 +248,7 @@ extension _SequenceFileEncoder on SequenceFileService {
           'swapHysteresisSecs': node.swapHysteresisSecs,
           'brightnessTierPreferences': node.brightnessTierPreferences.toJson(),
           'maxConditionsScoreAgeSecs': node.maxConditionsScoreAgeSecs,
+          'minMoonSeparationDeg': node.minMoonSeparationDeg,
         },
       // Wave 7 Agent 2: LiveStacking — broadcast / EAA node config.
       LiveStackingNode() => <String, dynamic>{
