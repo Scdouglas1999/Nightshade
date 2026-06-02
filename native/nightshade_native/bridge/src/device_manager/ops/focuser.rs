@@ -580,10 +580,29 @@ impl DeviceManager {
                     if let Some(client) = clients.get(&server_key) {
                         let focuser =
                             nightshade_indi::IndiFocuser::new(client.clone(), &device_name);
-                        // Temperature might not be available on all focusers
+                        // Temperature might not be available on all focusers.
+                        // Distinguish "this focuser has no temperature sensor"
+                        // (a legitimate Ok(None)) from "the read FAILED" — the
+                        // latter must NOT be masked as 'no sensor' or
+                        // temperature compensation silently disables for the
+                        // night. INDI advertises FOCUS_TEMPERATURE only when the
+                        // device actually has the sensor.
                         match focuser.get_temperature().await {
                             Ok(temp) => return Ok(Some(temp)),
-                            Err(_) => return Ok(None), // Temperature not available
+                            Err(e) => {
+                                let has_sensor = client
+                                    .read()
+                                    .await
+                                    .has_property(&device_name, "FOCUS_TEMPERATURE")
+                                    .await;
+                                if has_sensor {
+                                    return Err(DeviceOpError::driver(format!(
+                                        "INDI focuser {} advertises a temperature sensor but the read failed: {}",
+                                        device_name, e
+                                    )));
+                                }
+                                return Ok(None); // genuinely no temperature sensor
+                            }
                         }
                     }
                     return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
