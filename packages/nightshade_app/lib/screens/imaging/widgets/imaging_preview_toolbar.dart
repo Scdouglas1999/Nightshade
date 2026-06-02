@@ -127,12 +127,14 @@ class ImagingPreviewToolbar extends ConsumerWidget {
       child: LayoutBuilder(
         builder: (context, constraints) {
           // The status readouts + Overlays menu + view controls do not all fit
-          // on a phone-width bar (~360px). Rather than clip, the whole bar
-          // becomes one horizontally-scrolling row on narrow widths so every
-          // control stays reachable. On wider widths the status cluster takes
-          // the slack (Expanded) and the trailing controls stay pinned right —
-          // unchanged desktop behaviour.
-          const wideEnough = 520.0;
+          // on a narrow bar. Rather than clip, the whole bar becomes one
+          // horizontally-scrolling row so every control stays reachable. Only
+          // on a genuinely wide bar does the status cluster take the slack
+          // (Expanded) with controls pinned right. The threshold is set above
+          // the widest phone-landscape image pane (~544px on a Z Fold cover
+          // split) so that pane scrolls instead of overflowing the trailing
+          // controls by a few px; desktop full-width toolbars still expand.
+          const wideEnough = 680.0;
           if (constraints.maxWidth >= wideEnough) {
             return Row(
               children: [
