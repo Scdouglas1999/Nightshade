@@ -115,8 +115,12 @@ if(EXISTS "${NATIVE_ASSETS_DIR}")
 endif()
 
 # Copy Rust native library if it exists
-# This allows the library to be found at runtime
-set(RUST_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../native/nightshade_native/target/release")
+# This allows the library to be found at runtime.
+# CMAKE_CURRENT_SOURCE_DIR is apps/desktop/linux, so the repo root is THREE
+# levels up (linux -> desktop -> apps -> root). The previous "../../native"
+# resolved to apps/native and silently never bundled the bridge .so, so the
+# Linux release shipped without its native library and couldn't start.
+set(RUST_LIB_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../../../native/nightshade_native/target/release")
 set(RUST_LIB_NAME "libnightshade_bridge.so")
 if(EXISTS "${RUST_LIB_DIR}/${RUST_LIB_NAME}")
   install(FILES "${RUST_LIB_DIR}/${RUST_LIB_NAME}"
