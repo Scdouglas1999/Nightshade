@@ -30,12 +30,21 @@ _fw_research/
 .audit_hits*.txt
 .behavioral_audit_hits.txt
 .ui_consistency_audit.txt
+.all_unreg.txt
+.unreg_files.txt
+.unreg_files_clean.txt
+.unreg_summary.txt
 
 # Root-level scratch / one-off ad-hoc helpers
 _old_marker.txt
 _patch_caps.py
 package-log.txt
 goal.txt
+# Stray, unreferenced root screenshot (use assets/ for documented images)
+tppa_live_open.png
+
+# Internal UI-audit render captures (dev verification, not user-facing)
+.ui-audit-screenshots/
 
 # Internal report / audit / planning trees
 /report/
@@ -45,6 +54,13 @@ goal.txt
 /docs/plans/
 /docs/production-readiness/
 /docs/science_mockups/
+# Internal audit / planning / release-inventory docs (kept locally, not public)
+/docs/backend-architecture-audit.md
+/docs/driver-agnostic-audit.md
+/docs/driver-agnostic-audit-followup.md
+/docs/consolidation-implementation-plan.md
+/docs/consolidation-workflow.md
+/docs/releases/v2.6.0-inventory.md
 /docs/frb_warnings_*.txt
 
 # Build-output DLLs that get re-emitted by cargo + the packaging script.
