@@ -48,6 +48,7 @@ jobs:
             libgtk-3-dev \
             libsecret-1-dev \
             libjsoncpp-dev \
+            libudev-dev \
             libraw-dev \
             xvfb \
             tar
@@ -61,26 +62,33 @@ jobs:
       - name: Build Linux release bundle
         run: dart run melos run build:desktop:linux --no-select
 
-      - name: Bundle libraw into the Linux release
+      - name: Bundle native libs + verify the bridge is present
         run: |
           set -euo pipefail
-          # The native bridge dynamically links libraw (-lraw); the Flutter
-          # bundle ships libnightshade_bridge.so but not libraw, so the app
-          # can't load its bridge on a machine without libraw installed. Copy
-          # the resolved libraw shared object into the bundle's lib dir (the
-          # executable's rpath is $ORIGIN/lib) so the release is self-contained.
           BUNDLE_LIB="apps/desktop/build/linux/x64/release/bundle/lib"
           if [ ! -d "$BUNDLE_LIB" ]; then
             echo "Bundle lib dir not found: $BUNDLE_LIB" >&2
             exit 1
           fi
+          # Fail loudly if the native bridge didn't make it into the bundle —
+          # the melos build script runs `cargo build` then `flutter build` and
+          # does NOT fail-fast if cargo fails, so a missing system dep would
+          # otherwise silently produce a bundle that can't load its bridge.
+          if [ ! -e "$BUNDLE_LIB/libnightshade_bridge.so" ]; then
+            echo "libnightshade_bridge.so is MISSING from the bundle — the Rust build likely failed." >&2
+            ls -l "$BUNDLE_LIB" >&2 || true
+            exit 1
+          fi
+          # The bridge dynamically links libraw (-lraw); ship it in the bundle
+          # (executable rpath = $ORIGIN/lib) so the release is self-contained.
           LIBRAW_PATH="$(ldconfig -p | awk '/libraw\.so/ {print $NF; exit}')"
           if [ -z "${LIBRAW_PATH:-}" ] || [ ! -e "$LIBRAW_PATH" ]; then
             echo "libraw shared object not found via ldconfig" >&2
             exit 1
           fi
           cp -Lv "$LIBRAW_PATH" "$BUNDLE_LIB/"
-          ls -l "$BUNDLE_LIB" | grep -i raw
+          echo "Bundle lib contents:"
+          ls -l "$BUNDLE_LIB"
 
       - name: Headless runtime smoke
         run: |
