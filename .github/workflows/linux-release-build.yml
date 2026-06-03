@@ -48,6 +48,7 @@ jobs:
             libgtk-3-dev \
             libsecret-1-dev \
             libjsoncpp-dev \
+            xvfb \
             tar
 
       - name: Install Melos
@@ -63,7 +64,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p build/release-linux
-          dart run tools/production/headless_lan_linux_smoke.dart \
+          # The Flutter Linux bundle initialises GTK even in the headless
+          # smoke, so it needs a display. CI runners are headless — give it a
+          # virtual framebuffer via xvfb so the smoke can actually launch.
+          xvfb-run -a dart run tools/production/headless_lan_linux_smoke.dart \
             | tee build/release-linux/headless-runtime-smoke.log
 
       - name: Generate Linux package metadata
