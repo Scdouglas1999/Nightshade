@@ -54,6 +54,18 @@ class BrainParamsNotifier extends StateNotifier<AsyncValue<Phd2BrainParams>> {
       final raNames = await backend.phd2GetAlgoParamNames(axis: 'ra');
       final decNames = await backend.phd2GetAlgoParamNames(axis: 'dec');
 
+      // PHD2 only exposes guide-algorithm parameters once equipment is
+      // connected to the profile (a mount/guide-algorithm is configured). If
+      // both axes come back empty the dump is meaningless — the panel would
+      // render two blank axis sections that read as "nothing loaded". Surface
+      // that as a real, actionable error instead of a silently empty success.
+      if (raNames.isEmpty && decNames.isEmpty) {
+        throw StateError(
+          'PHD2 returned no guide-algorithm parameters. Connect PHD2 to its '
+          'equipment profile (mount + guide camera) and try again.',
+        );
+      }
+
       // Fetch all parameter values
       final raParams = <String, double>{};
       for (final name in raNames) {
@@ -75,9 +87,10 @@ class BrainParamsNotifier extends StateNotifier<AsyncValue<Phd2BrainParams>> {
           decParams: decParams,
         ));
       }
-    } catch (e) {
+    } catch (e, st) {
+      _logger.error('Failed to load PHD2 brain params: $e', source: 'PHD2');
       if (mounted) {
-        state = AsyncValue.error(e, StackTrace.current);
+        state = AsyncValue.error(e, st);
       }
     }
   }

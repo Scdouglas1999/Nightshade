@@ -85,67 +85,78 @@ mixin _GuidingDesktopSections
       ),
       child: Row(
         children: [
-          // Connection status indicator
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isConnected ? colors.success : colors.error,
-            ),
-          ),
-          const SizedBox(width: 10),
-          if (!isMobile)
-            Text(
-              isConnected ? 'PHD2 Connected' : 'PHD2 Disconnected',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontWeight: FontWeight.w500,
-                fontSize: 13,
-              ),
-            ),
-          SizedBox(width: isMobile ? 8 : 20),
-          // State indicator pill — flexible so a long label (e.g.
-          // "Calibrating") ellipsizes instead of overflowing on a narrow phone.
-          Flexible(
-            child: Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: isMobile ? 8 : 12,
-                vertical: 5,
-              ),
-              decoration: NightshadeDecorations.statusChip(
-                stateColor,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: stateColor,
+          // Leading status group (connection dot, label, state pill). Wrapped
+          // in Expanded so it claims ALL horizontal slack and the trailing
+          // action buttons (Connect/Disconnect + Settings) pin to the far
+          // right of the bar. A bare Spacer here would split the slack with the
+          // loose state pill, leaving the actions floating near the centre.
+          Expanded(
+            child: Row(
+              children: [
+                // Connection status indicator
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isConnected ? colors.success : colors.error,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                if (!isMobile)
+                  Text(
+                    isConnected ? 'PHD2 Connected' : 'PHD2 Disconnected',
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 13,
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      _getStateLabel(phd2State),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: stateColor,
-                        fontWeight: FontWeight.w600,
-                        fontSize: isMobile ? 11 : 12,
-                      ),
+                SizedBox(width: isMobile ? 8 : 20),
+                // State indicator pill — flexible so a long label (e.g.
+                // "Calibrating") ellipsizes instead of overflowing on a narrow
+                // phone.
+                Flexible(
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 8 : 12,
+                      vertical: 5,
+                    ),
+                    decoration: NightshadeDecorations.statusChip(
+                      stateColor,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: stateColor,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            _getStateLabel(phd2State),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: stateColor,
+                              fontWeight: FontWeight.w600,
+                              fontSize: isMobile ? 11 : 12,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-          const Spacer(),
           // RMS display - compact on mobile (key only on mobile, desktop uses graph header)
           if (phd2State == Phd2State.guiding) ...[
             if (isMobile) ...[
@@ -676,10 +687,53 @@ mixin _GuidingDesktopSections
         ),
       ),
       error: (e, _) => Center(
-        child: Text('Failed to load brain params',
-            style: TextStyle(color: colors.error)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(LucideIcons.alertTriangle, color: colors.error, size: 28),
+              const SizedBox(height: 10),
+              Text(
+                'Failed to load brain settings',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(height: 6),
+              // Surface the real error so the user can act on it instead of
+              // staring at a generic "failed" message (silent fallbacks hide
+              // bugs). Common cause: PHD2 connected but no equipment profile.
+              Text(
+                _brainErrorMessage(e),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: colors.textSecondary, fontSize: 12),
+              ),
+              const SizedBox(height: 14),
+              NightshadeButton(
+                label: 'Retry',
+                icon: LucideIcons.refreshCw,
+                size: ButtonSize.small,
+                variant: ButtonVariant.outline,
+                onPressed: () =>
+                    ref.read(brainParamsProvider.notifier).fetch(),
+              ),
+            ],
+          ),
+        ),
       ),
     );
+  }
+
+  /// Pull a human-readable message out of whatever the brain-params fetch
+  /// threw. `StateError` (our explicit empty-dump guard) carries a clean
+  /// sentence; everything else falls back to its string form.
+  String _brainErrorMessage(Object error) {
+    if (error is StateError) return error.message;
+    return error.toString();
   }
 
   Widget _buildStatRow(
