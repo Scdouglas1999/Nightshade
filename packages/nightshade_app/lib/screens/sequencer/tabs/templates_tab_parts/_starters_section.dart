@@ -1,132 +1,89 @@
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
-import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
+// Part of ../templates_tab.dart -- extracted for maintainability.
+//
+// The "Starters" section: the bundled, read-only SAMPLE sequences that used
+// to live in a separate "Samples" tab. They are merged into the Templates tab
+// here, delineated as built-in starters (with a "Starter" badge) above the
+// user's saved templates, so beginners can load-and-run a complete sequence
+// in one tap. Cards clone the sample into the current builder via the shared
+// [SampleSequenceService] (kept in nightshade_core).
+part of '../templates_tab.dart';
 
-import '../sequencer_screen.dart';
-import '../../../utils/snackbar_helper.dart';
+/// Built-in starter sequences section. Always rendered (it lazily loads the
+/// bundled samples); the [searchQuery] filters the cards so the parent's
+/// search box covers starters and templates alike.
+class _StartersSection extends ConsumerWidget {
+  final NightshadeColors colors;
+  final String searchQuery;
+  final bool isMobile;
 
-/// Sequencer > Library tab.
-///
-/// Browses the five bundled READ-ONLY sample sequences and lets the user
-/// clone any of them into the current builder with one tap. Per audit §8.3.5
-/// these provide beginners something to load and run immediately instead of
-/// staring at an empty sequence canvas.
-class LibraryTab extends ConsumerWidget {
-  const LibraryTab({super.key});
+  const _StartersSection({
+    required this.colors,
+    required this.searchQuery,
+    required this.isMobile,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = NightshadeColors.of(context);
     final samplesAsync = ref.watch(sampleSequencesProvider);
 
-    return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _LibraryHeader(colors: colors),
-          const SizedBox(height: 24),
-          Expanded(
-            child: samplesAsync.when(
-              data: (samples) => _SampleGrid(samples: samples, colors: colors),
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (error, stack) => _LibraryError(
-                colors: colors,
-                error: error,
-              ),
+    return samplesAsync.when(
+      data: (samples) {
+        var filtered = samples;
+        if (searchQuery.isNotEmpty) {
+          final q = searchQuery.toLowerCase();
+          filtered = samples
+              .where((s) =>
+                  s.displayName.toLowerCase().contains(q) ||
+                  s.description.toLowerCase().contains(q))
+              .toList();
+        }
+
+        // When a search hides every starter, drop the whole section so we
+        // don't show an empty header — the templates section below still
+        // renders its own "no results" state.
+        if (filtered.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _TemplatesSectionHeader(
+              colors: colors,
+              icon: LucideIcons.library,
+              title: 'Starters',
+              subtitle:
+                  'Bundled, ready-to-run sample sequences. Tap a card to copy '
+                  'one into your current sequence.',
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _LibraryHeader extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const _LibraryHeader({required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: NightshadeDecorations.tintedBadge(
-            colors.primary,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(LucideIcons.library, size: 22, color: colors.primary),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Sample Sequence Library',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Bundled, read-only templates you can load and run as-is. '
-                'Tap "Use this template" to copy a sample into your current sequence.',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: colors.textMuted,
-                  height: 1.4,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SampleGrid extends ConsumerWidget {
-  final List<SampleSequence> samples;
-  final NightshadeColors colors;
-
-  const _SampleGrid({required this.samples, required this.colors});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    if (samples.isEmpty) {
-      return Center(
-        child: Text(
-          'No sample sequences are bundled with this build.',
-          style: TextStyle(color: colors.textMuted),
-        ),
-      );
-    }
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final crossAxisCount = _columnsForWidth(constraints.maxWidth);
-        return GridView.builder(
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: crossAxisCount,
-            mainAxisSpacing: 16,
-            crossAxisSpacing: 16,
-            childAspectRatio: 1.5,
-          ),
-          itemCount: samples.length,
-          itemBuilder: (context, index) => _SampleCard(
-            sample: samples[index],
-            colors: colors,
-          ),
+            const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final crossAxisCount = _columnsForWidth(constraints.maxWidth);
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: crossAxisCount,
+                    mainAxisSpacing: 16,
+                    crossAxisSpacing: 16,
+                    childAspectRatio: isMobile ? 1.3 : 1.5,
+                  ),
+                  itemCount: filtered.length,
+                  itemBuilder: (context, index) => _StarterCard(
+                    sample: filtered[index],
+                    colors: colors,
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 28),
+          ],
         );
       },
+      loading: () => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 32),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (error, stack) => _StartersError(colors: colors, error: error),
     );
   }
 
@@ -137,16 +94,16 @@ class _SampleGrid extends ConsumerWidget {
   }
 }
 
-class _SampleCard extends ConsumerWidget {
+class _StarterCard extends ConsumerWidget {
   final SampleSequence sample;
   final NightshadeColors colors;
 
-  const _SampleCard({required this.sample, required this.colors});
+  const _StarterCard({required this.sample, required this.colors});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Trust-patch §B: "Use this template" calls loadSequence which
-    // replaces the current sequence — disable while running.
+    // Trust-patch §B: "Use this starter" calls loadSequence which replaces
+    // the current sequence — disable while running.
     final canEdit = ref.watch(canEditSequenceProvider);
     return Container(
       decoration: BoxDecoration(
@@ -193,6 +150,8 @@ class _SampleCard extends ConsumerWidget {
                       const SizedBox(height: 4),
                       Row(
                         children: [
+                          _StarterBadge(colors: colors),
+                          const SizedBox(width: 6),
                           _SkillBadge(
                             colors: colors,
                             skillLevel: sample.skillLevel,
@@ -251,8 +210,8 @@ class _SampleCard extends ConsumerWidget {
                         : 'Cannot edit while sequence is running',
                     child: NightshadeButton(
                       onPressed:
-                          canEdit ? () => _useTemplate(context, ref) : null,
-                      label: 'Use this template',
+                          canEdit ? () => _useStarter(context, ref) : null,
+                      label: 'Use this starter',
                       icon: LucideIcons.copy,
                       variant: ButtonVariant.primary,
                       size: ButtonSize.small,
@@ -267,15 +226,10 @@ class _SampleCard extends ConsumerWidget {
     );
   }
 
-  void _useTemplate(BuildContext context, WidgetRef ref) {
+  void _useStarter(BuildContext context, WidgetRef ref) {
     final service = ref.read(sampleSequenceServiceProvider);
     final notifier = ref.read(currentSequenceProvider.notifier);
 
-    // loadSequence does NOT call _ensureEditable today (it clears state
-    // unconditionally), but treating it as a mutator at the UI level
-    // matches user expectation: replacing the tree while a sequence is
-    // running is destructive. The Tooltip-wrapped button above gates
-    // the affordance; this is just defense in depth.
     final cloned = service.cloneForUse(sample);
     notifier.loadSequence(cloned);
 
@@ -319,6 +273,33 @@ class _SampleCard extends ConsumerWidget {
   }
 }
 
+/// Small "Starter" badge that distinguishes the bundled samples from the
+/// user's own saved templates within the merged tab.
+class _StarterBadge extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _StarterBadge({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: NightshadeDecorations.statusChip(
+        colors.accent,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        'Starter',
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: colors.accent,
+        ),
+      ),
+    );
+  }
+}
+
 class _SkillBadge extends StatelessWidget {
   final NightshadeColors colors;
   final SampleSequenceSkillLevel skillLevel;
@@ -327,7 +308,7 @@ class _SkillBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _SampleCard._skillColor(colors, skillLevel);
+    final color = _StarterCard._skillColor(colors, skillLevel);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: NightshadeDecorations.statusChip(
@@ -346,35 +327,38 @@ class _SkillBadge extends StatelessWidget {
   }
 }
 
-class _LibraryError extends StatelessWidget {
+class _StartersError extends StatelessWidget {
   final NightshadeColors colors;
   final Object error;
 
-  const _LibraryError({required this.colors, required this.error});
+  const _StartersError({required this.colors, required this.error});
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(LucideIcons.alertTriangle, size: 32, color: colors.error),
-          const SizedBox(height: 12),
-          Text(
-            'Failed to load sample sequences',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 24),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(LucideIcons.alertTriangle, size: 32, color: colors.error),
+            const SizedBox(height: 12),
+            Text(
+              'Failed to load starter sequences',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: colors.textPrimary,
+              ),
             ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '$error',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: colors.textMuted),
-          ),
-        ],
+            const SizedBox(height: 6),
+            Text(
+              '$error',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: colors.textMuted),
+            ),
+          ],
+        ),
       ),
     );
   }

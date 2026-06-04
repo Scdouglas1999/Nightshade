@@ -2,11 +2,15 @@ part of '../sequencer_screen.dart';
 
 /// Sequencer tab strip.
 ///
-/// Uses [AdaptiveTabBar] so the six tabs (Builder / Targets / Templates /
-/// Sequences / Samples / History) scroll horizontally instead of overflowing
-/// on a 360 px phone — and collapse their labels to icon-only on a compact
-/// phone (`< 480`). The strip drives the screen's [TabController] so the
-/// existing keyboard shortcuts, provider sync and tutorial flow keep working.
+/// Uses [AdaptiveTabBar] so the four tabs (Builder / Templates / Sequences /
+/// History) scroll horizontally instead of overflowing on a 360 px phone —
+/// and collapse their labels to icon-only on a compact phone (`< 480`). The
+/// strip drives the screen's [TabController] so the existing keyboard
+/// shortcuts, provider sync and tutorial flow keep working.
+///
+/// The Targets tab was removed (its planning lives in the Planner screen) and
+/// the old standalone "Samples" tab was merged into "Templates" as a built-in
+/// Starters section.
 class _SequencerTabBar extends StatelessWidget {
   final NightshadeColors colors;
   final TabController controller;
@@ -29,17 +33,11 @@ class _SequencerTabBar extends StatelessWidget {
         buttonKey: SequencerTutorialKeys.tabBuilder,
       ),
       AdaptiveTab(
-        label: 'Targets',
-        icon: LucideIcons.target,
-        buttonKey: SequencerTutorialKeys.tabTargets,
-      ),
-      AdaptiveTab(
         label: 'Templates',
         icon: LucideIcons.fileStack,
         buttonKey: SequencerTutorialKeys.tabTemplates,
       ),
       const AdaptiveTab(label: 'Sequences', icon: LucideIcons.folderOpen),
-      const AdaptiveTab(label: 'Samples', icon: LucideIcons.library),
       const AdaptiveTab(label: 'History', icon: LucideIcons.history),
     ];
 

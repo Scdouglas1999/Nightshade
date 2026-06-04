@@ -275,7 +275,7 @@ class _EmptyTargetsCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Add targets in the Targets tab or lower the min-altitude / '
+              'Add targets in the Planner or lower the min-altitude / '
               'min-score knobs in suggestion settings.',
               textAlign: TextAlign.center,
               style: TextStyle(color: colors.textSecondary, fontSize: 12),

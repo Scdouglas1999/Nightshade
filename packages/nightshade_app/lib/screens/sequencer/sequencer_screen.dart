@@ -25,9 +25,7 @@ import 'widgets/equipment_telemetry_strip.dart';
 import 'widgets/mobile_playback_bar.dart';
 import 'widgets/target_queue_panel.dart';
 import 'tabs/history_tab.dart';
-import 'tabs/library_tab.dart';
 import 'tabs/sequence_library_tab.dart';
-import 'tabs/targets_tab.dart';
 import 'tabs/templates_tab.dart';
 
 part 'sequencer_screen_parts/tab_bar.dart';
@@ -84,7 +82,7 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
       duration: const Duration(milliseconds: 400),
     )..forward();
 
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         ref.read(sequencerTabProvider.notifier).state = _tabController.index;
@@ -329,12 +327,6 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
             const SingleActivator(LogicalKeyboardKey.digit4, alt: true): () {
               _tabController.animateTo(3);
             },
-            const SingleActivator(LogicalKeyboardKey.digit5, alt: true): () {
-              _tabController.animateTo(4);
-            },
-            const SingleActivator(LogicalKeyboardKey.digit6, alt: true): () {
-              _tabController.animateTo(5);
-            },
             // Ctrl+T (or Cmd+T on Mac) to toggle snippet palette visibility
             const SingleActivator(LogicalKeyboardKey.keyT, control: true): () {
               if (currentTab == 0) {
@@ -367,14 +359,13 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
                     children: [
                       // Builder tab
                       _BuilderContent(colors: colors),
-                      // Targets tab
-                      const TargetsTab(),
-                      // Templates tab
+                      // Templates tab — merged library. Bundled read-only
+                      // sample sequences (audit §8.3.5) now live inside this
+                      // tab as a "Starters" section above the saved/built-in
+                      // templates, so the standalone Samples tab is gone.
                       const TemplatesTab(),
                       // Saved sequence catalog (host DB / remote list-full).
                       const SequenceLibraryTab(),
-                      // Bundled read-only samples (audit §8.3.5).
-                      const LibraryTab(),
                       // History tab
                       const HistoryTab(),
                     ],

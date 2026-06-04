@@ -24,6 +24,7 @@ part 'templates_tab_parts/_builtin_specialty_nodes.dart';
 part 'templates_tab_parts/_header_and_filters.dart';
 part 'templates_tab_parts/_template_card.dart';
 part 'templates_tab_parts/_save_template_dialog.dart';
+part 'templates_tab_parts/_starters_section.dart';
 
 /// Provider for templates list - loads from database with built-in fallbacks
 // autoDispose: list is only consumed by TemplatesTab; refetching the DB on
@@ -118,92 +119,184 @@ class TemplatesTab extends ConsumerWidget {
 
           if (!isMobile && snippets.isNotEmpty) const SizedBox(height: 16),
 
-          // Content
+          // Content — a single scroll view holding the bundled "Starters"
+          // (the old Samples tab, merged in here) followed by the user's
+          // saved / built-in templates. Both honour the search box; the
+          // category chips filter the templates section only.
           Expanded(
-            child: templatesAsync.when(
-              data: (templates) {
-                var filtered = templates;
+            child: ListView(
+              children: [
+                // Starters: bundled, read-only sample sequences. Only the
+                // search box filters these — category is a template concept.
+                _StartersSection(
+                  colors: colors,
+                  searchQuery: searchQuery,
+                  isMobile: isMobile,
+                ),
 
-                // Apply search filter
-                if (searchQuery.isNotEmpty) {
-                  filtered = filtered
-                      .where((t) =>
-                          t.name
-                              .toLowerCase()
-                              .contains(searchQuery.toLowerCase()) ||
-                          t.description
-                              .toLowerCase()
-                              .contains(searchQuery.toLowerCase()))
-                      .toList();
-                }
+                // Your Templates
+                _TemplatesSectionHeader(
+                  colors: colors,
+                  icon: LucideIcons.fileStack,
+                  title: 'Your Templates',
+                  subtitle:
+                      'Sequences you have saved as templates for quick reuse.',
+                ),
+                const SizedBox(height: 12),
+                templatesAsync.when(
+                  data: (templates) {
+                    var filtered = templates;
 
-                // Apply category filter
-                if (category != null && category.isNotEmpty) {
-                  filtered = filtered
-                      .where((template) =>
-                          _inferTemplateCategory(template) == category)
-                      .toList();
-                }
+                    // Apply search filter
+                    if (searchQuery.isNotEmpty) {
+                      filtered = filtered
+                          .where((t) =>
+                              t.name
+                                  .toLowerCase()
+                                  .contains(searchQuery.toLowerCase()) ||
+                              t.description
+                                  .toLowerCase()
+                                  .contains(searchQuery.toLowerCase()))
+                          .toList();
+                    }
 
-                if (filtered.isEmpty) {
-                  final hasSearch = searchQuery.isNotEmpty;
-                  return EmptyState(
-                    icon:
-                        hasSearch ? LucideIcons.searchX : LucideIcons.fileStack,
-                    title:
-                        hasSearch ? 'No templates found' : 'No templates yet',
-                    body: hasSearch
-                        ? 'Try a different search term'
-                        : 'Save your sequences as templates for easy reuse',
-                  );
-                }
+                    // Apply category filter
+                    if (category != null && category.isNotEmpty) {
+                      filtered = filtered
+                          .where((template) =>
+                              _inferTemplateCategory(template) == category)
+                          .toList();
+                    }
 
-                // Adapt grid for different screen sizes
-                final gridSpacing = isMobile ? 12.0 : 20.0;
-                final maxExtent = isMobile ? 320.0 : 400.0;
+                    if (filtered.isEmpty) {
+                      final hasSearch = searchQuery.isNotEmpty;
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        child: EmptyState(
+                          icon: hasSearch
+                              ? LucideIcons.searchX
+                              : LucideIcons.fileStack,
+                          title: hasSearch
+                              ? 'No templates found'
+                              : 'No templates yet',
+                          body: hasSearch
+                              ? 'Try a different search term'
+                              : 'Save your sequences as templates for easy '
+                                  'reuse, or start from a Starter above',
+                        ),
+                      );
+                    }
 
-                return GridView.builder(
-                  gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: maxExtent,
-                    childAspectRatio: isMobile ? 1.2 : 1.3,
-                    crossAxisSpacing: gridSpacing,
-                    mainAxisSpacing: gridSpacing,
-                  ),
-                  itemCount: filtered.length,
-                  itemBuilder: (context, index) {
-                    return _TemplateCard(
-                      colors: colors,
-                      template: filtered[index],
+                    // Adapt grid for different screen sizes
+                    final gridSpacing = isMobile ? 12.0 : 20.0;
+                    final maxExtent = isMobile ? 320.0 : 400.0;
+
+                    return GridView.builder(
+                      // The outer ListView already scrolls; this grid lays
+                      // out at its natural height inside it.
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                        maxCrossAxisExtent: maxExtent,
+                        childAspectRatio: isMobile ? 1.2 : 1.3,
+                        crossAxisSpacing: gridSpacing,
+                        mainAxisSpacing: gridSpacing,
+                      ),
+                      itemCount: filtered.length,
+                      itemBuilder: (context, index) {
+                        return _TemplateCard(
+                          colors: colors,
+                          template: filtered[index],
+                        );
+                      },
                     );
                   },
-                );
-              },
-              loading: () => Center(
-                child: CircularProgressIndicator(color: colors.primary),
-              ),
-              error: (error, stack) => Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(LucideIcons.alertTriangle,
-                        size: 48, color: colors.error),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Failed to load templates',
-                      style: TextStyle(color: colors.textPrimary, fontSize: 16),
+                  loading: () => const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 32),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                  error: (error, stack) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 32),
+                    child: Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(LucideIcons.alertTriangle,
+                              size: 48, color: colors.error),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Failed to load templates',
+                            style: TextStyle(
+                                color: colors.textPrimary, fontSize: 16),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            error.toString(),
+                            style: TextStyle(
+                                color: colors.textMuted, fontSize: 12),
+                          ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      error.toString(),
-                      style: TextStyle(color: colors.textMuted, fontSize: 12),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Shared section heading used to delineate the merged Templates tab into
+/// "Starters" (bundled samples) and "Your Templates" (user-saved).
+class _TemplatesSectionHeader extends StatelessWidget {
+  final NightshadeColors colors;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+
+  const _TemplatesSectionHeader({
+    required this.colors,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Icon(icon, size: 18, color: colors.textSecondary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                title,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w700,
+                  color: colors.textPrimary,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colors.textMuted,
+                  height: 1.3,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }
