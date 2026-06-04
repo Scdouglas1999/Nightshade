@@ -1,10 +1,109 @@
 part of '../settings_provider.dart';
 
 extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
+  /// The set of database setting keys that the remote wire model
+  /// (`models.AppSettings`) can actually round-trip. Built from the fields
+  /// mapped in `_toRemoteSettings` / `_fromRemoteSettings`. Anything NOT in
+  /// here is dropped on the floor by a remote save, so we refuse to write it
+  /// rather than letting a phone silently fail to persist an
+  /// unattended-night knob (autofocus, dither toggle, weather-safety,
+  /// recovery, smart-night, adaptive-swap, pre-flight, calibration, …).
+  ///
+  /// IMPORTANT: keep this in lock-step with `_toRemoteSettings`. A key added
+  /// to the wire model must be added here, or remote saves of it will throw.
+  static const Set<String> _remotableSettingKeys = {
+    // Appearance / general
+    'theme',
+    'language',
+    'auto_connect_equipment',
+    'auto_discover_on_launch',
+    'accent_color',
+    'font_size',
+    'ui_scale',
+    // Location
+    'observer_latitude',
+    'observer_longitude',
+    'observer_elevation',
+    // Imaging / sequencer basics
+    'file_naming_pattern',
+    'meridian_flip_minutes',
+    'auto_focus_every_minutes',
+    'dither_every_frames',
+    'safety_fail_mode',
+    // Plate solving
+    'plate_solve_timeout',
+    'plate_solve_search_radius',
+    'astap_path',
+    // Notifications
+    'discord_webhook',
+    'pushover_key',
+    'pushover_user',
+    // Protocol
+    'indi_server_host',
+    'indi_server_port',
+    'indi_auto_connect',
+    'alpaca_server_host',
+    'alpaca_server_port',
+    'alpaca_auto_discover',
+    // Sequencer execution / output
+    'use_native_execution',
+    'use_simulation_mode',
+    'image_output_path',
+    // Wave 3 Image Grading
+    'image_grading_enabled',
+    'image_grading_hfr_threshold_px',
+    'image_grading_hfr_baseline_percent',
+    'image_grading_eccentricity_threshold',
+    'image_grading_star_count_min',
+    'image_grading_max_consecutive_rejects',
+    'image_grading_reject_folder_path',
+    // Wave 5 Sky-brightness adaptive exposure
+    'adaptive_exposure_enabled',
+    'adaptive_exposure_target_snr',
+    'adaptive_exposure_reference_mag',
+    'adaptive_exposure_min_secs',
+    'adaptive_exposure_max_secs',
+    'adaptive_exposure_per_filter_enabled',
+    'adaptive_exposure_per_filter_min_secs',
+    'adaptive_exposure_per_filter_max_secs',
+  };
+
+  /// FAIL-LOUD guard for the remote-write path. Throws an [UnsupportedError]
+  /// naming the offending key(s) when a caller tries to persist a setting the
+  /// wire model can't carry. Callers on the local (FFI / Drift) path never
+  /// invoke this — every DB key is persistable locally.
+  ///
+  /// Per CLAUDE.md "errors are a feature": a silent no-op here would mean a
+  /// user toggling (say) "park on unsafe weather" from their phone believes
+  /// it stuck when it never reached the host. Loud failure surfaces the gap.
+  void _assertKeysRemotable(Iterable<String> keys) {
+    final unsupported =
+        keys.where((k) => !_remotableSettingKeys.contains(k)).toList();
+    if (unsupported.isNotEmpty) {
+      throw UnsupportedError(
+        'Cannot persist setting(s) over a remote/network backend: '
+        '${unsupported.join(', ')}. These keys are not carried by the '
+        'remote settings wire model, so the write would be silently '
+        'dropped by the host. Extend models.AppSettings + _toRemoteSettings '
+        '(and _remotableSettingKeys) to remote them.',
+      );
+    }
+  }
+
+  /// Apply a DB-keyed partial settings patch onto [current] in-memory state.
+  ///
+  /// This helper is the remote-write applier: its only callers are
+  /// `_saveSetting` / `_saveSettings` inside the `NetworkBackend` branch of
+  /// [AppSettingsNotifier]. Because a remote write that names a key the wire
+  /// model can't carry would be silently lost on the host, we FAIL LOUD up
+  /// front via [_assertKeysRemotable] instead of mapping the key into state
+  /// and pretending it persisted. (Local/Drift writes go straight to the DAO
+  /// and never reach this method, so the guard never fires for them.)
   AppSettingsState _applySettingsMap(
     AppSettingsState current,
     Map<String, String> settings,
   ) {
+    _assertKeysRemotable(settings.keys);
     return current.copyWith(
       startMinimized: settings.containsKey('start_minimized')
           ? _parseBool(settings['start_minimized'], current.startMinimized)
@@ -37,6 +136,10 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
       language: settings['language'],
       accentColor: settings['accent_color'],
       fontSize: settings['font_size'],
+      // ui_scale is carried by the remote wire model, so the partial applier
+      // must map it too â€” otherwise a remote save of the UI scale passes the
+      // remotable-key guard but never reaches `_toRemoteSettings`.
+      uiScale: settings['ui_scale'],
       sidebarCollapsed: settings.containsKey('sidebar_collapsed')
           ? _parseBool(settings['sidebar_collapsed'], current.sidebarCollapsed)
           : null,
@@ -341,13 +444,18 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
               current.afRSquaredThreshold,
             )
           : null,
-      afDisableGuidingDuringAf:
-          settings.containsKey('af_disable_guiding_during_af')
-              ? _parseBool(
-                  settings['af_disable_guiding_during_af'],
-                  current.afDisableGuidingDuringAf,
-                )
-              : null,
+      // Canonical key is `af_disable_guiding` — matches the setter in
+      // autofocus.dart, the default-settings seed, and the stored-snapshot
+      // loader. The old `af_disable_guiding_during_af` key never matched
+      // anything written to disk, so toggling "disable guiding during AF"
+      // (especially over a remote/network backend, which routes its writes
+      // through this same partial-persistence helper) silently no-op'd.
+      afDisableGuidingDuringAf: settings.containsKey('af_disable_guiding')
+          ? _parseBool(
+              settings['af_disable_guiding'],
+              current.afDisableGuidingDuringAf,
+            )
+          : null,
       afFocuserSettleTimeMs: settings.containsKey('af_focuser_settle_time_ms')
           ? _parseInt(
               settings['af_focuser_settle_time_ms'],
@@ -421,6 +529,57 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
                   ? null
                   : settings['image_grading_reject_folder_path'])
               : _unset,
+      // Wave 5 Agent 2 â€” Sky-brightness adaptive exposure partial-update
+      // wire-up. Required so a remote save of an adaptive-exposure knob
+      // (which is carried by the wire model) actually reaches state and is
+      // then forwarded to the host by `_toRemoteSettings`.
+      adaptiveExposureEnabled: settings.containsKey('adaptive_exposure_enabled')
+          ? _parseBool(
+              settings['adaptive_exposure_enabled'],
+              current.adaptiveExposureEnabled,
+            )
+          : null,
+      adaptiveExposureTargetSnr:
+          settings.containsKey('adaptive_exposure_target_snr')
+              ? _parseDouble(
+                  settings['adaptive_exposure_target_snr'],
+                  current.adaptiveExposureTargetSnr,
+                )
+              : null,
+      adaptiveExposureReferenceMag:
+          settings.containsKey('adaptive_exposure_reference_mag')
+              ? _parseDouble(
+                  settings['adaptive_exposure_reference_mag'],
+                  current.adaptiveExposureReferenceMag,
+                )
+              : null,
+      adaptiveExposureMinSecs: settings.containsKey('adaptive_exposure_min_secs')
+          ? _parseDouble(
+              settings['adaptive_exposure_min_secs'],
+              current.adaptiveExposureMinSecs,
+            )
+          : null,
+      adaptiveExposureMaxSecs: settings.containsKey('adaptive_exposure_max_secs')
+          ? _parseDouble(
+              settings['adaptive_exposure_max_secs'],
+              current.adaptiveExposureMaxSecs,
+            )
+          : null,
+      adaptiveExposurePerFilterEnabled:
+          settings.containsKey('adaptive_exposure_per_filter_enabled')
+              ? _parseFilterBoolMap(
+                  settings['adaptive_exposure_per_filter_enabled'])
+              : null,
+      adaptiveExposurePerFilterMinSecs:
+          settings.containsKey('adaptive_exposure_per_filter_min_secs')
+              ? _parseFilterDoubleMap(
+                  settings['adaptive_exposure_per_filter_min_secs'])
+              : null,
+      adaptiveExposurePerFilterMaxSecs:
+          settings.containsKey('adaptive_exposure_per_filter_max_secs')
+              ? _parseFilterDoubleMap(
+                  settings['adaptive_exposure_per_filter_max_secs'])
+              : null,
       // Wave 5 Agent 3 â€” Pre-flight partial-update wire-up.
       preflightStrictness: settings.containsKey('preflight_strictness')
           ? _parsePreflightStrictness(settings['preflight_strictness'])

@@ -237,7 +237,16 @@ class BackupService {
   /// Restore data from a backup file
   ///
   /// Restores all backed up data, optionally merging with existing data
-  /// or replacing it completely
+  /// or replacing it completely.
+  ///
+  /// DATA-LOSS GUARD (P1): when [replaceExisting] is true the live database
+  /// is wiped before the backup is imported. To avoid destroying the user's
+  /// data behind a corrupt or truncated backup file, the ENTIRE payload is
+  /// read and validated *before* any destructive operation runs. If the
+  /// payload is missing its version, isn't a JSON object, has a
+  /// wrong-shaped top-level section, or any typed row fails to decode, the
+  /// restore aborts with the live data fully intact (`_clearAllData` is
+  /// never reached). Only after validation passes do we clear + import.
   Future<RestoreResult> restoreBackup({
     required String filePath,
     bool replaceExisting = false,
@@ -256,19 +265,35 @@ class BackupService {
       }
 
       final jsonString = await file.readAsString();
-      final backup = jsonDecode(jsonString) as Map<String, dynamic>;
 
-      // Verify backup version compatibility
-      final version = backup['version'] as String?;
-      if (version == null) {
+      // ---------------------------------------------------------------
+      // PHASE 1 — Validate & stage. Nothing below this block touches the
+      // live database. Any failure returns a non-destructive error.
+      // ---------------------------------------------------------------
+      final _ValidatedBackup staged;
+      try {
+        staged = _validateBackupPayload(jsonString);
+      } on _BackupValidationException catch (e) {
+        _logger.error(
+          'Restore aborted before touching live data: ${e.message}',
+          source: 'BackupService',
+        );
         return RestoreResult(
           success: false,
-          errorMessage: 'Invalid backup file: missing version',
+          errorMessage: e.message,
           timestamp: DateTime.now(),
         );
       }
 
-      _logger.debug('Restoring backup version: $version');
+      _logger.debug('Restoring backup version: ${staged.version}');
+
+      final backup = staged.backup;
+
+      // ---------------------------------------------------------------
+      // PHASE 2 — Apply. The payload is now known to be structurally
+      // sound and every typed section decodes, so the destructive clear
+      // can run without risking unrecoverable data loss against garbage.
+      // ---------------------------------------------------------------
 
       // Clear existing data if requested
       if (replaceExisting) {
@@ -279,10 +304,10 @@ class BackupService {
       // Restore data in order
       final categoryCounts = <String, int>{};
 
-      // Restore settings
-      if (backup.containsKey('settings')) {
+      // Restore settings — re-use the validated copy so we never re-parse.
+      if (staged.settings != null) {
         final count = await _importSettings(
-          backup['settings'] as Map<String, dynamic>,
+          staged.settings!,
           replace: replaceExisting,
         );
         categoryCounts['settings'] = count;
@@ -290,29 +315,31 @@ class BackupService {
       }
 
       // Restore equipment profiles
-      if (backup.containsKey('equipmentProfiles')) {
+      if (staged.profiles != null) {
         final count = await _importProfiles(
-          backup['equipmentProfiles'] as List<dynamic>,
+          staged.profiles!,
           replace: replaceExisting,
         );
         categoryCounts['profiles'] = count;
         _logger.debug('Restored $count profiles');
       }
 
-      // Restore sequences
-      if (backup.containsKey('sequences')) {
-        final count = await _importSequences(
-          backup['sequences'] as List<dynamic>,
-          replace: replaceExisting,
-        );
+      // Restore sequences — the staged list holds fully-decoded sequences
+      // so a malformed node can't slip past validation into a half-wiped DB.
+      if (staged.sequences != null) {
+        var count = 0;
+        for (final sequence in staged.sequences!) {
+          await sequenceRepository.saveSequence(sequence);
+          count++;
+        }
         categoryCounts['sequences'] = count;
         _logger.debug('Restored $count sequences');
       }
 
       // Restore targets
-      if (backup.containsKey('targets')) {
+      if (staged.targets != null) {
         final count = await _importTargets(
-          backup['targets'] as List<dynamic>,
+          staged.targets!,
           replace: replaceExisting,
         );
         categoryCounts['targets'] = count;
@@ -373,6 +400,138 @@ class BackupService {
         timestamp: DateTime.now(),
       );
     }
+  }
+
+  /// P1 DATA-LOSS GUARD — fully parse and validate a backup payload before
+  /// the caller is allowed to touch the live database.
+  ///
+  /// Validates, in order:
+  ///   * the file is valid JSON and decodes to a top-level object;
+  ///   * a non-null `version` string is present;
+  ///   * each present top-level section has the expected shape
+  ///     (`settings` is an object; `equipmentProfiles` / `sequences` /
+  ///     `targets` are lists);
+  ///   * every profile / target row is an object carrying a non-empty
+  ///     `name` (the only NOT NULL column the importer relies on);
+  ///   * every sequence entry decodes end-to-end (root + all nodes) — a
+  ///     malformed sequence aborts rather than being silently dropped
+  ///     into a half-wiped database.
+  ///
+  /// Throws [_BackupValidationException] (caught by [restoreBackup]) on the
+  /// first problem. On success returns a [_ValidatedBackup] holding both the
+  /// raw map (for the never-cleared extended tables) and the eagerly-decoded
+  /// typed sections so the apply phase never re-parses.
+  _ValidatedBackup _validateBackupPayload(String jsonString) {
+    final Object? decoded;
+    try {
+      decoded = jsonDecode(jsonString);
+    } catch (e) {
+      throw _BackupValidationException('Invalid backup file: not valid JSON ($e)');
+    }
+    if (decoded is! Map<String, dynamic>) {
+      throw const _BackupValidationException(
+          'Invalid backup file: root is not a JSON object');
+    }
+    final backup = decoded;
+
+    final version = backup['version'];
+    if (version is! String || version.isEmpty) {
+      throw const _BackupValidationException(
+          'Invalid backup file: missing version');
+    }
+
+    // Settings — must be a JSON object when present.
+    Map<String, dynamic>? settings;
+    if (backup.containsKey('settings')) {
+      final raw = backup['settings'];
+      if (raw is! Map<String, dynamic>) {
+        throw const _BackupValidationException(
+            'Invalid backup file: "settings" is not an object');
+      }
+      settings = raw;
+    }
+
+    // Equipment profiles — list of objects each carrying a non-empty name.
+    List<Map<String, dynamic>>? profiles;
+    if (backup.containsKey('equipmentProfiles')) {
+      profiles = _validateNamedRows(
+        backup['equipmentProfiles'],
+        section: 'equipmentProfiles',
+      );
+    }
+
+    // Targets — same contract as profiles.
+    List<Map<String, dynamic>>? targets;
+    if (backup.containsKey('targets')) {
+      targets = _validateNamedRows(
+        backup['targets'],
+        section: 'targets',
+      );
+    }
+
+    // Sequences — must be a list, and every entry must decode fully.
+    List<Sequence>? sequences;
+    if (backup.containsKey('sequences')) {
+      final raw = backup['sequences'];
+      if (raw is! List) {
+        throw const _BackupValidationException(
+            'Invalid backup file: "sequences" is not a list');
+      }
+      final decodedSequences = <Sequence>[];
+      for (var i = 0; i < raw.length; i++) {
+        final entry = raw[i];
+        if (entry is! Map<String, dynamic>) {
+          throw _BackupValidationException(
+              'Invalid backup file: sequences[$i] is not an object');
+        }
+        final sequence = _jsonToSequence(entry);
+        if (sequence == null) {
+          throw _BackupValidationException(
+              'Invalid backup file: sequences[$i] failed to decode '
+              '(name: ${entry['name'] ?? '<unknown>'})');
+        }
+        decodedSequences.add(sequence);
+      }
+      sequences = decodedSequences;
+    }
+
+    return _ValidatedBackup(
+      version: version,
+      backup: backup,
+      settings: settings,
+      profiles: profiles,
+      targets: targets,
+      sequences: sequences,
+    );
+  }
+
+  /// Shared validator for the profile/target sections: the value must be a
+  /// list of JSON objects, each with a non-empty `name` (the importer inserts
+  /// that as a NOT NULL column, so a missing name would otherwise blow up
+  /// *after* the live DB has already been wiped).
+  List<Map<String, dynamic>> _validateNamedRows(
+    Object? raw, {
+    required String section,
+  }) {
+    if (raw is! List) {
+      throw _BackupValidationException(
+          'Invalid backup file: "$section" is not a list');
+    }
+    final out = <Map<String, dynamic>>[];
+    for (var i = 0; i < raw.length; i++) {
+      final entry = raw[i];
+      if (entry is! Map<String, dynamic>) {
+        throw _BackupValidationException(
+            'Invalid backup file: $section[$i] is not an object');
+      }
+      final name = entry['name'];
+      if (name is! String || name.isEmpty) {
+        throw _BackupValidationException(
+            'Invalid backup file: $section[$i] is missing a non-empty "name"');
+      }
+      out.add(entry);
+    }
+    return out;
   }
 
   /// Read metadata from a backup file without restoring
@@ -773,6 +932,40 @@ BrightnessTierPreferences _parseBrightnessTierPreferences(Object? value) {
     return BrightnessTierPreferences.fromJson(value.cast<String, dynamic>());
   }
   return const BrightnessTierPreferences();
+}
+
+/// Raised by [BackupService._validateBackupPayload] when a backup file is
+/// structurally invalid. Caught inside [BackupService.restoreBackup] and
+/// turned into a non-destructive failure result so live data is never wiped
+/// for a corrupt payload.
+class _BackupValidationException implements Exception {
+  final String message;
+  const _BackupValidationException(this.message);
+
+  @override
+  String toString() => 'BackupValidationException: $message';
+}
+
+/// Fully-validated, eagerly-decoded backup payload produced by
+/// [BackupService._validateBackupPayload]. Holds the raw map (consumed by the
+/// never-cleared extended-table importers) alongside the typed sections so the
+/// apply phase never re-parses what validation already proved sound.
+class _ValidatedBackup {
+  final String version;
+  final Map<String, dynamic> backup;
+  final Map<String, dynamic>? settings;
+  final List<Map<String, dynamic>>? profiles;
+  final List<Map<String, dynamic>>? targets;
+  final List<Sequence>? sequences;
+
+  const _ValidatedBackup({
+    required this.version,
+    required this.backup,
+    required this.settings,
+    required this.profiles,
+    required this.targets,
+    required this.sequences,
+  });
 }
 
 /// Provider for BackupService

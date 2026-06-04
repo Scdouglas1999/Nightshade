@@ -38,6 +38,30 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       useSimulationMode: remote.useSimulationMode,
       imageOutputPath: remote.imageOutputPath,
       safetyFailMode: remote.safetyFailMode,
+      // Wave 3 Image Grading — carried by the wire model so an unattended
+      // night driven from a phone keeps its Pass/Reject thresholds.
+      enableImageGrading: remote.enableImageGrading,
+      imageGradingHfrThresholdPx: remote.imageGradingHfrThresholdPx,
+      imageGradingHfrBaselinePercent: remote.imageGradingHfrBaselinePercent,
+      imageGradingEccentricityThreshold:
+          remote.imageGradingEccentricityThreshold,
+      imageGradingStarCountMin: remote.imageGradingStarCountMin,
+      imageGradingMaxConsecutiveRejects:
+          remote.imageGradingMaxConsecutiveRejects,
+      imageGradingRejectFolderPath: remote.imageGradingRejectFolderPath,
+      // Wave 5 Sky-brightness adaptive exposure — global defaults + per-filter
+      // overrides round-trip so adaptive subs work when planned remotely.
+      adaptiveExposureEnabled: remote.adaptiveExposureEnabled,
+      adaptiveExposureTargetSnr: remote.adaptiveExposureTargetSnr,
+      adaptiveExposureReferenceMag: remote.adaptiveExposureReferenceMag,
+      adaptiveExposureMinSecs: remote.adaptiveExposureMinSecs,
+      adaptiveExposureMaxSecs: remote.adaptiveExposureMaxSecs,
+      adaptiveExposurePerFilterEnabled:
+          Map<String, bool>.from(remote.adaptiveExposurePerFilterEnabled),
+      adaptiveExposurePerFilterMinSecs:
+          Map<String, double>.from(remote.adaptiveExposurePerFilterMinSecs),
+      adaptiveExposurePerFilterMaxSecs:
+          Map<String, double>.from(remote.adaptiveExposurePerFilterMaxSecs),
     );
   }
 
@@ -87,6 +111,29 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       updateCheckIntervalHours: previous?.updateCheckIntervalHours ?? 24,
       skippedUpdateVersion: previous?.skippedUpdateVersion ?? '',
       safetyFailMode: settings.safetyFailMode,
+      // Wave 3 Image Grading — push the live thresholds to the host so a
+      // remote save doesn't silently revert them to model defaults.
+      enableImageGrading: settings.enableImageGrading,
+      imageGradingHfrThresholdPx: settings.imageGradingHfrThresholdPx,
+      imageGradingHfrBaselinePercent: settings.imageGradingHfrBaselinePercent,
+      imageGradingEccentricityThreshold:
+          settings.imageGradingEccentricityThreshold,
+      imageGradingStarCountMin: settings.imageGradingStarCountMin,
+      imageGradingMaxConsecutiveRejects:
+          settings.imageGradingMaxConsecutiveRejects,
+      imageGradingRejectFolderPath: settings.imageGradingRejectFolderPath,
+      // Wave 5 Sky-brightness adaptive exposure.
+      adaptiveExposureEnabled: settings.adaptiveExposureEnabled,
+      adaptiveExposureTargetSnr: settings.adaptiveExposureTargetSnr,
+      adaptiveExposureReferenceMag: settings.adaptiveExposureReferenceMag,
+      adaptiveExposureMinSecs: settings.adaptiveExposureMinSecs,
+      adaptiveExposureMaxSecs: settings.adaptiveExposureMaxSecs,
+      adaptiveExposurePerFilterEnabled:
+          Map<String, bool>.from(settings.adaptiveExposurePerFilterEnabled),
+      adaptiveExposurePerFilterMinSecs:
+          Map<String, double>.from(settings.adaptiveExposurePerFilterMinSecs),
+      adaptiveExposurePerFilterMaxSecs:
+          Map<String, double>.from(settings.adaptiveExposurePerFilterMaxSecs),
     );
   }
 
@@ -208,6 +255,100 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
           );
         }
         return null;
+      // Wave 3 Image Grading — keys mirror models.AppSettings.toJson().
+      // The nullable threshold fields accept `null` explicitly (user cleared
+      // the field) which copyWith honours via its `_unset` sentinel pattern.
+      case 'enableImageGrading':
+        return value is bool
+            ? current.copyWith(enableImageGrading: value)
+            : null;
+      case 'imageGradingHfrThresholdPx':
+        if (value == null) {
+          return current.copyWith(imageGradingHfrThresholdPx: null);
+        }
+        return value is num
+            ? current.copyWith(imageGradingHfrThresholdPx: value.toDouble())
+            : null;
+      case 'imageGradingHfrBaselinePercent':
+        if (value == null) {
+          return current.copyWith(imageGradingHfrBaselinePercent: null);
+        }
+        return value is num
+            ? current.copyWith(
+                imageGradingHfrBaselinePercent: value.toDouble())
+            : null;
+      case 'imageGradingEccentricityThreshold':
+        if (value == null) {
+          return current.copyWith(imageGradingEccentricityThreshold: null);
+        }
+        return value is num
+            ? current.copyWith(
+                imageGradingEccentricityThreshold: value.toDouble())
+            : null;
+      case 'imageGradingStarCountMin':
+        if (value == null) {
+          return current.copyWith(imageGradingStarCountMin: null);
+        }
+        return value is num
+            ? current.copyWith(imageGradingStarCountMin: value.toInt())
+            : null;
+      case 'imageGradingMaxConsecutiveRejects':
+        return value is num
+            ? current.copyWith(
+                imageGradingMaxConsecutiveRejects: value.toInt())
+            : null;
+      case 'imageGradingRejectFolderPath':
+        if (value == null) {
+          return current.copyWith(imageGradingRejectFolderPath: null);
+        }
+        return value is String
+            ? current.copyWith(imageGradingRejectFolderPath: value)
+            : null;
+      // Wave 5 Sky-brightness adaptive exposure.
+      case 'adaptiveExposureEnabled':
+        return value is bool
+            ? current.copyWith(adaptiveExposureEnabled: value)
+            : null;
+      case 'adaptiveExposureTargetSnr':
+        return value is num
+            ? current.copyWith(adaptiveExposureTargetSnr: value.toDouble())
+            : null;
+      case 'adaptiveExposureReferenceMag':
+        return value is num
+            ? current.copyWith(adaptiveExposureReferenceMag: value.toDouble())
+            : null;
+      case 'adaptiveExposureMinSecs':
+        return value is num
+            ? current.copyWith(adaptiveExposureMinSecs: value.toDouble())
+            : null;
+      case 'adaptiveExposureMaxSecs':
+        return value is num
+            ? current.copyWith(adaptiveExposureMaxSecs: value.toDouble())
+            : null;
+      case 'adaptiveExposurePerFilterEnabled':
+        return value is Map
+            ? current.copyWith(
+                adaptiveExposurePerFilterEnabled: value.map(
+                  (k, v) => MapEntry(k.toString(), v == true),
+                ),
+              )
+            : null;
+      case 'adaptiveExposurePerFilterMinSecs':
+        return value is Map
+            ? current.copyWith(
+                adaptiveExposurePerFilterMinSecs: value.map(
+                  (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
+                ),
+              )
+            : null;
+      case 'adaptiveExposurePerFilterMaxSecs':
+        return value is Map
+            ? current.copyWith(
+                adaptiveExposurePerFilterMaxSecs: value.map(
+                  (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
+                ),
+              )
+            : null;
       default:
         // Forward-compat: a newer host may emit settings this build
         // does not yet have a copyWith for. The persisted snapshot
