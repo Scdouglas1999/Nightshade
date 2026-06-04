@@ -524,6 +524,26 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
     final dao = _ref.read(imagesDaoProvider);
     final sidecarService = _ref.read(thumbnailSidecarServiceProvider);
 
+    // Attribute this frame to its catalog target row and real exposure length
+    // by walking the loaded sequence tree from the producing node. Replaces
+    // the former hardcoded target_id=NULL + exposureDuration=1.0, which broke
+    // per-target integration-goal completion (the scheduler imaged one target
+    // all night) and corrupted every integration-time total. Computed
+    // synchronously here so it reflects the sequence as it was when the frame
+    // was produced, not whatever is loaded by the time the async insert runs.
+    final loadedSequence = _ref.read(currentSequenceProvider);
+    final attribution = loadedSequence == null
+        ? const FrameAttribution()
+        : resolveFrameAttribution(loadedSequence, nodeId, currentFilter: filter);
+    if (attribution.exposureSecs == null) {
+      _logger.warning(
+        'Sequence frame from node $nodeId has no resolvable exposure duration '
+        '(producing node is not an ExposureNode); recording 0s rather than a '
+        'fabricated value.',
+        source: 'SequenceExecutor',
+      );
+    }
+
     unawaited(() async {
       try {
         await dao.insertSequenceFrame(
@@ -531,11 +551,10 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           fileName: fileName,
           fileFormat:
               filePath.toLowerCase().endsWith('.xisf') ? 'xisf' : 'fits',
-          // Use a stand-in 1.0s when the grader didn't ship a duration â€”
-          // the column is NOT NULL on the SQL side. The dashboard will
-          // surface this as "1.0s" but the user's running sequence will
-          // overwrite it on the next graded frame.
-          exposureDuration: 1.0,
+          // Real exposure length from the producing ExposureNode â€”
+          // (see the resolved `attribution` above; column is NOT NULL).
+          exposureDuration: attribution.exposureSecs ?? 0.0,
+          targetId: attribution.targetId,
           capturedAt: DateTime.now(),
           isAccepted: isAccepted,
           producingNodeId: nodeId,

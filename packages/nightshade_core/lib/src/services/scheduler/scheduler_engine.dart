@@ -911,6 +911,11 @@ class SchedulerEngine {
       decDegrees: c.decDegrees,
       priority: c.userPriority,
       childIds: [slewId, centerId, ...exposureIds],
+      // Attribute every captured frame to this DB target row so
+      // IntegrationGoalService.capturedFrameCount (WHERE target_id = ?)
+      // advances and goals complete — otherwise frames land with
+      // target_id=NULL and the engine images this one target all night.
+      catalogTargetId: c.targetId,
     );
     nodes[targetId] = target;
 
