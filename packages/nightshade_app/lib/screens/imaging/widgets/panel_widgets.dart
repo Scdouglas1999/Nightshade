@@ -9,8 +9,6 @@ import '../../../widgets/help/field_help_copy.dart';
 import '../../../widgets/help/field_help_label.dart';
 import '../../../widgets/pill_tab.dart';
 
-part 'panel_widgets/quick_stat.dart';
-
 /// Builds an imaging-panel row label, optionally appending a [helpAffordance]
 /// when [helpId] is supplied.
 ///
@@ -902,75 +900,6 @@ class _SmallButtonState extends State<SmallButton> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class QuickStatsPanel extends ConsumerWidget {
-  final NightshadeColors colors;
-
-  const QuickStatsPanel({super.key, required this.colors});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final cameraState = ref.watch(cameraStateProvider);
-    final guiderState = ref.watch(guiderStateProvider);
-    final lastStats = ref.watch(lastImageStatsProvider);
-
-    // Format temperature
-    String tempValue = '---';
-    if (cameraState.connectionState == DeviceConnectionState.connected) {
-      if (cameraState.temperature != null) {
-        tempValue = '${cameraState.temperature!.toStringAsFixed(1)}°C';
-      } else {
-        tempValue = 'N/A';
-      }
-    }
-
-    // Format RMS
-    String rmsValue = '---';
-    if (guiderState.connectionState == DeviceConnectionState.connected &&
-        guiderState.isGuiding &&
-        guiderState.rmsTotal != null) {
-      rmsValue = '${guiderState.rmsTotal!.toStringAsFixed(2)}"';
-    }
-
-    // Format HFR
-    String hfrValue = '---';
-    if (lastStats?.hfr != null) {
-      hfrValue = lastStats!.hfr!.toStringAsFixed(2);
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          _QuickStat(
-            icon: LucideIcons.thermometer,
-            label: 'Sensor',
-            value: tempValue,
-            colors: colors,
-          ),
-          const SizedBox(width: 24),
-          _QuickStat(
-            icon: LucideIcons.activity,
-            label: 'RMS',
-            value: rmsValue,
-            colors: colors,
-          ),
-          const SizedBox(width: 24),
-          _QuickStat(
-            icon: LucideIcons.target,
-            label: 'HFR',
-            value: hfrValue,
-            colors: colors,
-          ),
-        ],
       ),
     );
   }
