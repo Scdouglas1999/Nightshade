@@ -1766,6 +1766,13 @@ impl SequenceExecutor {
         // (info_cache must be consistent for `has_recoverable_checkpoint`).
         let streaming_checkpoint_manager: Option<Arc<crate::checkpoint::CheckpointManager>> =
             self.checkpoint_manager.clone();
+        // Separate Arc clone for the terminal completion handler. On normal
+        // completion we mark the checkpoint inactive so the next launch does
+        // NOT show a stale "resume?" banner. `streaming_checkpoint_manager`
+        // above is moved into the streaming-checkpoint task, so the completion
+        // path needs its own handle to the *same* manager (shared info_cache).
+        let completion_checkpoint_manager: Option<Arc<crate::checkpoint::CheckpointManager>> =
+            self.checkpoint_manager.clone();
         let streaming_sequence = self.sequence.clone();
         let streaming_camera_id = self.camera_id.clone();
         let streaming_mount_id = self.mount_id.clone();
@@ -3972,16 +3979,46 @@ impl SequenceExecutor {
                             }
                         }
 
-                        if let Some(camera_id) = &trigger_action_context.camera_id {
-                            if let Ok(temp) = device_ops_for_triggers
-                                .camera_get_temperature(camera_id)
+                        // TemperatureShift refocus must key off a temperature
+                        // that actually tracks the optical train's thermal
+                        // expansion — i.e. the FOCUSER temperature probe (or an
+                        // ambient sensor). The cooled-CAMERA sensor temperature
+                        // is regulated to a fixed setpoint, so it never drifts;
+                        // feeding it here meant the trigger could never fire and
+                        // focus drifted soft over a full night. We now read the
+                        // focuser's temperature probe. `Ok(None)` means the
+                        // focuser has no probe — we deliberately do NOT fall back
+                        // to the regulated camera temperature (that would
+                        // resurrect the silent no-fire bug); the trigger simply
+                        // stays inert, which is the honest "no temperature source
+                        // available" outcome.
+                        if let Some(focuser_id) = &trigger_action_context.focuser_id {
+                            match device_ops_for_triggers
+                                .focuser_get_temperature(focuser_id)
                                 .await
                             {
-                                let manager = trigger_manager.read().await;
-                                let trigger_state = manager.state();
-                                let mut state = trigger_state.write().await;
-                                state.update_temperature(temp);
-                                tracing::trace!("Updated camera temperature: {:.1}°C", temp);
+                                Ok(Some(temp)) => {
+                                    let manager = trigger_manager.read().await;
+                                    let trigger_state = manager.state();
+                                    let mut state = trigger_state.write().await;
+                                    state.update_temperature(temp);
+                                    tracing::trace!("Updated focuser temperature: {:.1}°C", temp);
+                                }
+                                Ok(None) => {
+                                    tracing::trace!(
+                                        "Focuser '{}' reports no temperature probe; \
+                                         TemperatureShift trigger remains inert (no fallback \
+                                         to regulated camera temperature)",
+                                        focuser_id
+                                    );
+                                }
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "Focuser temperature query failed: {} - leaving \
+                                         TemperatureShift trigger state unchanged",
+                                        e
+                                    );
+                                }
                             }
                         }
 
@@ -5277,6 +5314,31 @@ impl SequenceExecutor {
 
                 match result {
                     NodeStatus::Success | NodeStatus::Skipped => {
+                        // Mark the checkpoint inactive on graceful completion.
+                        // Without this the on-disk checkpoint stays `is_active`
+                        // forever, so `has_recoverable_checkpoint()` keeps
+                        // returning true and the UI shows a stale "resume?"
+                        // banner after every successful night. We use
+                        // `mark_completed()` (not `clear()`) so the file is
+                        // preserved with `is_active=false` /
+                        // `executor_state=Completed` for the post-session report;
+                        // the next `start()` overwrites it. A failure to write is
+                        // logged loudly (it would silently reintroduce the stale
+                        // banner) but does not change the run's Success outcome.
+                        if let Some(mgr) = &completion_checkpoint_manager {
+                            if let Err(e) = mgr.mark_completed() {
+                                tracing::error!(
+                                    "Failed to mark checkpoint completed after a normal \
+                                     sequence finish: {} — a stale 'resume?' banner may \
+                                     appear on next launch",
+                                    e
+                                );
+                            } else {
+                                tracing::debug!(
+                                    "Checkpoint marked completed on normal sequence finish"
+                                );
+                            }
+                        }
                         let _ = event_tx.send(ExecutorEvent::SequenceCompleted);
                         // Wave 8 Replay Debug — terminal lifecycle decision.
                         emit_lifecycle_decision(

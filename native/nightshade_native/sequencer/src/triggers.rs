@@ -2289,6 +2289,50 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_temperature_shift_needs_a_drifting_source() {
+        // Regression for the cooled-camera bug: the executor used to feed this
+        // trigger from `camera_get_temperature`. A cooled camera is regulated
+        // to a fixed setpoint, so its reading never drifts and the trigger
+        // could never fire — focus walked soft over the night. The executor now
+        // feeds `update_temperature` from the FOCUSER probe instead. This test
+        // demonstrates the underlying contract the fix relies on: a constant
+        // (regulated) feed never trips, while a drifting (focuser/ambient) feed
+        // does once the delta exceeds the configured degrees.
+        let mut trigger = Trigger::new(
+            "test",
+            "Temp Shift Source",
+            TriggerType::TemperatureShift { degrees: 2.0 },
+            RecoveryAction::Autofocus,
+        );
+
+        // Regulated camera sensor: held at -10.0°C all night. update_temperature
+        // seeds the baseline from the first reading, then every reading equals
+        // it, so the trigger NEVER fires no matter how many ticks elapse.
+        let mut regulated = TriggerState::new();
+        for _ in 0..100 {
+            regulated.update_temperature(-10.0);
+            assert!(
+                !trigger.check(&regulated).await,
+                "a regulated (constant) temperature source must never trip refocus"
+            );
+        }
+
+        // Focuser/ambient probe: tracks the night cooling down. Baseline seeds
+        // at 8.0°C; once the optical train cools past the 2.0° threshold the
+        // trigger fires, requesting the refocus the regulated feed could not.
+        let mut drifting = TriggerState::new();
+        drifting.update_temperature(8.0);
+        assert!(!trigger.check(&drifting).await, "delta 0 must not fire");
+        drifting.update_temperature(6.5);
+        assert!(!trigger.check(&drifting).await, "delta 1.5 below threshold");
+        drifting.update_temperature(5.5);
+        assert!(
+            trigger.check(&drifting).await,
+            "delta 2.5 above threshold must fire refocus from a drifting source"
+        );
+    }
+
+    #[tokio::test]
     async fn test_trigger_cooldown() {
         let mut trigger = Trigger::new(
             "test",

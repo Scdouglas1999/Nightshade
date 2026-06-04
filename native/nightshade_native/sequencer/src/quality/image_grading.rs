@@ -89,6 +89,23 @@ impl ImageQualityCheck {
             || self.eccentricity_threshold.is_some()
             || self.star_count_min.is_some()
     }
+
+    /// Returns true iff the operator enabled the eccentricity reject gate.
+    ///
+    /// The capture pipeline's star detector (`detect_stars_in_image`)
+    /// returns only `(x, y, hfr)` triples — no per-star shape moments — so
+    /// frame eccentricity is *not* measured anywhere in the current build.
+    /// A configured `eccentricity_threshold` therefore can never fire: the
+    /// gate in `grade_frame` is guarded by `Some(ecc)` which is always
+    /// `None`. Rather than let that pass silently (the operator would
+    /// believe trailed frames are being culled when they are not), callers
+    /// use this predicate to emit a single loud "eccentricity grading
+    /// unavailable" diagnostic at burst start. See the audit's
+    /// silent-fallback rule: an un-fireable safety gate must announce
+    /// itself, not pretend to work.
+    pub fn requires_eccentricity(&self) -> bool {
+        self.eccentricity_threshold.is_some()
+    }
 }
 
 /// Outcome of grading a single frame.
@@ -381,6 +398,50 @@ mod tests {
             }
             other => panic!("expected Reject, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn requires_eccentricity_reflects_threshold_presence() {
+        // The capture pipeline never measures eccentricity, so callers use
+        // this predicate to emit a loud "gate unavailable" diagnostic. It must
+        // be true exactly when the operator configured an eccentricity gate.
+        let off = ImageQualityCheck {
+            hfr_threshold: Some(3.0),
+            ..Default::default()
+        };
+        assert!(!off.requires_eccentricity());
+
+        let on = ImageQualityCheck {
+            eccentricity_threshold: Some(0.6),
+            ..Default::default()
+        };
+        assert!(on.requires_eccentricity());
+    }
+
+    #[test]
+    fn eccentricity_gate_cannot_reject_when_metric_unmeasured() {
+        // Real-world pipeline state: `detect_stars_in_image` returns only
+        // (x, y, hfr), so `FrameMetrics.eccentricity` is always None. With an
+        // eccentricity threshold configured the gate must NOT silently reject
+        // (no evidence) — it passes. The executor compensates by emitting a
+        // loud one-time "eccentricity grading unavailable" diagnostic, driven
+        // by `requires_eccentricity()`, so the operator is not lulled into
+        // believing trailed frames are being culled.
+        let check = ImageQualityCheck {
+            eccentricity_threshold: Some(0.5),
+            ..Default::default()
+        };
+        assert!(check.requires_eccentricity());
+        let metrics = FrameMetrics {
+            hfr: Some(2.5),
+            eccentricity: None, // never computed in this build
+            star_count: Some(120),
+        };
+        assert_eq!(
+            grade_frame(&check, &metrics, None),
+            FrameGrade::Pass,
+            "an unmeasured eccentricity must not produce a no-evidence reject"
+        );
     }
 
     #[test]

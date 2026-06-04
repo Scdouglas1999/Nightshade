@@ -1008,6 +1008,47 @@ mod tests {
     }
 
     #[test]
+    fn test_mark_completed_clears_resume_banner_but_keeps_file() {
+        // Regression: on normal sequence completion the executor now calls
+        // mark_completed(). Before the fix the checkpoint stayed is_active
+        // forever, so has_recoverable_checkpoint() kept returning true and the
+        // UI showed a stale "resume?" banner after every successful night.
+        let dir = test_dir("mark_completed_clears_banner");
+        let manager = CheckpointManager::new(&dir);
+        let mut checkpoint = SessionCheckpoint::new(SequenceDefinition::new("Night".to_string()));
+        checkpoint.sequence.root_node_id = Some("root".to_string());
+        checkpoint.is_active = true;
+        checkpoint.executor_state = ExecutorState::Running;
+        manager.save(&checkpoint).unwrap();
+
+        // Sanity: a running checkpoint IS offered for resume.
+        assert!(
+            manager.has_recoverable_checkpoint(),
+            "running checkpoint should be resumable before completion"
+        );
+
+        // Normal completion path.
+        manager.mark_completed().unwrap();
+
+        // Banner gone …
+        assert!(
+            !manager.has_recoverable_checkpoint(),
+            "completed checkpoint must NOT be offered for resume"
+        );
+        // … but the file is preserved (with is_active=false / Completed) so the
+        // post-session report can still read totals.
+        let loaded = manager
+            .load()
+            .unwrap()
+            .expect("mark_completed must preserve the checkpoint file, not delete it");
+        assert!(!loaded.is_active);
+        assert_eq!(loaded.executor_state, ExecutorState::Completed);
+        assert!(!loaded.can_resume());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn test_trigger_state_snapshot_round_trip_preserves_every_field() {
         let mut original = TriggerState::new();
         original.baseline_hfr = Some(2.5);
