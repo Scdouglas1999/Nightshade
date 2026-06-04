@@ -6,6 +6,7 @@ import '../models/settings/app_settings.dart';
 import '../models/sequence/sequence_models.dart' show ConditionsScoreWeights;
 import '../services/scheduler/sky_calculations.dart';
 import '../services/adaptive_swap_service.dart';
+import '../services/safe_rig_service.dart';
 import 'imaging_provider.dart';
 import 'science_provider.dart';
 import 'weather_providers.dart';
@@ -148,6 +149,14 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   Timer? _cloudMotionPushTimer;
   Timer? _adaptiveConditionsPushTimer;
   bool _resumeInFlight = false;
+
+  /// Latch ensuring the safe-the-rig enforcement fires exactly once per
+  /// unsafe episode. Set when we enforce on the safe -> unsafe transition;
+  /// cleared when conditions return to safe. Without it, every 5-minute
+  /// periodic re-evaluation while still unsafe would re-pause/re-park an
+  /// already-safed rig (and re-spam the critical notification).
+  bool _safeRigEnforced = false;
+  bool _enforceInFlight = false;
 
   /// Periodic re-evaluation interval (5 minutes)
   static const _evaluationInterval = Duration(minutes: 5);
@@ -357,6 +366,65 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       // Why: if conditions re-degrade during the hold-off window we cancel
       // the pending resume so we don't unpark into renewed unsafe weather.
       _cancelPendingAutoResume();
+    }
+
+    // Enforce the computed safety actions on the hardware. Before this the
+    // actions were COMPUTED but never EXECUTED — every consumer was UI-only,
+    // so an unattended rig kept tracking/exposing into unsafe weather. We
+    // enforce on the *transition into* unsafe (latched once per episode) so
+    // the running sequence is paused, the mount parked, and the dome closed
+    // exactly once — not re-fired on every 5-minute re-evaluation while the
+    // weather stays bad.
+    if (finalStatus == WeatherSafetyStatus.unsafe) {
+      if (!_safeRigEnforced) {
+        _safeRigEnforced = true;
+        unawaited(_enforceSafetyActions(finalActions));
+      }
+    } else if (finalStatus == WeatherSafetyStatus.safe) {
+      // Episode over (or never started) — re-arm enforcement for the next one.
+      _safeRigEnforced = false;
+    }
+    // Snoozed: leave the latch as-is. A snooze means the operator explicitly
+    // suppressed enforcement; if it expires back to unsafe the latch state
+    // already reflects whether we enforced for this episode.
+  }
+
+  /// Execute the computed weather-safety actions on the hardware via the
+  /// shared [SafeRigService]. Idempotent enough to be safe even if the latch
+  /// were bypassed: SafeRig skips an already-parked mount / already-closed
+  /// dome. Fail-closed: SafeRig throws on partial failure and surfaces a
+  /// CRITICAL notification; we additionally log a warning banner here so the
+  /// operator sees the weather-safety framing.
+  Future<void> _enforceSafetyActions(WeatherSafetyActions actions) async {
+    if (_enforceInFlight) return;
+    _enforceInFlight = true;
+    try {
+      if (!actions.shouldPause &&
+          !actions.shouldPark &&
+          !actions.shouldCloseDome) {
+        return;
+      }
+      final safeRig = _ref.read(safeRigServiceProvider);
+      await safeRig.safeTheRig(
+        reason: actions.reason ?? 'Weather turned unsafe',
+        park: actions.shouldPark,
+        closeDome: actions.shouldCloseDome,
+        // Cover follows the dome decision: if conditions warrant closing the
+        // dome shutter they also warrant closing a flip-flat / cover.
+        closeCover: actions.shouldCloseDome,
+      );
+    } catch (e) {
+      // SafeRig already posted a CRITICAL notification with the per-step
+      // failures; add the weather-safety context so the operator knows what
+      // tripped it. Do not rethrow — the periodic evaluator must keep running.
+      if (!mounted) return;
+      _ref.read(uiNotificationProvider.notifier).showError(
+            'Weather safety enforcement did not fully complete: $e',
+            title: 'Weather Safety',
+            duration: const Duration(seconds: 15),
+          );
+    } finally {
+      _enforceInFlight = false;
     }
   }
 

@@ -13,6 +13,7 @@ import '../../models/sequence/sequence_models.dart';
 import '../../models/settings/app_settings.dart'
     show ObserverLocation, SafetyFailMode;
 import '../../services/disk_space_guard.dart';
+import '../../services/safe_rig_service.dart';
 import '../../services/smart_night/guide_rms_collector.dart';
 import '../../services/capture_preview_loader.dart';
 import '../../services/logging_service.dart';

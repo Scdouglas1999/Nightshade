@@ -472,6 +472,7 @@ export 'src/services/project_tracking_service.dart';
 export 'src/services/calibration/defect_map_service.dart';
 export 'src/services/disk_space_service.dart';
 export 'src/services/disk_space_guard.dart';
+export 'src/services/safe_rig_service.dart';
 
 // Utilities
 export 'src/utils/coordinate_parser.dart';
