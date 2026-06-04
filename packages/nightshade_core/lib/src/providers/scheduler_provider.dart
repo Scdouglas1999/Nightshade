@@ -12,6 +12,7 @@ import '../models/planning/project.dart';
 import '../models/sequence/sequence_models.dart';
 import '../services/planning/project_service.dart'
     show projectTargetsProjectIndexSql, projectTargetsSchemaSql, projectsSchemaSql;
+import '../services/safe_rig_service.dart';
 import '../services/scheduler/horizon_profile.dart';
 import '../services/scheduler/integration_goal_service.dart';
 import '../services/scheduler/scheduler_engine.dart';
@@ -147,6 +148,29 @@ class _ExecutorSequenceSink implements SchedulerSequenceSink {
   Future<void> stopSequence() async {
     final executor = _ref.read(sequenceExecutorProvider);
     await executor.stop();
+  }
+
+  @override
+  Future<void> parkForEndOfNight() async {
+    // End of night: park the mount so it stops tracking into the ground at
+    // dawn, and notify the operator. We route through the shared
+    // SafeRigService so this uses the same fail-closed, loudly-erroring park
+    // path as the weather and low-disk watchdogs (pause sequence -> park mount,
+    // with a CRITICAL notification summarizing what happened). We intentionally
+    // do NOT close the dome/cover here: end-of-night is not a weather event,
+    // and the operator's morning flats workflow may still need the optics open.
+    //
+    // SafeRigService throws a SafeRigException when a step fails (after
+    // attempting every step). Errors are a feature — let it propagate to the
+    // engine's evaluation lifecycle so a failed dawn-park surfaces loudly
+    // rather than leaving the mount silently tracking past sunrise.
+    final safeRig = _ref.read(safeRigServiceProvider);
+    await safeRig.safeTheRig(
+      reason: 'End of observing night — parking the mount',
+      park: true,
+      closeDome: false,
+      closeCover: false,
+    );
   }
 }
 

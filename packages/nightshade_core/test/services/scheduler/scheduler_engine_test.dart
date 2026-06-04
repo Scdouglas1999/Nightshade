@@ -20,6 +20,7 @@ class _RecordingSink implements SchedulerSequenceSink {
   int pauseCount = 0;
   int resumeCount = 0;
   int stopCount = 0;
+  int parkCount = 0;
 
   @override
   Future<void> dispatchSequence(Sequence sequence) async {
@@ -39,6 +40,11 @@ class _RecordingSink implements SchedulerSequenceSink {
   @override
   Future<void> stopSequence() async {
     stopCount++;
+  }
+
+  @override
+  Future<void> parkForEndOfNight() async {
+    parkCount++;
   }
 }
 
@@ -597,6 +603,201 @@ void main() {
       expect(sink.dispatched.length, 1,
           reason: 'an unchanged-winner re-eval must not re-dispatch');
       await engine.dispose();
+    });
+  });
+
+  group('SchedulerEngine - end-of-night park', () {
+    // Local noon at the site (lon -75 -> solar noon ~17:00 UTC): the Sun is
+    // high above the -12 deg darkness limit, so every candidate is
+    // Sun-rejected and the engine treats the empty-eligible path as dawn.
+    DateTime daytime() => DateTime.utc(2026, 5, 11, 17, 0);
+
+    test('parks the mount once at end-of-night (Sun up, no eligible target)',
+        () async {
+      final sink = _RecordingSink();
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: daytime,
+      );
+      await engine.start();
+
+      expect(engine.lastDecision!.chosenTargetId, isNull,
+          reason: 'Sun is up — no candidate is eligible');
+      expect(sink.dispatched, isEmpty,
+          reason: 'must never slew/expose at dawn');
+      expect(sink.parkCount, 1,
+          reason: 'end-of-night must invoke the distinct park hook');
+      // The empty-eligible path stops a *running* sequence on every tick, but
+      // on the dawn/park path we park instead of issuing a redundant stop.
+      expect(sink.stopCount, 0,
+          reason: 'the dawn path parks rather than stopping');
+    });
+
+    test('does NOT park again on subsequent dawn ticks (parks once per dawn)',
+        () async {
+      final sink = _RecordingSink();
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: daytime,
+      );
+      await engine.start();
+      expect(sink.parkCount, 1);
+
+      // Several more ticks while the Sun is still up must NOT re-park.
+      await engine.evaluateNow();
+      await engine.evaluateNow();
+      await engine.evaluateNow();
+      expect(sink.parkCount, 1,
+          reason: 'the end-of-night park must fire exactly once per dawn, '
+              'not on every tick while the Sun stays up');
+    });
+
+    test(
+        'a transient mid-night empty (all goals complete) STOPS but does NOT '
+        'park', () async {
+      final sink = _RecordingSink();
+      final now = DateTime.utc(2026, 5, 11, 4, 0); // deep night
+      // Target high in the south, but every goal is already fully captured, so
+      // it is hard-rejected ("all integration goals complete") and the
+      // eligible set is empty — at night, NOT end-of-night.
+      final goal = IntegrationGoal(
+        targetId: 1,
+        filter: 'L',
+        exposureSeconds: 120.0,
+        frameCount: 10,
+        priority: 5,
+        createdAt: now,
+      );
+      var phase = 1;
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => <SchedulerCandidate>[
+          SchedulerCandidate(
+            targetId: 1,
+            name: 'A',
+            raHours: 14.0,
+            decDegrees: 30.0,
+            userPriority: 5,
+            goals: [goal],
+            // Phase 1: still needs frames (so we get a running sequence to
+            // stop). Phase 2: fully complete -> empty-eligible mid-night.
+            capturedCounts: phase == 1 ? const [2] : const [10],
+            constraints: const [],
+            horizonProfiles: const {},
+            availableFilters: const ['L'],
+          ),
+        ],
+        clock: () => now,
+      );
+      await engine.start();
+      expect(sink.dispatched.length, 1,
+          reason: 'phase 1 dispatches the incomplete target');
+
+      // Now the goal is complete; the eligible set is empty but the Sun is
+      // still well below the horizon.
+      phase = 2;
+      await engine.evaluateNow();
+      expect(engine.lastDecision!.chosenTargetId, isNull);
+      expect(sink.parkCount, 0,
+          reason: 'a transient mid-night empty must NEVER park — the night '
+              'is not over');
+      expect(sink.stopCount, 1,
+          reason: 'mid-night empty stops the running sequence');
+    });
+
+    test('a mid-night target swap does NOT park', () async {
+      final sink = _RecordingSink();
+      // Two candidates at night; B becomes the clear winner in phase 2, forcing
+      // a swap. A swap must use stopSequence/dispatch — never the park hook.
+      var phase = 1;
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => phase == 1
+            ? <SchedulerCandidate>[
+                _candidate(id: 100, name: 'A', raHours: 14.0, decDegrees: 30.0),
+                _candidate(
+                    id: 200, name: 'B', raHours: 14.0, decDegrees: -25.0),
+              ]
+            : <SchedulerCandidate>[
+                _candidate(
+                    id: 100, name: 'A', raHours: 14.0, decDegrees: -10.0),
+                _candidate(id: 200, name: 'B', raHours: 14.0, decDegrees: 30.0),
+              ],
+        clock: _fixedNow,
+      );
+      await engine.start();
+      expect(engine.lastDecision!.chosenTargetId, 100);
+      phase = 2;
+      await engine.evaluateNow();
+      expect(engine.lastDecision!.chosenTargetId, 200,
+          reason: 'the swap target should win in phase 2');
+      expect(engine.lastDecision!.isSwitch, isTrue);
+      expect(sink.parkCount, 0,
+          reason: 'a mid-night target swap must never park the mount');
+    });
+
+    test('re-arms after dispatching a new target (parks again next dawn)',
+        () async {
+      final sink = _RecordingSink();
+      // Phase 1: dawn -> park. Phase 2: night returns and a target is eligible
+      // -> dispatch (re-arm). Phase 3: dawn again -> must park a SECOND time.
+      var phase = 1;
+      DateTime nowFn() => phase == 2
+          ? DateTime.utc(2026, 5, 11, 4, 0) // night
+          : DateTime.utc(2026, 5, 11, 17, 0); // dawn/day
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => <SchedulerCandidate>[
+          _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+        ],
+        clock: nowFn,
+      );
+      await engine.start(); // phase 1: dawn
+      expect(sink.parkCount, 1);
+      expect(sink.dispatched, isEmpty);
+
+      phase = 2; // night returns
+      await engine.evaluateNow();
+      expect(engine.lastDecision!.chosenTargetId, 1,
+          reason: 'at night the target is eligible and dispatched');
+      expect(sink.dispatched.length, 1);
+
+      phase = 3; // dawn again
+      await engine.evaluateNow();
+      expect(sink.parkCount, 2,
+          reason: 'after a fresh night/dispatch, the next dawn must park '
+              'again (the guard re-arms on dispatch)');
+    });
+
+    test('does NOT park while idle (engine not running)', () async {
+      final sink = _RecordingSink();
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: daytime,
+      );
+      // evaluateNow without start(): the engine is idle, so even at dawn it
+      // must not issue a park (nothing is running to be unsafe).
+      await engine.evaluateNow();
+      expect(sink.parkCount, 0,
+          reason: 'an idle engine must not park — it is not driving the rig');
     });
   });
 

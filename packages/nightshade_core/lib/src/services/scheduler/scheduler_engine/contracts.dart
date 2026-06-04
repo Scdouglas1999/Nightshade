@@ -91,4 +91,18 @@ abstract class SchedulerSequenceSink {
   /// Called when the engine wants to stop the active sequence (e.g. on
   /// engine stop or a hard target swap).
   Future<void> stopSequence();
+
+  /// Called exactly once when the engine determines the observing night is
+  /// genuinely over — every candidate is rejected AND the Sun has risen above
+  /// the configured darkness limit ([SchedulerConfig.maxSunAltitudeDegrees]).
+  ///
+  /// This is the distinct end-of-night hook: [stopSequence] is also invoked on
+  /// every mid-night target swap and on a transient no-eligible tick (clouds,
+  /// all goals momentarily complete), so it cannot be used to park — that would
+  /// park the mount on every swap. Implementations park the mount (stop
+  /// tracking into the ground at dawn) and notify the operator. The engine
+  /// guarantees this is called at most once per dawn transition; it re-arms
+  /// only after the engine successfully dispatches another target (a new
+  /// night begins).
+  Future<void> parkForEndOfNight();
 }

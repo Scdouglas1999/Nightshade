@@ -71,6 +71,13 @@ class SchedulerEngine {
   static const Duration _reevaluationDebounce = Duration(milliseconds: 500);
   Timer? _reevaluationDebounceTimer;
 
+  // True once [SchedulerSequenceSink.parkForEndOfNight] has fired for the
+  // current dawn. Guards against re-parking on every subsequent tick while the
+  // Sun stays up (the empty-eligible path runs each tick). Re-armed (set false)
+  // the moment the engine successfully dispatches a target again — a new
+  // observing night has begun, so the next dawn must park afresh.
+  bool _parkedForEndOfNight = false;
+
   SchedulerStatus _status = const SchedulerStatus();
   final _statusController =
       StreamController<SchedulerStatus>.broadcast(sync: false);
@@ -102,6 +109,9 @@ class SchedulerEngine {
 
   Future<void> start() async {
     if (_status.state == SchedulerState.running) return;
+    // Fresh run: re-arm the end-of-night park so a previous dawn's park does
+    // not suppress parking on this run's dawn.
+    _parkedForEndOfNight = false;
     _updateStatus(_status.copyWith(
       state: SchedulerState.running,
       clearError: true,
@@ -229,12 +239,7 @@ class SchedulerEngine {
         isSwitch: _status.currentTargetId != null,
       );
       _publishDecision(decision);
-      if (_status.currentTargetId != null) {
-        _updateStatus(_status.copyWith(clearCurrentTarget: true));
-        if (_status.state == SchedulerState.running) {
-          await _sequenceSink.stopSequence();
-        }
-      }
+      await _handleNoEligibleTarget(now);
       return;
     }
 
@@ -280,12 +285,7 @@ class SchedulerEngine {
         isSwitch: _status.currentTargetId != null,
       );
       _publishDecision(decision);
-      if (_status.currentTargetId != null) {
-        _updateStatus(_status.copyWith(clearCurrentTarget: true));
-        if (_status.state == SchedulerState.running) {
-          await _sequenceSink.stopSequence();
-        }
-      }
+      await _handleNoEligibleTarget(now);
       return;
     }
 
@@ -401,8 +401,59 @@ class SchedulerEngine {
             candidates.firstWhere((c) => c.targetId == winner.targetId);
         final seq = buildSequenceForCandidate(chosenCandidate);
         await _sequenceSink.dispatchSequence(seq);
+        // A target was dispatched: a (new) observing night is under way, so
+        // re-arm the end-of-night park for the next dawn.
+        _parkedForEndOfNight = false;
       }
     }
+  }
+
+  /// True when the Sun has risen above the configured darkness limit at
+  /// [now] — i.e. the observing night is over. This reuses the exact gate the
+  /// per-candidate twilight check applies in [_scoreCandidate], so "every
+  /// candidate Sun-rejected" and "end of night" are the same condition by
+  /// construction. A transient empty-eligible at night (clouds rejecting a
+  /// weather constraint, every goal momentarily complete) is NOT end-of-night
+  /// because the Sun is still down, so this returns false and the engine only
+  /// stops the sequence rather than parking.
+  bool _isEndOfNight(DateTime now) {
+    final (sunAlt, _) = SkyCalculations.sunAltAz(
+      time: now,
+      latitudeDegrees: _site.latitudeDegrees,
+      longitudeDegrees: _site.longitudeDegrees,
+    );
+    return sunAlt > _config.maxSunAltitudeDegrees;
+  }
+
+  /// Shared handling for both empty paths in [_evaluateOnce] (no candidates at
+  /// all, and candidates present but none eligible). Clears the current target,
+  /// stops the running sequence, and — only when it is genuinely end-of-night
+  /// (Sun up) and we have not already parked for this dawn — invokes the
+  /// distinct end-of-night park hook exactly once.
+  Future<void> _handleNoEligibleTarget(DateTime now) async {
+    final running = _status.state == SchedulerState.running;
+    if (_status.currentTargetId != null) {
+      _updateStatus(_status.copyWith(clearCurrentTarget: true));
+    }
+    if (!running) return;
+
+    if (_isEndOfNight(now)) {
+      // Dawn: park the mount so it stops tracking into the ground/daylight.
+      // Guarded so we park once per dawn, not on every subsequent tick while
+      // the Sun stays up. Park first (the safety-critical action), then the
+      // stopSequence below is redundant on the park path but harmless — the
+      // executor is idempotent on stop and parkForEndOfNight already pauses.
+      if (!_parkedForEndOfNight) {
+        _parkedForEndOfNight = true;
+        await _sequenceSink.parkForEndOfNight();
+      }
+      return;
+    }
+
+    // Transient no-eligible mid-night (clouds, all goals momentarily
+    // complete): stop the running sequence but never park — the night isn't
+    // over and the next tick may re-dispatch.
+    await _sequenceSink.stopSequence();
   }
 
   /// Returns true if the candidate has an enabled scheduledWindow
