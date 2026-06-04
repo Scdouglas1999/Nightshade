@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:nightshade_bridge/nightshade_bridge.dart'
     show PlateSolveResult;
 import '../models/plate_solver.dart' as ps_model;
@@ -54,6 +55,25 @@ class PlateSolveService {
   final Ref _ref;
 
   PlateSolveService(this._ref);
+
+  /// Test seam: parse an ASTAP `.wcs` sidecar. Pins the unit contract
+  /// (RA in degrees). Delegates to the private parser used by the local
+  /// ASTAP fallback.
+  @visibleForTesting
+  Future<PlateSolveResult> parseWcsFileForTest(String wcsPath) =>
+      _parseWcsFile(wcsPath);
+
+  /// Test seam: parse astrometry.net console output. Pins the unit contract
+  /// (RA in degrees).
+  @visibleForTesting
+  PlateSolveResult parseAstrometryOutputForTest(String output) =>
+      _parseAstrometryOutput(output);
+
+  /// Test seam: parse a PlateSolve2 `.apm` output file. Pins the unit
+  /// contract (RA in degrees).
+  @visibleForTesting
+  Future<PlateSolveResult> parsePlateSolve2OutputForTest(String outputPath) =>
+      _parsePlateSolve2Output(outputPath);
 
   /// Solve an image using the backend (works for both local and remote).
   ///
@@ -120,10 +140,12 @@ class PlateSolveService {
 
     final logging = _ref.read(loggingServiceProvider);
     if (result.success) {
-      // RA comes back in hours from the backend mappers; show both RA (h) and
-      // Dec (deg) the way the rest of the UI formats coordinates.
+      // `PlateSolveResult.ra` is in DEGREES across every solve path (FFI,
+      // network host, and the local fallback parsers), so log it as degrees.
+      // Earlier this claimed hours, which was wrong and made the log line
+      // disagree with the actual value by 15x.
       logging.info(
-        'Plate solve succeeded: RA ${result.ra.toStringAsFixed(4)}h '
+        'Plate solve succeeded: RA ${result.ra.toStringAsFixed(4)}° '
         'Dec ${result.dec.toStringAsFixed(4)}° · '
         'scale ${result.pixelScale.toStringAsFixed(2)}"/px · '
         'rot ${result.rotation.toStringAsFixed(1)}° · '
@@ -153,12 +175,40 @@ class PlateSolveService {
     }
   }
 
-  /// Solve with ASTAP
+  /// Solve with ASTAP.
+  ///
+  /// Argument list mirrors the native Rust solver in
+  /// `imaging/src/platesolve.rs` so this Dart fallback is a *real* solve and
+  /// not a no-op that silently masks a backend failure:
+  ///   * `-f <image>`        — input frame.
+  ///   * `-ra` / `-spd`      — hint position (RA in degrees, south-pole
+  ///                           distance) when a hint is supplied.
+  ///   * `-r <deg>`          — search radius.
+  ///   * `-d <catalog dir>`  — REQUIRED when the user configured a catalog
+  ///                           directory; without it ASTAP cannot match stars
+  ///                           and never writes a `.wcs`.
+  ///   * `-wcs`              — REQUIRED so ASTAP emits the `.wcs` sidecar this
+  ///                           parser reads. Omitting it was the original bug:
+  ///                           ASTAP would run, write nothing, and the missing
+  ///                           `.wcs` looked like "No WCS file created" — a
+  ///                           silent failure that masked the backend's real
+  ///                           error.
   Future<PlateSolveResult> _solveWithAstap(
     String imagePath,
     PlateSolverConfig config,
   ) async {
     try {
+      // Delete any stale `.wcs` from a previous solve before invoking ASTAP.
+      // Otherwise a no-op run (e.g. ASTAP failing to match) would "succeed"
+      // by parsing the previous frame's sidecar — a silent, wrong-answer
+      // fallback, which CLAUDE.md forbids. The presence of a freshly written
+      // `.wcs` is our only proof the solve actually ran.
+      final wcsPath = imagePath.replaceAll(RegExp(r'\.[^.]+$'), '.wcs');
+      final wcsFile = File(wcsPath);
+      if (await wcsFile.exists()) {
+        await wcsFile.delete();
+      }
+
       final args = <String>[
         '-f',
         imagePath,
@@ -172,6 +222,16 @@ class PlateSolveService {
           '-spd', (config.hintDec! + 90).toString(), // South pole distance
         ]);
       }
+
+      // Point ASTAP at the configured star catalog. ASTAP cannot solve
+      // without one; when the user configured a catalog directory we must
+      // pass it explicitly via `-d`.
+      if (config.catalogPath != null && config.catalogPath!.isNotEmpty) {
+        args.addAll(['-d', config.catalogPath!]);
+      }
+
+      // Tell ASTAP to write the `.wcs` sidecar that `_parseWcsFile` reads.
+      args.add('-wcs');
 
       final result = await Process.run(
         config.executablePath,
@@ -189,17 +249,16 @@ class PlateSolveService {
           fieldWidth: 0,
           fieldHeight: 0,
           solveTimeSecs: 0,
-          error: 'ASTAP failed: ${result.stderr}',
+          error: 'ASTAP failed (exit ${result.exitCode}): ${result.stderr}',
         );
       }
 
       // Parse the .wcs file that ASTAP creates
-      final wcsPath = imagePath.replaceAll(RegExp(r'\.[^.]+$'), '.wcs');
-      if (await File(wcsPath).exists()) {
+      if (await wcsFile.exists()) {
         return _parseWcsFile(wcsPath);
       }
 
-      return const PlateSolveResult(
+      return PlateSolveResult(
         success: false,
         ra: 0,
         dec: 0,
@@ -208,7 +267,9 @@ class PlateSolveService {
         fieldWidth: 0,
         fieldHeight: 0,
         solveTimeSecs: 0,
-        error: 'No WCS file created',
+        error: 'ASTAP exited 0 but wrote no WCS file '
+            '(no star match within search radius). stdout: '
+            '${result.stdout.toString().trim()}',
       );
     } on TimeoutException {
       return const PlateSolveResult(
@@ -404,7 +465,12 @@ class PlateSolveService {
       if (crval1 != null && crval2 != null) {
         return PlateSolveResult(
           success: true,
-          ra: crval1 / 15, // Convert degrees to hours
+          // RA stays in DEGREES to match `PlateSolveResult.ra` from the
+          // dominant FFI/network host path (Rust `PlateSolveResult.ra` reads
+          // FITS `CRVAL1` verbatim — degrees). Downstream consumers
+          // (CenteringService) normalise degrees→hours themselves; emitting
+          // hours here would feed them a 15x-wrong RA.
+          ra: crval1, // CRVAL1 is already in degrees
           dec: crval2,
           rotation: crota2 ?? 0,
           pixelScale: cdelt1 != null ? cdelt1.abs() * 3600 : 0,
@@ -459,7 +525,9 @@ class PlateSolveService {
       if (ra != null && dec != null) {
         return PlateSolveResult(
           success: true,
-          ra: ra / 15, // Convert degrees to hours
+          // astrometry.net's `RA,Dec = (...)` line is in DEGREES; keep it in
+          // degrees to match the canonical `PlateSolveResult.ra` contract.
+          ra: ra, // RA,Dec line is already in degrees
           dec: dec,
           pixelScale: 0,
           rotation: 0,
@@ -726,7 +794,9 @@ class PlateSolveService {
 
       return PlateSolveResult(
         success: true,
-        ra: ra / 15,
+        // Keep RA in DEGREES to match the canonical
+        // `PlateSolveResult.ra` contract shared with the FFI/network path.
+        ra: ra,
         dec: dec,
         pixelScale: 0,
         rotation: 0,
