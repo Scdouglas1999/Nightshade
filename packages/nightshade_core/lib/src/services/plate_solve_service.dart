@@ -7,6 +7,7 @@ import 'package:nightshade_bridge/nightshade_bridge.dart'
     show PlateSolveResult;
 import '../models/plate_solver.dart' as ps_model;
 import '../providers/backend_provider.dart';
+import '../providers/settings_provider.dart';
 import 'logging_service.dart';
 
 /// Thrown by `PlateSolveService.solveWithFallback()` when no plate solver
@@ -54,8 +55,28 @@ class PlateSolveService {
 
   PlateSolveService(this._ref);
 
-  /// Solve an image using the backend (works for both local and remote)
+  /// Solve an image using the backend (works for both local and remote).
+  ///
+  /// Every solve — manual, framing, centering, or an unattended sequencer
+  /// step — flows through here, so this is the single choke point where the
+  /// outcome is recorded: [plateSolveStateProvider] is updated (so any UI can
+  /// reflect "solving…" / last result) and the result is logged. The log line
+  /// is the one place an unattended sequence's plate-solve outcome surfaces to
+  /// the operator, who otherwise only saw a node flip green/red.
   Future<PlateSolveResult> solve(
+    String imagePath,
+    PlateSolverConfig config,
+  ) async {
+    _ref.read(plateSolveStateProvider.notifier).state = _ref
+        .read(plateSolveStateProvider)
+        .copyWith(isSolving: true, currentImage: imagePath);
+
+    final result = await _runSolve(imagePath, config);
+    _announceSolveResult(imagePath, result);
+    return result;
+  }
+
+  Future<PlateSolveResult> _runSolve(
     String imagePath,
     PlateSolverConfig config,
   ) async {
@@ -85,6 +106,34 @@ class PlateSolveService {
         solveTimeSecs: 0,
         error: 'Backend solve failed: $e. Local fallback failed: '
             '${fallbackResult.error ?? 'unknown error'}',
+      );
+    }
+  }
+
+  /// Record the outcome of a solve: update the shared state provider and emit
+  /// a log line so the result is visible app-wide (activity log) even when the
+  /// caller is an unattended sequence with no inline UI of its own.
+  void _announceSolveResult(String imagePath, PlateSolveResult result) {
+    _ref.read(plateSolveStateProvider.notifier).state = _ref
+        .read(plateSolveStateProvider)
+        .copyWith(isSolving: false, lastResult: result);
+
+    final logging = _ref.read(loggingServiceProvider);
+    if (result.success) {
+      // RA comes back in hours from the backend mappers; show both RA (h) and
+      // Dec (deg) the way the rest of the UI formats coordinates.
+      logging.info(
+        'Plate solve succeeded: RA ${result.ra.toStringAsFixed(4)}h '
+        'Dec ${result.dec.toStringAsFixed(4)}° · '
+        'scale ${result.pixelScale.toStringAsFixed(2)}"/px · '
+        'rot ${result.rotation.toStringAsFixed(1)}° · '
+        '${result.solveTimeSecs.toStringAsFixed(1)}s',
+        source: 'PlateSolveService',
+      );
+    } else {
+      logging.warning(
+        'Plate solve failed: ${result.error ?? 'unknown error'}',
+        source: 'PlateSolveService',
       );
     }
   }
@@ -514,11 +563,21 @@ class PlateSolveService {
     double? hintRaHours,
     double? hintDecDegrees,
     double? searchRadiusDegrees,
-    int timeoutSeconds = 60,
+    int? timeoutSeconds,
   }) async {
     final logging = _ref.read(loggingServiceProvider);
     final detection = await detect();
     final pref = await getConfig();
+
+    // Fall back to the user-configured defaults (Settings → Plate Solving →
+    // Solve parameters) when the caller doesn't pin an explicit value. This is
+    // what makes those knobs meaningful on the desktop solve path; previously
+    // they only affected the headless handlers and this method hard-coded 60s.
+    final appSettings = _ref.read(appSettingsProvider).valueOrNull;
+    final effectiveTimeout =
+        timeoutSeconds ?? appSettings?.plateSolveTimeout ?? 60;
+    final effectiveRadius =
+        searchRadiusDegrees ?? appSettings?.plateSolveSearchRadius;
 
     Future<PlateSolveResult> runAstap() async {
       if (detection.astapPath == null) {
@@ -538,8 +597,8 @@ class PlateSolveService {
         type: PlateSolverType.astap,
         executablePath: detection.astapPath!,
         catalogPath: detection.catalogPath,
-        timeoutSeconds: timeoutSeconds,
-        searchRadius: searchRadiusDegrees,
+        timeoutSeconds: effectiveTimeout,
+        searchRadius: effectiveRadius,
         hintRa: hintRaHours,
         hintDec: hintDecDegrees,
       );
@@ -563,8 +622,8 @@ class PlateSolveService {
       final config = PlateSolverConfig(
         type: PlateSolverType.astrometryNet,
         executablePath: detection.astrometryPath!,
-        timeoutSeconds: timeoutSeconds,
-        searchRadius: searchRadiusDegrees,
+        timeoutSeconds: effectiveTimeout,
+        searchRadius: effectiveRadius,
         hintRa: hintRaHours,
         hintDec: hintDecDegrees,
       );

@@ -192,34 +192,43 @@ class GuideGraphAdvanced extends StatelessWidget {
     bool compact = false,
   }) {
     final spacing = compact ? 8.0 : 16.0;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _buildRmsValue(
-          'RA',
-          rmsRa,
-          colors.error,
-          colors: colors,
-          compact: compact,
-        ),
-        SizedBox(width: spacing),
-        _buildRmsValue(
-          'Dec',
-          rmsDec,
-          colors.info,
-          colors: colors,
-          compact: compact,
-        ),
-        SizedBox(width: spacing),
-        _buildRmsValue(
-          'Tot',
-          rmsTotal,
-          colors.textPrimary,
-          colors: colors,
-          bold: true,
-          compact: compact,
-        ),
-      ],
+    // The caller already constrains this in a Flexible + ClipRect. When the
+    // header row gets tight (narrow guiding panel, side-by-side with the scale
+    // selectors), the three RMS readouts can exceed the Flexible's width and
+    // log a RenderFlex overflow. Scale the whole block down to fit rather than
+    // clip a digit off a number — the values stay legible and aligned left.
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildRmsValue(
+            'RA',
+            rmsRa,
+            colors.error,
+            colors: colors,
+            compact: compact,
+          ),
+          SizedBox(width: spacing),
+          _buildRmsValue(
+            'Dec',
+            rmsDec,
+            colors.info,
+            colors: colors,
+            compact: compact,
+          ),
+          SizedBox(width: spacing),
+          _buildRmsValue(
+            'Tot',
+            rmsTotal,
+            colors.textPrimary,
+            colors: colors,
+            bold: true,
+            compact: compact,
+          ),
+        ],
+      ),
     );
   }
 

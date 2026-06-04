@@ -9,6 +9,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../utils/snackbar_helper.dart';
+import 'widgets/plate_solve_parameters_section.dart';
 import 'widgets/settings_widgets.dart';
 import 'widgets/solver_detection_card.dart';
 
@@ -335,6 +336,8 @@ class _PlateSolvingSettingsScreenState
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        const PlateSolveParametersSection(),
       ],
     );
   }

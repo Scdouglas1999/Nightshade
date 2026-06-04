@@ -6,9 +6,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:file_selector/file_selector.dart';
 
-import '../../../widgets/help/field_help_copy.dart';
 import '../../../widgets/remote_directory_picker_dialog.dart';
 import '../../../widgets/tutorial_keys/settings_keys.dart';
+import 'plate_solve_parameters_section.dart';
 import 'settings_widgets.dart';
 
 class PlateSolvingSettings extends ConsumerStatefulWidget {
@@ -23,26 +23,6 @@ class PlateSolvingSettings extends ConsumerStatefulWidget {
 }
 
 class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
-  final _timeoutController = TextEditingController();
-  final _radiusController = TextEditingController();
-  bool _initialized = false;
-
-  @override
-  void dispose() {
-    _timeoutController.dispose();
-    _radiusController.dispose();
-    super.dispose();
-  }
-
-  void _initControllers(AppSettingsState settings) {
-    if (!_initialized) {
-      _timeoutController.text = settings.plateSolveTimeout.toString();
-      _radiusController.text =
-          settings.plateSolveSearchRadius.toStringAsFixed(1);
-      _initialized = true;
-    }
-  }
-
   Future<void> _selectAstapPath() async {
     String? initialDir;
     if (!ref.read(isRemoteModeProvider) && Platform.isWindows) {
@@ -107,8 +87,6 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
         onRetry: () => ref.invalidate(appSettingsProvider),
       ),
       data: (settings) {
-        _initControllers(settings);
-
         return SettingsPage(
           key: SettingsTutorialKeys.plateSolving,
           title: 'Plate Solving',
@@ -158,60 +136,7 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
                 ),
               ],
             ),
-            SettingsSection(
-              title: 'Solve Parameters',
-              children: [
-                SettingRow(
-                  icon: LucideIcons.timer,
-                  title: 'Timeout',
-                  subtitle: 'Maximum time to attempt solving',
-                  trailing: SettingsNumberInput(
-                    controller: _timeoutController,
-                    suffix: 'sec',
-                    min: 10,
-                    max: 300,
-                    decimals: 0,
-                    onChanged: (value) {
-                      ref
-                          .read(appSettingsProvider.notifier)
-                          .setPlateSolveTimeout(value.toInt());
-                    },
-                  ),
-                ),
-                SettingRow(
-                  icon: LucideIcons.search,
-                  title: 'Search radius',
-                  helpId: FieldHelpId.plateSolverSearchRadius,
-                  subtitle: 'Area to search around expected position',
-                  trailing: SettingsNumberInput(
-                    controller: _radiusController,
-                    suffix: '\u00B0',
-                    min: 1,
-                    max: 180,
-                    decimals: 1,
-                    onChanged: (value) {
-                      ref
-                          .read(appSettingsProvider.notifier)
-                          .setPlateSolveSearchRadius(value);
-                    },
-                  ),
-                ),
-                SettingRow(
-                  icon: LucideIcons.compass,
-                  title: 'Blind solve',
-                  subtitle: 'Solve without position hint (slower)',
-                  trailing: SettingsSwitch(
-                    value: settings.blindSolve,
-                    onChanged: (value) {
-                      ref
-                          .read(appSettingsProvider.notifier)
-                          .setBlindSolve(value);
-                    },
-                  ),
-                  isLast: true,
-                ),
-              ],
-            ),
+            const PlateSolveParametersSection(),
           ],
         );
       },

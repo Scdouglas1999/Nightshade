@@ -78,7 +78,7 @@ class _FakePlateSolveService extends PlateSolveService {
     double? hintRaHours,
     double? hintDecDegrees,
     double? searchRadiusDegrees,
-    int timeoutSeconds = 60,
+    int? timeoutSeconds = 60,
   }) async {
     solveCalled = true;
     if (solveError != null) {

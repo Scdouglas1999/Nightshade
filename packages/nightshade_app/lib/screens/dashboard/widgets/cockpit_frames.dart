@@ -32,6 +32,15 @@ class CockpitFrames extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final currentImage = ref.watch(currentImageProvider);
+    final sessionImages = ref.watch(sessionImagesProvider);
+
+    // The live frame's own settings can carry a null filter (the preview is
+    // published before the persisted history row is written); fall back to the
+    // newest history entry that has one. A genuinely absent filter (mono cam,
+    // no wheel) resolves to null and the badge drops the filter chip entirely
+    // rather than printing a misleading "no filter".
+    final resolvedFilter =
+        _resolveFilter(currentImage?.settings.filter, sessionImages);
 
     return NightshadeCard(
       padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
@@ -40,7 +49,11 @@ class CockpitFrames extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (currentImage != null)
-            _CurrentFrame(colors: colors, image: currentImage)
+            _CurrentFrame(
+              colors: colors,
+              image: currentImage,
+              filterLabel: resolvedFilter,
+            )
           else
             _WaitingRow(colors: colors),
           const SizedBox(height: NightshadeTokens.spaceSm),
@@ -49,14 +62,35 @@ class CockpitFrames extends ConsumerWidget {
       ),
     );
   }
+
+  static String? _resolveFilter(
+    String? currentFilter,
+    List<CapturedImage> history,
+  ) {
+    if (currentFilter != null && currentFilter.isNotEmpty) {
+      return currentFilter;
+    }
+    for (final image in history.reversed) {
+      final filter = image.settings.filter;
+      if (filter != null && filter.isNotEmpty) {
+        return filter;
+      }
+    }
+    return null;
+  }
 }
 
 /// Height-capped current-frame view with the filter/exposure badge overlay.
 class _CurrentFrame extends StatelessWidget {
   final NightshadeColors colors;
   final CapturedImageData image;
+  final String? filterLabel;
 
-  const _CurrentFrame({required this.colors, required this.image});
+  const _CurrentFrame({
+    required this.colors,
+    required this.image,
+    required this.filterLabel,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -77,7 +111,11 @@ class _CurrentFrame extends StatelessWidget {
             Positioned(
               right: 8,
               top: 8,
-              child: _FrameBadge(colors: colors, image: image),
+              child: _FrameBadge(
+                colors: colors,
+                filterLabel: filterLabel,
+                exposure: image.settings.exposureTime,
+              ),
             ),
           ],
         ),
@@ -123,14 +161,19 @@ class _WaitingRow extends StatelessWidget {
 
 class _FrameBadge extends StatelessWidget {
   final NightshadeColors colors;
-  final CapturedImageData image;
+  final String? filterLabel;
+  final double exposure;
 
-  const _FrameBadge({required this.colors, required this.image});
+  const _FrameBadge({
+    required this.colors,
+    required this.filterLabel,
+    required this.exposure,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final filter = image.settings.filter;
-    final exposure = image.settings.exposureTime;
+    final filter = filterLabel;
+    final hasFilter = filter != null && filter.isNotEmpty;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
@@ -141,20 +184,24 @@ class _FrameBadge extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(LucideIcons.filter, size: 10, color: colors.textMuted),
-          const SizedBox(width: 4),
-          Text(
-            filter ?? 'no filter',
-            style: NightshadeTypography.withTabular(
-              NightshadeTypography.captionSm.copyWith(
-                fontWeight: FontWeight.w600,
-                color: colors.textSecondary,
+          // Only show the filter chip when we actually have a filter — a mono
+          // camera with no wheel shouldn't display a "no filter" pseudo-value.
+          if (hasFilter) ...[
+            Icon(LucideIcons.filter, size: 10, color: colors.textMuted),
+            const SizedBox(width: 4),
+            Text(
+              filter,
+              style: NightshadeTypography.withTabular(
+                NightshadeTypography.captionSm.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: colors.textSecondary,
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Container(width: 1, height: 10, color: colors.border),
-          const SizedBox(width: 8),
+            const SizedBox(width: 8),
+            Container(width: 1, height: 10, color: colors.border),
+            const SizedBox(width: 8),
+          ],
           Text(
             '${exposure.toStringAsFixed(exposure >= 10 ? 0 : 1)}s',
             style: NightshadeTypography.withTabular(
