@@ -226,9 +226,26 @@ pub async fn api_phd2_connect(
             }
             nightshade_imaging::Phd2Event::SettleBegin => GuidingEvent::Settling,
             nightshade_imaging::Phd2Event::SettleDone {
+                status,
+                ref error,
                 total_frames: _,
                 dropped_frames: _,
-            } => GuidingEvent::Settled { rms: 0.0 },
+            } => {
+                // The dither path waits on SettleDone explicitly (see
+                // api_phd2_dither); this stream mapping is for UI/telemetry. A
+                // failed settle (non-zero status) must not masquerade as a
+                // clean "Settled" event.
+                if status != 0 {
+                    tracing::warn!(
+                        "PHD2: settle failed (status {}): {}",
+                        status,
+                        if error.is_empty() { "no detail" } else { error }
+                    );
+                    GuidingEvent::LostStar
+                } else {
+                    GuidingEvent::Settled { rms: 0.0 }
+                }
+            }
             nightshade_imaging::Phd2Event::CalibrationComplete => {
                 tracing::info!("PHD2: Calibration complete");
                 GuidingEvent::CalibrationComplete
@@ -366,8 +383,13 @@ pub async fn api_phd2_dither(
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
     let ra_only_bool = ra_only != 0;
-    client
-        .dither(
+
+    // Issue the dither RPC and arm settle tracking while holding the storage
+    // lock, but DO NOT block on the multi-second settle here — that would stall
+    // every other PHD2 operation (status polls, stop, etc.) for the duration.
+    // `dither_arm` returns a detached waiter that only clones the shared Arcs.
+    let waiter = client
+        .dither_arm(
             amount,
             ra_only_bool,
             settle_pixels,
@@ -376,10 +398,31 @@ pub async fn api_phd2_dither(
         )
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to dither: {}", e)))?;
 
+    // Release the storage write-lock before waiting for settle.
+    drop(storage);
+
     get_state().publish_guiding_event(
         GuidingEvent::DitherStarted { pixels: amount },
         EventSeverity::Info,
     );
+
+    // Wait (off the async runtime) for PHD2's asynchronous SettleDone. This
+    // fails CLOSED: a non-zero PHD2 settle status, a settle timeout, or a
+    // disconnect all surface as an error so the sequencer never resumes
+    // exposing mid-settle (which trailed every dithered sub).
+    let wait =
+        nightshade_imaging::Phd2Client::settle_wait_duration(settle_time, settle_timeout);
+    let settle = tokio::task::spawn_blocking(move || waiter.wait(wait))
+        .await
+        .map_err(|e| {
+            NightshadeError::OperationFailed(format!("Dither settle task failed: {}", e))
+        })?;
+
+    settle.map_err(|e| {
+        NightshadeError::OperationFailed(format!("Dither did not settle: {}", e))
+    })?;
+
+    get_state().publish_guiding_event(GuidingEvent::Settled { rms: 0.0 }, EventSeverity::Info);
 
     Ok(())
 }

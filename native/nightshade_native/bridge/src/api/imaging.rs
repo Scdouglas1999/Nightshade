@@ -197,6 +197,7 @@ pub async fn api_run_autofocus(
         target_ra: None,
         target_dec: None,
         target_name: None,
+        target_rotation: None,
         current_filter: None,
         current_binning: Binning::One,
         cancellation_token: cancel_token.clone(),
@@ -257,6 +258,12 @@ pub async fn api_run_autofocus(
         // Wave 8 Replay Debug — one-shot bridge API doesn't emit decisions.
         decision_tx: None,
         active_sequence_run_id: std::sync::Arc::new(parking_lot::RwLock::new(None)),
+        // Standalone autofocus from the API is not driven by the node-runtime
+        // disconnect-retry loop, so this one-shot context owns a fresh,
+        // unshared flag (no recovery driver observes it here).
+        device_disconnect_recovery_pending: std::sync::Arc::new(
+            std::sync::atomic::AtomicBool::new(false),
+        ),
     };
 
     // Execute (no progress callback when called directly from API)

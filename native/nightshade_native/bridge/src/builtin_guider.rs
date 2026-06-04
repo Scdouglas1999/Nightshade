@@ -388,24 +388,77 @@ pub async fn dither(
         y: if ra_only { 0.0 } else { amount * angle.sin() },
     };
 
-    let mut guard = state().write().await;
-    guard.desired_offset = Vec2 {
-        x: guard.desired_offset.x + offset.x,
-        y: guard.desired_offset.y + offset.y,
-    };
-    guard.dither_pending = true;
-    // Reset settle state and arm the timeout for this dither settle
-    guard.settle_deadline = None;
     let timeout_secs = settle_timeout.max(settle_time + 1.0);
-    guard.settle_timeout_deadline = Some(Instant::now() + Duration::from_secs_f64(timeout_secs));
-    // Store settle params so the guiding loop's apply_settle_state can use them
-    // (settle_pixels and settle_time are already threaded through run_guiding_loop)
-    let _ = (settle_pixels, settle_time); // used by the guiding loop that's already running
+    {
+        let mut guard = state().write().await;
+        // A dither only settles if the guiding loop is actually running to drive
+        // `apply_settle_state`; otherwise nothing ever clears `dither_pending`
+        // and we would block forever. Fail closed.
+        if !guard.guiding {
+            return Err(NightshadeError::OperationFailed(
+                "Built-in guider dither requires active guiding; not guiding".to_string(),
+            ));
+        }
+        guard.desired_offset = Vec2 {
+            x: guard.desired_offset.x + offset.x,
+            y: guard.desired_offset.y + offset.y,
+        };
+        guard.dither_pending = true;
+        // Reset settle state and arm the timeout for this dither settle
+        guard.settle_deadline = None;
+        guard.settle_timeout_deadline = Some(Instant::now() + Duration::from_secs_f64(timeout_secs));
+        // Store settle params so the guiding loop's apply_settle_state can use them
+        // (settle_pixels and settle_time are already threaded through run_guiding_loop)
+        let _ = (settle_pixels, settle_time); // used by the guiding loop that's already running
+    }
     get_state().publish_guiding_event(
         GuidingEvent::DitherStarted { pixels: amount },
         EventSeverity::Info,
     );
-    Ok(())
+
+    // BLOCK until the guiding loop reports the dither settled, mirroring the
+    // PHD2 path. Without this, the sequencer resumed exposing immediately after
+    // arming the offset and trailed the sub. Fail closed on settle failure or
+    // timeout: the loop clears `dither_pending` (and emits Settled) on success,
+    // and on a settle timeout the loop task aborts and clears `guiding`.
+    //
+    // Bound the wait by the settle timeout plus a grace margin so a stalled
+    // loop (no frames arriving) cannot hang the caller indefinitely.
+    let deadline = Instant::now() + Duration::from_secs_f64(timeout_secs + 10.0);
+    loop {
+        {
+            let guard = state().read().await;
+            if !guard.dither_pending {
+                // Cleared by apply_settle_state on a successful settle.
+                if guard.guiding {
+                    return Ok(());
+                }
+                // Loop is no longer guiding: the dither settle could not be
+                // completed (loop aborted / was stopped). Fail closed.
+                return Err(NightshadeError::OperationFailed(
+                    "Built-in guider dither did not settle: guiding stopped before settle completed"
+                        .to_string(),
+                ));
+            }
+            if !guard.guiding {
+                return Err(NightshadeError::OperationFailed(
+                    "Built-in guider dither did not settle: guiding loop stopped".to_string(),
+                ));
+            }
+        }
+        if Instant::now() >= deadline {
+            // Clear the dangling dither flag so a later operation isn't confused.
+            let mut guard = state().write().await;
+            guard.dither_pending = false;
+            guard.settle_deadline = None;
+            guard.settle_timeout_deadline = None;
+            return Err(NightshadeError::OperationFailed(format!(
+                "Built-in guider dither did not settle within {:.0}s",
+                timeout_secs + 10.0
+            )));
+        }
+        tokio::time::sleep(Duration::from_millis(100)).await;
+    }
 }
 
 pub async fn find_star() -> Result<(f64, f64), NightshadeError> {

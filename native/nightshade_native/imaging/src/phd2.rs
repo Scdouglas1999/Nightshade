@@ -306,6 +306,10 @@ pub enum Phd2Event {
     SettleBegin,
     /// Settling complete
     SettleDone {
+        /// PHD2 settle status: 0 = success, non-zero = settle failed.
+        status: i32,
+        /// Human-readable error string when `status != 0` (empty on success).
+        error: String,
         total_frames: u32,
         dropped_frames: u32,
     },
@@ -365,6 +369,107 @@ struct Phd2EventMessage {
 
 type Phd2EventCallback = Arc<Mutex<dyn Fn(Phd2Event) + Send>>;
 
+/// Outcome of a PHD2 settle (after `guide` or `dither`), populated by the
+/// reader thread when a `SettleDone` event arrives.
+#[derive(Debug, Clone)]
+pub struct SettleOutcome {
+    /// PHD2 settle status: 0 = success, non-zero = failed.
+    pub status: i32,
+    /// Error string when the settle failed (empty on success).
+    pub error: String,
+    pub total_frames: u32,
+    pub dropped_frames: u32,
+}
+
+/// A detached handle that can wait for the current settle to complete WITHOUT
+/// borrowing the `Phd2Client`.
+///
+/// Why: the bridge's `api_phd2_dither` holds a global async write-lock over the
+/// PHD2 client storage. Blocking on the multi-second settle while holding that
+/// lock would stall every other PHD2 operation (status polls, stop, etc.). The
+/// bridge instead issues the dither RPC under the lock, takes one of these
+/// handles (which only clones the shared `Arc`s), releases the storage lock,
+/// and polls the handle on a blocking task.
+#[derive(Clone)]
+pub struct SettleWaiter {
+    settle_tracker: Arc<Mutex<SettleTracker>>,
+    running: Arc<AtomicBool>,
+    generation: u64,
+}
+
+impl SettleWaiter {
+    /// Block until the armed settle completes or [timeout] elapses.
+    ///
+    /// Same fail-closed contract as [`Phd2Client::wait_for_settle`]: non-zero
+    /// PHD2 status, timeout, disconnect, or a superseding settle all return
+    /// `Err`.
+    pub fn wait(&self, timeout: Duration) -> Result<SettleOutcome, String> {
+        let deadline = Instant::now() + timeout;
+        loop {
+            {
+                let mut tracker = match self.settle_tracker.lock() {
+                    Ok(t) => t,
+                    Err(poison) => poison.into_inner(),
+                };
+                if tracker.generation != self.generation {
+                    return Err(format!(
+                        "PHD2 settle wait superseded (expected generation {}, found {})",
+                        self.generation, tracker.generation
+                    ));
+                }
+                if let Some(outcome) = tracker.outcome.take() {
+                    tracker.awaiting = false;
+                    if outcome.status == 0 {
+                        return Ok(outcome);
+                    }
+                    return Err(format!(
+                        "PHD2 settle failed (status {}): {}",
+                        outcome.status,
+                        if outcome.error.is_empty() {
+                            "no error detail"
+                        } else {
+                            outcome.error.as_str()
+                        }
+                    ));
+                }
+            }
+
+            if !self.running.load(Ordering::SeqCst) {
+                return Err("PHD2 disconnected while waiting for settle".to_string());
+            }
+
+            if Instant::now() >= deadline {
+                return Err(format!(
+                    "PHD2 settle did not complete within {:.1}s",
+                    timeout.as_secs_f64()
+                ));
+            }
+
+            thread::sleep(Duration::from_millis(100));
+        }
+    }
+}
+
+/// Tracks the in-flight settle so a caller (e.g. `dither`) can block until
+/// PHD2 asynchronously reports completion via `SettleDone`.
+///
+/// Why: PHD2's `dither`/`guide` RPCs return immediately; the actual settle
+/// completes seconds later and is announced ONLY by the `SettleDone` event on
+/// the event channel. Without correlating the RPC with that event, the
+/// sequencer resumed exposing mid-settle and trailed every sub after a dither.
+#[derive(Debug, Default)]
+struct SettleTracker {
+    /// Monotonic generation incremented each time a settle is armed. The
+    /// reader thread only records an outcome whose generation matches, so a
+    /// stale `SettleDone` from a previous/aborted settle cannot satisfy a new
+    /// wait.
+    generation: u64,
+    /// Whether a settle is currently armed and awaiting `SettleDone`.
+    awaiting: bool,
+    /// The outcome of the most recent settle for the armed generation.
+    outcome: Option<SettleOutcome>,
+}
+
 /// PHD2 client for real guiding control.
 ///
 /// Uses a single reader thread for the TCP socket to avoid race conditions
@@ -393,6 +498,9 @@ pub struct Phd2Client {
     response_registry: Arc<Mutex<HashMap<u32, mpsc::Sender<String>>>>,
     /// Suppress `Phd2Event::Disconnected` while we intentionally tear down the socket.
     suppress_disconnect_events: Arc<AtomicBool>,
+    /// Tracks the in-flight settle so `dither`/`wait_for_settle` can block on
+    /// PHD2's asynchronous `SettleDone` event and fail closed on failure.
+    settle_tracker: Arc<Mutex<SettleTracker>>,
 }
 
 impl Phd2Client {
@@ -411,6 +519,7 @@ impl Phd2Client {
             reconnect_attempts: Arc::new(std::sync::atomic::AtomicU32::new(0)),
             response_registry: Arc::new(Mutex::new(HashMap::new())),
             suppress_disconnect_events: Arc::new(AtomicBool::new(false)),
+            settle_tracker: Arc::new(Mutex::new(SettleTracker::default())),
         }
     }
 
@@ -429,6 +538,7 @@ impl Phd2Client {
             reconnect_attempts: Arc::new(std::sync::atomic::AtomicU32::new(0)),
             response_registry: Arc::new(Mutex::new(HashMap::new())),
             suppress_disconnect_events: Arc::new(AtomicBool::new(false)),
+            settle_tracker: Arc::new(Mutex::new(SettleTracker::default())),
         }
     }
 
@@ -639,6 +749,7 @@ impl Phd2Client {
         let state = Arc::clone(&self.state);
         let response_registry = Arc::clone(&self.response_registry);
         let suppress_disconnect_events = Arc::clone(&self.suppress_disconnect_events);
+        let settle_tracker = Arc::clone(&self.settle_tracker);
 
         thread::spawn(move || {
             tracing::info!("PHD2: Reader thread started");
@@ -694,6 +805,7 @@ impl Phd2Client {
                             &rolling_stats,
                             &state,
                             &callback,
+                            &settle_tracker,
                         );
 
                         // Clear buffer for next line
@@ -746,6 +858,7 @@ impl Phd2Client {
         rolling_stats: &Arc<Mutex<RollingGuideStats>>,
         state: &Arc<Mutex<Phd2State>>,
         callback: &Option<Phd2EventCallback>,
+        settle_tracker: &Arc<Mutex<SettleTracker>>,
     ) {
         // Parse JSON
         let parsed: serde_json::Value = match serde_json::from_str(json) {
@@ -795,6 +908,36 @@ impl Phd2Client {
                     if let Phd2Event::StateChanged(ref new_state) = event {
                         if let Ok(mut s) = state.lock() {
                             *s = new_state.clone();
+                        }
+                    }
+
+                    // Record settle completion so a blocking `wait_for_settle`
+                    // (called by `dither`) can observe the outcome and fail
+                    // closed on a non-zero PHD2 settle status. Only record while
+                    // a settle is armed so a stray/duplicate SettleDone cannot
+                    // prematurely release a future wait.
+                    if let Phd2Event::SettleDone {
+                        status,
+                        ref error,
+                        total_frames,
+                        dropped_frames,
+                    } = event
+                    {
+                        if let Ok(mut tracker) = settle_tracker.lock() {
+                            if tracker.awaiting {
+                                tracker.awaiting = false;
+                                tracker.outcome = Some(SettleOutcome {
+                                    status,
+                                    error: error.clone(),
+                                    total_frames,
+                                    dropped_frames,
+                                });
+                            } else {
+                                tracing::debug!(
+                                    "PHD2: SettleDone received with no settle armed (status={})",
+                                    status
+                                );
+                            }
                         }
                     }
 
@@ -974,15 +1117,52 @@ impl Phd2Client {
         Ok(())
     }
 
-    /// Dither the guide star
-    pub fn dither(
+    /// Arm settle tracking and return a [`SettleWaiter`] for the armed settle.
+    ///
+    /// Must be called *before* the `dither`/`guide` RPC is sent so the reader
+    /// thread cannot miss an early `SettleDone` (no race window).
+    fn arm_settle(&self) -> SettleWaiter {
+        // Why: §audit-rust 4.3 — settle tracking is load-bearing for dither
+        // correctness. A poisoned mutex means the reader thread panicked; in
+        // that case the connection is already dead and the subsequent settle
+        // wait will fail closed (disconnect or timeout), which is correct. We
+        // still arm so the waiter has a coherent generation to poll.
+        let mut tracker = match self.settle_tracker.lock() {
+            Ok(t) => t,
+            Err(poison) => poison.into_inner(),
+        };
+        tracker.generation = tracker.generation.wrapping_add(1);
+        tracker.awaiting = true;
+        tracker.outcome = None;
+        SettleWaiter {
+            settle_tracker: Arc::clone(&self.settle_tracker),
+            running: Arc::clone(&self.running),
+            generation: tracker.generation,
+        }
+    }
+
+    /// Recommended bound for a settle wait given the requested PHD2 settle
+    /// parameters. Includes a grace margin because PHD2 only starts its own
+    /// settle clock after it processes the dither and begins moving.
+    pub fn settle_wait_duration(settle_time: f64, settle_timeout: f64) -> Duration {
+        let secs = (settle_timeout.max(settle_time + 1.0) + 5.0).max(1.0);
+        Duration::from_secs_f64(secs)
+    }
+
+    /// Issue the `dither` RPC and return a [`SettleWaiter`] WITHOUT blocking.
+    ///
+    /// The caller is responsible for invoking [`SettleWaiter::wait`] to block
+    /// until PHD2 settles and to fail closed on settle failure/timeout. This
+    /// split lets the bridge release its global PHD2 storage lock before the
+    /// multi-second settle wait.
+    pub fn dither_arm(
         &mut self,
         amount: f64,
         ra_only: bool,
         settle_pixels: f64,
         settle_time: f64,
         settle_timeout: f64,
-    ) -> Result<(), String> {
+    ) -> Result<SettleWaiter, String> {
         let params = serde_json::json!({
             "amount": amount,
             "raOnly": ra_only,
@@ -992,7 +1172,31 @@ impl Phd2Client {
                 "timeout": settle_timeout
             }
         });
+
+        // Arm settle tracking BEFORE sending the RPC so the reader thread
+        // cannot miss an early SettleDone (no race window).
+        let waiter = self.arm_settle();
         self.send_request("dither", Some(params))?;
+        Ok(waiter)
+    }
+
+    /// Dither the guide star and BLOCK until PHD2 settles.
+    ///
+    /// PHD2's `dither` RPC returns immediately; the settle completes
+    /// asynchronously and is announced only by the `SettleDone` event. This
+    /// method arms settle tracking, issues the RPC, then waits for completion
+    /// and fails closed on settle failure or timeout — so callers (the
+    /// sequencer dither step) never resume exposing mid-settle.
+    pub fn dither(
+        &mut self,
+        amount: f64,
+        ra_only: bool,
+        settle_pixels: f64,
+        settle_time: f64,
+        settle_timeout: f64,
+    ) -> Result<(), String> {
+        let waiter = self.dither_arm(amount, ra_only, settle_pixels, settle_time, settle_timeout)?;
+        waiter.wait(Self::settle_wait_duration(settle_time, settle_timeout))?;
         Ok(())
     }
 
@@ -1468,6 +1672,42 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
         "SettleBegin" => Some(Phd2Event::SettleBegin),
         "Settling" => Some(Phd2Event::StateChanged(Phd2State::Settling)),
         "SettleDone" => {
+            // Why: the `Status` field is LOAD-BEARING for unattended dithering.
+            // PHD2 reports settle completion asynchronously: `Status == 0` means
+            // the mount settled within the requested pixel/time window;
+            // non-zero means the settle FAILED (e.g. star lost, never settled
+            // within timeout). The dither caller MUST wait for this event and
+            // fail closed on a non-zero status, otherwise the sequencer resumes
+            // exposing mid-settle and trails the sub. Per the PHD2
+            // EventMonitoring wiki, `Status` is a required field on SettleDone;
+            // if it is somehow absent we treat that as a failure (non-zero) so
+            // we never silently report a settle as successful.
+            let status = msg
+                .extra
+                .get("Status")
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32)
+                .unwrap_or_else(|| {
+                    tracing::warn!(
+                        "PHD2: SettleDone missing 'Status' — treating as settle FAILURE ({})",
+                        msg.extra
+                    );
+                    -1
+                });
+            // `Error` is only present when Status != 0; default to a synthesised
+            // message so a failed settle always carries an explanation.
+            let error = msg
+                .extra
+                .get("Error")
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| {
+                    if status == 0 {
+                        String::new()
+                    } else {
+                        format!("PHD2 settle failed (status {})", status)
+                    }
+                });
             // Why: §audit-rust 4.3 — `TotalFrames`/`DroppedFrames` may
             // legitimately be 0 when settling completes on the first
             // frame; absence (`None`) is also documented as "no frames
@@ -1485,6 +1725,8 @@ fn parse_phd2_event(msg: &Phd2EventMessage) -> Option<Phd2Event> {
                 .and_then(|v| v.as_u64())
                 .unwrap_or(0) as u32;
             Some(Phd2Event::SettleDone {
+                status,
+                error,
                 total_frames: total,
                 dropped_frames: dropped,
             })
@@ -1755,6 +1997,143 @@ mod tests {
                 other => panic!("expected Phd2State::Unknown({:?}), got {:?}", sample, other),
             }
         }
+    }
+
+    /// SettleDone with `Status: 0` parses as a successful settle.
+    #[test]
+    fn settle_done_success_parses_status_zero() {
+        let json = r#"{"Event":"SettleDone","Status":0,"TotalFrames":7,"DroppedFrames":1}"#;
+        let msg: Phd2EventMessage = serde_json::from_str(json).unwrap();
+        match parse_phd2_event(&msg) {
+            Some(Phd2Event::SettleDone {
+                status,
+                error,
+                total_frames,
+                dropped_frames,
+            }) => {
+                assert_eq!(status, 0);
+                assert!(error.is_empty());
+                assert_eq!(total_frames, 7);
+                assert_eq!(dropped_frames, 1);
+            }
+            other => panic!("expected SettleDone, got {:?}", other),
+        }
+    }
+
+    /// SettleDone with a non-zero `Status` carries the failure + error string.
+    #[test]
+    fn settle_done_failure_parses_status_and_error() {
+        let json = r#"{"Event":"SettleDone","Status":1,"Error":"timed-out","TotalFrames":3,"DroppedFrames":0}"#;
+        let msg: Phd2EventMessage = serde_json::from_str(json).unwrap();
+        match parse_phd2_event(&msg) {
+            Some(Phd2Event::SettleDone { status, error, .. }) => {
+                assert_eq!(status, 1);
+                assert_eq!(error, "timed-out");
+            }
+            other => panic!("expected SettleDone, got {:?}", other),
+        }
+    }
+
+    /// A SettleDone missing `Status` must be treated as a FAILURE (non-zero),
+    /// never silently reported as a successful settle.
+    #[test]
+    fn settle_done_missing_status_is_failure() {
+        let json = r#"{"Event":"SettleDone","TotalFrames":1,"DroppedFrames":0}"#;
+        let msg: Phd2EventMessage = serde_json::from_str(json).unwrap();
+        match parse_phd2_event(&msg) {
+            Some(Phd2Event::SettleDone { status, error, .. }) => {
+                assert_ne!(status, 0, "missing Status must not be treated as success");
+                assert!(!error.is_empty(), "failure must carry an explanation");
+            }
+            other => panic!("expected SettleDone, got {:?}", other),
+        }
+    }
+
+    /// The settle waiter fails closed on a non-zero PHD2 status, surfacing the
+    /// PHD2 error string.
+    #[test]
+    fn settle_waiter_fails_closed_on_nonzero_status() {
+        let tracker = Arc::new(Mutex::new(SettleTracker {
+            generation: 1,
+            awaiting: true,
+            outcome: Some(SettleOutcome {
+                status: 2,
+                error: "star lost".to_string(),
+                total_frames: 0,
+                dropped_frames: 0,
+            }),
+        }));
+        let waiter = SettleWaiter {
+            settle_tracker: tracker,
+            running: Arc::new(AtomicBool::new(true)),
+            generation: 1,
+        };
+        let err = waiter
+            .wait(Duration::from_millis(100))
+            .expect_err("non-zero status must error");
+        assert!(err.contains("star lost"), "error string surfaced: {err}");
+    }
+
+    /// The settle waiter returns the outcome on a status-0 settle.
+    #[test]
+    fn settle_waiter_succeeds_on_status_zero() {
+        let tracker = Arc::new(Mutex::new(SettleTracker {
+            generation: 5,
+            awaiting: true,
+            outcome: Some(SettleOutcome {
+                status: 0,
+                error: String::new(),
+                total_frames: 4,
+                dropped_frames: 0,
+            }),
+        }));
+        let waiter = SettleWaiter {
+            settle_tracker: tracker,
+            running: Arc::new(AtomicBool::new(true)),
+            generation: 5,
+        };
+        let outcome = waiter
+            .wait(Duration::from_millis(100))
+            .expect("status 0 settles");
+        assert_eq!(outcome.total_frames, 4);
+    }
+
+    /// The settle waiter times out (fails closed) when SettleDone never arrives.
+    #[test]
+    fn settle_waiter_times_out_when_no_settle_done() {
+        let tracker = Arc::new(Mutex::new(SettleTracker {
+            generation: 1,
+            awaiting: true,
+            outcome: None,
+        }));
+        let waiter = SettleWaiter {
+            settle_tracker: tracker,
+            running: Arc::new(AtomicBool::new(true)),
+            generation: 1,
+        };
+        let err = waiter
+            .wait(Duration::from_millis(250))
+            .expect_err("must time out");
+        assert!(err.contains("did not complete"), "got: {err}");
+    }
+
+    /// The settle waiter fails closed if the connection drops mid-settle.
+    #[test]
+    fn settle_waiter_fails_closed_on_disconnect() {
+        let tracker = Arc::new(Mutex::new(SettleTracker {
+            generation: 1,
+            awaiting: true,
+            outcome: None,
+        }));
+        let waiter = SettleWaiter {
+            settle_tracker: tracker,
+            running: Arc::new(AtomicBool::new(false)),
+            generation: 1,
+        };
+        let err = waiter
+            .wait(Duration::from_secs(30))
+            .expect_err("disconnect must error");
+        assert!(err.contains("disconnected"), "got: {err}");
     }
 
     /// PHD2 returns -32600 when `params` is JSON null; omit the field instead.

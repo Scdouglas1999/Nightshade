@@ -470,8 +470,25 @@ pub(crate) async fn run_polar_alignment(
         return Err(error_msg);
     }
 
-    // Phase 3: Adjustment loop - continuously update error with rolling recalculation
+    // Phase 3: Adjustment loop - continuously update error as the user adjusts.
     emit_polar_status("Adjustment mode - make corrections", "adjusting", 0);
+
+    // Track the measured mount RA axis as the user physically adjusts the alt/az
+    // bolts. The axis was measured in Phase 1 from three ROTATED points. During
+    // adjustment the mount is stationary (the user turns the bolts, not the RA
+    // motor), so re-fitting the axis from the now-stationary frames is invalid —
+    // three near-identical points give a degenerate plane and the old code
+    // collapsed the axis toward the pole, reporting ~0 error from a badly
+    // misaligned mount.
+    //
+    // Instead we hold the Phase-1 axis and apply the displacement of the
+    // boresight (how far the current solved position has moved from the first
+    // adjustment frame) to the axis. Any physical mount adjustment shifts the
+    // whole sky-to-mount mapping by the same small rotation, so the boresight
+    // displacement equals the axis displacement to first order. `reference_solve`
+    // is captured on the first successful adjustment solve below.
+    let initial_axis = (center_ra, center_dec);
+    let mut reference_solve: Option<(f64, f64)> = None;
 
     // Auto-complete timer: tracks when error first dropped below threshold
     let mut auto_complete_start: Option<std::time::Instant> = None;
@@ -644,28 +661,48 @@ pub(crate) async fn run_polar_alignment(
                 Some(solve_result.dec),
             );
 
-            // Rolling 3-point recalculation: add new point and keep only last 3
-            solved_points.push((ra_degrees, solve_result.dec));
-            if solved_points.len() > 3 {
-                solved_points.remove(0); // Remove oldest point to maintain sliding window
-            }
+            // Track the current mount axis by applying the boresight
+            // displacement (vs the first adjustment frame) to the Phase-1 axis.
+            // This reflects the user's physical alt/az adjustments WITHOUT the
+            // degenerate re-fit-from-stationary-points collapse.
+            let (ref_ra, ref_dec) = *reference_solve.get_or_insert((ra_degrees, solve_result.dec));
 
-            // Recalculate rotation center from updated points (requires at least 3 points)
-            if solved_points.len() >= 3 {
-                let (new_center_ra, new_center_dec) = calculate_rotation_center(&solved_points);
-                center_ra = new_center_ra;
-                center_dec = new_center_dec;
-                tracing::debug!(
-                    "Updated rotation center: RA={:.4}°, Dec={:.4}°",
-                    center_ra,
-                    center_dec
-                );
+            // Displacement of the boresight since the reference frame. RA is
+            // scaled by cos(dec) to convert to a true angular offset and the
+            // shortest-arc convention is applied so a wrap across 0/360° does
+            // not produce a spurious ~360° jump.
+            let mut d_ra = ra_degrees - ref_ra;
+            if d_ra > 180.0 {
+                d_ra -= 360.0;
+            } else if d_ra < -180.0 {
+                d_ra += 360.0;
             }
+            let d_ra_ang = d_ra * ref_dec.to_radians().cos();
+            let d_dec = solve_result.dec - ref_dec;
 
-            // Calculate error relative to recalculated pole position
-            let alt_error = (pole_dec - center_dec) * 60.0; // arcminutes
-            let az_error = (0.0 - center_ra) * center_dec.to_radians().cos() * 60.0;
-            let total_error = (az_error.powi(2) + alt_error.powi(2)).sqrt();
+            // Apply the same displacement to the measured axis to get the
+            // current axis. (First-order rigid-shift model of a small mount
+            // adjustment; exact enough at the sub-degree errors PA targets.)
+            let cur_axis_ra =
+                initial_axis.0 + d_ra_ang / initial_axis.1.to_radians().cos().max(1e-6);
+            let cur_axis_dec = initial_axis.1 + d_dec;
+
+            tracing::debug!(
+                "Adjustment: boresight Δ=({:.4}°,{:.4}°) → current axis RA={:.4}°, Dec={:.4}°",
+                d_ra_ang,
+                d_dec,
+                cur_axis_ra,
+                cur_axis_dec
+            );
+
+            // Error in ARCSECONDS (Dart UI labels values with `"` and uses
+            // 30"/60" colour bands; the old code emitted arcMINUTES, so a real
+            // 5' error displayed as 5" — 60x too small — and the auto-complete
+            // fired ~60x too early).
+            let (az_error, alt_error, total_error) =
+                polar_axis_error_arcsec(cur_axis_ra, cur_axis_dec, pole_dec);
+            center_ra = cur_axis_ra;
+            center_dec = cur_axis_dec;
 
             // Auto-complete logic: check if error is below threshold
             if total_error <= auto_complete_threshold {
@@ -675,12 +712,12 @@ pub(crate) async fn run_polar_alignment(
                         if elapsed.as_secs() >= AUTO_COMPLETE_DURATION_SECS {
                             // Error has been below threshold for required duration
                             tracing::info!(
-                                "Polar alignment complete! Total error {:.2} arcmin below threshold {:.2} for {} seconds",
+                                "Polar alignment complete! Total error {:.1} arcsec below threshold {:.1} for {} seconds",
                                 total_error, auto_complete_threshold, AUTO_COMPLETE_DURATION_SECS
                             );
                             emit_polar_status(
                                 &format!(
-                                    "Complete! Error {:.2}' below threshold for {}s",
+                                    "Complete! Error {:.1}\" below threshold for {}s",
                                     total_error, AUTO_COMPLETE_DURATION_SECS
                                 ),
                                 "complete",
@@ -710,7 +747,7 @@ pub(crate) async fn run_polar_alignment(
                         // First time below threshold, start timer
                         auto_complete_start = Some(std::time::Instant::now());
                         tracing::info!(
-                            "Error {:.2} arcmin dropped below threshold {:.2}, starting auto-complete timer",
+                            "Error {:.1} arcsec dropped below threshold {:.1}, starting auto-complete timer",
                             total_error, auto_complete_threshold
                         );
                         emit_polar_status(
@@ -727,7 +764,7 @@ pub(crate) async fn run_polar_alignment(
                 // Error above threshold, reset timer if it was running
                 if auto_complete_start.is_some() {
                     tracing::debug!(
-                        "Error {:.2} arcmin went back above threshold {:.2}, resetting auto-complete timer",
+                        "Error {:.1} arcsec went back above threshold {:.1}, resetting auto-complete timer",
                         total_error, auto_complete_threshold
                     );
                     auto_complete_start = None;
@@ -813,6 +850,57 @@ pub(crate) fn write_temp_fits_for_solve(
 
     write_fits(Path::new(path), &image_data, &header)
         .map_err(|e| format!("FITS write error: {:?}", e))
+}
+
+/// Polar-alignment error of a measured rotation axis relative to the pole,
+/// expressed in ARCSECONDS to match the Dart UI (which labels every value with
+/// `"` and uses 30"/60" colour bands) and the arcsecond `auto_complete_threshold`.
+///
+/// Returns `(azimuth_error_arcsec, altitude_error_arcsec, total_error_arcsec)`.
+///
+/// Geometry: the mount's RA axis points at `(axis_ra_deg, axis_dec_deg)`; a
+/// perfectly aligned mount points its axis at the celestial pole
+/// (`dec = ±90°`). The TOTAL error is the true angular separation between the
+/// axis unit vector and the pole unit vector — `90° − axis_dec` for the north
+/// pole — which is robust and only reaches 0 when the axis genuinely sits on
+/// the pole (the previous `(0 − center_ra)·cos(dec)` formula collapsed to ~0
+/// whenever the rolling fit drifted toward the pole, under-reporting the error).
+///
+/// The total offset is decomposed into two orthogonal tangent-plane components
+/// at the pole so that `sqrt(alt² + az²) == total` exactly:
+///   - altitude component along the RA=0/12h meridian: `θ·cos(axis_ra)`
+///   - azimuth component along the RA=6h/18h meridian: `θ·sin(axis_ra)`
+///
+/// NOTE (needs on-mount validation): this decomposition is in the equatorial
+/// tangent frame, not the observer's local horizontal alt/az frame (which would
+/// require latitude + LST). The TOTAL magnitude and the convergence-to-zero
+/// behaviour are correct; the alt-vs-az split direction must be confirmed
+/// against a real mount so the "move up/down vs left/right" guidance matches.
+pub(crate) fn polar_axis_error_arcsec(
+    axis_ra_deg: f64,
+    axis_dec_deg: f64,
+    pole_dec_deg: f64,
+) -> (f64, f64, f64) {
+    // Total angular separation between the axis and the pole, in degrees.
+    // For the north pole this is (90 - axis_dec); for the south pole the axis
+    // dec is negative, so the separation is (axis_dec - (-90)) = axis_dec + 90,
+    // i.e. |pole_dec - axis_dec| with both on the same hemisphere. Use the
+    // dot-product form to stay correct for any axis_dec.
+    let axis_dec = axis_dec_deg.to_radians();
+    let axis_ra = axis_ra_deg.to_radians();
+    let pole_z = if pole_dec_deg >= 0.0 { 1.0 } else { -1.0 };
+    // a·p where p = (0, 0, ±1) and a = (cos d cos r, cos d sin r, sin d)
+    let cos_sep = (axis_dec.sin() * pole_z).clamp(-1.0, 1.0);
+    let sep_rad = cos_sep.acos();
+    let sep_arcsec = sep_rad.to_degrees() * 3600.0;
+
+    // Tangent-plane decomposition at the pole. cos/sin of the axis RA give the
+    // direction of the offset around the pole; for the south pole the RA sense
+    // mirrors, so flip the azimuth sign to keep a right-handed local frame.
+    let alt_arcsec = sep_arcsec * axis_ra.cos();
+    let az_arcsec = sep_arcsec * axis_ra.sin() * pole_z;
+
+    (az_arcsec, alt_arcsec, sep_arcsec)
 }
 
 /// Calculate the center of rotation from 3 solved points using 3D plane fitting
@@ -1056,6 +1144,7 @@ pub async fn api_start_all_sky_polar_alignment(
             target_ra: None,
             target_dec: None,
             target_name: None,
+            target_rotation: None,
             current_filter: None,
             current_binning: Binning::One,
             cancellation_token: cancel_flag,
@@ -1117,6 +1206,11 @@ pub async fn api_start_all_sky_polar_alignment(
             // decisions (no associated sequence_runs row).
             decision_tx: None,
             active_sequence_run_id: std::sync::Arc::new(parking_lot::RwLock::new(None)),
+            // Polar alignment is not driven by the node-runtime disconnect-retry
+            // loop, so this one-shot context owns a fresh, unshared flag.
+            device_disconnect_recovery_pending: std::sync::Arc::new(
+                std::sync::atomic::AtomicBool::new(false),
+            ),
         };
 
         let status_cb = |status: String, _progress: Option<f64>| {
@@ -1177,4 +1271,67 @@ pub async fn api_start_all_sky_polar_alignment(
     });
 
     Ok(())
+}
+
+#[cfg(test)]
+mod polar_error_tests {
+    use super::polar_axis_error_arcsec;
+
+    /// A perfectly aligned axis (sitting on the north pole) reports ~0 error.
+    #[test]
+    fn aligned_axis_reports_zero() {
+        let (az, alt, total) = polar_axis_error_arcsec(0.0, 90.0, 90.0);
+        assert!(total.abs() < 1e-6, "total should be ~0, got {total}");
+        assert!(az.abs() < 1e-6 && alt.abs() < 1e-6);
+    }
+
+    /// The emitted error is in ARCSECONDS, not arcminutes. An axis 1° below the
+    /// pole must report 3600", NOT 60. This is the core 60x bug: the old code
+    /// multiplied degrees by 60 (arcmin), but the Dart UI labels values with `"`.
+    #[test]
+    fn error_is_in_arcseconds_not_arcminutes() {
+        // Axis at dec = 89° (1° from the pole). Total separation = 1° = 3600".
+        let (_, _, total) = polar_axis_error_arcsec(0.0, 89.0, 90.0);
+        assert!(
+            (total - 3600.0).abs() < 1.0,
+            "1° offset must be 3600 arcsec, got {total}"
+        );
+        // Sanity: definitely not the old arcminute value (60).
+        assert!(total > 1000.0, "must not be the old arcminute scale");
+    }
+
+    /// The decomposition is consistent: sqrt(alt² + az²) == total exactly, so
+    /// the displayed components never disagree with the displayed total.
+    #[test]
+    fn components_compose_to_total() {
+        for &(ra, dec) in &[(45.0, 89.5), (123.0, 88.0), (270.0, 89.9), (310.0, 85.0)] {
+            let (az, alt, total) = polar_axis_error_arcsec(ra, dec, 90.0);
+            let composed = (az * az + alt * alt).sqrt();
+            assert!(
+                (composed - total).abs() < 1e-6,
+                "sqrt(alt^2+az^2)={composed} must equal total={total} (ra={ra},dec={dec})"
+            );
+        }
+    }
+
+    /// The error grows monotonically as the axis drifts further from the pole —
+    /// it does NOT collapse to ~0 for a misaligned axis (the old 3-point re-fit
+    /// reported ~0 from a stationary, badly-aligned mount).
+    #[test]
+    fn error_grows_with_misalignment_no_collapse() {
+        let small = polar_axis_error_arcsec(30.0, 89.9, 90.0).2;
+        let medium = polar_axis_error_arcsec(30.0, 89.0, 90.0).2;
+        let large = polar_axis_error_arcsec(30.0, 87.0, 90.0).2;
+        assert!(small < medium && medium < large, "{small} {medium} {large}");
+        assert!(large > 10_000.0, "3° misalignment must be a large arcsec value");
+    }
+
+    /// Works for the south celestial pole too (axis_dec near -90).
+    #[test]
+    fn south_pole_alignment() {
+        let aligned = polar_axis_error_arcsec(0.0, -90.0, -90.0).2;
+        assert!(aligned.abs() < 1e-6, "south-pole aligned should be ~0");
+        let off = polar_axis_error_arcsec(0.0, -89.0, -90.0).2;
+        assert!((off - 3600.0).abs() < 1.0, "1° south offset = 3600\", got {off}");
+    }
 }
