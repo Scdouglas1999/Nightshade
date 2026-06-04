@@ -145,10 +145,12 @@ void main() {
           filePath: '/tmp/test_image.fits',
         );
 
-        // Plate solve returns coordinates very close to target (within tolerance)
+        // Plate solve returns coordinates very close to target (within
+        // tolerance). NB the solver returns RA in DEGREES, so the on-target
+        // value is `targetRa * 15` (10h -> 150°), not `targetRa`.
         const solveResult = PlateSolveResult(
           success: true,
-          ra: targetRa, // Same as target
+          ra: targetRa * 15.0, // Same as target, expressed in degrees
           dec: targetDec, // Same as target
           rotation: 0.0,
           pixelScale: 1.0,
@@ -184,6 +186,245 @@ void main() {
         // Verify no slewing occurred since we were already centered
         verifyNever(mockDeviceService.slewMountToCoordinates(any, any));
       });
+
+      // ---- RA-unit regression (full-night audit 2026-06-04) ---------------
+      //
+      // `PlateSolveResult.ra` is in DEGREES (Rust `PlateSolveResult.ra` reads
+      // FITS CRVAL1 verbatim; the network host forwards it unchanged). The
+      // centering target (`targetRa`), the slew/sync calls and the mount frame
+      // are all in HOURS. The old code multiplied BOTH the target RA and the
+      // solved RA by 15, so on the real solver path the solved RA landed 15×
+      // away from the target's frame, the haversine offset never fell below
+      // tolerance, and slew-and-center burned all its iterations without ever
+      // converging. These tests pin the corrected unit handling.
+
+      // Helper: build a CapturedImageData with a given file path.
+      CapturedImageData raUnitFixture(String path) {
+        return CapturedImageData(
+          width: 1920,
+          height: 1080,
+          displayData: Uint8List(1920 * 1080 * 4),
+          histogram: List.filled(256, 0),
+          stats: const ImageStats(mean: 100.0, stdDev: 10.0),
+          capturedAt: DateTime.now(),
+          settings: const ExposureSettings(
+            exposureTime: 3.0,
+            gain: 100,
+            offset: 50,
+          ),
+          filePath: path,
+        );
+      }
+
+      test(
+        'RA unit: solver degrees on target converge on the first iteration '
+        '(no spurious 15x offset)',
+        () async {
+          // Target 10h / +45°. Solver reports the SAME point but in degrees:
+          // 10h == 150.0°. With the bug this looked like a ~2250° (mod) error
+          // in the offset math and never converged; corrected, the offset is
+          // ~0 and we succeed immediately.
+          const targetRaHours = 10.0;
+          const targetDecDeg = 45.0;
+          const solvedRaDeg = targetRaHours * 15.0; // 150.0°
+
+          const solverConfig = PlateSolverConfig(
+            type: PlateSolverType.astap,
+            executablePath: '/usr/bin/astap',
+          );
+
+          when(mockImagingService.captureImage(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          )).thenAnswer((_) async => raUnitFixture('/tmp/ra_unit_on.fits'));
+
+          when(mockPlateSolveService.solve(any, any)).thenAnswer(
+            (_) async => const PlateSolveResult(
+              success: true,
+              ra: solvedRaDeg, // DEGREES
+              dec: targetDecDeg,
+              rotation: 0.0,
+              pixelScale: 1.0,
+              fieldWidth: 2.0,
+              fieldHeight: 1.5,
+              solveTimeSecs: 0.0,
+            ),
+          );
+
+          final service = container.read(centeringServiceProvider);
+          final result = await service.centerOnTarget(
+            targetRa: targetRaHours,
+            targetDec: targetDecDeg,
+            solverConfig: solverConfig,
+            config: const CenteringConfig(
+              maxIterations: 5,
+              toleranceArcsec: 30.0,
+            ),
+          );
+
+          expect(result.success, isTrue,
+              reason: 'On-target solve (degrees) must converge immediately');
+          expect(result.iterations, equals(1));
+          // Offset must be a hair, not a 15x-inflated value.
+          expect(result.finalOffsetArcsec, isNotNull);
+          expect(result.finalOffsetArcsec!, lessThan(1.0));
+          // Solved RA is recorded back in HOURS (150° -> 10h).
+          expect(result.iterationHistory.first.solvedRa,
+              closeTo(targetRaHours, 1e-9));
+          verifyNever(mockDeviceService.slewMountToCoordinates(any, any));
+        },
+      );
+
+      test(
+        'RA unit: a known pure-RA offset produces the true angular separation '
+        '(offset = cos(dec) x deltaRA), not a 15x value',
+        () async {
+          // Put the solved RA 0.10° east of the target at +60° dec.
+          // True separation along a great circle for a small pure-RA step is
+          // cos(dec) * deltaRA: cos(60°) = 0.5, so 0.10° of RA => 0.05° on the
+          // sky == 180 arcsec. We assert the FIRST iteration's recorded offset
+          // matches 180" (the corrected math), proving the solved RA was NOT
+          // re-scaled by 15. We use a tolerance tight enough that a 15x error
+          // (which would read ~2700"+, well past max) is impossible to pass.
+          const targetRaHours = 6.0; // 90.0° in the solver frame
+          const targetDecDeg = 60.0;
+          const deltaRaDeg = 0.10;
+          const expectedArcsec = 180.0; // cos(60°) * 0.10° * 3600
+          const solvedRaDeg = targetRaHours * 15.0 + deltaRaDeg; // 90.10°
+
+          const solverConfig = PlateSolverConfig(
+            type: PlateSolverType.astap,
+            executablePath: '/usr/bin/astap',
+          );
+
+          when(mockImagingService.captureImage(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          )).thenAnswer((_) async => raUnitFixture('/tmp/ra_unit_off.fits'));
+
+          when(mockPlateSolveService.solve(any, any)).thenAnswer(
+            (_) async => const PlateSolveResult(
+              success: true,
+              ra: solvedRaDeg, // DEGREES
+              dec: targetDecDeg,
+              rotation: 0.0,
+              pixelScale: 1.0,
+              fieldWidth: 2.0,
+              fieldHeight: 1.5,
+              solveTimeSecs: 0.0,
+            ),
+          );
+          when(mockDeviceService.slewMountToCoordinates(any, any))
+              .thenAnswer((_) async => {});
+
+          final service = container.read(centeringServiceProvider);
+          final result = await service.centerOnTarget(
+            targetRa: targetRaHours,
+            targetDec: targetDecDeg,
+            solverConfig: solverConfig,
+            // tolerance below the offset so the run records the offset then
+            // proceeds to slew; cap iterations at 1 so the (unchanging) stub
+            // doesn't loop forever.
+            config: const CenteringConfig(
+              maxIterations: 1,
+              toleranceArcsec: 30.0,
+            ),
+          );
+
+          // maxIterations=1 with a persistent offset -> not centered.
+          expect(result.success, isFalse);
+          expect(result.iterationHistory, hasLength(1));
+          final recordedOffset = result.iterationHistory.first.offsetArcsec;
+          expect(recordedOffset, isNotNull);
+          // 1 arcsec tolerance: a 15x-scaled bug could never land here.
+          expect(recordedOffset!, closeTo(expectedArcsec, 1.0),
+              reason:
+                  'Corrected math: cos(60°)*0.10°=0.05°=180". A 15x RA error '
+                  'would read thousands of arcsec.');
+        },
+      );
+
+      test(
+        'RA unit: sync path receives the solved RA in HOURS, not degrees',
+        () async {
+          // With syncMount=true the service syncs to the solved coordinates
+          // before slewing to target. `syncMountToCoordinates` expects HOURS,
+          // so the value passed must be the degrees solve normalised to hours.
+          const targetRaHours = 3.0;
+          const targetDecDeg = 20.0;
+          // Solver reports 2 arcmin of pure-RA error so a slew (and, with
+          // syncMount, a sync) is triggered on the first iteration.
+          const solvedRaDeg =
+              targetRaHours * 15.0 + (120.0 / 3600.0); // degrees
+
+          const solverConfig = PlateSolverConfig(
+            type: PlateSolverType.astap,
+            executablePath: '/usr/bin/astap',
+          );
+
+          var iter = 0;
+          when(mockImagingService.captureImage(
+            settings: anyNamed('settings'),
+            targetName: anyNamed('targetName'),
+          )).thenAnswer((_) async => raUnitFixture('/tmp/ra_unit_sync.fits'));
+          when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+            iter++;
+            if (iter == 1) {
+              return const PlateSolveResult(
+                success: true,
+                ra: solvedRaDeg, // off-target, degrees
+                dec: targetDecDeg,
+                rotation: 0.0,
+                pixelScale: 1.0,
+                fieldWidth: 2.0,
+                fieldHeight: 1.5,
+                solveTimeSecs: 0.0,
+              );
+            }
+            // Second solve: on target, in degrees.
+            return const PlateSolveResult(
+              success: true,
+              ra: targetRaHours * 15.0,
+              dec: targetDecDeg,
+              rotation: 0.0,
+              pixelScale: 1.0,
+              fieldWidth: 2.0,
+              fieldHeight: 1.5,
+              solveTimeSecs: 0.0,
+            );
+          });
+          when(mockDeviceService.syncMountToCoordinates(any, any))
+              .thenAnswer((_) async => {});
+          when(mockDeviceService.slewMountToCoordinates(any, any))
+              .thenAnswer((_) async => {});
+
+          final service = container.read(centeringServiceProvider);
+          final result = await service.centerOnTarget(
+            targetRa: targetRaHours,
+            targetDec: targetDecDeg,
+            solverConfig: solverConfig,
+            config: const CenteringConfig(
+              maxIterations: 2,
+              toleranceArcsec: 30.0,
+              syncMount: true,
+            ),
+          );
+
+          expect(result.success, isTrue);
+          // The sync must have been handed the solved RA in HOURS. The solved
+          // degrees value normalised to hours is solvedRaDeg/15.
+          const expectedSyncRaHours = solvedRaDeg / 15.0;
+          final captured = verify(
+            mockDeviceService.syncMountToCoordinates(captureAny, captureAny),
+          ).captured;
+          // captured is a flat [ra, dec, ra, dec, ...]; first call's RA.
+          final syncedRaHours = captured[0] as double;
+          expect(syncedRaHours, closeTo(expectedSyncRaHours, 1e-9),
+              reason:
+                  'sync RA must be the degrees solve normalised to hours, '
+                  'never the raw degrees (which would be 15x too large)');
+        },
+      );
 
       test('succeeds after multiple iterations', () async {
         // Arrange
@@ -228,11 +469,12 @@ void main() {
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
           iterationCount++;
           if (iterationCount == 1) {
-            // First solve: 2 arcmin (120 arcsec) off in RA
+            // First solve: 2 arcmin (120 arcsec) off in RA. Solver RA is in
+            // DEGREES: on-target is targetRa*15 (=150°), plus 120 arcsec
+            // expressed in degrees (120/3600).
             return const PlateSolveResult(
               success: true,
-              ra: targetRa +
-                  (120.0 / 3600.0 / 15.0), // 120 arcsec converted to hours
+              ra: targetRa * 15.0 + (120.0 / 3600.0),
               dec: targetDec,
               rotation: 0.0,
               pixelScale: 1.0,
@@ -241,10 +483,10 @@ void main() {
               solveTimeSecs: 0.0,
             );
           } else {
-            // Second solve: within tolerance
+            // Second solve: within tolerance (on-target, in degrees).
             return const PlateSolveResult(
               success: true,
-              ra: targetRa,
+              ra: targetRa * 15.0,
               dec: targetDec,
               rotation: 0.0,
               pixelScale: 1.0,
@@ -318,9 +560,11 @@ void main() {
         )).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+          // Solver RA in DEGREES: on-target targetRa*15 plus 300 arcsec
+          // (5 arcmin) expressed in degrees (300/3600).
           return const PlateSolveResult(
             success: true,
-            ra: targetRa + (300.0 / 3600.0 / 15.0), // 300 arcsec (5 arcmin) off
+            ra: targetRa * 15.0 + (300.0 / 3600.0),
             dec: targetDec,
             rotation: 0.0,
             pixelScale: 1.0,
@@ -545,9 +789,10 @@ void main() {
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
           iterationCount++;
           if (iterationCount == 1) {
+            // Solver RA in DEGREES: targetRa*15 + 120 arcsec (in degrees).
             return const PlateSolveResult(
               success: true,
-              ra: targetRa + (120.0 / 3600.0 / 15.0),
+              ra: targetRa * 15.0 + (120.0 / 3600.0),
               dec: targetDec,
               rotation: 0.0,
               pixelScale: 1.0,
@@ -558,7 +803,7 @@ void main() {
           } else {
             return const PlateSolveResult(
               success: true,
-              ra: targetRa,
+              ra: targetRa * 15.0,
               dec: targetDec,
               rotation: 0.0,
               pixelScale: 1.0,
@@ -650,9 +895,10 @@ void main() {
           // Second poll: on-target (test terminates with success once the
           // poll loop completes / escalates).
           if (iterationCount == 1) {
+            // Solver RA in DEGREES: targetRa*15 + 120 arcsec (in degrees).
             return PlateSolveResult(
               success: true,
-              ra: targetRa + (120.0 / 3600.0 / 15.0),
+              ra: targetRa * 15.0 + (120.0 / 3600.0),
               dec: targetDec,
               rotation: 0.0,
               pixelScale: 1.0,
@@ -661,9 +907,10 @@ void main() {
               solveTimeSecs: 0.0,
             );
           }
+          // On-target: 10h in degrees = 150°.
           return const PlateSolveResult(
             success: true,
-            ra: 10.0,
+            ra: 150.0,
             dec: 45.0,
             rotation: 0.0,
             pixelScale: 1.0,
@@ -767,9 +1014,10 @@ void main() {
             targetName: anyNamed('targetName'),
           )).thenAnswer((_) async => buildPollFixtureImage());
           when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+            // Solver RA in DEGREES: 2 arcmin off = targetRa*15 + 120/3600.
             return const PlateSolveResult(
               success: true,
-              ra: targetRa + (120.0 / 3600.0 / 15.0), // 2 arcmin off
+              ra: targetRa * 15.0 + (120.0 / 3600.0),
               dec: targetDec,
               rotation: 0.0,
               pixelScale: 1.0,
@@ -938,9 +1186,10 @@ void main() {
         )).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+          // Solver RA in DEGREES: on-target is targetRa*15 (=150°).
           return const PlateSolveResult(
             success: true,
-            ra: targetRa,
+            ra: targetRa * 15.0,
             dec: targetDec,
             rotation: 0.0,
             pixelScale: 1.0,
@@ -1000,9 +1249,10 @@ void main() {
         )).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+          // Solver RA in DEGREES: 5 arcmin off = targetRa*15 + 300/3600.
           return const PlateSolveResult(
             success: true,
-            ra: targetRa + (300.0 / 3600.0 / 15.0), // 5 arcmin off
+            ra: targetRa * 15.0 + (300.0 / 3600.0),
             dec: targetDec,
             rotation: 0.0,
             pixelScale: 1.0,
@@ -1060,9 +1310,10 @@ void main() {
         )).thenAnswer((_) async => capturedImage);
 
         when(mockPlateSolveService.solve(any, any)).thenAnswer((_) async {
+          // Solver RA in DEGREES: on-target mount RA (10h) = 150°.
           return const PlateSolveResult(
             success: true,
-            ra: mountRa,
+            ra: mountRa * 15.0,
             dec: mountDec,
             rotation: 0.0,
             pixelScale: 1.0,
@@ -1082,6 +1333,9 @@ void main() {
         expect(result.success, isTrue);
         expect(result.iterationHistory.first.targetRa, equals(mountRa));
         expect(result.iterationHistory.first.targetDec, equals(mountDec));
+        // Solved RA is normalised back to HOURS in the recorded iteration
+        // (the solver returned 150° == 10h).
+        expect(result.iterationHistory.first.solvedRa, closeTo(mountRa, 1e-9));
       });
     });
   });
