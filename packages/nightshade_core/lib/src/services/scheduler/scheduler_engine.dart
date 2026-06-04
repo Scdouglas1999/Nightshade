@@ -9,6 +9,7 @@ import '../../models/scheduler/scheduler_status.dart';
 import '../../models/scheduler/target_constraint.dart';
 import '../../models/sequence/sequence_models.dart';
 import 'horizon_profile.dart';
+import 'sky_calculations.dart';
 
 part 'scheduler_engine/contracts.dart';
 part 'scheduler_engine/astronomy_helpers.dart';
@@ -484,6 +485,22 @@ class SchedulerEngine {
     if (alt < _config.minAltitudeDegrees) {
       rejections.add(
           'altitude ${alt.toStringAsFixed(1)}° below site minimum ${_config.minAltitudeDegrees.toStringAsFixed(1)}°');
+    }
+
+    // Hard constraint: twilight / Sun altitude. Never image while the Sun is
+    // above the configured darkness threshold. This makes the engine wait for
+    // darkness at dusk and stop at dawn (the empty-eligible path in
+    // _evaluateOnce stops the running sequence once every candidate is
+    // rejected). Previously the engine scored at `now` with no Sun awareness
+    // and would slew + expose in full daylight.
+    final (sunAlt, _) = SkyCalculations.sunAltAz(
+      time: now,
+      latitudeDegrees: _site.latitudeDegrees,
+      longitudeDegrees: _site.longitudeDegrees,
+    );
+    if (sunAlt > _config.maxSunAltitudeDegrees) {
+      rejections.add(
+          'Sun ${sunAlt.toStringAsFixed(1)}° above darkness limit ${_config.maxSunAltitudeDegrees.toStringAsFixed(1)}° — too bright to image');
     }
 
     // Hard constraint: equipment / filter availability.

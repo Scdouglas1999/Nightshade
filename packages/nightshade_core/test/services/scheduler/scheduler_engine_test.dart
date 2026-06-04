@@ -168,6 +168,61 @@ void main() {
       await engine.dispose();
     });
 
+    test('rejects all candidates while the Sun is up (no daylight imaging)',
+        () async {
+      final sink = _RecordingSink();
+      // Local noon at the site (lon -75 -> solar noon ~17:00 UTC). Sun is
+      // high (~+65 deg), far above the -12 deg darkness limit.
+      DateTime daytime() => DateTime.utc(2026, 5, 11, 17, 0);
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 30, name: 'Circumpolar', raHours: 7.0, decDegrees: 40.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: daytime,
+      );
+      await engine.start();
+      final decision = engine.lastDecision!;
+      expect(decision.chosenTargetId, isNull,
+          reason: 'must not slew/expose while the Sun is up');
+      expect(
+        decision.scoredCandidates.every((s) => s.hardConstraintFailed),
+        isTrue,
+      );
+      expect(
+        decision.scoredCandidates
+            .any((s) => s.rejectionReasons.any((r) => r.contains('Sun'))),
+        isTrue,
+        reason: 'the twilight gate should reject candidates in daylight',
+      );
+      expect(sink.dispatched, isEmpty);
+      await engine.dispose();
+    });
+
+    test('does not apply the Sun gate at night', () async {
+      final sink = _RecordingSink();
+      final candidates = <SchedulerCandidate>[
+        _candidate(
+            id: 31, name: 'High in south', raHours: 14.0, decDegrees: 30.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: _fixedNow, // 23:00 local -- deep night
+      );
+      await engine.start();
+      final decision = engine.lastDecision!;
+      final sunRejections = decision.scoredCandidates
+          .expand((s) => s.rejectionReasons)
+          .where((r) => r.contains('Sun'));
+      expect(sunRejections, isEmpty,
+          reason: 'gate must not fire when the Sun is well below the horizon');
+      await engine.dispose();
+    });
+
     test('emits a null decision when no candidates are eligible', () async {
       final sink = _RecordingSink();
       final candidates = <SchedulerCandidate>[

@@ -91,6 +91,15 @@ class SchedulerConfig extends Equatable {
   /// it the factor is 1.0. Weighted by moon illumination at evaluation time.
   final double moonAvoidanceRadiusDegrees;
 
+  /// Maximum Sun altitude (degrees) at which the engine will still image.
+  /// A candidate is hard-rejected while the Sun is above this — preventing
+  /// the scheduler from slewing and exposing in daylight or bright twilight,
+  /// making it wait for darkness at dusk and stop at dawn. Default -12°
+  /// (nautical darkness); set -18° for astronomical-only, or 0° to image to
+  /// the horizon. Without this gate the engine imaged in full daylight and
+  /// never knew the night was over.
+  final double maxSunAltitudeDegrees;
+
   final SchedulerWeights weights;
 
   const SchedulerConfig({
@@ -98,6 +107,7 @@ class SchedulerConfig extends Equatable {
     this.hysteresisRatio = 1.20,
     this.minAltitudeDegrees = 25.0,
     this.moonAvoidanceRadiusDegrees = 60.0,
+    this.maxSunAltitudeDegrees = -12.0,
     this.weights = SchedulerWeights.defaults,
   });
 
@@ -108,6 +118,7 @@ class SchedulerConfig extends Equatable {
     double? hysteresisRatio,
     double? minAltitudeDegrees,
     double? moonAvoidanceRadiusDegrees,
+    double? maxSunAltitudeDegrees,
     SchedulerWeights? weights,
   }) {
     return SchedulerConfig(
@@ -116,6 +127,8 @@ class SchedulerConfig extends Equatable {
       minAltitudeDegrees: minAltitudeDegrees ?? this.minAltitudeDegrees,
       moonAvoidanceRadiusDegrees:
           moonAvoidanceRadiusDegrees ?? this.moonAvoidanceRadiusDegrees,
+      maxSunAltitudeDegrees:
+          maxSunAltitudeDegrees ?? this.maxSunAltitudeDegrees,
       weights: weights ?? this.weights,
     );
   }
@@ -126,6 +139,7 @@ class SchedulerConfig extends Equatable {
         hysteresisRatio,
         minAltitudeDegrees,
         moonAvoidanceRadiusDegrees,
+        maxSunAltitudeDegrees,
         weights,
       ];
 }
