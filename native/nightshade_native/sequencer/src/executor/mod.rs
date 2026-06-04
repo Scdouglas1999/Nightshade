@@ -812,6 +812,10 @@ fn build_trigger_autofocus_context(
     crate::instructions::InstructionContext {
         target_ra,
         target_dec,
+        // Trigger-initiated recenter does not move the rotator; rotation is a
+        // CenterTarget concern driven from the TargetHeader. None here keeps
+        // the trigger recenter path rotation-agnostic.
+        target_rotation: None,
         target_name,
         current_filter,
         current_binning: crate::Binning::One,
@@ -836,6 +840,11 @@ fn build_trigger_autofocus_context(
         // `None` because they exercise the build helper in isolation.
         event_tx,
         recovery_request_tx: None,
+        // Trigger-initiated work is not wrapped by the node-runtime retry path,
+        // so this flag is a standalone fresh Arc here.
+        device_disconnect_recovery_pending: std::sync::Arc::new(
+            std::sync::atomic::AtomicBool::new(false),
+        ),
         // Wave 3 Image Grading: trigger-initiated autofocus does not save
         // FITS frames itself, so empty defaults are honest here. If trigger
         // code ever calls save_fits in the future these would need to be
@@ -1057,6 +1066,88 @@ pub(crate) fn alt_az_to_ra_dec(
 /// right "try again" gesture. Future patches can expand each arm with
 /// fully-blown recovery flows (e.g. re-slew + re-solve + re-acquire) when
 /// the relevant context plumbing arrives.
+/// Actively re-acquire the guide star after a `GuideStarLost` event.
+///
+/// The previous implementation only *queried* `is_guiding` and reported
+/// success/failure — it never told the guider to find a star again, so once a
+/// star was lost the recovery could only ever succeed if the guider happened to
+/// re-lock on its own. This mirrors the verified lock-on logic in
+/// `execute_start_guiding`: it issues `guider_start` (which, for PHD2, performs
+/// auto-select + calibrate-if-needed + guide, i.e. a real re-acquisition) and
+/// then polls `guider_get_status` until guiding is confirmed within a bounded
+/// deadline. Fails closed (returns `AttemptOutcome::Failed`) on start error or
+/// if the lock never re-establishes — the recovery driver then escalates per
+/// the configured retry policy rather than silently resuming exposures on an
+/// unguided mount.
+async fn recover_guide_star(device_ops: &SharedDeviceOps) -> crate::recovery::AttemptOutcome {
+    use crate::recovery::AttemptOutcome;
+
+    // Re-acquisition settle parameters. These mirror the conservative defaults
+    // used by the guiding settle path: lock within 2 px, hold for 10 s, give up
+    // after 120 s. A re-acquire that can't settle within 120 s is a genuine
+    // failure the operator's retry policy should handle, not something to wait
+    // on indefinitely while the target drifts.
+    const REACQUIRE_SETTLE_PIXELS: f64 = 2.0;
+    const REACQUIRE_SETTLE_TIME_SECS: f64 = 10.0;
+    const REACQUIRE_SETTLE_TIMEOUT_SECS: f64 = 120.0;
+    const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(2);
+
+    // Fast-path: maybe the guider already recovered on its own during the
+    // recovery wait window. Issuing guider_start when already guiding can force
+    // an unnecessary re-calibration on some setups, so honour an existing lock.
+    if let Ok(status) = device_ops.guider_get_status().await {
+        if status.is_guiding {
+            return AttemptOutcome::Succeeded;
+        }
+    }
+
+    // Issue a real re-acquisition. guider_start re-selects a guide star and
+    // (re)starts guiding; it can return Ok before the lock is truly settled, so
+    // we verify below.
+    if let Err(e) = device_ops
+        .guider_start(
+            REACQUIRE_SETTLE_PIXELS,
+            REACQUIRE_SETTLE_TIME_SECS,
+            REACQUIRE_SETTLE_TIMEOUT_SECS,
+        )
+        .await
+    {
+        return AttemptOutcome::Failed {
+            message: format!("Guide-star re-acquisition (guider_start) failed: {}", e),
+        };
+    }
+
+    let deadline = tokio::time::Instant::now()
+        + std::time::Duration::from_secs_f64(REACQUIRE_SETTLE_TIMEOUT_SECS);
+    while tokio::time::Instant::now() < deadline {
+        match device_ops.guider_get_status().await {
+            Ok(status) if status.is_guiding => {
+                tracing::info!(
+                    "Guide star re-acquired: guiding active (RMS total={:.2}\")",
+                    status.rms_total
+                );
+                return AttemptOutcome::Succeeded;
+            }
+            Ok(_) => {
+                // Still settling; keep polling until the deadline.
+            }
+            Err(e) => {
+                // Transient status-read failure (e.g. PHD2 mid-calibration);
+                // keep polling rather than aborting on a single bad read.
+                tracing::warn!("Guide re-acquire status poll failed: {}", e);
+            }
+        }
+        tokio::time::sleep(POLL_INTERVAL).await;
+    }
+
+    AttemptOutcome::Failed {
+        message: format!(
+            "Guide star did not re-lock within {:.0}s of re-acquisition",
+            REACQUIRE_SETTLE_TIMEOUT_SECS
+        ),
+    }
+}
+
 async fn run_recovery_attempt(
     cause: &crate::recovery::RecoveryCause,
     device_ops: &SharedDeviceOps,
@@ -1068,25 +1159,7 @@ async fn run_recovery_attempt(
     use crate::recovery::RecoveryCause;
 
     match cause {
-        RecoveryCause::GuideStarLost => {
-            // Ask the guider whether it has re-acquired. If the guider
-            // reports `is_guiding == true`, the star is back; otherwise
-            // the wait period elapsed and we should try again.
-            match device_ops.guider_get_status().await {
-                Ok(status) => {
-                    if status.is_guiding {
-                        AttemptOutcome::Succeeded
-                    } else {
-                        AttemptOutcome::Failed {
-                            message: "Guider still reports star lost".to_string(),
-                        }
-                    }
-                }
-                Err(e) => AttemptOutcome::Failed {
-                    message: format!("Guider status query failed: {}", e),
-                },
-            }
-        }
+        RecoveryCause::GuideStarLost => recover_guide_star(device_ops).await,
         RecoveryCause::MountTrackingLost => match mount_id {
             Some(id) => match device_ops.mount_is_tracking(id).await {
                 Ok(true) => AttemptOutcome::Succeeded,
@@ -6168,6 +6241,301 @@ mod tests {
             progress.node_statuses.get("plugin-1"),
             Some(&NodeStatus::Success),
             "plugin node should be recorded as Success"
+        );
+    }
+
+    // =====================================================================
+    // GuideStarLost recovery — re-acquisition tests (P0 fix).
+    //
+    // The previous recovery arm only *queried* is_guiding and could never
+    // re-acquire a lost star. These tests assert the new behaviour: the
+    // recovery actively calls guider_start (re-acquire) and only succeeds
+    // once guiding re-locks.
+    // =====================================================================
+
+    use crate::device_ops::{DeviceOps, DeviceResult, GuidingStatus};
+
+    /// DeviceOps that simulates a guider which is NOT guiding until
+    /// `guider_start` is called, after which `guider_get_status` reports
+    /// guiding. Records whether `guider_start` was invoked.
+    struct ReacquireGuiderOps {
+        inner: std::sync::Arc<crate::device_ops::NullDeviceOps>,
+        /// Shared so the test can observe whether re-acquire was issued.
+        started: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        start_should_fail: bool,
+        relock_after_start: bool,
+    }
+
+    impl ReacquireGuiderOps {
+        fn new(start_should_fail: bool, relock_after_start: bool) -> Self {
+            Self {
+                inner: std::sync::Arc::new(crate::device_ops::NullDeviceOps),
+                started: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                start_should_fail,
+                relock_after_start,
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl DeviceOps for ReacquireGuiderOps {
+        async fn guider_get_status(&self) -> DeviceResult<GuidingStatus> {
+            // Guiding only once a (successful) re-acquire has been issued.
+            let guiding = self.started.load(Ordering::Relaxed) && self.relock_after_start;
+            Ok(GuidingStatus {
+                is_guiding: guiding,
+                rms_ra: 0.5,
+                rms_dec: 0.4,
+                rms_total: 0.64,
+            })
+        }
+
+        async fn guider_start(
+            &self,
+            _settle_pixels: f64,
+            _settle_time: f64,
+            _settle_timeout: f64,
+        ) -> DeviceResult<()> {
+            if self.start_should_fail {
+                return Err("simulated guider_start failure".to_string());
+            }
+            self.started.store(true, Ordering::Relaxed);
+            Ok(())
+        }
+
+        // === delegating methods (every other DeviceOps method) ===
+        async fn mount_slew_to_coordinates(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
+            self.inner.mount_slew_to_coordinates(id, ra, dec).await
+        }
+        async fn mount_abort_slew(&self, id: &str) -> DeviceResult<()> {
+            self.inner.mount_abort_slew(id).await
+        }
+        async fn mount_get_coordinates(&self, id: &str) -> DeviceResult<(f64, f64)> {
+            self.inner.mount_get_coordinates(id).await
+        }
+        async fn mount_sync(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
+            self.inner.mount_sync(id, ra, dec).await
+        }
+        async fn mount_park(&self, id: &str) -> DeviceResult<()> {
+            self.inner.mount_park(id).await
+        }
+        async fn mount_unpark(&self, id: &str) -> DeviceResult<()> {
+            self.inner.mount_unpark(id).await
+        }
+        async fn mount_is_slewing(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_is_slewing(id).await
+        }
+        async fn mount_is_parked(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_is_parked(id).await
+        }
+        async fn mount_can_flip(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_can_flip(id).await
+        }
+        async fn mount_side_of_pier(&self, id: &str) -> DeviceResult<crate::meridian::PierSide> {
+            self.inner.mount_side_of_pier(id).await
+        }
+        async fn mount_is_tracking(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_is_tracking(id).await
+        }
+        async fn mount_set_tracking(&self, id: &str, enabled: bool) -> DeviceResult<()> {
+            self.inner.mount_set_tracking(id, enabled).await
+        }
+        async fn camera_start_exposure(
+            &self,
+            id: &str,
+            d: f64,
+            g: Option<i32>,
+            o: Option<i32>,
+            bx: i32,
+            by: i32,
+        ) -> DeviceResult<crate::device_ops::ImageData> {
+            self.inner.camera_start_exposure(id, d, g, o, bx, by).await
+        }
+        async fn camera_abort_exposure(&self, id: &str) -> DeviceResult<()> {
+            self.inner.camera_abort_exposure(id).await
+        }
+        async fn camera_set_cooler(&self, id: &str, e: bool, t: f64) -> DeviceResult<()> {
+            self.inner.camera_set_cooler(id, e, t).await
+        }
+        async fn camera_get_temperature(&self, id: &str) -> DeviceResult<f64> {
+            self.inner.camera_get_temperature(id).await
+        }
+        async fn camera_get_cooler_power(&self, id: &str) -> DeviceResult<f64> {
+            self.inner.camera_get_cooler_power(id).await
+        }
+        async fn focuser_move_to(&self, id: &str, p: i32) -> DeviceResult<()> {
+            self.inner.focuser_move_to(id, p).await
+        }
+        async fn focuser_get_position(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.focuser_get_position(id).await
+        }
+        async fn focuser_is_moving(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.focuser_is_moving(id).await
+        }
+        async fn focuser_get_temperature(&self, id: &str) -> DeviceResult<Option<f64>> {
+            self.inner.focuser_get_temperature(id).await
+        }
+        async fn focuser_halt(&self, id: &str) -> DeviceResult<()> {
+            self.inner.focuser_halt(id).await
+        }
+        async fn filterwheel_set_position(&self, id: &str, p: i32) -> DeviceResult<()> {
+            self.inner.filterwheel_set_position(id, p).await
+        }
+        async fn filterwheel_get_position(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.filterwheel_get_position(id).await
+        }
+        async fn filterwheel_get_names(&self, id: &str) -> DeviceResult<Vec<String>> {
+            self.inner.filterwheel_get_names(id).await
+        }
+        async fn filterwheel_set_filter_by_name(&self, id: &str, n: &str) -> DeviceResult<i32> {
+            self.inner.filterwheel_set_filter_by_name(id, n).await
+        }
+        async fn rotator_move_to(&self, id: &str, a: f64) -> DeviceResult<()> {
+            self.inner.rotator_move_to(id, a).await
+        }
+        async fn rotator_move_relative(&self, id: &str, d: f64) -> DeviceResult<()> {
+            self.inner.rotator_move_relative(id, d).await
+        }
+        async fn rotator_get_angle(&self, id: &str) -> DeviceResult<f64> {
+            self.inner.rotator_get_angle(id).await
+        }
+        async fn rotator_halt(&self, id: &str) -> DeviceResult<()> {
+            self.inner.rotator_halt(id).await
+        }
+        async fn guider_dither(
+            &self,
+            p: f64,
+            sp: f64,
+            st: f64,
+            sto: f64,
+            ra: bool,
+        ) -> DeviceResult<()> {
+            self.inner.guider_dither(p, sp, st, sto, ra).await
+        }
+        async fn guider_stop(&self) -> DeviceResult<()> {
+            self.inner.guider_stop().await
+        }
+        async fn plate_solve(
+            &self,
+            d: &crate::device_ops::ImageData,
+            ra: Option<f64>,
+            dec: Option<f64>,
+            s: Option<f64>,
+        ) -> DeviceResult<crate::device_ops::PlateSolveResult> {
+            self.inner.plate_solve(d, ra, dec, s).await
+        }
+        async fn save_fits(
+            &self,
+            d: &crate::device_ops::ImageData,
+            f: &str,
+            fctx: &crate::scheduling::FrameContext,
+        ) -> DeviceResult<()> {
+            self.inner.save_fits(d, f, fctx).await
+        }
+        async fn send_notification(
+            &self,
+            l: &str,
+            t: &str,
+            m: &str,
+            x: Option<&[String]>,
+        ) -> DeviceResult<()> {
+            self.inner.send_notification(l, t, m, x).await
+        }
+        fn calculate_altitude(&self, r: f64, d: f64, la: f64, lo: f64) -> f64 {
+            self.inner.calculate_altitude(r, d, la, lo)
+        }
+        fn get_observer_location(&self) -> Option<(f64, f64)> {
+            self.inner.get_observer_location()
+        }
+        async fn polar_align_update(
+            &self,
+            r: &crate::polar_align::PolarAlignResult,
+        ) -> DeviceResult<()> {
+            self.inner.polar_align_update(r).await
+        }
+        async fn dome_open(&self, id: &str) -> DeviceResult<()> {
+            self.inner.dome_open(id).await
+        }
+        async fn dome_close(&self, id: &str) -> DeviceResult<()> {
+            self.inner.dome_close(id).await
+        }
+        async fn dome_park(&self, id: &str) -> DeviceResult<()> {
+            self.inner.dome_park(id).await
+        }
+        async fn dome_get_shutter_status(&self, id: &str) -> DeviceResult<String> {
+            self.inner.dome_get_shutter_status(id).await
+        }
+        async fn safety_is_safe(&self, id: Option<&str>) -> DeviceResult<bool> {
+            self.inner.safety_is_safe(id).await
+        }
+        async fn calculate_image_hfr(
+            &self,
+            d: &crate::device_ops::ImageData,
+        ) -> DeviceResult<Option<f64>> {
+            self.inner.calculate_image_hfr(d).await
+        }
+        async fn detect_stars_in_image(
+            &self,
+            d: &crate::device_ops::ImageData,
+        ) -> DeviceResult<Vec<(f64, f64, f64)>> {
+            self.inner.detect_stars_in_image(d).await
+        }
+        async fn cover_calibrator_open_cover(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_open_cover(id).await
+        }
+        async fn cover_calibrator_close_cover(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_close_cover(id).await
+        }
+        async fn cover_calibrator_halt_cover(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_halt_cover(id).await
+        }
+        async fn cover_calibrator_calibrator_on(&self, id: &str, b: i32) -> DeviceResult<()> {
+            self.inner.cover_calibrator_calibrator_on(id, b).await
+        }
+        async fn cover_calibrator_calibrator_off(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_calibrator_off(id).await
+        }
+        async fn cover_calibrator_get_cover_state(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_cover_state(id).await
+        }
+        async fn cover_calibrator_get_calibrator_state(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_calibrator_state(id).await
+        }
+        async fn cover_calibrator_get_brightness(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_brightness(id).await
+        }
+        async fn cover_calibrator_get_max_brightness(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_max_brightness(id).await
+        }
+    }
+
+    #[tokio::test]
+    async fn guide_star_lost_recovery_actively_reacquires() {
+        // Guider is lost; guider_start succeeds and the guider re-locks.
+        let guider = ReacquireGuiderOps::new(false, true);
+        let started = guider.started.clone();
+        let ops: SharedDeviceOps = std::sync::Arc::new(guider);
+        let outcome = recover_guide_star(&ops).await;
+        assert!(
+            matches!(outcome, crate::recovery::AttemptOutcome::Succeeded),
+            "recovery should succeed once the guider re-locks after re-acquire"
+        );
+        // The re-acquire MUST have been issued (the old code never did this).
+        assert!(
+            started.load(Ordering::Relaxed),
+            "guider_start (re-acquisition) must be called during recovery"
+        );
+    }
+
+    #[tokio::test]
+    async fn guide_star_lost_recovery_fails_closed_when_start_errors() {
+        // guider_start itself errors → recovery must fail closed.
+        let ops: SharedDeviceOps =
+            std::sync::Arc::new(ReacquireGuiderOps::new(true, false));
+        let outcome = recover_guide_star(&ops).await;
+        assert!(
+            matches!(outcome, crate::recovery::AttemptOutcome::Failed { .. }),
+            "recovery must fail closed when guider_start errors"
         );
     }
 }

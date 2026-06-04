@@ -595,6 +595,7 @@ mod tests {
         InstructionContext {
             target_ra: None,
             target_dec: None,
+            target_rotation: None,
             target_name: None,
             current_filter: None,
             current_binning: crate::Binning::One,
@@ -614,6 +615,9 @@ mod tests {
             filter_focus_offsets: std::collections::HashMap::new(),
             event_tx: None,
             recovery_request_tx: None,
+            device_disconnect_recovery_pending: std::sync::Arc::new(
+                std::sync::atomic::AtomicBool::new(false),
+            ),
             session_id: String::new(),
             target_id: None,
             mosaic_panel: None,

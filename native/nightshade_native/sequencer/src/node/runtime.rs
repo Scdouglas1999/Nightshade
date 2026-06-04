@@ -12,6 +12,7 @@ use crate::node::progress::ProgressUpdate;
 use crate::node::registry::registry;
 use crate::{NodeDefinition, NodeId, NodeStatus, NodeType};
 use async_trait::async_trait;
+use std::sync::atomic::Ordering;
 
 /// Wave 4 — render a node's display name through the interpolation engine.
 ///
@@ -33,6 +34,178 @@ fn render_node_display_name(raw: &str, context: &ExecutionContext) -> String {
             tracing::debug!("Node display name `{raw}` interpolation failed (non-fatal): {e}");
             raw.to_string()
         }
+    }
+}
+
+/// Maximum number of device-disconnect retry cycles for a single instruction
+/// before giving up. Each cycle waits for one full recovery-driver loop, so a
+/// small bound prevents an instruction that disconnects on every retry from
+/// looping forever while still surviving a handful of independent USB blips.
+const MAX_DISCONNECT_RETRIES: u32 = 5;
+
+/// How long to wait for the recovery driver to engage (`is_paused == true`)
+/// after an instruction promotes a device-disconnect to recovery. The
+/// instruction sends the recovery request synchronously before returning, but
+/// the driver task flips `is_paused` asynchronously, so we poll for a short
+/// window. If the driver never engages (no recovery channel / closed channel)
+/// we fail closed rather than hang.
+const RECOVERY_ENGAGE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+const RECOVERY_POLL_INTERVAL: std::time::Duration = std::time::Duration::from_millis(200);
+
+/// Execute an instruction node through the registry, retrying it if it fails
+/// because a device disconnected.
+///
+/// The recovery driver runs in a parallel task. When an instruction fails with
+/// a device-disconnect message, `log_and_get_status_with_context`:
+/// 1. sets `context.device_disconnect_recovery_pending`, and
+/// 2. posts a `DeviceDisconnected` recovery request.
+///
+/// WITHOUT this wrapper the node returned `Failure` immediately, the sequential
+/// parent short-circuited, and the sequence ended *before* the recovery driver
+/// reconnected the device — one USB blip killed the whole night. Here we
+/// instead:
+/// * detect the pending-recovery flag,
+/// * wait for the recovery driver to engage and finish (it pauses the tree,
+///   reconnects every device, then clears `is_paused` on success or sets
+///   `is_cancelled` on give-up), and
+/// * retry the same instruction once recovery succeeds.
+///
+/// Fails closed: if no recovery driver engages within `RECOVERY_ENGAGE_TIMEOUT`,
+/// if recovery gives up (`is_cancelled`), or if retries are exhausted, the
+/// original `Failure` propagates and the normal unwind/park-on-give-up logic
+/// runs.
+async fn execute_instruction_with_disconnect_retry(
+    variant: &NodeType,
+    node_id: &NodeId,
+    node_type: &NodeType,
+    context: &mut ExecutionContext,
+) -> NodeStatus {
+    let Some(instruction) = registry().build(variant) else {
+        tracing::error!(
+            "No instruction registered for variant {:?}; sequence cannot proceed",
+            variant
+        );
+        return NodeStatus::Failure;
+    };
+
+    let mut attempt: u32 = 0;
+    loop {
+        // Clear any stale pending flag from a prior instruction before running,
+        // so we only react to a disconnect raised by THIS execution.
+        context
+            .device_disconnect_recovery_pending
+            .store(false, Ordering::Relaxed);
+
+        let result = instruction.execute(node_id, node_type, context).await;
+
+        // Only a Failure that was promoted to device-disconnect recovery is
+        // eligible for the wait-and-retry path. Everything else (Success,
+        // Skipped, Cancelled, or a non-disconnect Failure) returns as-is.
+        if result != NodeStatus::Failure
+            || !context
+                .device_disconnect_recovery_pending
+                .swap(false, Ordering::Relaxed)
+        {
+            return result;
+        }
+
+        if context.is_cancelled().await {
+            // A cancel arrived concurrently with the disconnect; unwind.
+            return NodeStatus::Cancelled;
+        }
+
+        if attempt >= MAX_DISCONNECT_RETRIES {
+            tracing::error!(
+                "[RECOVERY] Instruction '{}' still failing after {} device-disconnect \
+                 recovery retries; giving up",
+                node_id,
+                attempt
+            );
+            return NodeStatus::Failure;
+        }
+        attempt += 1;
+
+        tracing::warn!(
+            "[RECOVERY] Instruction '{}' failed on device disconnect; waiting for recovery \
+             driver to reconnect before retry {}/{}",
+            node_id,
+            attempt,
+            MAX_DISCONNECT_RETRIES
+        );
+
+        match wait_for_disconnect_recovery(context).await {
+            DisconnectRecoveryOutcome::Recovered => {
+                tracing::info!(
+                    "[RECOVERY] Device reconnected; retrying instruction '{}' (retry {}/{})",
+                    node_id,
+                    attempt,
+                    MAX_DISCONNECT_RETRIES
+                );
+                // Loop around and re-run the instruction.
+            }
+            DisconnectRecoveryOutcome::Cancelled => {
+                tracing::warn!(
+                    "[RECOVERY] Recovery for instruction '{}' ended without reconnect; \
+                     propagating failure",
+                    node_id
+                );
+                return NodeStatus::Cancelled;
+            }
+            DisconnectRecoveryOutcome::NoDriver => {
+                tracing::error!(
+                    "[RECOVERY] No recovery driver engaged within {:?} for instruction '{}'; \
+                     cannot resume — failing closed",
+                    RECOVERY_ENGAGE_TIMEOUT,
+                    node_id
+                );
+                return NodeStatus::Failure;
+            }
+        }
+    }
+}
+
+/// Outcome of waiting for the recovery driver after a device disconnect.
+enum DisconnectRecoveryOutcome {
+    /// Recovery succeeded — the device is reconnected and the tree is unpaused.
+    Recovered,
+    /// Recovery gave up or the sequence was cancelled — unwind.
+    Cancelled,
+    /// No recovery driver engaged (no channel / closed) within the window.
+    NoDriver,
+}
+
+/// Block until the recovery driver finishes the recovery cycle it engages in
+/// response to a device-disconnect request.
+///
+/// State contract with the executor's recovery driver task:
+/// * on entry it sets `is_paused = true`,
+/// * on success it clears `is_paused` (and leaves `is_cancelled` false),
+/// * on give-up it sets `is_cancelled = true`.
+async fn wait_for_disconnect_recovery(context: &ExecutionContext) -> DisconnectRecoveryOutcome {
+    // Phase 1: wait for the driver to engage (is_paused true). Bounded so a
+    // missing/closed recovery channel does not hang the night.
+    let engage_deadline = tokio::time::Instant::now() + RECOVERY_ENGAGE_TIMEOUT;
+    loop {
+        if context.is_cancelled().await {
+            return DisconnectRecoveryOutcome::Cancelled;
+        }
+        if context.is_paused() {
+            break;
+        }
+        if tokio::time::Instant::now() >= engage_deadline {
+            return DisconnectRecoveryOutcome::NoDriver;
+        }
+        tokio::time::sleep(RECOVERY_POLL_INTERVAL).await;
+    }
+
+    // Phase 2: wait for the recovery cycle to finish. `wait_while_paused`
+    // blocks until `is_paused` clears or `is_cancelled` is set, returning
+    // `false` on cancel. A cleared pause with no cancel means the driver
+    // reconnected successfully and resumed the tree.
+    if context.wait_while_paused().await {
+        DisconnectRecoveryOutcome::Recovered
+    } else {
+        DisconnectRecoveryOutcome::Cancelled
     }
 }
 
@@ -186,17 +359,13 @@ impl Node for RuntimeNode {
                 logic::target_scheduler::execute_target_scheduler(self, config.clone(), context)
                     .await
             }
-            // All other variants — instruction nodes — go through the registry.
-            other => match registry().build(other) {
-                Some(instruction) => instruction.execute(&node_id, &node_type, context).await,
-                None => {
-                    tracing::error!(
-                        "No instruction registered for variant {:?}; sequence cannot proceed",
-                        other
-                    );
-                    NodeStatus::Failure
-                }
-            },
+            // All other variants — instruction nodes — go through the registry,
+            // wrapped so a device-disconnect failure waits for the recovery
+            // driver to reconnect and then RETRIES the instruction instead of
+            // ending the sequence on a single USB/comms blip.
+            other => {
+                execute_instruction_with_disconnect_retry(other, &node_id, &node_type, context).await
+            }
         };
 
         self.status = result;
@@ -265,3 +434,97 @@ impl Node for RuntimeNode {
         }
     }
 }
+
+#[cfg(test)]
+mod disconnect_recovery_tests {
+    use super::*;
+    use crate::node::context::ExecutionContext;
+    use std::sync::Arc;
+
+    /// When the recovery driver engages (is_paused) and then resumes the tree
+    /// (clears is_paused without cancelling), the wait resolves to Recovered so
+    /// the node retries the failed instruction.
+    #[tokio::test]
+    async fn wait_resolves_recovered_when_driver_pauses_then_resumes() {
+        let ctx = ExecutionContext::new("n".to_string());
+        let is_paused = ctx.is_paused.clone();
+        let resume_notify = ctx.resume_notify.clone();
+
+        // Simulate the recovery driver: engage shortly after the wait starts,
+        // hold the paused state well past the wait's poll interval so the
+        // engage phase reliably observes is_paused == true, then resume.
+        tokio::spawn(async move {
+            is_paused.store(true, Ordering::Relaxed);
+            tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+            is_paused.store(false, Ordering::Relaxed);
+            resume_notify.notify_waiters();
+        });
+
+        let outcome = wait_for_disconnect_recovery(&ctx).await;
+        assert!(
+            matches!(outcome, DisconnectRecoveryOutcome::Recovered),
+            "driver pause->resume must resolve as Recovered so the node retries"
+        );
+    }
+
+    /// When the recovery driver engages then gives up (sets is_cancelled), the
+    /// wait resolves to Cancelled so the node unwinds.
+    #[tokio::test]
+    async fn wait_resolves_cancelled_when_driver_gives_up() {
+        let ctx = ExecutionContext::new("n".to_string());
+        let is_paused = ctx.is_paused.clone();
+        let is_cancelled = ctx.is_cancelled.clone();
+        let resume_notify = ctx.resume_notify.clone();
+
+        tokio::spawn(async move {
+            is_paused.store(true, Ordering::Relaxed);
+            tokio::time::sleep(std::time::Duration::from_millis(600)).await;
+            // Give-up contract: set is_cancelled (the driver also leaves
+            // is_paused set, but wait_while_paused checks is_cancelled first).
+            is_cancelled.store(true, Ordering::Relaxed);
+            resume_notify.notify_waiters();
+        });
+
+        let outcome = wait_for_disconnect_recovery(&ctx).await;
+        assert!(
+            matches!(outcome, DisconnectRecoveryOutcome::Cancelled),
+            "driver give-up must resolve as Cancelled so the node unwinds"
+        );
+    }
+
+    /// If a cancel is already pending when the wait begins, it resolves to
+    /// Cancelled immediately without waiting for a driver to engage.
+    #[tokio::test]
+    async fn wait_resolves_cancelled_when_already_cancelled() {
+        let ctx = ExecutionContext::new("n".to_string());
+        ctx.is_cancelled.store(true, Ordering::Relaxed);
+        let outcome = wait_for_disconnect_recovery(&ctx).await;
+        assert!(matches!(outcome, DisconnectRecoveryOutcome::Cancelled));
+    }
+
+    /// The shared device-disconnect pending flag round-trips between an
+    /// ExecutionContext and the InstructionContext it produces — the contract
+    /// the retry wrapper relies on to detect a promoted disconnect.
+    #[tokio::test]
+    async fn pending_flag_is_shared_with_instruction_context() {
+        let ctx = ExecutionContext::new("n".to_string());
+        let inst = ctx.to_instruction_context().await;
+        // Writing through the InstructionContext side is visible on the
+        // ExecutionContext side (same Arc allocation).
+        inst.device_disconnect_recovery_pending
+            .store(true, Ordering::Relaxed);
+        assert!(
+            ctx.device_disconnect_recovery_pending
+                .load(Ordering::Relaxed),
+            "pending flag must be shared across the context boundary"
+        );
+        assert!(
+            Arc::ptr_eq(
+                &ctx.device_disconnect_recovery_pending,
+                &inst.device_disconnect_recovery_pending
+            ),
+            "both contexts must reference the same flag allocation"
+        );
+    }
+}
+

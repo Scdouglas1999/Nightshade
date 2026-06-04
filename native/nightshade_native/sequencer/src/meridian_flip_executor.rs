@@ -966,6 +966,7 @@ impl MeridianFlipExecutor {
         let instruction_ctx = InstructionContext {
             target_ra: Some(ctx.target_ra_hours),
             target_dec: Some(ctx.target_dec_degrees),
+            target_rotation: None,
             target_name: Some(ctx.target_name.clone()),
             current_filter: af_config.filter.clone(),
             current_binning: af_config.binning,
@@ -990,6 +991,9 @@ impl MeridianFlipExecutor {
             // sender is None and emits are silently dropped.
             event_tx: self.executor_event_tx.clone(),
             recovery_request_tx: None,
+            device_disconnect_recovery_pending: std::sync::Arc::new(
+                std::sync::atomic::AtomicBool::new(false),
+            ),
             // Wave 3 Image Grading: meridian-flip refocus does not save FITS
             // frames itself (autofocus uses in-memory star detection only),
             // so empty defaults are correct here.
