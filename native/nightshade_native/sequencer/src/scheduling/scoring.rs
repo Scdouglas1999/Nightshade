@@ -100,6 +100,143 @@ pub struct ObserverContext {
     pub moon_illumination: f64,
     /// Optional twilight bracket for darkness scoring.
     pub twilight: Option<TwilightBracket>,
+    /// Optional per-azimuth horizon mask describing local obstructions
+    /// (trees, buildings, roof lines). When present, a target whose current
+    /// altitude is below the horizon's min-altitude at the target's current
+    /// azimuth is marked `runnable = false` regardless of its score — the
+    /// Rust mirror of the Dart `HorizonProfile.minAltitudeAt(az)`
+    /// constraint (`services/scheduler/horizon_profile.dart`). `None` keeps
+    /// the pre-existing flat-floor-only behaviour. Matches NINA/SGP/Ekos
+    /// horizon profiles.
+    pub horizon: Option<HorizonProfile>,
+}
+
+/// One azimuth/altitude pair defining a tree, building, or roof outline.
+///
+/// Rust mirror of the Dart `HorizonSample`
+/// (`services/scheduler/horizon_profile.dart`). The JSON shape
+/// (`{"az": .., "alt": ..}`) matches the Dart `toJson`/`fromJson` so a
+/// profile authored on either side round-trips through the sequence
+/// payload unchanged.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+pub struct HorizonSample {
+    #[serde(rename = "az")]
+    pub azimuth_deg: f64,
+    #[serde(rename = "alt")]
+    pub altitude_deg: f64,
+}
+
+impl HorizonSample {
+    pub fn new(azimuth_deg: f64, altitude_deg: f64) -> Self {
+        Self {
+            azimuth_deg,
+            altitude_deg,
+        }
+    }
+}
+
+/// A site-horizon profile: the operator's local obstructions encoded as a
+/// series of (azimuth, altitude) samples, interpolated linearly around the
+/// compass (with wrap-around at 360°).
+///
+/// This is the Rust port of the Dart `HorizonProfile.minAltitudeAt`
+/// algorithm. The two implementations MUST agree so a profile authored in
+/// the planner behaves identically when the behavior-tree scheduler
+/// consults it at runtime. `samples` is never empty by construction
+/// (see [`HorizonProfile::new`]); the empty case fails closed.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct HorizonProfile {
+    pub samples: Vec<HorizonSample>,
+}
+
+impl HorizonProfile {
+    /// Build a profile from samples. Returns `None` when `samples` is empty
+    /// (a horizon with no points cannot answer `min_altitude_at` — fail
+    /// closed rather than invent a flat 0° floor).
+    pub fn new(samples: Vec<HorizonSample>) -> Option<Self> {
+        if samples.is_empty() {
+            return None;
+        }
+        Some(Self { samples })
+    }
+
+    /// Canonical flat horizon at a fixed altitude.
+    pub fn flat(altitude_deg: f64) -> Self {
+        Self {
+            samples: vec![HorizonSample::new(0.0, altitude_deg)],
+        }
+    }
+
+    fn wrap360(az: f64) -> f64 {
+        let mut v = az % 360.0;
+        if v < 0.0 {
+            v += 360.0;
+        }
+        v
+    }
+
+    /// Minimum altitude (degrees) at the given azimuth, by linear
+    /// interpolation between bracketing samples with wrap-around at 360°.
+    ///
+    /// Mirrors `HorizonProfile.minAltitudeAt` in Dart line-for-line so the
+    /// two stay in lockstep. With a single sample the profile is a flat
+    /// horizon at that altitude.
+    pub fn min_altitude_at(&self, azimuth_deg: f64) -> f64 {
+        // By construction `samples` is non-empty; `flat` / `new` enforce it.
+        // Defence in depth: if a hand-edited payload somehow produced an
+        // empty list, treat it as "no obstruction" (0°) rather than panic
+        // inside the scheduling hot path.
+        if self.samples.is_empty() {
+            return 0.0;
+        }
+        let az = Self::wrap360(azimuth_deg);
+        if self.samples.len() == 1 {
+            return self.samples[0].altitude_deg;
+        }
+
+        let mut sorted = self.samples.clone();
+        sorted.sort_by(|a, b| {
+            a.azimuth_deg
+                .partial_cmp(&b.azimuth_deg)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+
+        let last = *sorted.last().unwrap();
+        let first = sorted[0];
+        let mut lower = last;
+        let mut upper = first;
+        let mut lower_az = Self::wrap360(last.azimuth_deg) - 360.0;
+        let mut upper_az = Self::wrap360(first.azimuth_deg);
+
+        for (i, next) in sorted.iter().enumerate() {
+            let next_az = Self::wrap360(next.azimuth_deg);
+            if next_az >= az {
+                upper = *next;
+                upper_az = next_az;
+                if i == 0 {
+                    lower = last;
+                    lower_az = Self::wrap360(last.azimuth_deg) - 360.0;
+                } else {
+                    lower = sorted[i - 1];
+                    lower_az = Self::wrap360(lower.azimuth_deg);
+                }
+                break;
+            }
+            lower = *next;
+            lower_az = next_az;
+            if i == sorted.len() - 1 {
+                upper = first;
+                upper_az = Self::wrap360(first.azimuth_deg) + 360.0;
+            }
+        }
+
+        let span = upper_az - lower_az;
+        if span <= 0.0 {
+            return lower.altitude_deg;
+        }
+        let t = (az - lower_az) / span;
+        lower.altitude_deg + t * (upper.altitude_deg - lower.altitude_deg)
+    }
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
@@ -215,6 +352,22 @@ pub fn score_target(
                 runnable = false;
                 skip_reason = Some(format!(
                     "altitude {alt:.1}° below per-target floor {min_alt:.1}°"
+                ));
+            }
+        }
+    }
+    // Per-azimuth horizon mask. A target that clears the flat per-target
+    // floor can still be blocked by a tree or roof at its current
+    // azimuth. Consult the site horizon profile (Rust mirror of the Dart
+    // `HorizonProfile.minAltitudeAt(az)`) and reject when the target sits
+    // below the local obstruction, naming the azimuth in the skip reason.
+    if runnable {
+        if let Some(horizon) = observer.horizon.as_ref() {
+            let horizon_min = horizon.min_altitude_at(az);
+            if alt < horizon_min {
+                runnable = false;
+                skip_reason = Some(format!(
+                    "altitude {alt:.1}° below local horizon {horizon_min:.1}° at azimuth {az:.0}°"
                 ));
             }
         }
@@ -483,6 +636,7 @@ mod tests {
             moon,
             moon_illumination: illum,
             twilight: None,
+            horizon: None,
         };
         let mut gated = ScoringWeights::default();
         gated.min_moon_separation_deg = Some(30.0);
@@ -520,6 +674,7 @@ mod tests {
             moon: Some((0.0, 0.0)),
             moon_illumination: 5.0,
             twilight: None,
+            horizon: None,
         };
         let weights = ScoringWeights::default();
         // M42-ish (Orion, high in winter from 40N at 06:00 UTC ≈ midnight EST)
@@ -567,6 +722,7 @@ mod tests {
             moon: None,
             moon_illumination: 0.0,
             twilight: None,
+            horizon: None,
         };
         let weights = ScoringWeights::default();
         let m42 = TargetInput {
@@ -596,6 +752,7 @@ mod tests {
             moon: None,
             moon_illumination: 0.0,
             twilight: None,
+            horizon: None,
         };
         let weights = ScoringWeights::default();
         let m42 = TargetInput {
@@ -612,5 +769,170 @@ mod tests {
         let scored = score_target(&m42, &observer, &weights);
         assert!(!scored.runnable);
         assert_eq!(scored.skip_reason.as_deref(), Some("already completed"));
+    }
+
+    // ----- Per-azimuth horizon mask -----
+
+    #[test]
+    fn horizon_single_sample_is_flat() {
+        let h = HorizonProfile::flat(20.0);
+        assert!((h.min_altitude_at(0.0) - 20.0).abs() < 1e-9);
+        assert!((h.min_altitude_at(123.0) - 20.0).abs() < 1e-9);
+        assert!((h.min_altitude_at(359.0) - 20.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn horizon_interpolates_linearly_between_samples() {
+        // A wall: 0°→10°, 90°→30°. Halfway (45°) → 20°.
+        let h = HorizonProfile::new(vec![
+            HorizonSample::new(0.0, 10.0),
+            HorizonSample::new(90.0, 30.0),
+        ])
+        .unwrap();
+        assert!((h.min_altitude_at(0.0) - 10.0).abs() < 1e-9);
+        assert!((h.min_altitude_at(90.0) - 30.0).abs() < 1e-9);
+        assert!((h.min_altitude_at(45.0) - 20.0).abs() < 1e-9, "got {}", h.min_altitude_at(45.0));
+    }
+
+    #[test]
+    fn horizon_wraps_around_north() {
+        // Samples at 10° and 350° azimuth bracket due-north (0°/360°).
+        // 10°→20°, 350°→40°. At az=0 (= 360), it sits 10° past the 350°
+        // sample on a 20° span (350→370) → t = 10/20 = 0.5 → 30°.
+        let h = HorizonProfile::new(vec![
+            HorizonSample::new(10.0, 20.0),
+            HorizonSample::new(350.0, 40.0),
+        ])
+        .unwrap();
+        assert!(
+            (h.min_altitude_at(0.0) - 30.0).abs() < 1e-9,
+            "north wrap got {}",
+            h.min_altitude_at(0.0)
+        );
+    }
+
+    #[test]
+    fn horizon_matches_dart_reference_algorithm() {
+        // Cross-check the Rust port against the Dart `minAltitudeAt`
+        // reference, re-implemented inline here. Random-ish azimuths must
+        // agree to 1e-9 — this is the parity contract with
+        // `services/scheduler/horizon_profile.dart`.
+        let samples = vec![
+            HorizonSample::new(30.0, 15.0),
+            HorizonSample::new(120.0, 45.0),
+            HorizonSample::new(200.0, 10.0),
+            HorizonSample::new(300.0, 25.0),
+        ];
+        let h = HorizonProfile::new(samples.clone()).unwrap();
+        let dart = |az: f64| -> f64 {
+            let wrap = |a: f64| {
+                let mut v = a % 360.0;
+                if v < 0.0 {
+                    v += 360.0;
+                }
+                v
+            };
+            let az = wrap(az);
+            let mut sorted = samples.clone();
+            sorted.sort_by(|a, b| a.azimuth_deg.partial_cmp(&b.azimuth_deg).unwrap());
+            let mut lower = *sorted.last().unwrap();
+            let mut upper = sorted[0];
+            let mut lower_az = wrap(lower.azimuth_deg) - 360.0;
+            let mut upper_az = wrap(upper.azimuth_deg);
+            for i in 0..sorted.len() {
+                let next = sorted[i];
+                let next_az = wrap(next.azimuth_deg);
+                if next_az >= az {
+                    upper = next;
+                    upper_az = next_az;
+                    if i == 0 {
+                        lower = *sorted.last().unwrap();
+                        lower_az = wrap(lower.azimuth_deg) - 360.0;
+                    } else {
+                        lower = sorted[i - 1];
+                        lower_az = wrap(lower.azimuth_deg);
+                    }
+                    break;
+                }
+                lower = next;
+                lower_az = next_az;
+                if i == sorted.len() - 1 {
+                    upper = sorted[0];
+                    upper_az = wrap(sorted[0].azimuth_deg) + 360.0;
+                }
+            }
+            let span = upper_az - lower_az;
+            if span <= 0.0 {
+                return lower.altitude_deg;
+            }
+            let t = (az - lower_az) / span;
+            lower.altitude_deg + t * (upper.altitude_deg - lower.altitude_deg)
+        };
+        for az in [0.0, 15.0, 45.0, 90.0, 121.0, 199.0, 250.0, 305.0, 359.9] {
+            assert!(
+                (h.min_altitude_at(az) - dart(az)).abs() < 1e-9,
+                "az={az}: rust={}, dart={}",
+                h.min_altitude_at(az),
+                dart(az)
+            );
+        }
+    }
+
+    #[test]
+    fn horizon_empty_samples_rejected() {
+        assert!(HorizonProfile::new(vec![]).is_none());
+    }
+
+    #[test]
+    fn horizon_gate_rejects_target_behind_obstruction() {
+        // M42 from 40N at this instant is up (~40° per the parity test).
+        // Build a horizon that is high (60°) at M42's current azimuth so
+        // the target is blocked, and verify the skip reason names the
+        // azimuth. Then drop the horizon to a low flat 5° and confirm the
+        // same target becomes runnable — isolating the gate as the cause.
+        let now = Utc.with_ymd_and_hms(2026, 1, 15, 6, 0, 0).unwrap();
+        let m42 = TargetInput {
+            id: "m42".into(),
+            name: "M42".into(),
+            ra_deg: 83.82,
+            dec_deg: -5.39,
+            min_altitude: None,
+            start_after: None,
+            end_before: None,
+            priority: 0,
+            completed: false,
+        };
+        let base = |horizon: Option<HorizonProfile>| ObserverContext {
+            latitude_deg: 40.0,
+            longitude_deg: -74.0,
+            now,
+            moon: None,
+            moon_illumination: 0.0,
+            twilight: None,
+            horizon,
+        };
+        let weights = ScoringWeights::default();
+
+        // First read M42's current altitude/azimuth via an ungated score.
+        let probe = score_target(&m42, &base(None), &weights);
+        assert!(probe.runnable, "M42 should be up for this fixture");
+        let az = probe.current_azimuth_deg;
+        let alt = probe.current_altitude_deg;
+
+        // A flat horizon set just ABOVE M42's current altitude blocks it.
+        let blocking = HorizonProfile::flat(alt + 5.0);
+        let gated = score_target(&m42, &base(Some(blocking)), &weights);
+        assert!(!gated.runnable, "M42 below a {:.1}° horizon must be gated", alt + 5.0);
+        let reason = gated.skip_reason.as_deref().unwrap_or("");
+        assert!(reason.contains("local horizon"), "reason: {reason}");
+        assert!(
+            reason.contains(&format!("{az:.0}")),
+            "skip reason must name the azimuth ({az:.0}); reason: {reason}"
+        );
+
+        // A flat horizon BELOW M42's altitude leaves it runnable.
+        let clear = HorizonProfile::flat((alt - 5.0).max(0.0));
+        let open = score_target(&m42, &base(Some(clear)), &weights);
+        assert!(open.runnable, "M42 above the horizon must stay runnable");
     }
 }
