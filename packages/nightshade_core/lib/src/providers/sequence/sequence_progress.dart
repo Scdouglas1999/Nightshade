@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/backend/event_types.dart';
 import '../../models/sequence/instruction_progress_detail.dart';
 import '../../models/sequence/sequence_models.dart';
+import '../equipment/camera_state_provider.dart';
 
 // =============================================================================
 // EXECUTION STATE
@@ -226,6 +227,10 @@ void applySequencerEventToSequenceProviders(
         message:
             'Exposure $frame/$total - ${durationSecs}s${filter != null ? " ($filter)" : ""}',
       );
+      // Reflect sequencer-driven exposures on the camera card. The manual
+      // imaging path sets this directly, but a sequence exposes in Rust and
+      // only surfaces via events, so the Equipment card showed "Idle" all run.
+      read(cameraStateProvider.notifier).setExposing(true);
       break;
 
     case 'ExposureCompleted':
@@ -236,11 +241,25 @@ void applySequencerEventToSequenceProviders(
         completedIntegrationSecs:
             currentProgress.completedIntegrationSecs + durationSecs,
       );
+      // Exposure done — the camera is idle again during download/dither/slew.
+      read(cameraStateProvider.notifier).setExposing(false);
       break;
 
     case 'Error':
       final message = data['message'] as String? ?? 'Unknown error';
       progressNotifier.updateProgress(message: 'Error: $message');
+      break;
+  }
+
+  // Whenever the run leaves the exposing path (completed, stopped, failed, or
+  // an error), make sure the camera card doesn't get stuck showing "Exposing".
+  switch (event.eventType) {
+    case 'SequenceCompleted':
+    case 'SequenceStopped':
+    case 'SequenceFailed':
+    case 'SequenceCancelled':
+    case 'Error':
+      read(cameraStateProvider.notifier).setExposing(false);
       break;
   }
 }

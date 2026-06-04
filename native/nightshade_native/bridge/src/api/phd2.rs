@@ -151,7 +151,9 @@ pub async fn api_phd2_connect(
     // It publishes to the broadcast channel which is picked up by api_event_stream.
     client.set_event_callback(move |event| {
         let subscriber_count = get_state().event_bus.subscriber_count();
-        tracing::info!(
+        // Per-event plumbing trace — fires on every looping frame (~1 Hz), so
+        // keep it at debug to avoid flooding the log during normal guiding.
+        tracing::debug!(
             "PHD2 event callback received: {:?} (event bus subscribers: {})",
             std::mem::discriminant(&event),
             subscriber_count
@@ -159,7 +161,7 @@ pub async fn api_phd2_connect(
 
         let guiding_event = match event {
             nightshade_imaging::Phd2Event::GuideStep(ref frame) => {
-                tracing::info!(
+                tracing::debug!(
                     "PHD2 GuideStep: RA={:.3}, Dec={:.3}, SNR={:.1}",
                     frame.ra_distance,
                     frame.dec_distance,
@@ -175,7 +177,7 @@ pub async fn api_phd2_connect(
                     },
                     EventSeverity::Info,
                 );
-                tracing::info!("PHD2: Published Correction event (id={})", event_id);
+                tracing::debug!("PHD2: Published Correction event (id={})", event_id);
                 // Also forward guide stats (SNR and star mass)
                 let stats_id = get_state().publish_guiding_event(
                     GuidingEvent::GuideStats {
@@ -184,11 +186,14 @@ pub async fn api_phd2_connect(
                     },
                     EventSeverity::Info,
                 );
-                tracing::info!("PHD2: Published GuideStats event (id={})", stats_id);
+                tracing::debug!("PHD2: Published GuideStats event (id={})", stats_id);
                 return;
             }
             nightshade_imaging::Phd2Event::StateChanged(state) => {
-                tracing::info!("PHD2 state changed: {:?}", state);
+                // PHD2 re-emits its state on every looping frame, so this would
+                // log "Looping" once a second. The meaningful transitions are
+                // surfaced to the UI as GuidingEvents; keep the raw log at debug.
+                tracing::debug!("PHD2 state changed: {:?}", state);
                 match state {
                     nightshade_imaging::Phd2State::Guiding => GuidingEvent::GuidingStarted,
                     nightshade_imaging::Phd2State::Connected => GuidingEvent::GuidingStopped,
@@ -248,7 +253,7 @@ pub async fn api_phd2_connect(
         };
 
         let event_id = get_state().publish_guiding_event(guiding_event.clone(), severity);
-        tracing::info!(
+        tracing::debug!(
             "PHD2: Published {:?} to event bus (event_id={}, subscribers={})",
             guiding_event,
             event_id,

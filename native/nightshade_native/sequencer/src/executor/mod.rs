@@ -1473,12 +1473,17 @@ impl SequenceExecutor {
             if nightshade_imaging::detect_astap_catalog(None, None).is_none() {
                 tracing::warn!(
                     "Plate-solve preflight: a solver is installed but no ASTAP star catalog was \
-                     detected. If ASTAP is your solver, centering will fail until a catalog \
-                     (e.g. the G18/H18/V17 .290 files) is installed."
+                     detected. ASTAP needs a star database installed separately from astap.exe."
                 );
+                // This is a setup issue, not a crash — but it WILL break every
+                // target centering, so surface it clearly and tell the operator
+                // exactly how to fix it before the night is wasted.
                 let _ = self.event_tx.send(ExecutorEvent::Error {
-                    message: "Plate-solve preflight: no ASTAP star catalog detected. If ASTAP \
-                              is your solver, install its catalog or centering will fail mid-run."
+                    message: "Plate-solve setup: no ASTAP star database found. ASTAP needs a star \
+                              catalog installed separately from astap.exe — download one (e.g. the \
+                              D80 or H18 .290 database) and put it next to astap.exe, or set its \
+                              folder in Settings → Plate Solving. Until then, target centering in \
+                              this sequence will fail."
                         .to_string(),
                 });
             }

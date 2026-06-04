@@ -781,7 +781,8 @@ impl Phd2Client {
         // Otherwise treat as event message
         match serde_json::from_str::<Phd2EventMessage>(json) {
             Ok(event_msg) => {
-                tracing::info!("PHD2: Received event: {}", event_msg.event);
+                // Every looping/guide frame is an event (~1 Hz); trace, don't info.
+                tracing::debug!("PHD2: Received event: {}", event_msg.event);
                 if let Some(event) = parse_phd2_event(&event_msg) {
                     // Update rolling stats for guide frames
                     if let Phd2Event::GuideStep(ref frame) = event {
@@ -799,11 +800,11 @@ impl Phd2Client {
 
                     // Call user callback
                     if let Some(ref cb) = callback {
-                        tracing::info!("PHD2: Dispatching event to callback: {:?}", event);
+                        tracing::debug!("PHD2: Dispatching event to callback: {:?}", event);
                         match cb.lock() {
                             Ok(cb) => {
                                 cb(event);
-                                tracing::info!("PHD2: Event callback completed successfully");
+                                tracing::debug!("PHD2: Event callback completed successfully");
                             }
                             Err(e) => {
                                 tracing::error!("PHD2: Event callback mutex poisoned: {}", e);
