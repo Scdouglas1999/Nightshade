@@ -187,6 +187,7 @@ extension _SmartNightSequenceEmitter on SmartNightService {
     required SmartNightSettings settings,
     required SmartNightContext context,
     required List<SmartNightPlannedTarget> planned,
+    SmartNightFlatPlan? flatPlan,
   }) {
     final nodes = <String, SequenceNode>{};
     final childOrder = <String>[];
@@ -289,68 +290,16 @@ extension _SmartNightSequenceEmitter on SmartNightService {
           filtersForFlats.add(fp.filterName);
         }
       }
-      final flatGroupId = SmartNightService._uuid.v4();
-      final flatGroup = InstructionSetNode(
-        id: flatGroupId,
-        name: 'Flats — ${filtersForFlats.length} filters',
-        parentId: rootId,
-        orderIndex: childOrder.length,
-        childIds: const [],
+      _emitPanelFlats(
+        profile: profile,
+        settings: settings,
+        filtersForFlats: filtersForFlats,
+        flatPlan: flatPlan,
+        rootId: rootId,
+        nodes: nodes,
+        childOrder: childOrder,
+        addRootChild: addRootChild,
       );
-      final flatChildren = <SequenceNode>[];
-      // CloseCover -> CalibratorOn(brightness) -> per-filter (Change +
-      // Expose flat) -> CalibratorOff -> OpenCover keeps the executor's
-      // existing "panel-based flats" path. The user can edit the
-      // brightness / target ADU in the editor before run.
-      flatChildren.add(CloseCoverNode(
-        id: SmartNightService._uuid.v4(),
-        name: 'Close cover',
-        parentId: flatGroupId,
-      ));
-      flatChildren.add(CalibratorOnNode(
-        id: SmartNightService._uuid.v4(),
-        name: 'Calibrator on',
-        brightness: 128,
-        parentId: flatGroupId,
-      ));
-      for (final filter in filtersForFlats) {
-        flatChildren.add(FilterChangeNode(
-          id: SmartNightService._uuid.v4(),
-          name: 'Change filter → $filter',
-          filterName: filter,
-          parentId: flatGroupId,
-        ));
-        flatChildren.add(ExposureNode(
-          id: SmartNightService._uuid.v4(),
-          name: 'Flats — $filter',
-          durationSecs: 3.0,
-          count: settings.flatCountPerFilter,
-          frameType: FrameType.flat,
-          filter: filter,
-          gain: profile.defaultGain,
-          offset: profile.defaultOffset,
-          ditherEvery: 0, // no dither for flats
-          parentId: flatGroupId,
-        ));
-      }
-      flatChildren.add(CalibratorOffNode(
-        id: SmartNightService._uuid.v4(),
-        name: 'Calibrator off',
-        parentId: flatGroupId,
-      ));
-      flatChildren.add(OpenCoverNode(
-        id: SmartNightService._uuid.v4(),
-        name: 'Open cover',
-        parentId: flatGroupId,
-      ));
-      for (var i = 0; i < flatChildren.length; i++) {
-        final reparented = _reparented(flatChildren[i], flatGroupId, i);
-        nodes[reparented.id] = reparented;
-      }
-      nodes[flatGroupId] = flatGroup.copyWith(
-        childIds: flatChildren.map((n) => n.id).toList(),
-      );
-      childOrder.add(flatGroupId);
     } else if (settings.includeFlatsAtEnd && !settings.hasCoverCalibrator) {
       // No panel → leave a NotificationNode reminder; we never schedule
       // unattended sky-flats. The user gets a heads-up at session end.
@@ -494,6 +443,169 @@ extension _SmartNightSequenceEmitter on SmartNightService {
       nodes: nodes,
       rootNodeId: rootId,
     );
+  }
+
+  /// Emit the end-of-night panel-flat instruction group.
+  ///
+  /// Flats are emitted ONLY for filters that have an ADU-calibrated exposure
+  /// in [flatPlan] (sourced from the `flat_history` table, where each row
+  /// records the exposure that hit a target histogram percentage). Each
+  /// calibrated filter uses the SAME exposure + panel brightness that
+  /// previously achieved its ADU target — never a blind fixed exposure.
+  ///
+  /// Filters with no calibration (and the case where NO calibration data is
+  /// available at all) produce a loud [NotificationNode] reminder instead of
+  /// a guessed exposure: an uncalibrated panel flat that misses half-well does
+  /// not calibrate the lights, so we fail loud rather than capture wrong data.
+  void _emitPanelFlats({
+    required EquipmentProfileModel profile,
+    required SmartNightSettings settings,
+    required Set<String> filtersForFlats,
+    required SmartNightFlatPlan? flatPlan,
+    required String rootId,
+    required Map<String, SequenceNode> nodes,
+    required List<String> childOrder,
+    required SequenceNode Function(SequenceNode) addRootChild,
+  }) {
+    // Resolve the calibrated exposure for each requested filter, partitioning
+    // into "has ADU calibration" vs "needs one-time calibration".
+    final calibrated = <String, SmartNightFlatExposure>{};
+    final uncalibrated = <String>[];
+    for (final filter in filtersForFlats) {
+      final exposure = flatPlan?.perFilter[filter];
+      if (exposure != null && exposure.exposureSecs > 0) {
+        calibrated[filter] = exposure;
+      } else {
+        uncalibrated.add(filter);
+      }
+    }
+    uncalibrated.sort();
+
+    // No filter has ADU-calibrated data → do NOT emit blind flats. Surface a
+    // loud reminder so the user runs the Flat Wizard once to learn the
+    // exposures.
+    if (calibrated.isEmpty) {
+      addRootChild(NotificationNode(
+        id: SmartNightService._uuid.v4(),
+        name: 'Flats need calibration',
+        title: 'Automated flats skipped — no calibrated exposures',
+        message: 'Smart Night will not shoot blind flats. Run the Flat Wizard '
+            'once for ${uncalibrated.isEmpty ? "your filters" : uncalibrated.join(", ")} '
+            'so the ADU-targeted exposure + panel brightness are learned; '
+            'after that, Smart Night will reuse them automatically.',
+        level: NotificationLevel.warning,
+        explicitTransports: const [NotificationTransportKind.inApp],
+        parentId: rootId,
+        orderIndex: childOrder.length - 1,
+      ));
+      return;
+    }
+
+    final flatGroupId = SmartNightService._uuid.v4();
+    final flatGroup = InstructionSetNode(
+      id: flatGroupId,
+      name: 'Flats — ${calibrated.length} filters',
+      parentId: rootId,
+      orderIndex: childOrder.length,
+      childIds: const [],
+    );
+    final flatChildren = <SequenceNode>[];
+
+    flatChildren.add(CloseCoverNode(
+      id: SmartNightService._uuid.v4(),
+      name: 'Close cover',
+      parentId: flatGroupId,
+    ));
+
+    // Group calibrated filters by the panel brightness that produced their
+    // target ADU so the panel is set once per brightness level (matching the
+    // calibration conditions). Filters whose calibration came from sky flats
+    // (panelBrightness == null) cannot drive the panel to a known level — they
+    // are reported as uncalibrated for the panel path below.
+    final byBrightness = <int, List<SmartNightFlatExposure>>{};
+    for (final exposure in calibrated.values) {
+      final brightness = exposure.panelBrightness;
+      if (brightness == null) {
+        uncalibrated.add(exposure.filterName);
+        continue;
+      }
+      byBrightness.putIfAbsent(brightness, () => []).add(exposure);
+    }
+    uncalibrated.sort();
+
+    final sortedBrightness = byBrightness.keys.toList()..sort();
+    for (final brightness in sortedBrightness) {
+      flatChildren.add(CalibratorOnNode(
+        id: SmartNightService._uuid.v4(),
+        name: 'Calibrator on (brightness $brightness)',
+        brightness: brightness,
+        parentId: flatGroupId,
+      ));
+      final exposures = byBrightness[brightness]!
+        ..sort((a, b) => a.filterName.compareTo(b.filterName));
+      for (final exposure in exposures) {
+        flatChildren.add(FilterChangeNode(
+          id: SmartNightService._uuid.v4(),
+          name: 'Change filter → ${exposure.filterName}',
+          filterName: exposure.filterName,
+          parentId: flatGroupId,
+        ));
+        flatChildren.add(ExposureNode(
+          id: SmartNightService._uuid.v4(),
+          name: 'Flats — ${exposure.filterName} '
+              '(${exposure.exposureSecs.toStringAsFixed(2)}s @ '
+              '${exposure.histogramTargetPercent.toStringAsFixed(0)}% hist)',
+          durationSecs: exposure.exposureSecs,
+          count: settings.flatCountPerFilter,
+          frameType: FrameType.flat,
+          filter: exposure.filterName,
+          gain: profile.defaultGain,
+          offset: profile.defaultOffset,
+          ditherEvery: 0, // no dither for flats
+          parentId: flatGroupId,
+          comment: 'ADU-calibrated: previously hit '
+              '${exposure.actualAdu} ADU at panel brightness $brightness.',
+        ));
+      }
+    }
+
+    flatChildren.add(CalibratorOffNode(
+      id: SmartNightService._uuid.v4(),
+      name: 'Calibrator off',
+      parentId: flatGroupId,
+    ));
+    flatChildren.add(OpenCoverNode(
+      id: SmartNightService._uuid.v4(),
+      name: 'Open cover',
+      parentId: flatGroupId,
+    ));
+    for (var i = 0; i < flatChildren.length; i++) {
+      final reparented = _reparented(flatChildren[i], flatGroupId, i);
+      nodes[reparented.id] = reparented;
+    }
+    nodes[flatGroupId] = flatGroup.copyWith(
+      childIds: flatChildren.map((n) => n.id).toList(),
+    );
+    childOrder.add(flatGroupId);
+
+    // Any requested filter without a panel-calibrated exposure gets a loud
+    // reminder appended after the flat group — never a blind exposure.
+    if (uncalibrated.isNotEmpty) {
+      addRootChild(NotificationNode(
+        id: SmartNightService._uuid.v4(),
+        name: 'Flats skipped for uncalibrated filters',
+        title: 'Some filters have no calibrated flat exposure',
+        message: 'Flats were captured for '
+            '${calibrated.keys.where((f) => !uncalibrated.contains(f)).join(", ")}. '
+            'No ADU-calibrated panel exposure exists for: '
+            '${uncalibrated.toSet().toList().join(", ")}. Run the Flat Wizard '
+            'once for these filters so Smart Night can reuse the exposures.',
+        level: NotificationLevel.warning,
+        explicitTransports: const [NotificationTransportKind.inApp],
+        parentId: rootId,
+        orderIndex: childOrder.length - 1,
+      ));
+    }
   }
 
   /// Build the per-target sub-tree under a TargetHeaderNode and write

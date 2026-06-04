@@ -1,3 +1,4 @@
+import '../../database/daos/flat_history_dao.dart';
 import '../../models/calibration/dark_library_match_tolerances.dart';
 import '../../providers/profiles_provider.dart' show EquipmentProfileModel;
 import '../dark_library_coverage_service.dart';
@@ -58,7 +59,16 @@ class SmartNightDarkLibraryCoverage {
     );
     if (filters.isEmpty) return const SmartNightDarkLibraryMissing.empty();
 
-    final targetTemp = profile.defaultCoolingTemp ?? settings.coolDownTargetC;
+    // Darks MUST be captured at the SAME sensor setpoint the lights are
+    // cooled to, or they don't calibrate. The lights' setpoint is whatever
+    // the Smart Night CoolCamera node uses, which is
+    // `settings.coolDownTargetC` (see sequence_emitter.dart CoolCameraNode).
+    // The old code used `profile.defaultCoolingTemp ?? settings.coolDownTargetC`,
+    // which diverged whenever the profile carried a default cooling temp the
+    // wizard's cool-down setpoint didn't match (the wizard does not seed
+    // coolDownTargetC from the profile), producing darks at a temperature
+    // bucket the lights never used.
+    final targetTemp = settings.coolDownTargetC;
     final requirements = filters.map((filter) {
       final recommendation = exposureContext.recommendForFilter(filter);
       return DarkFrameRequirement(
@@ -113,4 +123,117 @@ class SmartNightDarkLibraryMissing {
         requirements = const [];
 
   bool get isEmpty => notes.isEmpty && requirements.isEmpty;
+}
+
+/// Resolves the per-filter flat sub-exposure Smart Night should emit for the
+/// end-of-night panel flats, sourced from the ADU-targeted flat-calibration
+/// history.
+///
+/// Smart Night used to emit flats at a hardcoded panel brightness (128) and a
+/// blind 3-second exposure with NO ADU targeting — flats taken that way do not
+/// reliably land near half-well and therefore do not calibrate the lights. The
+/// real ADU-converged exposures already live in the `flat_history` table: each
+/// row records the exposure that achieved a target histogram percentage
+/// (`histogramTarget`) and the panel brightness that produced it (the Flat
+/// Wizard's binary-search solver writes these). This helper reads the most
+/// recent calibration per filter so the auto-builder can emit the SAME
+/// exposure + brightness that previously hit the ADU target — instead of a
+/// blind guess.
+///
+/// Filters with NO prior calibration are returned in [SmartNightFlatPlan.uncalibratedFilters]
+/// so the builder can surface a loud "calibrate this filter once" reminder
+/// rather than silently shooting a wrong blind exposure.
+class SmartNightFlatCoverage {
+  final FlatHistoryDao flatHistoryDao;
+
+  const SmartNightFlatCoverage({required this.flatHistoryDao});
+
+  /// Look up the calibrated flat exposure + panel brightness for each filter
+  /// in [filters], matched to [profile] (and its default gain when present).
+  ///
+  /// Only the most recent matching calibration is used per filter. A filter
+  /// with no matching history row is reported as uncalibrated.
+  Future<SmartNightFlatPlan> resolve({
+    required EquipmentProfileModel profile,
+    required Set<String> filters,
+  }) async {
+    if (filters.isEmpty) return const SmartNightFlatPlan.empty();
+
+    final perFilter = <String, SmartNightFlatExposure>{};
+    final uncalibrated = <String>[];
+
+    for (final filter in filters) {
+      final entry = await flatHistoryDao.findMostRecentMatch(
+        filterName: filter,
+        equipmentProfileId: profile.id,
+        gain: profile.defaultGain,
+      );
+      if (entry == null || entry.exposureTime <= 0) {
+        uncalibrated.add(filter);
+        continue;
+      }
+      perFilter[filter] = SmartNightFlatExposure(
+        filterName: filter,
+        exposureSecs: entry.exposureTime,
+        panelBrightness: entry.panelBrightness,
+        histogramTargetPercent: entry.histogramTarget,
+        actualAdu: entry.actualAdu,
+      );
+    }
+
+    uncalibrated.sort();
+    return SmartNightFlatPlan(
+      perFilter: Map.unmodifiable(perFilter),
+      uncalibratedFilters: List.unmodifiable(uncalibrated),
+    );
+  }
+}
+
+/// A single filter's ADU-calibrated flat exposure, taken from the most recent
+/// `flat_history` row that achieved the target histogram percentage.
+class SmartNightFlatExposure {
+  final String filterName;
+
+  /// Exposure (seconds) that previously hit [histogramTargetPercent] /
+  /// [actualAdu] for this filter on this rig.
+  final double exposureSecs;
+
+  /// Panel brightness (0..255) that produced the calibrated exposure. `null`
+  /// when the calibration came from sky flats (no panel) — in that case the
+  /// builder must fall back to the panel's own brightness control rather than
+  /// a hardcoded value.
+  final int? panelBrightness;
+
+  /// Target histogram percentage the calibration aimed for (0..100).
+  final double histogramTargetPercent;
+
+  /// Actual ADU the calibrated exposure achieved.
+  final int actualAdu;
+
+  const SmartNightFlatExposure({
+    required this.filterName,
+    required this.exposureSecs,
+    required this.panelBrightness,
+    required this.histogramTargetPercent,
+    required this.actualAdu,
+  });
+}
+
+/// The set of per-filter ADU-calibrated flat exposures Smart Night should use,
+/// plus the filters that have no calibration history yet.
+class SmartNightFlatPlan {
+  final Map<String, SmartNightFlatExposure> perFilter;
+  final List<String> uncalibratedFilters;
+
+  const SmartNightFlatPlan({
+    required this.perFilter,
+    required this.uncalibratedFilters,
+  });
+
+  const SmartNightFlatPlan.empty()
+      : perFilter = const {},
+        uncalibratedFilters = const [];
+
+  /// Whether any filter has a calibrated exposure to emit.
+  bool get hasAnyCalibration => perFilter.isNotEmpty;
 }
