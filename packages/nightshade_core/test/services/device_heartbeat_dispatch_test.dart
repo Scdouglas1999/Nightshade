@@ -9,6 +9,7 @@ import 'package:nightshade_core/src/models/equipment/equipment_models.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/device_heartbeat_health_provider.dart';
 import 'package:nightshade_core/src/providers/equipment_provider.dart';
+import 'package:nightshade_core/src/services/device_reconnect_coordinator.dart';
 import 'package:nightshade_core/src/services/device_service.dart';
 
 import '../mocks/mock_backend.dart';
@@ -125,8 +126,16 @@ void main() {
     expect(state.reason, contains('attempt 2'));
   });
 
-  test('Disconnected event clears the heartbeat entry', () async {
+  test(
+      'Disconnected event clears the heartbeat entry when no reconnect is '
+      'pending', () async {
     const deviceId = 'native:zwo:0';
+
+    // Disable auto-reconnect so the Disconnected event has no reconnect to
+    // schedule: the indicator must then fall back to gray "unknown" rather
+    // than getting stuck on a stale value. (With auto-reconnect ON the
+    // indicator would correctly read "reconnecting" — covered separately.)
+    container.read(cameraStateProvider.notifier).setAutoReconnect(false);
 
     // First, mark the device degraded.
     events.add(makeEvent('HeartbeatStatusChanged', {
@@ -205,13 +214,20 @@ void main() {
 
   test(
       'HeartbeatStatusChanged(disconnected) drives the disconnect side '
-      'effects (clears health entry + flips connection state)', () async {
+      'effects (flips connection state + surfaces reconnecting)', () async {
     // Polish #5 regression guard. The heartbeat-lost path no longer emits a
     // standalone `Disconnected` event (deduped to one toast), so the
     // canonical `HeartbeatStatusChanged{Disconnected}` status must itself
     // drive the load-bearing disconnect side effects that the removed event
-    // used to: clearing the heartbeat health dot AND transitioning the
-    // device connection state (which is what arms the auto-reconnect path).
+    // used to: transitioning the device connection state (which is what
+    // arms the auto-reconnect path).
+    //
+    // DEV-P1 reconnect-UI: the camera is a Dart-owned reconnect type
+    // (native HeartbeatConfig::for_camera has auto_reconnect = false), so
+    // the Dart coordinator schedules the reconnect AND surfaces the
+    // "reconnecting" indicator immediately — the health dot must read
+    // `reconnecting`, NOT fall back to gray "unknown" while a reconnect is
+    // actively in flight.
     const deviceId = 'native:zwo:0';
 
     // Bring the camera "online" so the disconnect transition is observable.
@@ -223,7 +239,7 @@ void main() {
       DeviceConnectionState.connected,
     );
 
-    // Degrade first so there is a health entry to clear.
+    // Degrade first so there is a health entry to transition.
     events.add(makeEvent('HeartbeatStatusChanged', {
       'device_type': 'camera',
       'device_id': deviceId,
@@ -240,8 +256,8 @@ void main() {
     );
 
     // Cross the threshold: Rust emits HeartbeatStatusChanged{Disconnected}
-    // (no standalone Disconnected event). This must clear the health entry
-    // and flip the camera to disconnected.
+    // (no standalone Disconnected event). This must flip the camera to
+    // disconnected and surface the reconnecting indicator.
     events.add(makeEvent('HeartbeatStatusChanged', {
       'device_type': 'camera',
       'device_id': deviceId,
@@ -255,14 +271,105 @@ void main() {
           .read(deviceHeartbeatHealthProvider.notifier)
           .forDevice(deviceId)
           .health,
-      HeartbeatHealth.unknown,
-      reason: 'health dot must fall back to gray "unknown" on disconnect',
+      HeartbeatHealth.reconnecting,
+      reason: 'a Dart-owned reconnect must light the reconnecting indicator, '
+          'not fall back to gray "unknown" while the attempt is in flight',
     );
     expect(
       container.read(cameraStateProvider).connectionState,
       DeviceConnectionState.disconnected,
       reason: 'connection state must transition so auto-reconnect can arm',
     );
+  });
+
+  test(
+      'native-owned mount heartbeat loss surfaces reconnecting WITHOUT a '
+      'competing Dart connect (single-owner de-dup)', () async {
+    // DEV-P1 dual-reconnect race. The mount is a native-owned reconnect
+    // type (HeartbeatConfig::for_mount sets auto_reconnect = true), so the
+    // native reconnection_loop performs the real reconnect. The Dart
+    // coordinator must DEFER — it must not schedule its own connect, or the
+    // two engines double-connect / thrash the driver — while still lighting
+    // the "reconnecting" indicator the native side never emits an event for.
+    const deviceId = 'ascom:ASCOM.Simulator.Telescope';
+
+    final mountNotifier = container.read(mountStateProvider.notifier);
+    mountNotifier.setConnecting(deviceId, 'Test Mount');
+    mountNotifier.setConnected();
+
+    events.add(makeEvent('HeartbeatStatusChanged', {
+      'device_type': 'mount',
+      'device_id': deviceId,
+      'status': 'disconnected',
+      'consecutive_failures': 5,
+    }));
+    // Give the unawaited reconnect path time to run its synchronous
+    // ownership decision. The Dart coordinator's own backoff is 5s, so a
+    // 100ms wait is well short of any (incorrect) Dart connect attempt.
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+
+    expect(
+      container
+          .read(deviceHeartbeatHealthProvider.notifier)
+          .forDevice(deviceId)
+          .health,
+      HeartbeatHealth.reconnecting,
+      reason: 'native-owned reconnect must still light the indicator',
+    );
+    expect(
+      container.read(mountStateProvider).connectionState,
+      DeviceConnectionState.disconnected,
+    );
+    // The Dart coordinator deferred: it must NOT have driven a connect of
+    // its own against the device the native loop already owns.
+    verifyNever(() => mockBackend.connectDevice(any(), any()));
+  });
+
+  group('DeviceReconnectCoordinator.nativeOwnsReconnect policy table', () {
+    // This table MUST mirror the native source of truth exactly:
+    // `DeviceManager::get_heartbeat_config(device_type)` →
+    // `HeartbeatConfig::for_*()` in
+    // native/nightshade_native/bridge/src/device_manager/. A drift here
+    // re-opens the dual-reconnect race (Dart competes with the native
+    // loop) or strands a device with no reconnect engine at all.
+    const nativeOwned = <DeviceType>{
+      DeviceType.mount, // for_mount: auto_reconnect = true
+      DeviceType.dome, // for_dome: auto_reconnect = true
+      DeviceType.weather, // for_weather: auto_reconnect = true
+      DeviceType.safetyMonitor, // for_safety_monitor: auto_reconnect = true
+      DeviceType.guider, // for_guider: auto_reconnect = true
+      DeviceType.coverCalibrator, // for_cover_calibrator: auto_reconnect = true
+    };
+    const dartOwned = <DeviceType>{
+      DeviceType.camera, // for_camera: auto_reconnect = false
+      DeviceType.focuser, // for_focuser: auto_reconnect = false
+      DeviceType.filterWheel, // for_filter_wheel: auto_reconnect = false
+      DeviceType.rotator, // for_rotator: auto_reconnect = false
+      DeviceType.switch_, // for_switch: auto_reconnect = false
+    };
+
+    test('every DeviceType is classified exactly once', () {
+      // Guards against a new DeviceType being added without a matching
+      // native-ownership decision (the switch in nativeOwnsReconnect would
+      // fail to compile, but the test also documents the full set).
+      expect(
+        {...nativeOwned, ...dartOwned},
+        DeviceType.values.toSet(),
+        reason: 'all DeviceTypes must appear in exactly one ownership set',
+      );
+      expect(nativeOwned.intersection(dartOwned), isEmpty);
+    });
+
+    for (final type in nativeOwned) {
+      test('${type.name} is native-owned', () {
+        expect(DeviceReconnectCoordinator.nativeOwnsReconnect(type), isTrue);
+      });
+    }
+    for (final type in dartOwned) {
+      test('${type.name} is Dart-owned', () {
+        expect(DeviceReconnectCoordinator.nativeOwnsReconnect(type), isFalse);
+      });
+    }
   });
 
   test('Heartbeat dispatch does not interfere with the Disconnected handler',

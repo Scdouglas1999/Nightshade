@@ -9,6 +9,7 @@ import 'package:nightshade_core/src/models/backend/device_types.dart'
     as device_types;
 import 'package:nightshade_core/src/models/equipment/equipment_models.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
+import 'package:nightshade_core/src/providers/device_heartbeat_health_provider.dart';
 import 'package:nightshade_core/src/providers/equipment_provider.dart';
 import 'package:nightshade_core/src/providers/sequence_provider.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
@@ -882,44 +883,23 @@ void main() {
     });
 
     test(
-        'mount disconnect event with default autoReconnect=true DOES schedule reconnect',
-        () async {
-      // Stub the connectDevice call so the eventual reconnect attempt
-      // doesn't blow up the test. We use FakeAsync to fast-forward the
-      // 5s backoff so we can observe that the reconnect path actually
-      // tried to connect.
-      // DEV-P1-7: device ids must match a known prefix to pass the format
-      // check inside connectMount. Use `simulator:` so the reconnect path
-      // reaches the backend.
+        'mount disconnect DEFERS to native auto-reconnect (no competing Dart '
+        'connect) and surfaces the reconnecting indicator', () async {
+      // DEV-P1 dual-reconnect race. The mount is a NATIVE-owned reconnect
+      // type (HeartbeatConfig::for_mount sets auto_reconnect = true), so the
+      // native reconnection_loop performs the real reconnect. The Dart
+      // coordinator must DEFER — firing its own connect here raced the
+      // native loop and double-connected / thrashed the same physical mount
+      // after a heartbeat-driven loss. We still light the Dart-driven
+      // "reconnecting" indicator because the native side emits no
+      // HeartbeatReconnecting event.
+      //
+      // (Sequence-resume after the native-driven reconnect is still handled
+      // off the authoritative `Connected` event by
+      // onAuthoritativeDeviceConnected — see event_handling.dart.)
       const mount2 = 'simulator:mount-2';
       when(() => mockBackend.connectDevice(DeviceType.mount, any()))
           .thenAnswer((_) async {});
-      when(() => mockBackend.getMountStatus(any())).thenAnswer(
-        (_) async => const MountStatus(
-          connected: true,
-          tracking: true,
-          slewing: false,
-          parked: false,
-          atHome: false,
-          sideOfPier: PierSide.east,
-          rightAscension: 0.0,
-          declination: 0.0,
-          altitude: 0.0,
-          azimuth: 0.0,
-          siderealTime: 0.0,
-          trackingRate: TrackingRate.sidereal,
-          canPark: true,
-          canSlew: true,
-          canSync: true,
-          canPulseGuide: true,
-          canSetTrackingRate: true,
-        ),
-      );
-      when(() => mockBackend.startDeviceHeartbeat(
-            deviceType: any(named: 'deviceType'),
-            deviceId: any(named: 'deviceId'),
-            intervalMs: any(named: 'intervalMs'),
-          )).thenAnswer((_) async {});
 
       final mountNotifier = container.read(mountStateProvider.notifier);
       mountNotifier.setConnecting(mount2, 'Test Mount');
@@ -941,15 +921,87 @@ void main() {
         },
       ));
 
-      // Wait long enough for the first backoff (5s) to elapse. Real time
-      // because the disconnect event is async and DeviceService uses a
-      // real Timer. We bump to 6s to be safe.
+      // Wait past the Dart coordinator's first backoff (5s) — if it were
+      // (incorrectly) scheduling a competing attempt it would have fired by
+      // now. We bump to 6s to be safe.
       await Future.delayed(const Duration(seconds: 6));
 
-      // The reconnect path went through _performReconnection → mount
-      // notifier.connect → deviceService.connectMount → backend. If the
-      // flag was ignored or short-circuited, this call would never fire.
-      verify(() => mockBackend.connectDevice(DeviceType.mount, mount2))
+      // De-dup: the Dart coordinator deferred, so it must NOT have driven a
+      // connect of its own against the mount the native loop already owns.
+      verifyNever(() => mockBackend.connectDevice(DeviceType.mount, any()));
+
+      // …but the reconnecting indicator IS lit so the UI reflects recovery.
+      expect(
+        container
+            .read(deviceHeartbeatHealthProvider.notifier)
+            .forDevice(mount2)
+            .health,
+        HeartbeatHealth.reconnecting,
+      );
+    }, timeout: const Timeout(Duration(seconds: 30)));
+
+    test(
+        'focuser disconnect (Dart-owned) DOES schedule a Dart reconnect and '
+        'surfaces the reconnecting indicator', () async {
+      // The focuser is a DART-owned reconnect type
+      // (HeartbeatConfig::for_focuser sets auto_reconnect = false), so the
+      // native loop ignores it and the Dart coordinator is the sole
+      // reconnect engine. It must schedule the real connect AND light the
+      // reconnecting indicator.
+      const focuser2 = 'simulator:focuser-2';
+      when(() => mockBackend.connectDevice(DeviceType.focuser, any()))
+          .thenAnswer((_) async {});
+      when(() => mockBackend.getFocuserStatus(any())).thenAnswer(
+        (_) async => const FocuserStatus(
+          connected: true,
+          position: 15000,
+          moving: false,
+          temperature: 12.5,
+          maxPosition: 50000,
+          stepSize: 1.0,
+          isAbsolute: true,
+          hasTemperature: true,
+        ),
+      );
+      when(() => mockBackend.startDeviceHeartbeat(
+            deviceType: any(named: 'deviceType'),
+            deviceId: any(named: 'deviceId'),
+            intervalMs: any(named: 'intervalMs'),
+          )).thenAnswer((_) async {});
+
+      final focuserNotifier = container.read(focuserStateProvider.notifier);
+      focuserNotifier.setConnecting(focuser2, 'Test Focuser');
+      focuserNotifier.setConnected();
+      expect(
+        container.read(focuserStateProvider).autoReconnectEnabled,
+        isTrue,
+      );
+
+      eventStreamController.add(NightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.warning,
+        category: EventCategory.equipment,
+        eventType: 'Disconnected',
+        data: {
+          'device_type': 'focuser',
+          'device_id': focuser2,
+        },
+      ));
+
+      // The reconnecting indicator is surfaced synchronously when the
+      // coordinator commits to the attempt, before the 5s backoff.
+      await Future.delayed(const Duration(milliseconds: 100));
+      expect(
+        container
+            .read(deviceHeartbeatHealthProvider.notifier)
+            .forDevice(focuser2)
+            .health,
+        HeartbeatHealth.reconnecting,
+      );
+
+      // Wait past the first backoff (5s) so the real connect fires.
+      await Future.delayed(const Duration(seconds: 6));
+      verify(() => mockBackend.connectDevice(DeviceType.focuser, focuser2))
           .called(greaterThanOrEqualTo(1));
     }, timeout: const Timeout(Duration(seconds: 30)));
 
