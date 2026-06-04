@@ -26,6 +26,7 @@ import 'logging_service.dart';
 import 'error_service.dart';
 import 'phd2_launcher.dart';
 import 'phd2_status_poll.dart';
+import 'predictive_af_service.dart';
 import 'switch_channel_service.dart';
 import 'device_service_lifecycle.dart';
 

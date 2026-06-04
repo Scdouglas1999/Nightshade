@@ -112,6 +112,19 @@ extension _DeviceServiceAutofocusControls on DeviceService {
       canCancel: true,
     );
 
+    // Predictive-AF consultation (Wave 8 wire-up). Before running the real
+    // sweep, ask the persisted per-filter model what it would predict for the
+    // current temperature/filter. We log the decision and capture the
+    // predicted position so that — once the sweep converges — we can feed the
+    // model the prediction-vs-actual error for drift tracking. We never let
+    // the prediction REPLACE the Dart sweep here: this path is the explicit
+    // full-sweep request (manual focus tab / Dart-driven AF), so the user
+    // asked for a real measurement. The prediction is advisory + training
+    // input only.
+    final predictiveContext = await _consultPredictiveAf(
+      method: effectiveMethod,
+    );
+
     // Pause guiding if configured and guiding is active
     final guiderState = _ref.read(guiderStateProvider);
     final wasGuiding = disableGuidingDuringAf && guiderState.isGuiding;
@@ -166,6 +179,16 @@ extension _DeviceServiceAutofocusControls on DeviceService {
             title: 'Autofocus',
           );
 
+      // Feed the persisted predictive-AF model (Wave 8 wire-up): record this
+      // converged outcome as a training sample and, if we made a prediction
+      // before the sweep, record the prediction-vs-actual error for drift
+      // tracking. Failures here are logged but never abort the AF run — the
+      // user already has their focus result.
+      await _recordPredictiveAfOutcome(
+        context: predictiveContext,
+        result: result,
+      );
+
       return result;
     } finally {
       _isAutofocusRunning = false;
@@ -191,4 +214,162 @@ extension _DeviceServiceAutofocusControls on DeviceService {
       }
     }
   }
+
+  /// Resolve the temperature to associate with a predictive-AF sample/decision.
+  /// Prefers the temperature the AF backend captured during the sweep (most
+  /// accurate, taken at measurement time); otherwise falls back to the
+  /// focuser's currently-reported temperature. Returns `null` when neither is
+  /// available — the predictive model is temperature-keyed, so we must not
+  /// fabricate a reading.
+  double? _resolvePredictiveAfTemperature(double? backendTemperature) {
+    if (backendTemperature != null) {
+      return backendTemperature;
+    }
+    return _ref.read(focuserStateProvider).temperature;
+  }
+
+  /// Consult the persisted predictive-AF model before a real sweep. This is
+  /// advisory: we record the decision (for logging + later drift tracking) but
+  /// always proceed with the requested full sweep. Returns the context needed
+  /// to feed [recordPredictionVsActual] after the sweep, or `null` when the
+  /// model cannot be consulted (no filter, no temperature, etc.).
+  Future<_PredictiveAfContext?> _consultPredictiveAf({
+    required String method,
+  }) async {
+    final temperature = _resolvePredictiveAfTemperature(null);
+    final filterName = _ref.read(filterWheelStateProvider).currentFilterName;
+    final profileId = _activeProfile?.id;
+
+    // Without a filter name or a temperature, the model is not keyed/usable.
+    // We still want to TRAIN on the outcome (recordAutofocusOutcome handles a
+    // missing filter via a sentinel), but we can only meaningfully PREDICT
+    // when both are present.
+    if (filterName == null || temperature == null) {
+      return _PredictiveAfContext(
+        profileId: profileId,
+        filterName: filterName,
+        predictedPosition: null,
+      );
+    }
+
+    final service = _ref.read(predictiveAfServiceProvider);
+    try {
+      final decision = await service.evaluateForFilter(
+        equipmentProfileId: profileId,
+        filterName: filterName,
+        temperatureCelsius: temperature,
+      );
+      final logger = _ref.read(loggingServiceProvider);
+      logger.info(
+        'Predictive-AF pre-sweep decision for "$filterName" '
+        '($method, ${temperature.toStringAsFixed(2)}C): '
+        '${decision.runtimeType} '
+        '(predicted=${decision.targetPosition}, '
+        'confidence=${decision.confidence?.toStringAsFixed(3) ?? "n/a"})',
+        source: 'DeviceService',
+      );
+      return _PredictiveAfContext(
+        profileId: profileId,
+        filterName: filterName,
+        predictedPosition: decision.targetPosition,
+      );
+    } catch (e) {
+      // Advisory-only: a model read failure must not block the real sweep.
+      _ref.read(loggingServiceProvider).warning(
+            'Predictive-AF consultation failed (continuing with real sweep): $e',
+            source: 'DeviceService',
+          );
+      return _PredictiveAfContext(
+        profileId: profileId,
+        filterName: filterName,
+        predictedPosition: null,
+      );
+    }
+  }
+
+  /// Record a converged autofocus outcome into the persisted predictive-AF
+  /// model, and (when a pre-sweep prediction exists) record the
+  /// prediction-vs-actual error so drift detection can surface re-train
+  /// prompts. Never throws into the AF run.
+  Future<void> _recordPredictiveAfOutcome({
+    required _PredictiveAfContext? context,
+    required AutofocusResult result,
+  }) async {
+    if (context == null) {
+      return;
+    }
+    final temperature = _resolvePredictiveAfTemperature(result.temperature);
+    final logger = _ref.read(loggingServiceProvider);
+
+    if (context.filterName == null) {
+      logger.info(
+        'Predictive-AF: skipping training (no active filter to key the '
+        'model). Position=${result.bestPosition}, HFR='
+        '${result.bestHfr.toStringAsFixed(2)}.',
+        source: 'DeviceService',
+      );
+      return;
+    }
+    if (temperature == null) {
+      logger.info(
+        'Predictive-AF: skipping training for "${context.filterName}" — no '
+        'temperature available (focuser reports none). The model is '
+        'temperature-keyed; refusing to fabricate a reading.',
+        source: 'DeviceService',
+      );
+      return;
+    }
+
+    final service = _ref.read(predictiveAfServiceProvider);
+    try {
+      await service.recordAutofocusOutcome(
+        equipmentProfileId: context.profileId,
+        filterName: context.filterName!,
+        temperatureCelsius: temperature,
+        focusPosition: result.bestPosition,
+        hfr: result.bestHfr,
+      );
+      logger.info(
+        'Predictive-AF: recorded outcome for "${context.filterName}" '
+        '(pos=${result.bestPosition}, HFR=${result.bestHfr.toStringAsFixed(2)}, '
+        '${temperature.toStringAsFixed(2)}C).',
+        source: 'DeviceService',
+      );
+
+      final predicted = context.predictedPosition;
+      if (predicted != null) {
+        final status = await service.recordPredictionVsActual(
+          equipmentProfileId: context.profileId,
+          filterName: context.filterName!,
+          predictedPosition: predicted,
+          actualPosition: result.bestPosition,
+        );
+        logger.info(
+          'Predictive-AF: drift status for "${context.filterName}" = '
+          '${status.runtimeType} (predicted=$predicted, '
+          'actual=${result.bestPosition}).',
+          source: 'DeviceService',
+        );
+      }
+    } catch (e) {
+      logger.warning(
+        'Predictive-AF: failed to record outcome for "${context.filterName}": $e',
+        source: 'DeviceService',
+      );
+    }
+  }
+}
+
+/// Carries predictive-AF state across the real autofocus sweep so the
+/// pre-sweep prediction can be reconciled with the converged result.
+class _PredictiveAfContext {
+  final int? profileId;
+  final String? filterName;
+  final int? predictedPosition;
+
+  const _PredictiveAfContext({
+    required this.profileId,
+    required this.filterName,
+    required this.predictedPosition,
+  });
 }
