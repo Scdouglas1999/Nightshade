@@ -158,6 +158,13 @@ enum SchedulerTriggerEvent {
   manualOverride,
   integrationGoalsUpdated,
   candidatesUpdated,
+
+  /// The autopilot's currently-dispatched sequence finished all its work
+  /// (natural completion, not an operator/scheduler stop). The engine reacts
+  /// by re-picking immediately so the rig doesn't sit idle until the next
+  /// periodic tick — and so a still-eligible current target gets its
+  /// remaining work re-dispatched instead of being held idle by hysteresis.
+  sequenceCompleted,
 }
 
 /// Snapshot exposed to the UI describing what the scheduler is doing.

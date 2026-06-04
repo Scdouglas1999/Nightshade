@@ -5,6 +5,8 @@
 // test creates a fixed virtual clock so altitude / hour-angle results are
 // deterministic.
 
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nightshade_core/src/models/scheduler/integration_goal.dart';
@@ -534,6 +536,68 @@ void main() {
       await engine.dispose();
     });
 
+  });
+
+  group('SchedulerEngine - sequence completion reaction', () {
+    test('SequenceCompleted re-dispatches a still-eligible current target',
+        () async {
+      final sink = _RecordingSink();
+      final triggers = StreamController<SchedulerTriggerEvent>();
+      addTearDown(triggers.close);
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        triggerStream: triggers.stream,
+        clock: _fixedNow,
+      );
+      await engine.start();
+      expect(sink.dispatched.length, 1,
+          reason: 'cold start dispatches the chosen target');
+
+      // The dispatched sequence finishes naturally. The engine must re-pick
+      // and re-dispatch the still-eligible target's remaining work instead of
+      // sitting idle until the next periodic tick.
+      triggers.add(SchedulerTriggerEvent.sequenceCompleted);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(sink.dispatched.length, 2,
+          reason: 'natural completion must re-dispatch, not leave the rig '
+              'idle (the original P0 bug)');
+      await engine.dispose();
+    });
+
+    test('a non-completion trigger does NOT re-dispatch an unchanged winner',
+        () async {
+      final sink = _RecordingSink();
+      final triggers = StreamController<SchedulerTriggerEvent>();
+      addTearDown(triggers.close);
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        triggerStream: triggers.stream,
+        clock: _fixedNow,
+      );
+      await engine.start();
+      expect(sink.dispatched.length, 1);
+
+      // A weather/guiding-style re-eval where the winner is unchanged must NOT
+      // re-dispatch (hysteresis keeps the running target) -- only a genuine
+      // completion clears the current target and re-dispatches.
+      triggers.add(SchedulerTriggerEvent.guidingRecovered);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(sink.dispatched.length, 1,
+          reason: 'an unchanged-winner re-eval must not re-dispatch');
+      await engine.dispose();
+    });
   });
 
   group('SchedulerEngine - requestReevaluation debounce', () {

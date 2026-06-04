@@ -89,8 +89,22 @@ SchedulerTriggerEvent? _mapEventToTrigger(NightshadeEvent event) {
         }
       }
       return null;
-    case EventCategory.imaging:
     case EventCategory.sequencer:
+      // A natural whole-sequence completion means the autopilot's dispatched
+      // work for the current target finished. Without reacting, the rig sits
+      // idle until the next periodic tick (and never re-dispatches a
+      // still-eligible target held by hysteresis). Match the precise
+      // SequencerEvent_Completed type only: SequencerEvent_Stopped is the
+      // scheduler's OWN stop when switching targets (reacting to it would make
+      // a dispatch feedback loop), and Node/Target/ExposureCompleted are
+      // sub-events, not the end of the run.
+      final payload = event.payload;
+      if (payload is EventPayload_Sequencer &&
+          payload.field0 is SequencerEvent_Completed) {
+        return SchedulerTriggerEvent.sequenceCompleted;
+      }
+      return null;
+    case EventCategory.imaging:
     case EventCategory.system:
     case EventCategory.polarAlignment:
       return null;

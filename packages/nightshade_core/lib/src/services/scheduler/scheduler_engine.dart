@@ -37,6 +37,20 @@ class SchedulerEngine {
         _clock = clock ?? DateTime.now {
     if (triggerStream != null) {
       _triggerSubscription = triggerStream.listen((evt) {
+        // A natural sequence completion means the executor has STOPPED, but
+        // currentTargetId still names the just-finished target. A plain
+        // re-evaluation would then see isSwitch=false and never re-dispatch,
+        // leaving the rig idle for the rest of the night. Clear the current
+        // target (only while running, and only the autopilot's own target)
+        // so the next evaluation re-dispatches the winner — the same target's
+        // remaining work, or the next-best target if its goals are now done.
+        // Loop-safe: 'SequenceStopped' is not mapped to this trigger, so the
+        // engine's own stop-to-switch never reaches here.
+        if (evt == SchedulerTriggerEvent.sequenceCompleted &&
+            _status.state == SchedulerState.running &&
+            _status.currentTargetId != null) {
+          _updateStatus(_status.copyWith(clearCurrentTarget: true));
+        }
         _evaluateWithReason('trigger: ${evt.name}');
       });
     }
