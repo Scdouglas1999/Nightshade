@@ -4177,6 +4177,53 @@ impl SequenceExecutor {
                                         });
                                     }
 
+                                    // Safe-state the observatory: close the
+                                    // flat-panel cover first (protect the optics),
+                                    // then the dome shutter. ParkAndAbort exists to
+                                    // put the rig in a SAFE state — parking the
+                                    // mount while leaving the shutter open exposes
+                                    // the scope to the exact condition (rain/cloud/
+                                    // dawn) that fired the trigger. This mirrors the
+                                    // recovery give-up safe-state path; the absence
+                                    // of these two closes here was a P0 oversight.
+                                    if let Some(cover_id) =
+                                        &trigger_action_context.cover_calibrator_id
+                                    {
+                                        tracing::warn!(
+                                            "ParkAndAbort: closing cover '{}'",
+                                            cover_id
+                                        );
+                                        if let Err(e) = device_ops_for_triggers
+                                            .cover_calibrator_close_cover(cover_id)
+                                            .await
+                                        {
+                                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                                message: format!(
+                                                    "ParkAndAbort: failed to close cover '{}': {}. \
+                                                     Optics may be left exposed — manual intervention required.",
+                                                    cover_id, e
+                                                ),
+                                            });
+                                        }
+                                    }
+                                    if let Some(dome_id) = &trigger_action_context.dome_id {
+                                        tracing::warn!(
+                                            "ParkAndAbort: closing dome shutter '{}'",
+                                            dome_id
+                                        );
+                                        if let Err(e) =
+                                            device_ops_for_triggers.dome_close(dome_id).await
+                                        {
+                                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                                message: format!(
+                                                    "ParkAndAbort: failed to close dome '{}': {} — \
+                                                     scope may be exposed under an open roof. Manual intervention required.",
+                                                    dome_id, e
+                                                ),
+                                            });
+                                        }
+                                    }
+
                                     fired_triggers.push((trigger_id, action));
                                     return terminate_with(
                                         &is_cancelled_clone,
