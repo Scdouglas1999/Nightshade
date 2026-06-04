@@ -32,6 +32,16 @@ class SessionState extends Equatable {
   final int totalExposures;
   final int completedExposures;
   final int failedExposures;
+
+  /// Frames that captured successfully but were rejected by quality grading.
+  /// These are NOT failures (the exposure completed) and they do NOT count
+  /// toward [totalIntegrationSecs] — rejected sky time is wasted, not progress.
+  final int rejectedExposures;
+
+  /// Accepted integration time. Only frames that passed quality grading
+  /// (or were recorded without a reject signal) contribute here, so the
+  /// multi-night project integration budget never counts auto-rejected
+  /// subs as completed sky time.
   final double totalIntegrationSecs;
   
   /// Current state flags
@@ -58,6 +68,7 @@ class SessionState extends Equatable {
     this.totalExposures = 0,
     this.completedExposures = 0,
     this.failedExposures = 0,
+    this.rejectedExposures = 0,
     this.totalIntegrationSecs = 0.0,
     this.currentFilter,
     this.isGuiding = false,
@@ -79,6 +90,7 @@ class SessionState extends Equatable {
     int? totalExposures,
     int? completedExposures,
     int? failedExposures,
+    int? rejectedExposures,
     double? totalIntegrationSecs,
     String? currentFilter,
     bool? isGuiding,
@@ -99,6 +111,7 @@ class SessionState extends Equatable {
       totalExposures: totalExposures ?? this.totalExposures,
       completedExposures: completedExposures ?? this.completedExposures,
       failedExposures: failedExposures ?? this.failedExposures,
+      rejectedExposures: rejectedExposures ?? this.rejectedExposures,
       totalIntegrationSecs: totalIntegrationSecs ?? this.totalIntegrationSecs,
       currentFilter: currentFilter ?? this.currentFilter,
       isGuiding: isGuiding ?? this.isGuiding,
@@ -134,6 +147,7 @@ class SessionState extends Equatable {
     totalExposures,
     completedExposures,
     failedExposures,
+    rejectedExposures,
     totalIntegrationSecs,
     currentFilter,
     isGuiding,
@@ -247,19 +261,41 @@ class SessionStateNotifier extends StateNotifier<SessionState> {
     );
   }
 
-  /// Record a completed exposure
+  /// Record a completed exposure.
+  ///
+  /// [accepted] reflects whether the frame passed quality grading. An accepted
+  /// frame advances the integration budget ([totalIntegrationSecs]) that the
+  /// multi-night project tracker sums; a rejected frame does NOT — its sky
+  /// time is wasted, not progress, so it is tallied in [rejectedExposures]
+  /// instead. The exposure still completed either way, so [completedExposures]
+  /// increments in both cases (the capture itself succeeded).
+  ///
+  /// HFR is averaged only over accepted frames so the session's quality
+  /// metric is not skewed by subs we have already thrown away.
   void recordExposureComplete({
     required double exposureTime,
     double? hfr,
+    bool accepted = true,
   }) {
-    // Update running average HFR
+    if (!accepted) {
+      // Wasted sky time: count the capture, but keep it out of the integration
+      // budget and out of the running HFR average.
+      state = state.copyWith(
+        completedExposures: state.completedExposures + 1,
+        rejectedExposures: state.rejectedExposures + 1,
+      );
+      _updateSessionServiceStats();
+      return;
+    }
+
+    // Update running average HFR over accepted frames only.
     double? newAvgHfr = state.avgHfr;
     if (hfr != null) {
       if (state.avgHfr == null) {
         newAvgHfr = hfr;
       } else {
-        // Simple running average
-        final count = state.completedExposures;
+        // Simple running average over the accepted frames seen so far.
+        final count = state.completedExposures - state.rejectedExposures;
         newAvgHfr = (state.avgHfr! * count + hfr) / (count + 1);
       }
     }

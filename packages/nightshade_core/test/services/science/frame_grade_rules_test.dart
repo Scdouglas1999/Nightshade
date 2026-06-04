@@ -1,11 +1,102 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_core/src/database/database.dart' as drift
+    show CapturedImage;
+
+drift.CapturedImage _light({
+  int id = 1,
+  double? hfr,
+  int? starCount,
+  double? guidingRmsTotal,
+}) {
+  final ts = DateTime(2026, 1, 1);
+  return drift.CapturedImage(
+    id: id,
+    filePath: '/tmp/$id.fits',
+    fileName: '$id.fits',
+    fileFormat: 'fits',
+    frameType: 'light',
+    exposureDuration: 60,
+    binX: 1,
+    binY: 1,
+    isPlateSolved: true,
+    capturedAt: ts,
+    createdAt: ts,
+    isAccepted: true,
+    hfr: hfr,
+    starCount: starCount,
+    guidingRmsTotal: guidingRmsTotal,
+  );
+}
 
 /// Tests for [FrameGradeRules.gradeStats] — the in-memory grading overload that
 /// powers the live per-sub badge. It must enforce the *identical* thresholds
 /// and produce the *identical* reason-string format as the persisted
 /// [FrameGradeRules.gradeFrame] path so the two graders can never disagree.
 void main() {
+  group('FrameGradeRules.gradeFrame eccentricity/FWHM are out-of-band', () {
+    // Regression: gradeFrame used to read eccentricity/FWHM via dynamic
+    // dispatch on `(img as dynamic).eccentricity` / `.fwhm`. The generated
+    // CapturedImage data class carries NEITHER field, so those reads always
+    // raised NoSuchMethodError and were caught into a silent `null` — the
+    // eccentricity and FWHM rules could never fire. They are now supplied by
+    // the caller, exactly like gradeStats.
+
+    const eccRule = FrameGradeRules(maxEccentricity: 0.6);
+    const fwhmRule = FrameGradeRules(maxFwhm: 4.0);
+
+    test('eccentricity arg over threshold now actually rejects', () {
+      final reason = eccRule.gradeFrame(_light(), eccentricity: 0.9);
+      expect(reason, isNotNull);
+      expect(reason, contains('Eccentricity'));
+      expect(reason, contains('0.90'));
+      expect(reason, contains('0.60'));
+    });
+
+    test('eccentricity arg at/under threshold passes', () {
+      expect(eccRule.gradeFrame(_light(), eccentricity: 0.6), isNull);
+      expect(eccRule.gradeFrame(_light(), eccentricity: 0.3), isNull);
+    });
+
+    test('FWHM arg over threshold now actually rejects', () {
+      final reason = fwhmRule.gradeFrame(_light(), fwhm: 5.0);
+      expect(reason, isNotNull);
+      expect(reason, contains('FWHM'));
+      expect(reason, contains('5.00'));
+      expect(reason, contains('4.00'));
+    });
+
+    test(
+        'configuring an eccentricity rule without supplying the metric trips '
+        'an assert (loud, not silent)', () {
+      // The old code silently returned null here forever; the new code makes
+      // the misuse loud in debug/test builds.
+      expect(
+        () => eccRule.gradeFrame(_light()),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test(
+        'configuring a FWHM rule without supplying the metric trips an assert',
+        () {
+      expect(
+        () => fwhmRule.gradeFrame(_light()),
+        throwsA(isA<AssertionError>()),
+      );
+    });
+
+    test('rules without ecc/FWHM thresholds grade fine with no extra args', () {
+      const rules = FrameGradeRules(maxHfr: 2.5, minStars: 30);
+      expect(rules.gradeFrame(_light(hfr: 1.8, starCount: 50)), isNull);
+      expect(rules.gradeFrame(_light(hfr: 3.2, starCount: 50)), contains('HFR'));
+      expect(
+        rules.gradeFrame(_light(hfr: 1.8, starCount: 10)),
+        contains('Stars 10 < 30'),
+      );
+    });
+  });
+
   group('FrameGradeRules.gradeStats', () {
     const rules = FrameGradeRules(
       maxHfr: 3.0,
