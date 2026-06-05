@@ -286,9 +286,7 @@ class _ProgressRow extends StatelessWidget {
                         children: [
                           Text(
                             progress.targetName,
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize14,
-                              fontWeight: FontWeight.w600,
+                            style: NightshadeTypography.h5.copyWith(
                               color: colors.textPrimary,
                             ),
                           ),
@@ -592,9 +590,7 @@ class _FilterProgressRow extends StatelessWidget {
           child: Text(
             filter.filter,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w600,
+            style: NightshadeTypography.h6.copyWith(
               color: colors.textPrimary,
             ),
           ),
@@ -648,9 +644,7 @@ class _ProgressEmptyState extends StatelessWidget {
             const SizedBox(height: NightshadeTokens.spaceLg),
             Text(
               'No imaging history yet',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize16,
-                fontWeight: FontWeight.w600,
+              style: NightshadeTypography.h4.copyWith(
                 color: colors.textPrimary,
               ),
             ),
@@ -700,9 +694,7 @@ class _ProgressErrorState extends StatelessWidget {
             const SizedBox(height: NightshadeTokens.spaceLg),
             Text(
               'Failed to load progress',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize16,
-                fontWeight: FontWeight.w600,
+              style: NightshadeTypography.h4.copyWith(
                 color: colors.textPrimary,
               ),
             ),

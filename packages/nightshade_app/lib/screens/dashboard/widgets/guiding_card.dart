@@ -60,9 +60,7 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
                 // Inline RMS values
                 Text(
                   '$rmsTotal"',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w600,
+                  style: NightshadeTypography.h6.copyWith(
                     color: isGuiding ? colors.primary : colors.textSecondary,
                   ),
                 ),

@@ -315,9 +315,7 @@ class SuggestionFilters extends ConsumerWidget {
             if (availableTypes.isNotEmpty) ...[
               Text(
                 'Object Types',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w500,
+                style: NightshadeTypography.label.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
@@ -338,9 +336,7 @@ class SuggestionFilters extends ConsumerWidget {
             if (availableConstellations.isNotEmpty) ...[
               Text(
                 'Constellation',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w500,
+                style: NightshadeTypography.label.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
@@ -360,9 +356,7 @@ class SuggestionFilters extends ConsumerWidget {
             // Sort mode
             Text(
               'Sort By',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                fontWeight: FontWeight.w500,
+              style: NightshadeTypography.label.copyWith(
                 color: colors.textSecondary,
               ),
             ),
@@ -520,9 +514,7 @@ class SuggestionFilters extends ConsumerWidget {
                     children: [
                       Text(
                         'Prioritize Incomplete Targets',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
-                          fontWeight: FontWeight.w500,
+                        style: NightshadeTypography.label.copyWith(
                           color: colors.textSecondary,
                         ),
                       ),

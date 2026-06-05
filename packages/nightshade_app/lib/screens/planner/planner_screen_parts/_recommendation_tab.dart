@@ -352,9 +352,7 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
                       isLocationError
                           ? context.l10n.text('plannerLocationMissingTitle')
                           : context.l10n.text('plannerPlanFailedTitle'),
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize16,
-                        fontWeight: FontWeight.w600,
+                      style: NightshadeTypography.h4.copyWith(
                         color: colors.textPrimary,
                       ),
                     ),

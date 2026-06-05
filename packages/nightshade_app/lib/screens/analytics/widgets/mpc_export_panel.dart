@@ -336,9 +336,7 @@ class _ObservationGroupTile extends StatelessWidget {
             Expanded(
               child: Text(
                 group.displayName,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.h6.copyWith(
                   color: colors.textPrimary,
                 ),
                 overflow: TextOverflow.ellipsis,

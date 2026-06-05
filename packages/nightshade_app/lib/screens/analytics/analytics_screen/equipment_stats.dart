@@ -77,9 +77,7 @@ class _EquipmentStatCard extends StatelessWidget {
           children: [
             Text(
               title,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize14,
-                fontWeight: FontWeight.w600,
+              style: NightshadeTypography.h5.copyWith(
                 color: colors.textPrimary,
               ),
             ),
@@ -96,9 +94,7 @@ class _EquipmentStatCard extends StatelessWidget {
                       ),
                       Text(
                         stat.value,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          fontWeight: FontWeight.w500,
+                        style: NightshadeTypography.labelSm.copyWith(
                           color: colors.textPrimary,
                         ),
                       ),

@@ -143,10 +143,8 @@ class _TransformRow extends StatelessWidget {
                 ),
                 child: Text(
                   transform.filterName,
-                  style: TextStyle(
+                  style: NightshadeTypography.labelStrongSm.copyWith(
                     color: colors.primary,
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
               ),
@@ -256,10 +254,8 @@ class _CoefficientChip extends StatelessWidget {
           const SizedBox(height: 1),
           Text(
             value,
-            style: TextStyle(
+            style: NightshadeTypography.labelQuiet.copyWith(
               color: colors.textPrimary,
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w500,
             ),
             overflow: TextOverflow.ellipsis,
           ),

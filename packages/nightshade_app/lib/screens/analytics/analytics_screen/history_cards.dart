@@ -35,9 +35,7 @@ class _SessionHistoryCard extends ConsumerWidget {
             session.name ?? context.l10n.text('analyticsUnnamedSession'),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize14,
-              fontWeight: FontWeight.w600,
+            style: NightshadeTypography.h5.copyWith(
               color: colors.textPrimary,
             ),
           ),
@@ -220,9 +218,7 @@ class _StatChip extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w500,
+            style: NightshadeTypography.labelSm.copyWith(
               color: colors.textPrimary,
             ),
           ),

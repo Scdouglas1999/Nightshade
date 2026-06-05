@@ -160,9 +160,7 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
                     const SizedBox(width: 6),
                     Text(
                       '${(exposureProgress.percent * 100).toInt()}%',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        fontWeight: FontWeight.w600,
+                      style: NightshadeTypography.labelStrongSm.copyWith(
                         color: colors.primary,
                       ),
                     ),

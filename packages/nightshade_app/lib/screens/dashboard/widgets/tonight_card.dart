@@ -194,9 +194,7 @@ class TonightCard extends ConsumerWidget {
                     children: [
                       Text(
                         'See Full Plan',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          fontWeight: FontWeight.w500,
+                        style: NightshadeTypography.labelSm.copyWith(
                           color: colors.primary,
                         ),
                       ),
@@ -473,9 +471,7 @@ class _TonightRow extends StatelessWidget {
         ),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w500,
+          style: NightshadeTypography.labelSm.copyWith(
             color: colors.textPrimary,
           ),
         ),

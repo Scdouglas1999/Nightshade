@@ -408,9 +408,7 @@ class _ActionButtonState extends State<_ActionButton> {
                     widget.label,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontWeight: FontWeight.w500,
+                    style: NightshadeTypography.labelSm.copyWith(
                       color: isEnabled
                           ? (isActiveHover
                               ? widget.colors.primary
@@ -683,10 +681,8 @@ class _CenteringDialogState extends State<_CenteringDialog> {
                     style: TextStyle(
                         color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize12)),
                 Text('${_lastRaError?.toStringAsFixed(1) ?? "---"}"',
-                    style: TextStyle(
-                        color: widget.colors.textPrimary,
-                        fontSize: NightshadeTypography.fontSize12,
-                        fontWeight: FontWeight.w500)),
+                    style: NightshadeTypography.labelSm
+                        .copyWith(color: widget.colors.textPrimary)),
               ],
             ),
             const SizedBox(height: 4),
@@ -697,10 +693,8 @@ class _CenteringDialogState extends State<_CenteringDialog> {
                     style: TextStyle(
                         color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize12)),
                 Text('${_lastDecError?.toStringAsFixed(1) ?? "---"}"',
-                    style: TextStyle(
-                        color: widget.colors.textPrimary,
-                        fontSize: NightshadeTypography.fontSize12,
-                        fontWeight: FontWeight.w500)),
+                    style: NightshadeTypography.labelSm
+                        .copyWith(color: widget.colors.textPrimary)),
               ],
             ),
           ],

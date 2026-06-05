@@ -385,9 +385,7 @@ class _OverallProgress extends StatelessWidget {
             children: [
               Text(
                 'Overall',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.h6.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
@@ -471,9 +469,7 @@ class _FilterRow extends StatelessWidget {
               const Spacer(),
               Text(
                 '${(filter.capturedIntegrationSecs / 3600.0).toStringAsFixed(1)}h',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.h6.copyWith(
                   color: colors.textPrimary,
                 ),
               ),
@@ -570,9 +566,7 @@ class _SessionRow extends StatelessWidget {
                   children: [
                     Text(
                       session.sessionName ?? 'Session ${session.sessionId}',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        fontWeight: FontWeight.w600,
+                      style: NightshadeTypography.labelStrong.copyWith(
                         color: colors.textPrimary,
                       ),
                     ),
@@ -637,9 +631,7 @@ class _Chip extends StatelessWidget {
           ),
           Text(
             value,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w600,
+            style: NightshadeTypography.labelStrongSm.copyWith(
               color: colors.textPrimary,
             ),
           ),

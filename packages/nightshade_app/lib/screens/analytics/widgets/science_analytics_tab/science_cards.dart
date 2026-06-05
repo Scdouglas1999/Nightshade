@@ -645,10 +645,8 @@ class _MovingObjectCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               candidate.objectName ?? candidate.candidateId,
-                              style: TextStyle(
+                              style: NightshadeTypography.labelSm.copyWith(
                                 color: colors.textPrimary,
-                                fontSize: NightshadeTypography.fontSize12,
-                                fontWeight: FontWeight.w500,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -918,10 +916,8 @@ class _MetricLine extends StatelessWidget {
           ),
           Text(
             value.toStringAsFixed(3),
-            style: TextStyle(
+            style: NightshadeTypography.h6.copyWith(
               color: colors.textPrimary,
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w600,
             ),
           ),
         ],

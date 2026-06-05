@@ -88,9 +88,7 @@ class TargetScoreRow extends StatelessWidget {
                   children: [
                     Text(
                       score.targetName,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize14,
-                        fontWeight: FontWeight.w600,
+                      style: NightshadeTypography.h5.copyWith(
                         color: eligible ? colors.textPrimary : colors.textMuted,
                       ),
                       overflow: TextOverflow.ellipsis,

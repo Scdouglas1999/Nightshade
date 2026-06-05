@@ -116,9 +116,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                   Expanded(
                     child: Text(
                       'Science Data Export',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize16,
-                        fontWeight: FontWeight.w600,
+                      style: NightshadeTypography.h4.copyWith(
                         color: colors.textPrimary,
                       ),
                     ),
@@ -143,9 +141,7 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
                 children: [
                   Text(
                     'Filters',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontWeight: FontWeight.w600,
+                    style: NightshadeTypography.h6.copyWith(
                       color: colors.textSecondary,
                     ),
                   ),

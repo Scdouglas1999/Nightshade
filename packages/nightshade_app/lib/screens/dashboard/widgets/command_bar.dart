@@ -169,9 +169,7 @@ class _SessionStatusIndicator extends StatelessWidget {
             children: [
               Text(
                 isCapturing ? l10n.text('capturing') : l10n.text('idle'),
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.labelStrong.copyWith(
                   color: isCapturing ? colors.success : colors.textSecondary,
                 ),
               ),
@@ -407,9 +405,7 @@ class CompactDashboardCommandBar extends ConsumerWidget {
                   children: [
                     Text(
                       isCapturing ? l10n.text('capturing') : l10n.text('idle'),
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        fontWeight: FontWeight.w500,
+                      style: NightshadeTypography.labelSm.copyWith(
                         color:
                             isCapturing ? colors.success : colors.textSecondary,
                       ),

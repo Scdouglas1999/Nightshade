@@ -371,10 +371,8 @@ class _TrendCardShell extends StatelessWidget {
               final mins = (spot.x / 60).round();
               return LineTooltipItem(
                 '${formatY(spot.y)}\n${mins}m into session',
-                TextStyle(
+                NightshadeTypography.labelQuiet.copyWith(
                   color: colors.textPrimary,
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w500,
                 ),
               );
             }).toList(),

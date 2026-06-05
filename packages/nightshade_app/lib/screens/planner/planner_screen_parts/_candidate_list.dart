@@ -634,9 +634,7 @@ class _StatChip extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w500,
+            style: NightshadeTypography.labelQuiet.copyWith(
               color: chipColor,
             ),
           ),

@@ -56,9 +56,7 @@ class EquipmentStatusCard extends ConsumerWidget {
               children: [
                 Text(
                   '$connectedCount/5',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w500,
+                  style: NightshadeTypography.labelQuiet.copyWith(
                     color: connectedCount == 5
                         ? colors.success
                         : colors.textSecondary,
@@ -69,9 +67,7 @@ class EquipmentStatusCard extends ConsumerWidget {
                   onTap: () => context.go('/equipment'),
                   child: Text(
                     'Manage',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      fontWeight: FontWeight.w500,
+                    style: NightshadeTypography.labelQuiet.copyWith(
                       color: colors.accent,
                     ),
                   ),

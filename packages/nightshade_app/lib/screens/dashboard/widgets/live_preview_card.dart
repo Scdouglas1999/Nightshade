@@ -393,9 +393,7 @@ class _StatCell extends StatelessWidget {
         children: [
           Text(
             value,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w600,
+            style: NightshadeTypography.h6.copyWith(
               color: highlight ? colors.primary : colors.textPrimary,
             ),
           ),

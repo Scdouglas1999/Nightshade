@@ -107,9 +107,7 @@ class _IntegrationGoalsEditorState
             const SizedBox(width: NightshadeTokens.spaceSm),
             Text(
               'Integration goals',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize14,
-                fontWeight: FontWeight.w600,
+              style: NightshadeTypography.h5.copyWith(
                 color: colors.textPrimary,
               ),
             ),
@@ -335,11 +333,8 @@ class _GoalRowState extends State<_GoalRow> {
                 children: [
                   Text(
                     '${p.capturedCount} / ${p.goal.frameCount} captured',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontWeight: FontWeight.w600,
-                      color:
-                          p.isComplete ? colors.success : colors.textPrimary,
+                    style: NightshadeTypography.h6.copyWith(
+                      color: p.isComplete ? colors.success : colors.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 3),

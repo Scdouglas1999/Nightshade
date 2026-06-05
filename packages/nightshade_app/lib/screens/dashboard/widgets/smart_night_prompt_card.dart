@@ -188,9 +188,7 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
               Expanded(
                 child: Text(
                   'Hardware ready - build tonight\'s plan?',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    fontWeight: FontWeight.w600,
+                  style: NightshadeTypography.h5.copyWith(
                     color: colors.textPrimary,
                   ),
                 ),

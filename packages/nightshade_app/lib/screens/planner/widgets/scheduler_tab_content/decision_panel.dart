@@ -383,9 +383,7 @@ class _RejectedCandidatesSectionState
             size: NightshadeTokens.iconSm, color: colors.textSecondary),
         title: Text(
           'Other candidates considered (${rejected.length})',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize13,
-            fontWeight: FontWeight.w600,
+          style: NightshadeTypography.labelStrong.copyWith(
             color: colors.textPrimary,
           ),
         ),
@@ -463,9 +461,7 @@ class _RejectedRow extends StatelessWidget {
                     Expanded(
                       child: Text(
                         rejection.targetName,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          fontWeight: FontWeight.w600,
+                        style: NightshadeTypography.h6.copyWith(
                           color: colors.textPrimary,
                         ),
                       ),
@@ -523,9 +519,7 @@ class _ReasonChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize11,
-          fontWeight: FontWeight.w600,
+        style: NightshadeTypography.labelStrongSm.copyWith(
           color: color,
         ),
       ),

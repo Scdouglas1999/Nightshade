@@ -47,10 +47,8 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
           const SizedBox(height: 12),
           Text(
             'Residual Plot',
-            style: TextStyle(
+            style: NightshadeTypography.label.copyWith(
               color: colors.textPrimary,
-              fontSize: NightshadeTypography.fontSize13,
-              fontWeight: FontWeight.w500,
             ),
           ),
           const SizedBox(height: 8),
@@ -124,10 +122,8 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
           const SizedBox(width: 8),
           Text(
             'Fit Quality: $qualityLabel (RMS ${rms.toStringAsFixed(4)} mag)',
-            style: TextStyle(
+            style: NightshadeTypography.labelSm.copyWith(
               color: qualityColor,
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w500,
             ),
           ),
         ],

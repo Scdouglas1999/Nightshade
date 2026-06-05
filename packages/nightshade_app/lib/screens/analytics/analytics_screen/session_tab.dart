@@ -134,9 +134,7 @@ class _SessionTab extends ConsumerWidget {
                     children: [
                       Text(
                         headerTitle,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize16,
-                          fontWeight: FontWeight.w600,
+                        style: NightshadeTypography.h4.copyWith(
                           color: colors.textPrimary,
                         ),
                       ),
@@ -185,9 +183,7 @@ class _SessionTab extends ConsumerWidget {
                     children: [
                       Text(
                         l10n.text('analyticsCapturedImages'),
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize14,
-                          fontWeight: FontWeight.w600,
+                        style: NightshadeTypography.h5.copyWith(
                           color: colors.textPrimary,
                         ),
                       ),

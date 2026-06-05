@@ -210,9 +210,7 @@ class _SummaryChip extends StatelessWidget {
       ),
       child: Text(
         '$label: $value',
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize11,
-          fontWeight: FontWeight.w600,
+        style: NightshadeTypography.labelStrongSm.copyWith(
           color: color,
         ),
       ),
@@ -237,9 +235,7 @@ class _QualityFilterChip extends StatelessWidget {
     return ChoiceChip(
       label: Text(
         label,
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize11,
-          fontWeight: FontWeight.w600,
+        style: NightshadeTypography.labelStrongSm.copyWith(
           color: selected ? colors.textPrimary : colors.textSecondary,
         ),
       ),
@@ -402,7 +398,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                                   width: double.infinity,
                                   height: double.infinity,
                                   errorBuilder: (_, __, ___) => Icon(
-                                    Icons.broken_image,
+                                    NightshadeIcons.imageOff,
                                     size: 32,
                                     color: colors.textMuted,
                                   ),
@@ -424,7 +420,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                                   width: double.infinity,
                                   height: double.infinity,
                                   errorBuilder: (_, __, ___) => Icon(
-                                    Icons.image,
+                                    NightshadeIcons.image,
                                     size: 32,
                                     color: colors.textMuted,
                                   ),
@@ -434,7 +430,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
 
                             if (payload.fileExists) {
                               return Icon(
-                                Icons.image,
+                                NightshadeIcons.image,
                                 size: 32,
                                 color: colors.textMuted,
                               );
@@ -444,7 +440,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                               return Tooltip(
                                 message: payload.errorMessage!,
                                 child: Icon(
-                                  Icons.error_outline,
+                                  NightshadeIcons.error,
                                   size: 32,
                                   color: colors.error,
                                 ),
@@ -452,7 +448,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                             }
 
                             return Icon(
-                              Icons.broken_image,
+                              NightshadeIcons.imageOff,
                               size: 32,
                               color: colors.textMuted,
                             );
@@ -583,7 +579,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                             Tooltip(
                               message: widget.assessment!.reasons.join('\n'),
                               child: Icon(
-                                Icons.info_outline,
+                                NightshadeIcons.info,
                                 size: 10,
                                 color: qualityColor,
                               ),
@@ -883,10 +879,8 @@ class _DetailRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
+              style: NightshadeTypography.h6.copyWith(
                 color: colors.textPrimary,
-                fontSize: NightshadeTypography.fontSize12,
-                fontWeight: FontWeight.w600,
               ),
             ),
           ),

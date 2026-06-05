@@ -353,9 +353,7 @@ class _SequenceChip extends ConsumerWidget {
             Text(
               '${(seq.progressPercent * 100).toStringAsFixed(0)}%',
               style: NightshadeTypography.withTabular(
-                TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
+                NightshadeTypography.labelStrongSm.copyWith(
                   color: colors.primary,
                 ),
               ),

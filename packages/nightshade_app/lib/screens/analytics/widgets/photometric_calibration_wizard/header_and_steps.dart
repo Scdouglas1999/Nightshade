@@ -81,12 +81,10 @@ extension _PhotometricWizardHeaderAndSteps
                           color: colors.textPrimary, size: 14)
                       : Text(
                           '${index + 1}',
-                          style: TextStyle(
+                          style: NightshadeTypography.labelStrongSm.copyWith(
                             color: isActive
                                 ? colors.textPrimary
                                 : colors.textMuted,
-                            fontSize: NightshadeTypography.fontSize11,
-                            fontWeight: FontWeight.w600,
                           ),
                         ),
                 ),

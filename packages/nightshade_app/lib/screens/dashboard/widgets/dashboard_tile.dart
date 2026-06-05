@@ -316,9 +316,7 @@ class DashboardLayoutError extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 title,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize14,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.h5.copyWith(
                   color: colors.textPrimary,
                 ),
               ),

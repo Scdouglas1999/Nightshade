@@ -844,9 +844,7 @@ class _MetricChip extends StatelessWidget {
             ),
             Text(
               value,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                fontWeight: FontWeight.w600,
+              style: NightshadeTypography.labelStrong.copyWith(
                 color: colors.textPrimary,
               ),
             ),
@@ -930,9 +928,7 @@ class _FilterBreakdownRow extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 '${entry.key}: ${hours.toStringAsFixed(1)}h',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.labelStrongSm.copyWith(
                   color: colors.textPrimary,
                 ),
               ),

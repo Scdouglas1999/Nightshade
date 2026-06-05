@@ -49,9 +49,7 @@ class SessionChart extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize14,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.h5.copyWith(
                   color: colors.textPrimary,
                 ),
               ),
@@ -103,9 +101,7 @@ class SessionChart extends StatelessWidget {
           children: [
             Text(
               title,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize14,
-                fontWeight: FontWeight.w600,
+              style: NightshadeTypography.h5.copyWith(
                 color: colors.textPrimary,
               ),
             ),
@@ -215,10 +211,8 @@ class SessionChart extends StatelessWidget {
                               : '${minutes}m';
                           return LineTooltipItem(
                             '$yAxisLabel\n${spot.y.toStringAsFixed(2)}\n$timeStr',
-                            TextStyle(
+                            NightshadeTypography.labelQuiet.copyWith(
                               color: colors.textPrimary,
-                              fontSize: NightshadeTypography.fontSize11,
-                              fontWeight: FontWeight.w500,
                             ),
                           );
                         }).toList();

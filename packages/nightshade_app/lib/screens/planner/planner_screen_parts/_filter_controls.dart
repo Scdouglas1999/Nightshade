@@ -116,9 +116,7 @@ class _ObjectTypeMultiSelect extends ConsumerWidget {
                       children: [
                         Text(
                           'Object types',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize14,
-                            fontWeight: FontWeight.w600,
+                          style: NightshadeTypography.h5.copyWith(
                             color: colors.textPrimary,
                           ),
                         ),
@@ -704,9 +702,7 @@ class _ControlChip extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                fontWeight: FontWeight.w500,
+              style: NightshadeTypography.labelSm.copyWith(
                 color: fg,
               ),
             ),
@@ -741,9 +737,7 @@ Future<double?> _showAngleSlider({
               children: [
                 Text(
                   '${val.toStringAsFixed(0)}$unit',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize16,
-                    fontWeight: FontWeight.w600,
+                  style: NightshadeTypography.h4.copyWith(
                     color: colors.textPrimary,
                   ),
                 ),

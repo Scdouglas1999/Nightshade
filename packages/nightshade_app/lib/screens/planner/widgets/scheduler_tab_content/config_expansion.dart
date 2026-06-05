@@ -37,9 +37,7 @@ class _ConfigExpansionState extends State<_ConfigExpansion> {
             size: NightshadeTokens.iconSm, color: colors.primary),
         title: Text(
           'Scoring weights',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize13,
-            fontWeight: FontWeight.w600,
+          style: NightshadeTypography.labelStrong.copyWith(
             color: colors.textPrimary,
           ),
         ),

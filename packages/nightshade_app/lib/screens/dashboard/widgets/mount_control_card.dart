@@ -152,10 +152,8 @@ class MountControlCard extends ConsumerWidget {
                             style: TextStyle(
                                 fontSize: NightshadeTypography.fontSize9, color: colors.textMuted)),
                         Text(pierText,
-                            style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize12,
-                                fontWeight: FontWeight.w600,
-                                color: colors.textPrimary)),
+                            style: NightshadeTypography.h6
+                                .copyWith(color: colors.textPrimary)),
                       ],
                     ),
                   ],

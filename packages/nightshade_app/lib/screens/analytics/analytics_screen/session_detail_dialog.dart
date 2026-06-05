@@ -37,9 +37,7 @@ class _SessionDetailDialog extends ConsumerWidget {
                       children: [
                         Text(
                           session.name ?? l10n.text('analyticsUnnamedSession'),
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize16,
-                            fontWeight: FontWeight.w600,
+                          style: NightshadeTypography.h4.copyWith(
                             color: colors.textPrimary,
                           ),
                         ),
@@ -129,9 +127,7 @@ class _SessionDetailDialog extends ConsumerWidget {
       children: [
         Text(
           l10n.text('analyticsStatistics'),
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize14,
-            fontWeight: FontWeight.w600,
+          style: NightshadeTypography.h5.copyWith(
             color: colors.textPrimary,
           ),
         ),
@@ -188,9 +184,7 @@ class _SessionDetailDialog extends ConsumerWidget {
         ),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize14,
-            fontWeight: FontWeight.w600,
+          style: NightshadeTypography.h5.copyWith(
             color: colors.textPrimary,
           ),
         ),
@@ -211,9 +205,7 @@ class _SessionDetailDialog extends ConsumerWidget {
             'analyticsImages',
             params: {'count': images.length.toString()},
           ),
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize14,
-            fontWeight: FontWeight.w600,
+          style: NightshadeTypography.h5.copyWith(
             color: colors.textPrimary,
           ),
         ),

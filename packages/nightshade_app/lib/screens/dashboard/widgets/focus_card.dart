@@ -460,9 +460,7 @@ class _FineStepButton extends StatelessWidget {
               ),
               child: Text(
                 label,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.labelStrongSm.copyWith(
                   color: isEnabled ? colors.textPrimary : colors.textMuted,
                 ),
               ),

@@ -131,9 +131,7 @@ class SessionProgressCard extends ConsumerWidget {
               const SizedBox(width: 8),
               Text(
                 '${(progressValue * 100).toInt()}%',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.labelStrongSm.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
@@ -271,9 +269,7 @@ class _CompactStat extends StatelessWidget {
         children: [
           Text(
             value,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w600,
+            style: NightshadeTypography.h6.copyWith(
               color: highlight ? colors.primary : colors.textPrimary,
             ),
           ),

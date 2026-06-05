@@ -610,10 +610,8 @@ class _RejectionList extends StatelessWidget {
               children: [
                 Text(
                   filename,
-                  style: TextStyle(
+                  style: NightshadeTypography.h6.copyWith(
                     color: colors.textPrimary,
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 2),

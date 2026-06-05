@@ -54,9 +54,7 @@ class _ConstraintRowState extends State<_ConstraintRow> {
               width: 150,
               child: Text(
                 _kindLabel(c.kind),
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.labelStrong.copyWith(
                   color: colors.textPrimary,
                 ),
               ),

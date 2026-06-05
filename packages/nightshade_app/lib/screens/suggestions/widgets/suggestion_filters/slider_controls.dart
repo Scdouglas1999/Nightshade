@@ -53,9 +53,7 @@ class _SliderControl extends StatelessWidget {
               ),
               child: Text(
                 valueFormatter(value),
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.labelStrongSm.copyWith(
                   color: colors.textPrimary,
                 ),
               ),
@@ -205,9 +203,7 @@ class _RangeSliderControl extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize11,
-          fontWeight: FontWeight.w600,
+        style: NightshadeTypography.labelStrongSm.copyWith(
           color: colors.textPrimary,
         ),
       ),

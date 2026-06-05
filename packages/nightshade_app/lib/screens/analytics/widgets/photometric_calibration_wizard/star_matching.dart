@@ -58,10 +58,8 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
                 const SizedBox(width: 8),
                 Text(
                   '${_starMatches.length} catalog stars matched',
-                  style: TextStyle(
+                  style: NightshadeTypography.label.copyWith(
                     color: colors.success,
-                    fontSize: NightshadeTypography.fontSize13,
-                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],

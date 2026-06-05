@@ -277,9 +277,7 @@ class _ControlButton extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w600,
+                  style: NightshadeTypography.h6.copyWith(
                     color: isActive
                         ? colors.success
                         : isEnabled

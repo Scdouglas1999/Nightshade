@@ -181,9 +181,7 @@ class _TargetConstraintsEditorState
                 const SizedBox(width: NightshadeTokens.spaceSm),
                 Text(
                   'Hard constraints',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    fontWeight: FontWeight.w600,
+                  style: NightshadeTypography.h5.copyWith(
                     color: colors.textPrimary,
                   ),
                 ),

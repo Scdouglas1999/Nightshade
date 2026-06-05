@@ -351,9 +351,7 @@ class _ReadinessChip extends StatelessWidget {
             Text(
               detail!,
               style: NightshadeTypography.withTabular(
-                TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
+                NightshadeTypography.labelStrongSm.copyWith(
                   color: colors.textPrimary,
                 ),
               ),

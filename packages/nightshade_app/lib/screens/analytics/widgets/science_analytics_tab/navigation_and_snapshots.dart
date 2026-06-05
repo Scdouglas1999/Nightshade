@@ -185,9 +185,7 @@ class _JumpChip extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                fontWeight: FontWeight.w500,
+              style: NightshadeTypography.labelSm.copyWith(
                 color: colors.textPrimary,
               ),
             ),

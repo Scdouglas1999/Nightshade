@@ -556,9 +556,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
               // Sources
               Text(
                 'Alert Sources',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.labelStrong.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
@@ -593,9 +591,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
               // Magnitude threshold
               Text(
                 'Magnitude Threshold',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.labelStrong.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
@@ -628,9 +624,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                   const SizedBox(width: 8),
                   Text(
                     '<= ${settings.magnitudeThreshold.toStringAsFixed(1)}',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontWeight: FontWeight.w600,
+                    style: NightshadeTypography.h6.copyWith(
                       color: colors.textPrimary,
                     ),
                   ),
@@ -642,9 +636,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
               // Types to monitor
               Text(
                 'Types to Monitor',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.labelStrong.copyWith(
                   color: colors.textSecondary,
                 ),
               ),

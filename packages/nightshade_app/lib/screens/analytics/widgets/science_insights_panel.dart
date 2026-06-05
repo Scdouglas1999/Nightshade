@@ -83,10 +83,8 @@ class ScienceInsightsPanel extends ConsumerWidget {
                 if (insights.isNotEmpty)
                   Text(
                     '${insights.length}',
-                    style: TextStyle(
+                    style: NightshadeTypography.labelStrongSm.copyWith(
                       color: colors.textMuted,
-                      fontSize: NightshadeTypography.fontSize11,
-                      fontWeight: FontWeight.w600,
                     ),
                   ),
               ],

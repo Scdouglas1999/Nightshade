@@ -106,9 +106,7 @@ class _CatalogResultRow extends StatelessWidget {
               children: [
                 Text(
                   match.name,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    fontWeight: FontWeight.w600,
+                  style: NightshadeTypography.h5.copyWith(
                     color: colors.textPrimary,
                   ),
                 ),
@@ -255,9 +253,7 @@ class _SimbadResultRow extends ConsumerWidget {
               children: [
                 Text(
                   match.mainId,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    fontWeight: FontWeight.w600,
+                  style: NightshadeTypography.h5.copyWith(
                     color: colors.textPrimary,
                   ),
                 ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Configuration for a single score component in the breakdown display.
@@ -55,31 +56,31 @@ class _ScoreBreakdownState extends State<ScoreBreakdown>
     _ScoreComponentConfig(
       key: 'altitude',
       label: 'Altitude',
-      icon: Icons.terrain_outlined,
+      icon: NightshadeIcons.mount,
       tooltip: 'Higher altitude = better seeing and less atmosphere',
     ),
     _ScoreComponentConfig(
       key: 'moonDistance',
       label: 'Moon Distance',
-      icon: Icons.nightlight_outlined,
+      icon: NightshadeIcons.moon,
       tooltip: 'Distance from the moon affects sky brightness',
     ),
     _ScoreComponentConfig(
       key: 'transitProximity',
       label: 'Transit',
-      icon: Icons.vertical_align_top_outlined,
+      icon: LucideIcons.arrowUpToLine,
       tooltip: 'Whether meridian transit occurs during the night',
     ),
     _ScoreComponentConfig(
       key: 'darkness',
       label: 'Imaging Window',
-      icon: Icons.dark_mode_outlined,
+      icon: NightshadeIcons.moon,
       tooltip: 'Hours above minimum altitude during the night',
     ),
     _ScoreComponentConfig(
       key: 'airmass',
       label: 'Airmass',
-      icon: Icons.layers_outlined,
+      icon: NightshadeIcons.layers,
       tooltip: 'Lower airmass means less atmospheric distortion',
     ),
   ];
@@ -87,7 +88,7 @@ class _ScoreBreakdownState extends State<ScoreBreakdown>
   static const _framingFitComponent = _ScoreComponentConfig(
     key: 'framingFit',
     label: 'Framing Fit',
-    icon: Icons.crop_free_outlined,
+    icon: LucideIcons.crop,
     tooltip: 'How well the target size matches your field of view',
   );
 
@@ -164,7 +165,7 @@ class _ScoreBreakdownState extends State<ScoreBreakdown>
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  Icons.analytics_outlined,
+                  NightshadeIcons.chart,
                   size: NightshadeTokens.iconSm,
                   color: colors.textSecondary,
                 ),
@@ -179,7 +180,7 @@ class _ScoreBreakdownState extends State<ScoreBreakdown>
                 RotationTransition(
                   turns: _rotationAnimation,
                   child: Icon(
-                    Icons.expand_more,
+                    NightshadeIcons.chevronDown,
                     size: NightshadeTokens.iconSm,
                     color: colors.textSecondary,
                   ),
