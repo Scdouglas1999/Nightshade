@@ -54,11 +54,108 @@ use tokio::sync::{broadcast, mpsc, RwLock};
 const RECOVERY_NODE_TRIGGER_PREFIX: &str = "recovery_node:";
 const DEFAULT_SAFETY_CHECK_INTERVAL_SECS: u64 = 30;
 
+/// Default staleness window for the Dart weather verdict (Subsystem 2 step 3).
+/// The Dart side pushes the verdict on every 5-minute periodic evaluation plus
+/// on every alert/snooze change; 6 minutes gives the periodic push a full cycle
+/// of slack before a missed push is treated as a dead feed.
+const DEFAULT_WEATHER_VERDICT_STALENESS_SECS: u64 = 360;
+
 fn effective_safety_check_interval_secs(value: u64) -> u64 {
     if value == 0 {
         DEFAULT_SAFETY_CHECK_INTERVAL_SECS
     } else {
         value.clamp(5, 3600)
+    }
+}
+
+/// Resolve the effective weather-verdict staleness window. `0` => the default;
+/// otherwise clamped to a sane floor (the safety poll cadence) so a tiny
+/// misconfiguration cannot make a still-fresh verdict warn every tick, and an
+/// upper bound so a typo cannot disable the observability entirely.
+fn effective_weather_verdict_staleness_secs(value: u64) -> u64 {
+    if value == 0 {
+        DEFAULT_WEATHER_VERDICT_STALENESS_SECS
+    } else {
+        value.clamp(30, 86_400)
+    }
+}
+
+/// Subsystem 2 step 3 (stale-verdict observability): build the loud
+/// "verdict feed stale; holding paused fail-closed" warning that the safety
+/// poll emits when a `Some(true)`=UNSAFE Dart verdict has not been refreshed
+/// within the staleness window.
+///
+/// Returns `Some(message)` ONLY on the rising edge (stale-and-unsafe AND not
+/// already warned), advancing `*already_warned` to `true` so a dead feed does
+/// not flood the event stream every poll. When the condition clears it re-arms
+/// the latch (so a recovered-then-re-degraded feed warns again) and returns
+/// `None`. This is pure observability — it NEVER touches or clears the verdict.
+///
+/// Factored out so the emission decision (gate + rate-limit + message) is
+/// unit-testable without spinning up the full executor task; the loop calls it
+/// and just forwards any returned message as an `ExecutorEvent::Error`.
+fn weather_verdict_stale_warning(
+    stale_unsafe: bool,
+    staleness_secs: u64,
+    already_warned: &mut bool,
+) -> Option<String> {
+    if stale_unsafe {
+        if *already_warned {
+            return None;
+        }
+        *already_warned = true;
+        Some(format!(
+            "Weather verdict feed stale ({}s without a refresh); holding the \
+             sequence paused fail-closed. The last Dart weather verdict was \
+             UNSAFE and has not been refreshed — the hold will continue until a \
+             fresh verdict arrives. Operator attention required.",
+            staleness_secs
+        ))
+    } else {
+        // Fresh (or no-longer-unsafe) verdict — re-arm so a future stale-unsafe
+        // episode warns again.
+        *already_warned = false;
+        None
+    }
+}
+
+/// How a [`SafetyFailMode`] resolves the "no usable safety/weather data"
+/// situation (poll error on the Rust side, no connected source on the Dart
+/// side). This is the SINGLE cross-language truth table for the fail-mode
+/// semantics — both the Rust safety poll below and the Dart weather-safety
+/// verdict (`weather_safety_provider.dart` `noDataFailModeResolution`) must
+/// agree on it.
+///
+/// Architecture-unification 2026-06-05 (Subsystem 2 step 1, cross-language
+/// parity): extracted so the two implementations cannot drift. The Dart side
+/// mirrors this enum as `NoDataResolution` and is pinned against the identical
+/// table by `weather_fail_mode_parity_test.dart`; the Rust side is pinned by
+/// `safety_fail_mode_no_data_resolution_truth_table` in this module. If you
+/// change a row here, change it in BOTH tests or they will fail.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoDataResolution {
+    /// Treat the absence of data as UNSAFE (fail closed). The Rust poll sets
+    /// `weather_safe = false`; the Dart verdict pushes `Some(true)` (unsafe).
+    Unsafe,
+    /// Treat the absence of data as SAFE (fail open). The Rust poll sets
+    /// `weather_safe = true`; the Dart verdict ABSTAINS (`None`) rather than
+    /// asserting SAFE, so a permissive Dart policy can never gag a
+    /// hardware-unsafe device — but the resolution row is still "safe".
+    Safe,
+    /// Preserve the prior reading and emit an operator warning (warn-only).
+    /// The Rust poll leaves `weather_safe` unchanged; the Dart verdict
+    /// ABSTAINS (`None`).
+    Preserve,
+}
+
+/// The single cross-language definition of how each [`SafetyFailMode`] resolves
+/// a no-data / poll-error situation. See [`NoDataResolution`] for the contract
+/// and the two tests that pin this table on each side.
+pub fn safety_fail_mode_no_data_resolution(mode: SafetyFailMode) -> NoDataResolution {
+    match mode {
+        SafetyFailMode::FailClosed => NoDataResolution::Unsafe,
+        SafetyFailMode::FailOpen => NoDataResolution::Safe,
+        SafetyFailMode::WarnOnly => NoDataResolution::Preserve,
     }
 }
 
@@ -164,6 +261,15 @@ pub struct RuntimeConfig {
     /// still ticks every second; only expensive safety/weather driver calls
     /// are throttled by this interval.
     pub safety_check_interval_secs: u64,
+    /// Architecture-unification 2026-06-05 (Subsystem 2 step 3 — stale-verdict
+    /// observability): how long (seconds) a pushed `Some(true)` (UNSAFE) Dart
+    /// weather verdict may go un-refreshed before the safety poll emits a loud
+    /// "verdict feed stale; holding paused fail-closed" warning. The unsafe
+    /// verdict is NEVER auto-cleared on staleness — this only governs WHEN the
+    /// indefinite hold stops being silent. `0` falls back to
+    /// [`DEFAULT_WEATHER_VERDICT_STALENESS_SECS`]; otherwise clamped to a sane
+    /// floor so a misconfiguration cannot make every tick warn.
+    pub weather_verdict_staleness_secs: u64,
     /// Wave 1.5 Pack A: user override for the standard `AutofocusInterval`
     /// trigger's `every_n_frames`. The Rust default is 25 frames, which is
     /// wildly wrong for both very-short (5 s) and very-long (5 min) subs —
@@ -3618,6 +3724,14 @@ impl SequenceExecutor {
                     let mut safety_poll_last_was_error = false;
                     let mut last_safety_poll_at: Option<std::time::Instant> = None;
 
+                    // Subsystem 2 step 3 (stale-verdict observability): rate-limit
+                    // latch for the "weather verdict feed stale; holding paused
+                    // fail-closed" warning. Set true after we emit the warning so a
+                    // dead Dart feed does not flood the event stream every poll;
+                    // cleared the moment a fresh verdict push lands (detected via
+                    // the verdict-staleness predicate returning false again).
+                    let mut verdict_stale_warned = false;
+
                     // Trust-patch §1: rate-limit sentinel for the
                     // "AltitudeLimit cannot evaluate because location is not
                     // configured" warning. Set once per session on first
@@ -3660,7 +3774,11 @@ impl SequenceExecutor {
                             break;
                         }
 
-                        let (current_safety_fail_mode, safety_check_interval) = {
+                        let (
+                            current_safety_fail_mode,
+                            safety_check_interval,
+                            verdict_staleness_secs,
+                        ) = {
                             let rc = runtime_config.read();
                             (
                                 rc.safety_fail_mode,
@@ -3668,6 +3786,9 @@ impl SequenceExecutor {
                                     effective_safety_check_interval_secs(
                                         rc.safety_check_interval_secs,
                                     ),
+                                ),
+                                effective_weather_verdict_staleness_secs(
+                                    rc.weather_verdict_staleness_secs,
                                 ),
                             )
                         };
@@ -3702,48 +3823,59 @@ impl SequenceExecutor {
                                     }
                                     Some(safe)
                                 }
-                                Err(e) => match current_safety_fail_mode {
-                                    SafetyFailMode::FailClosed => {
-                                        if !safety_poll_last_was_error {
-                                            tracing::warn!(
+                                Err(e) => {
+                                    // Cross-language parity (architecture-unification
+                                    // 2026-06-05): the fail-mode → no-data resolution is
+                                    // the SINGLE shared truth table in
+                                    // `crate::safety_fail_mode_no_data_resolution`, mirrored
+                                    // by the Dart `noDataFailModeResolution`. Do NOT inline a
+                                    // per-mode match here — it would let the two sides drift.
+                                    match safety_fail_mode_no_data_resolution(
+                                        current_safety_fail_mode,
+                                    ) {
+                                        NoDataResolution::Unsafe => {
+                                            if !safety_poll_last_was_error {
+                                                tracing::warn!(
                                         "Safety poll error: {} - treating as unsafe (FailClosed)",
                                         e
                                     );
-                                            safety_poll_last_was_error = true;
+                                                safety_poll_last_was_error = true;
+                                            }
+                                            Some(false)
                                         }
-                                        Some(false)
-                                    }
-                                    SafetyFailMode::FailOpen => {
-                                        if !safety_poll_last_was_error {
-                                            tracing::warn!(
+                                        NoDataResolution::Safe => {
+                                            if !safety_poll_last_was_error {
+                                                tracing::warn!(
                                             "Safety poll error: {} - treating as safe (FailOpen). \
                                          Sequence will continue. Do not use FailOpen for \
                                          unattended runs.",
                                             e
                                         );
-                                            safety_poll_last_was_error = true;
+                                                safety_poll_last_was_error = true;
+                                            }
+                                            Some(true)
                                         }
-                                        Some(true)
-                                    }
-                                    SafetyFailMode::WarnOnly => {
-                                        if !safety_poll_last_was_error {
-                                            tracing::warn!(
+                                        NoDataResolution::Preserve => {
+                                            if !safety_poll_last_was_error {
+                                                tracing::warn!(
                                                 "Safety poll error: {} - WarnOnly mode, leaving \
                                          weather_safe unchanged and emitting alert",
-                                                e
-                                            );
-                                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                                message: format!(
+                                                    e
+                                                );
+                                                let _ =
+                                                    event_tx_clone2.send(ExecutorEvent::Error {
+                                                        message: format!(
                                                 "Safety poll failed: {}. WarnOnly mode keeps the \
                                              previous safety state — operator attention required.",
                                                 e
                                             ),
-                                            });
-                                            safety_poll_last_was_error = true;
+                                                    });
+                                                safety_poll_last_was_error = true;
+                                            }
+                                            None
                                         }
-                                        None
                                     }
-                                },
+                                }
                             }
                         } else {
                             None
@@ -3768,6 +3900,12 @@ impl SequenceExecutor {
                             None
                         };
 
+                        // Subsystem 2 step 3 (stale-verdict observability): evaluated
+                        // on EVERY loop tick (not gated by should_poll_safety) so a
+                        // verdict that goes stale between safety polls is detected
+                        // promptly. Pure read; never mutates or clears the verdict.
+                        let verdict_stale_unsafe;
+
                         {
                             let manager = trigger_manager.read().await;
                             let trigger_state = manager.state();
@@ -3777,6 +3915,9 @@ impl SequenceExecutor {
                             if let Some(safe) = is_safe {
                                 state.weather_safe = safe;
                             }
+
+                            verdict_stale_unsafe =
+                                state.is_weather_verdict_stale_unsafe(verdict_staleness_secs);
 
                             if let Some(rms) = guiding_rms {
                                 state.update_guiding_rms(rms);
@@ -3937,6 +4078,27 @@ impl SequenceExecutor {
                                     // correct "wait for a target" state.
                                 }
                             }
+                        }
+
+                        // Subsystem 2 step 3 (stale-verdict observability): a pushed
+                        // Some(true)=UNSAFE verdict whose Dart feed has gone silent
+                        // is HELD fail-closed — the sequence stays paused, which is
+                        // the correct safe behaviour and is NOT cleared here. But an
+                        // indefinite hold must not be SILENT: when the unsafe verdict
+                        // is stale we emit ONE loud warning (rate-limited via the
+                        // latch) so the operator knows the hold is sustained by a dead
+                        // feed rather than fresh data. The latch clears as soon as a
+                        // fresh push lands (predicate returns false again), so a feed
+                        // that recovers and re-degrades will warn again. The gate +
+                        // rate-limit + message live in `weather_verdict_stale_warning`
+                        // so they are unit-tested without the full executor task.
+                        if let Some(msg) = weather_verdict_stale_warning(
+                            verdict_stale_unsafe,
+                            verdict_staleness_secs,
+                            &mut verdict_stale_warned,
+                        ) {
+                            tracing::warn!("{}", msg);
+                            let _ = event_tx_clone2.send(ExecutorEvent::Error { message: msg });
                         }
 
                         if let Some(mount_id) = &trigger_action_context.mount_id {
@@ -5644,6 +5806,95 @@ mod tests {
         assert_eq!(effective_safety_check_interval_secs(3), 5);
         assert_eq!(effective_safety_check_interval_secs(45), 45);
         assert_eq!(effective_safety_check_interval_secs(9999), 3600);
+    }
+
+    /// Architecture-unification 2026-06-05 (Subsystem 2 step 1 — CROSS-LANGUAGE
+    /// FAIL-MODE PARITY). This is one half of the pinned truth table; the Dart
+    /// half is `weather_fail_mode_parity_test.dart`. BOTH must encode the
+    /// identical rows:
+    ///
+    ///   FailClosed -> Unsafe  (Rust: weather_safe=false; Dart verdict: Some(true))
+    ///   FailOpen   -> Safe    (Rust: weather_safe=true;  Dart verdict: None/abstain)
+    ///   WarnOnly   -> Preserve(Rust: weather_safe unchanged; Dart verdict: None/abstain)
+    ///
+    /// The single shared definition is `safety_fail_mode_no_data_resolution`
+    /// (consumed by the executor safety poll). The Dart side mirrors it as
+    /// `noDataFailModeResolution`. If you change a row here, change it in the
+    /// Dart test too or the two implementations have silently drifted.
+    #[test]
+    fn safety_fail_mode_no_data_resolution_truth_table() {
+        assert_eq!(
+            safety_fail_mode_no_data_resolution(SafetyFailMode::FailClosed),
+            NoDataResolution::Unsafe,
+            "failClosed must resolve no-data as UNSAFE"
+        );
+        assert_eq!(
+            safety_fail_mode_no_data_resolution(SafetyFailMode::FailOpen),
+            NoDataResolution::Safe,
+            "failOpen must resolve no-data as SAFE"
+        );
+        assert_eq!(
+            safety_fail_mode_no_data_resolution(SafetyFailMode::WarnOnly),
+            NoDataResolution::Preserve,
+            "warnOnly must resolve no-data as PRESERVE (last reading wins)"
+        );
+    }
+
+    /// Subsystem 2 step 3: the weather-verdict staleness window resolver
+    /// defaults a `0` to the documented default and clamps non-zero values to a
+    /// sane floor/ceiling so a misconfiguration cannot make every tick warn or
+    /// disable the observability.
+    #[test]
+    fn weather_verdict_staleness_is_clamped_and_defaulted() {
+        assert_eq!(
+            effective_weather_verdict_staleness_secs(0),
+            DEFAULT_WEATHER_VERDICT_STALENESS_SECS
+        );
+        assert_eq!(effective_weather_verdict_staleness_secs(5), 30);
+        assert_eq!(effective_weather_verdict_staleness_secs(600), 600);
+        assert_eq!(effective_weather_verdict_staleness_secs(1_000_000), 86_400);
+    }
+
+    /// Subsystem 2 step 3: the stale-unsafe verdict warning EMITS on the rising
+    /// edge, is RATE-LIMITED while the feed stays stale, and RE-ARMS once a fresh
+    /// verdict clears the stale condition. This is the "emits the warning" half
+    /// of the stale-verdict requirement (the "stays unsafe / does NOT resume"
+    /// half is pinned by `triggers.rs`
+    /// `weather_verdict_stale_unsafe_stays_unsafe_and_is_detected`).
+    #[test]
+    fn weather_verdict_stale_warning_emits_once_then_rearms() {
+        let mut warned = false;
+
+        // Not stale -> no warning, latch stays disarmed.
+        assert!(weather_verdict_stale_warning(false, 360, &mut warned).is_none());
+        assert!(!warned);
+
+        // Rising edge (stale & unsafe) -> emit, latch arms, message carries the
+        // fail-closed framing + the staleness window.
+        let msg = weather_verdict_stale_warning(true, 360, &mut warned)
+            .expect("stale unsafe verdict must emit a warning on the rising edge");
+        assert!(warned, "latch must arm after emitting");
+        assert!(
+            msg.contains("stale") && msg.contains("paused") && msg.contains("360"),
+            "warning must name the stale fail-closed hold + the window: {msg}"
+        );
+
+        // Still stale -> rate-limited (no repeat while the feed stays dead).
+        assert!(
+            weather_verdict_stale_warning(true, 360, &mut warned).is_none(),
+            "a still-stale verdict must not re-warn every poll"
+        );
+        assert!(warned);
+
+        // Fresh / no-longer-unsafe -> re-arm, no warning.
+        assert!(weather_verdict_stale_warning(false, 360, &mut warned).is_none());
+        assert!(!warned, "latch must re-arm once the condition clears");
+
+        // A subsequent stale episode warns again (proves re-arm works).
+        assert!(
+            weather_verdict_stale_warning(true, 360, &mut warned).is_some(),
+            "a fresh stale episode after clearing must warn again"
+        );
     }
 
     #[test]

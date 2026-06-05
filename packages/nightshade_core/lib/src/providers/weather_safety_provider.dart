@@ -16,6 +16,48 @@ import 'settings_provider.dart';
 import 'ui_notification_provider.dart';
 import 'backend_provider.dart';
 
+/// How a [SafetyFailMode] resolves the "no usable safety/weather data"
+/// situation (no connected source on the Dart side; poll error on the Rust
+/// side).
+///
+/// Architecture-unification 2026-06-05 (Subsystem 2 step 1, cross-language
+/// parity). This is the Dart mirror of the Rust `NoDataResolution` enum in
+/// `native/nightshade_native/sequencer/src/lib.rs`. The two MUST agree on the
+/// same truth table; [noDataFailModeResolution] below is the single Dart
+/// definition and is pinned against the identical table by
+/// `test/services/weather/weather_fail_mode_parity_test.dart`, which
+/// cross-references the Rust test `safety_fail_mode_no_data_resolution_truth_table`.
+enum NoDataResolution {
+  /// Treat the absence of data as UNSAFE (fail closed). Dart pushes
+  /// `Some(true)`; Rust sets `weather_safe = false`.
+  unsafe,
+
+  /// Treat the absence of data as SAFE (fail open). Dart ABSTAINS (`null`)
+  /// rather than asserting SAFE — a permissive policy must never gag a
+  /// hardware-unsafe device — but the resolution row is "safe". Rust sets
+  /// `weather_safe = true`.
+  safe,
+
+  /// Preserve the prior reading and emit an operator warning (warn-only). Dart
+  /// ABSTAINS (`null`); Rust leaves `weather_safe` unchanged.
+  preserve,
+}
+
+/// The single Dart definition of how each [SafetyFailMode] resolves a no-data
+/// situation. Cross-language parity: mirrors the Rust
+/// `safety_fail_mode_no_data_resolution`. If you change a row here, change it in
+/// BOTH parity tests (Dart + Rust) or they will fail.
+NoDataResolution noDataFailModeResolution(SafetyFailMode mode) {
+  switch (mode) {
+    case SafetyFailMode.failClosed:
+      return NoDataResolution.unsafe;
+    case SafetyFailMode.failOpen:
+      return NoDataResolution.safe;
+    case SafetyFailMode.warnOnly:
+      return NoDataResolution.preserve;
+  }
+}
+
 /// Weather safety status for sequencer integration
 enum WeatherSafetyStatus {
   /// OK to continue imaging
@@ -280,8 +322,14 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       finalStatus = WeatherSafetyStatus.safe;
       finalActions = WeatherSafetyActions.safe;
     } else if (useFailMode) {
-      switch (failMode) {
-        case SafetyFailMode.failClosed:
+      // Cross-language parity: the no-data fail-mode resolution comes from the
+      // SINGLE shared truth table ([noDataFailModeResolution], mirrored by the
+      // Rust `safety_fail_mode_no_data_resolution`). The UI status/actions are
+      // derived from that resolution so this screen-facing path and the
+      // executor-facing [_computePushedVerdict] cannot disagree about what each
+      // fail mode means.
+      switch (noDataFailModeResolution(failMode)) {
+        case NoDataResolution.unsafe:
           // Most conservative: treat unavailable data as unsafe, block operations.
           finalStatus = WeatherSafetyStatus.unsafe;
           finalActions = WeatherSafetyActions(
@@ -290,13 +338,14 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
             reason: failModeWarning,
           );
           break;
-        case SafetyFailMode.failOpen:
+        case NoDataResolution.safe:
           // Permissive: treat unavailable data as safe, allow operations to continue.
           finalStatus = WeatherSafetyStatus.safe;
           finalActions = WeatherSafetyActions.safe;
           break;
-        case SafetyFailMode.warnOnly:
-          // Permissive with notification: treat as safe but emit a UI warning.
+        case NoDataResolution.preserve:
+          // Warn-only: treat as safe for operations but emit a UI warning so the
+          // operator knows the safety data is missing.
           finalStatus = WeatherSafetyStatus.safe;
           finalActions = WeatherSafetyActions.safe;
           shouldShowFailModeWarning = true;
@@ -579,15 +628,18 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       return null;
     }
 
-    // No-data fail-mode: failClosed asserts UNSAFE (matches finalStatus); the
-    // permissive modes (failOpen / warnOnly) ABSTAIN rather than assert SAFE so
-    // a permissive fail-mode can never suppress a hardware-unsafe abort.
+    // No-data fail-mode: resolved through the SINGLE cross-language truth table
+    // ([noDataFailModeResolution], mirrored by the Rust
+    // `safety_fail_mode_no_data_resolution`). `unsafe` asserts UNSAFE (matches
+    // finalStatus); the permissive resolutions (`safe` / `preserve`) ABSTAIN
+    // rather than assert SAFE, so a permissive fail-mode can never suppress a
+    // hardware-unsafe abort.
     if (useFailMode) {
-      switch (failMode) {
-        case SafetyFailMode.failClosed:
+      switch (noDataFailModeResolution(failMode)) {
+        case NoDataResolution.unsafe:
           return true;
-        case SafetyFailMode.failOpen:
-        case SafetyFailMode.warnOnly:
+        case NoDataResolution.safe:
+        case NoDataResolution.preserve:
           return null;
       }
     }
