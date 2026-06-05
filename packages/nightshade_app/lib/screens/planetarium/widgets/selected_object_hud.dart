@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
@@ -79,11 +78,7 @@ class SelectedObjectHud extends ConsumerWidget {
                       displayName,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize14,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                     ),
                   ),
                 ],
@@ -104,7 +99,7 @@ class SelectedObjectHud extends ConsumerWidget {
 
           // Slew Button
           PopupActionButton(
-            icon: LucideIcons.crosshair,
+            icon: NightshadeIcons.crosshair,
             label: 'Slew',
             isPrimary: true,
             colors: colors,

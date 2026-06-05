@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -101,7 +100,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
       backgroundColor: colors.surface,
       title: Row(
         children: [
-          Icon(LucideIcons.bookOpen, color: colors.primary, size: 20),
+          Icon(NightshadeIcons.book, color: colors.primary, size: 20),
           const SizedBox(width: 8),
           const Expanded(
             child: Text(
@@ -157,11 +156,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
               // Rating
               Text(
                 'Rating',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: 8),
               Row(
@@ -173,8 +168,8 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: Icon(
                         starNum <= _rating
-                            ? LucideIcons.star
-                            : LucideIcons.star,
+                            ? NightshadeIcons.star
+                            : NightshadeIcons.star,
                         size: 28,
                         color: starNum <= _rating
                             ? colors.warning
@@ -190,11 +185,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
               // Seeing conditions
               Text(
                 'Seeing',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: 8),
               _ConditionSelector(
@@ -209,11 +200,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
               // Transparency
               Text(
                 'Transparency',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: 8),
               _ConditionSelector(
@@ -228,11 +215,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
               // Notes
               Text(
                 'Notes',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: 8),
               TextField(
@@ -314,11 +297,7 @@ class _InfoRow extends StatelessWidget {
         Expanded(
           child: Text(
             value,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
-              fontWeight: FontWeight.w500,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.label.copyWith(color: colors.textPrimary),
           ),
         ),
       ],

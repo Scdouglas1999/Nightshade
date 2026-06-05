@@ -106,11 +106,7 @@ class InfoCard extends StatelessWidget {
               const SizedBox(width: 10),
               Text(
                 title,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -202,7 +198,7 @@ class DarknessCard extends StatelessWidget {
                   color: colors.primary.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
-                child: Icon(LucideIcons.moon, size: 16, color: colors.primary),
+                child: Icon(NightshadeIcons.moon, size: 16, color: colors.primary),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -343,11 +339,7 @@ class _TargetCardState extends State<TargetCard> {
                             widget.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize13,
-                              fontWeight: FontWeight.w600,
-                              color: widget.colors.textPrimary,
-                            ),
+                            style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -399,7 +391,7 @@ class _TargetCardState extends State<TargetCard> {
                       Tooltip(
                         message: 'Frame target',
                         child: IconButton(
-                          icon: const Icon(LucideIcons.frame, size: 15),
+                          icon: const Icon(NightshadeIcons.frame, size: 15),
                           color: widget.colors.primary,
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints.tightFor(
@@ -432,11 +424,7 @@ class _TargetCardState extends State<TargetCard> {
                 children: [
                   Text(
                     widget.altitude,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      fontWeight: FontWeight.w600,
-                      color: widget.colors.success,
-                    ),
+                    style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.success),
                   ),
                   Text(
                     widget.transit,

@@ -31,7 +31,7 @@ class InfoTab extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.info, size: 48, color: colors.textMuted),
+            Icon(NightshadeIcons.info, size: 48, color: colors.textMuted),
             const SizedBox(height: 16),
             Text(
               'Select an object',
@@ -162,7 +162,7 @@ class InfoTab extends ConsumerWidget {
           const SizedBox(height: 16),
           InfoCard(
             title: 'Coordinates',
-            icon: LucideIcons.compass,
+            icon: NightshadeIcons.compass,
             color: colors.info,
             colors: colors,
             child: Column(
@@ -275,7 +275,7 @@ class ImagingHistorySection extends ConsumerWidget {
               color: colors.textMuted.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             ),
-            child: Icon(LucideIcons.camera, size: 14, color: colors.textMuted),
+            child: Icon(NightshadeIcons.camera, size: 14, color: colors.textMuted),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -326,16 +326,12 @@ class ImagingHistorySection extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child:
-                    Icon(LucideIcons.camera, size: 14, color: colors.primary),
+                    Icon(NightshadeIcons.camera, size: 14, color: colors.primary),
               ),
               const SizedBox(width: 10),
               Text(
                 'Imaging History',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -347,13 +343,13 @@ class ImagingHistorySection extends ConsumerWidget {
               _buildStatChip(
                 label: 'Integration',
                 value: integrationStr,
-                icon: LucideIcons.clock,
+                icon: NightshadeIcons.clock,
               ),
               const SizedBox(width: 8),
               _buildStatChip(
                 label: 'Sessions',
                 value: history.sessionCount.toString(),
-                icon: LucideIcons.calendar,
+                icon: NightshadeIcons.calendar,
               ),
             ],
           ),

@@ -249,25 +249,25 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
     Color iconColor;
 
     if (obj is Star) {
-      icon = LucideIcons.star;
+      icon = NightshadeIcons.star;
       iconColor = widget.colors.warning;
     } else if (obj is DeepSkyObject) {
       final dso = obj;
       if (dso.type.isGalaxy) {
-        icon = LucideIcons.circle;
+        icon = NightshadeIcons.circle;
         iconColor = widget.colors.info;
       } else if (dso.type.isNebula) {
-        icon = LucideIcons.cloud;
+        icon = NightshadeIcons.cloud;
         iconColor = widget.colors.error;
       } else if (dso.type.isCluster) {
-        icon = LucideIcons.sparkles;
+        icon = NightshadeIcons.sparkle;
         iconColor = widget.colors.warning;
       } else {
-        icon = LucideIcons.target;
+        icon = NightshadeIcons.target;
         iconColor = widget.colors.primary;
       }
     } else {
-      icon = LucideIcons.target;
+      icon = NightshadeIcons.target;
       iconColor = widget.colors.primary;
     }
 
@@ -361,7 +361,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
                 color: Colors.white.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               ),
-              child: const Icon(LucideIcons.x, size: 14, color: Colors.white60),
+              child: const Icon(NightshadeIcons.close, size: 14, color: Colors.white60),
             ),
           ),
         ],
@@ -500,7 +500,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    alt > 0 ? LucideIcons.arrowUp : LucideIcons.arrowDown,
+                    alt > 0 ? NightshadeIcons.arrowUp : NightshadeIcons.arrowDown,
                     size: 12,
                     color: altColor,
                   ),
@@ -579,7 +579,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
               Expanded(
                 child: PopupActionButton(
                   key: PlanetariumTutorialKeys.sendFraming,
-                  icon: LucideIcons.frame,
+                  icon: NightshadeIcons.frame,
                   label: 'Framing',
                   colors: widget.colors,
                   onTap: widget.onSendToFraming,
@@ -603,7 +603,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
             children: [
               Expanded(
                 child: PopupActionButton(
-                  icon: LucideIcons.bookOpen,
+                  icon: NightshadeIcons.book,
                   label: 'Log Observation',
                   colors: widget.colors,
                   onTap: () {

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import '../planetarium_screen.dart';
@@ -19,7 +18,7 @@ class SearchResultsTab extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.search, size: 48, color: colors.textMuted),
+            Icon(NightshadeIcons.search, size: 48, color: colors.textMuted),
             const SizedBox(height: 16),
             Text(
               'Search for objects',
@@ -114,7 +113,7 @@ class SearchResultCard extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-              object is Star ? LucideIcons.star : LucideIcons.circle,
+              object is Star ? NightshadeIcons.star : NightshadeIcons.circle,
               size: 16,
               color: object is Star ? colors.warning : colors.primary,
             ),
@@ -127,11 +126,7 @@ class SearchResultCard extends StatelessWidget {
                     object is DeepSkyObject
                         ? getDsoDisplayInfo(object as DeepSkyObject).$1
                         : object.name,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                   ),
                   if (object is DeepSkyObject) ...[
                     Text(

@@ -12,7 +12,7 @@ class CompassCalibrationDialog extends StatelessWidget {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       title: Row(
         children: [
-          Icon(LucideIcons.compass, color: colors.info, size: 24),
+          Icon(NightshadeIcons.compass, color: colors.info, size: 24),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -52,11 +52,7 @@ class CompassCalibrationDialog extends StatelessWidget {
                 children: [
                   Text(
                     'Tips for best results:',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontWeight: FontWeight.w600,
-                      color: colors.info,
-                    ),
+                    style: NightshadeTypography.h6.copyWith(color: colors.info),
                   ),
                   const SizedBox(height: 8),
                   const _CalibrationTip(
@@ -113,7 +109,7 @@ class _CalibrationTip extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 4),
-            child: Icon(LucideIcons.check, size: 12, color: accent),
+            child: Icon(NightshadeIcons.check, size: 12, color: accent),
           ),
           const SizedBox(width: 8),
           Expanded(

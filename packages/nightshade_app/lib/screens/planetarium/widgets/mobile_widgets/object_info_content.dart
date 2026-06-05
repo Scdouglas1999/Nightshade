@@ -216,7 +216,7 @@ class MobileObjectInfoContent extends ConsumerWidget {
           children: [
             Expanded(
               child: MobileActionButton(
-                icon: LucideIcons.crosshair,
+                icon: NightshadeIcons.crosshair,
                 label: 'Slew',
                 colors: colors,
                 onTap: () {
@@ -228,7 +228,7 @@ class MobileObjectInfoContent extends ConsumerWidget {
             const SizedBox(width: 8),
             Expanded(
               child: MobileActionButton(
-                icon: LucideIcons.target,
+                icon: NightshadeIcons.target,
                 label: 'Center',
                 colors: colors,
                 onTap: () {
@@ -244,7 +244,7 @@ class MobileObjectInfoContent extends ConsumerWidget {
           children: [
             Expanded(
               child: MobileActionButton(
-                icon: LucideIcons.frame,
+                icon: NightshadeIcons.frame,
                 label: 'Framing',
                 colors: colors,
                 onTap: () {
@@ -407,11 +407,7 @@ class MobileActionButton extends StatelessWidget {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: isPrimary ? onPrimary : colors.textPrimary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: isPrimary ? onPrimary : colors.textPrimary),
               ),
             ),
           ],

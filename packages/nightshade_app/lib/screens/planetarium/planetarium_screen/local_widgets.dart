@@ -99,7 +99,7 @@ class _KeyboardShortcutsOverlay extends StatelessWidget {
                         ),
                       ),
                       IconButton(
-                        icon: const Icon(LucideIcons.x,
+                        icon: const Icon(NightshadeIcons.close,
                             size: 18, color: Colors.white54),
                         onPressed: onDismiss,
                         padding: EdgeInsets.zero,
@@ -168,11 +168,7 @@ class _ShortcutSection extends StatelessWidget {
       children: [
         Text(
           title,
-          style: const TextStyle(
-            fontSize: NightshadeTypography.fontSize13,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF00E676),
-          ),
+          style: NightshadeTypography.labelStrong.copyWith(color: const Color(0xFF00E676)),
         ),
         const SizedBox(height: 6),
         ...shortcuts.map((s) => Padding(

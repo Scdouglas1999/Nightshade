@@ -53,11 +53,11 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
               hintText: 'Search objects (M42, Orion, etc.)',
               hintStyle:
                   TextStyle(fontSize: NightshadeTypography.fontSize14, color: widget.colors.textMuted),
-              prefixIcon: Icon(LucideIcons.search,
+              prefixIcon: Icon(NightshadeIcons.search,
                   size: 18, color: widget.colors.textMuted),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
-                      icon: Icon(LucideIcons.x,
+                      icon: Icon(NightshadeIcons.close,
                           size: 18, color: widget.colors.textMuted),
                       onPressed: () {
                         _searchController.clear();
@@ -109,7 +109,7 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.searchX, size: 48, color: widget.colors.textMuted),
+            Icon(NightshadeIcons.searchEmpty, size: 48, color: widget.colors.textMuted),
             const SizedBox(height: 16),
             Text(
               'No results found',
@@ -280,11 +280,7 @@ class MobileSearchResultTile extends StatelessWidget {
                 children: [
                   Text(
                     displayName,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize14,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                   ),
                   Text(
                     typeName,
@@ -306,7 +302,7 @@ class MobileSearchResultTile extends StatelessWidget {
               ),
             const SizedBox(width: 8),
             Icon(
-              LucideIcons.chevronRight,
+              NightshadeIcons.chevronRight,
               size: 16,
               color: colors.textMuted,
             ),

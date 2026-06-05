@@ -72,12 +72,12 @@ class MobileTopOverlay extends ConsumerWidget {
             const Spacer(),
             // Quick toggle buttons
             MobileToggleButton(
-              icon: LucideIcons.grid,
+              icon: NightshadeIcons.grid,
               isActive: ref.watch(skyRenderConfigProvider).showCoordinateGrid,
               onTap: ref.read(skyRenderConfigProvider.notifier).toggleGrid,
             ),
             MobileToggleButton(
-              icon: LucideIcons.activity,
+              icon: NightshadeIcons.activity,
               isActive:
                   ref.watch(skyRenderConfigProvider).showConstellationLines,
               onTap: ref

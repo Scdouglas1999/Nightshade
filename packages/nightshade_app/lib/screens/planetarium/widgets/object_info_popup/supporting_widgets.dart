@@ -54,7 +54,7 @@ class _SlewPopupMenuButtonState extends State<SlewPopupMenuButton> {
           value: SlewMode.slew,
           child: Row(
             children: [
-              Icon(LucideIcons.move,
+              Icon(NightshadeIcons.move,
                   size: 16, color: widget.colors.textPrimary),
               const SizedBox(width: 8),
               Text('Slew', style: TextStyle(color: widget.colors.textPrimary)),
@@ -65,7 +65,7 @@ class _SlewPopupMenuButtonState extends State<SlewPopupMenuButton> {
           value: SlewMode.slewAndCenter,
           child: Row(
             children: [
-              Icon(LucideIcons.target,
+              Icon(NightshadeIcons.target,
                   size: 16, color: widget.colors.textPrimary),
               const SizedBox(width: 8),
               Text('Slew & Center',
@@ -109,22 +109,18 @@ class _SlewPopupMenuButtonState extends State<SlewPopupMenuButton> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  LucideIcons.crosshair,
+                  NightshadeIcons.crosshair,
                   size: 14,
                   color: onPrimary,
                 ),
                 const SizedBox(width: 6),
                 Text(
                   'Slew',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w600,
-                    color: onPrimary,
-                  ),
+                  style: NightshadeTypography.h6.copyWith(color: onPrimary),
                 ),
                 const SizedBox(width: 4),
                 Icon(
-                  LucideIcons.chevronDown,
+                  NightshadeIcons.chevronDown,
                   size: 12,
                   color: onPrimary.withValues(alpha: 0.8),
                 ),
@@ -170,11 +166,7 @@ class PopupInfoChip extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             value,
-            style: const TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w500,
-              color: Colors.white70,
-            ),
+            style: NightshadeTypography.labelQuiet.copyWith(color: Colors.white70),
           ),
         ],
       ),
@@ -291,13 +283,9 @@ class _PopupActionButtonState extends State<PopupActionButton> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   softWrap: false,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w500,
-                    color: widget.isPrimary
+                  style: NightshadeTypography.labelQuiet.copyWith(color: widget.isPrimary
                         ? onPrimary
-                        : widget.colors.textSecondary,
-                  ),
+                        : widget.colors.textSecondary),
                 ),
               ),
             ],
@@ -400,7 +388,7 @@ class _AddToListDialogState extends ConsumerState<_AddToListDialog> {
                         final list = lists[index];
                         return ListTile(
                           dense: true,
-                          leading: const Icon(LucideIcons.list, size: 18),
+                          leading: const Icon(NightshadeIcons.list, size: 18),
                           title: Text(list.name),
                           onTap: () => _addToList(list.id),
                         );
@@ -414,7 +402,7 @@ class _AddToListDialogState extends ConsumerState<_AddToListDialog> {
                 else
                   TextButton.icon(
                     onPressed: () => setState(() => _creatingNew = true),
-                    icon: const Icon(LucideIcons.plus, size: 16),
+                    icon: const Icon(NightshadeIcons.add, size: 16),
                     label: const Text('Create New List'),
                   ),
               ],

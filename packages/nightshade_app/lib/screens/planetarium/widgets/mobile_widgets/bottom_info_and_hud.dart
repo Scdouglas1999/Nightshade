@@ -121,16 +121,12 @@ class MobileSelectedObjectHud extends StatelessWidget {
                 displayName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
               ),
             ),
             const SizedBox(width: 8),
             Icon(
-              LucideIcons.chevronDown,
+              NightshadeIcons.chevronDown,
               size: 14,
               color: colors.textMuted,
             ),

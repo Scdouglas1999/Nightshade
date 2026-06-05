@@ -49,7 +49,7 @@ class ViewControls extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           ViewControlButton(
-            icon: LucideIcons.plus,
+            icon: NightshadeIcons.add,
             onTap: ref.read(skyViewStateProvider.notifier).zoomIn,
           ),
           const SizedBox(height: 4),
@@ -66,12 +66,12 @@ class ViewControls extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
           ViewControlButton(
-            icon: LucideIcons.minus,
+            icon: NightshadeIcons.remove,
             onTap: ref.read(skyViewStateProvider.notifier).zoomOut,
           ),
           const Divider(height: 16, color: Colors.white24),
           ViewControlButton(
-            icon: LucideIcons.home,
+            icon: NightshadeIcons.home,
             onTap: () {
               ref.read(skyViewStateProvider.notifier).setCenter(0, 0);
               ref.read(skyViewStateProvider.notifier).setFieldOfView(60);
@@ -80,7 +80,7 @@ class ViewControls extends ConsumerWidget {
           const SizedBox(height: 4),
           ViewControlButton(
             key: PlanetariumTutorialKeys.fovToggle,
-            icon: LucideIcons.frame,
+            icon: NightshadeIcons.frame,
             isActive: showFOV,
             onTap: onToggleFOV,
             tooltip: 'Toggle FOV indicator',
@@ -90,7 +90,7 @@ class ViewControls extends ConsumerWidget {
           Consumer(
             builder: (context, ref, _) {
               return ViewControlButton(
-                icon: LucideIcons.target,
+                icon: NightshadeIcons.target,
                 isActive: ref.watch(showFovRingsProvider),
                 onTap: () {
                   final notifier = ref.read(showFovRingsProvider.notifier);
@@ -105,7 +105,7 @@ class ViewControls extends ConsumerWidget {
           Consumer(
             builder: (context, ref, _) {
               return ViewControlButton(
-                icon: LucideIcons.moon,
+                icon: NightshadeIcons.moon,
                 isActive: ref.watch(nightVisionModeProvider),
                 onTap: () {
                   final notifier = ref.read(nightVisionModeProvider.notifier);
@@ -120,7 +120,7 @@ class ViewControls extends ConsumerWidget {
           Consumer(
             builder: (context, ref, _) {
               return ViewControlButton(
-                icon: LucideIcons.activity,
+                icon: NightshadeIcons.activity,
                 isActive: ref.watch(showPerfHudProvider),
                 onTap: () {
                   final notifier = ref.read(showPerfHudProvider.notifier);
@@ -135,7 +135,7 @@ class ViewControls extends ConsumerWidget {
           Consumer(
             builder: (context, ref, _) {
               return ViewControlButton(
-                icon: LucideIcons.compass,
+                icon: NightshadeIcons.compass,
                 isActive: ref.watch(showCompassHudProvider),
                 onTap: () {
                   final notifier = ref.read(showCompassHudProvider.notifier);
@@ -150,7 +150,7 @@ class ViewControls extends ConsumerWidget {
           Consumer(
             builder: (context, ref, _) {
               return ViewControlButton(
-                icon: LucideIcons.map,
+                icon: NightshadeIcons.map,
                 isActive: ref.watch(showMinimapProvider),
                 onTap: () {
                   final notifier = ref.read(showMinimapProvider.notifier);
@@ -182,7 +182,7 @@ class ViewControls extends ConsumerWidget {
           Consumer(
             builder: (context, ref, _) {
               return ViewControlButton(
-                icon: LucideIcons.sparkles,
+                icon: NightshadeIcons.sparkle,
                 isActive: ref.watch(showVariableStarsProvider),
                 onTap: () {
                   final notifier = ref.read(showVariableStarsProvider.notifier);
@@ -456,7 +456,7 @@ class QualitySettingsButton extends ConsumerWidget {
 
     return PopupMenuButton<RenderQuality>(
       icon: const Icon(
-        LucideIcons.settings2,
+        NightshadeIcons.settings2,
         size: 18,
         color: Colors.white70,
       ),
@@ -513,7 +513,7 @@ class QualitySettingsButton extends ConsumerWidget {
       child: Row(
         children: [
           Icon(
-            isSelected ? LucideIcons.checkCircle : LucideIcons.circle,
+            isSelected ? NightshadeIcons.success : NightshadeIcons.circle,
             size: 16,
             color: isSelected ? colors.accent : colors.textSecondary,
           ),
@@ -575,7 +575,7 @@ class ProjectionSelectorButton extends ConsumerWidget {
           child: Row(
             children: [
               Icon(
-                isSelected ? LucideIcons.checkCircle : LucideIcons.circle,
+                isSelected ? NightshadeIcons.success : NightshadeIcons.circle,
                 size: 16,
                 color: isSelected ? colors.accent : colors.textSecondary,
               ),
@@ -633,11 +633,11 @@ class ProjectionSelectorButton extends ConsumerWidget {
   static IconData _projectionIcon(SkyProjection projection) {
     switch (projection) {
       case SkyProjection.stereographic:
-        return LucideIcons.globe;
+        return NightshadeIcons.globe;
       case SkyProjection.orthographic:
-        return LucideIcons.circle;
+        return NightshadeIcons.circle;
       case SkyProjection.azimuthalEquidistant:
-        return LucideIcons.target;
+        return NightshadeIcons.target;
     }
   }
 }

@@ -149,7 +149,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                       children: [
                         SearchCategoryHeader(
                           title: 'Coordinates',
-                          icon: LucideIcons.compass,
+                          icon: NightshadeIcons.compass,
                           colors: widget.colors,
                         ),
                         MouseRegion(
@@ -176,7 +176,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                                   borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                                 ),
                                 child: Icon(
-                                  LucideIcons.crosshair,
+                                  NightshadeIcons.crosshair,
                                   size: 16,
                                   color: widget.colors.accent,
                                 ),
@@ -294,7 +294,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                             if (dsos.isNotEmpty) ...[
                               SearchCategoryHeader(
                                 title: 'Deep Sky Objects (${dsos.length})',
-                                icon: LucideIcons.sparkles,
+                                icon: NightshadeIcons.sparkle,
                                 colors: widget.colors,
                               ),
                               // Show first 20 DSOs in overlay, full list in Search tab
@@ -319,7 +319,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                             if (stars.isNotEmpty) ...[
                               SearchCategoryHeader(
                                 title: 'Stars (${stars.length})',
-                                icon: LucideIcons.star,
+                                icon: NightshadeIcons.star,
                                 colors: widget.colors,
                               ),
                               ...stars.take(10).map(
@@ -505,7 +505,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                       hintText: 'Search objects, names...',
                       hintStyle: TextStyle(
                           fontSize: NightshadeTypography.fontSize13, color: widget.colors.textMuted),
-                      prefixIcon: Icon(LucideIcons.search,
+                      prefixIcon: Icon(NightshadeIcons.search,
                           size: 16, color: widget.colors.textMuted),
                       suffixIcon: Container(
                         margin: const EdgeInsets.all(8),
@@ -714,11 +714,7 @@ class _SearchFilterControls extends StatelessWidget {
               width: 32,
               child: Text(
                 filters.maxMagnitude?.toStringAsFixed(1) ?? '--',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: NightshadeTypography.labelQuiet.copyWith(color: colors.textPrimary),
               ),
             ),
           ],
@@ -747,7 +743,7 @@ class _SearchFilterControls extends StatelessWidget {
                   ),
                 ),
                 child: filters.observableNow
-                    ? Icon(LucideIcons.check, size: 12, color: colors.surface)
+                    ? Icon(NightshadeIcons.check, size: 12, color: colors.surface)
                     : null,
               ),
               const SizedBox(width: 8),

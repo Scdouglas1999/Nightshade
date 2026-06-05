@@ -624,7 +624,7 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
           value: 'reset',
           child: Row(
             children: [
-              Icon(LucideIcons.home, size: 16),
+              Icon(NightshadeIcons.home, size: 16),
               SizedBox(width: 8),
               Text('Reset View'),
             ],
@@ -634,7 +634,7 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
           value: 'grid',
           child: Row(
             children: [
-              Icon(LucideIcons.grid, size: 16),
+              Icon(NightshadeIcons.grid, size: 16),
               SizedBox(width: 8),
               Text('Toggle Grid'),
             ],
@@ -644,7 +644,7 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
           value: 'constellations',
           child: Row(
             children: [
-              Icon(LucideIcons.activity, size: 16),
+              Icon(NightshadeIcons.activity, size: 16),
               SizedBox(width: 8),
               Text('Toggle Constellations'),
             ],
@@ -654,7 +654,7 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
           value: 'fov',
           child: Row(
             children: [
-              Icon(LucideIcons.frame, size: 16),
+              Icon(NightshadeIcons.frame, size: 16),
               SizedBox(width: 8),
               Text('Toggle FOV Overlay'),
             ],

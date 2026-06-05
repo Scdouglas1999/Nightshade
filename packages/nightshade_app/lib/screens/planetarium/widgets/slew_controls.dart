@@ -50,7 +50,7 @@ class SlewControls extends ConsumerWidget {
             message: slewMode ? 'Disable slew mode' : 'Enable slew mode',
             child: SlewControlButton(
               key: PlanetariumTutorialKeys.slewBtn,
-              icon: LucideIcons.move,
+              icon: NightshadeIcons.move,
               isActive: slewMode,
               isEnabled: isConnected,
               onTap: isConnected ? onToggleSlewMode : null,
