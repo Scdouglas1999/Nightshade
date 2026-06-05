@@ -116,7 +116,7 @@ class SearchResultCard extends StatelessWidget {
             Icon(
               object is Star ? LucideIcons.star : LucideIcons.circle,
               size: 16,
-              color: object is Star ? Colors.yellow : colors.primary,
+              color: object is Star ? colors.warning : colors.primary,
             ),
             const SizedBox(width: 12),
             Expanded(

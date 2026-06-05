@@ -317,7 +317,7 @@ class _ExportChartButtonState extends ConsumerState<ExportChartButton> {
           SnackBar(
             content: Text('Failed to export chart: $e'),
             behavior: SnackBarBehavior.floating,
-            backgroundColor: Colors.red,
+            backgroundColor: NightshadeColors.of(context).error,
           ),
         );
       }

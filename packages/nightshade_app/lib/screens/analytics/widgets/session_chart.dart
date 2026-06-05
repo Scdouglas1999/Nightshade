@@ -31,7 +31,7 @@ class SessionChart extends StatelessWidget {
     required this.title,
     required this.yAxisLabel,
     required this.dataPoints,
-    this.lineColor = Colors.blue,
+    this.lineColor = NightshadeChartColors.seriesBlue,
     this.minY,
     this.maxY,
   });
@@ -255,7 +255,7 @@ class HfrChart extends StatelessWidget {
       title: 'Image Quality',
       yAxisLabel: 'HFR (px)',
       dataPoints: dataPoints,
-      lineColor: Colors.blue,
+      lineColor: NightshadeChartColors.seriesBlue,
     );
   }
 }
@@ -280,7 +280,7 @@ class TemperatureChart extends StatelessWidget {
       title: 'Temperature',
       yAxisLabel: '°C',
       dataPoints: dataPoints,
-      lineColor: Colors.orange,
+      lineColor: NightshadeChartColors.seriesOrange,
     );
   }
 }
@@ -305,7 +305,7 @@ class GuidingRmsChart extends StatelessWidget {
       title: 'Guiding Performance',
       yAxisLabel: 'RMS (")',
       dataPoints: dataPoints,
-      lineColor: Colors.green,
+      lineColor: NightshadeChartColors.seriesGreen,
     );
   }
 }
