@@ -27,6 +27,7 @@ import 'dart:developer' as developer;
 
 import '../../models/backend/event_types.dart';
 import '../../models/notification/notification_categories.dart';
+import 'event_classifier.dart';
 import 'notification_template.dart';
 import 'transports/notification_transport.dart';
 
@@ -232,11 +233,12 @@ class NotificationRouter {
       return;
     }
 
-    final mapped = _categoryForEvent(event);
-    if (mapped == null) return;
-    final (category, contextOverrides) = mapped;
-    final context = _buildContext(event, contextOverrides);
-    route(category, context, severity: event.severity);
+    // Single source of truth for event -> category classification, shared
+    // with PushNotificationService (see event_classifier.dart).
+    final classified = NotificationEventClassifier.classify(event);
+    if (classified == null) return;
+    final context = _buildContext(event, classified.context);
+    route(classified.category, context, severity: classified.severity);
   }
 
   /// Pull `explicit_transports` out of a NotificationNode Rust event
@@ -254,168 +256,6 @@ class NotificationRouter {
       }
     }
     return out.isEmpty ? null : out;
-  }
-
-  /// Decide which NotificationCategory (if any) a raw event belongs to,
-  /// plus any extra context the mapper wants injected.
-  (NotificationCategory, Map<String, String>)? _categoryForEvent(
-      NightshadeEvent event) {
-    switch (event.category) {
-      case EventCategory.sequencer:
-        return _classifySequencerEvent(event);
-      case EventCategory.imaging:
-        return _classifyImagingEvent(event);
-      case EventCategory.guiding:
-        return _classifyGuidingEvent(event);
-      case EventCategory.safety:
-        return (
-          event.eventType.toLowerCase().contains('safe')
-              ? NotificationCategory.weatherSafeAgain
-              : NotificationCategory.weatherUnsafe,
-          <String, String>{},
-        );
-      case EventCategory.equipment:
-        if (event.eventType == 'Disconnected' || event.eventType == 'Error') {
-          return (
-            NotificationCategory.equipmentDisconnected,
-            <String, String>{
-              'equipment.device_type':
-                  (event.data['device_type'] as String?) ?? '',
-              'equipment.device_id':
-                  (event.data['device_id'] as String?) ?? '',
-            },
-          );
-        }
-        return null;
-      case EventCategory.system:
-        if (event.eventType.toLowerCase().contains('disk')) {
-          return (NotificationCategory.diskSpaceLow, <String, String>{});
-        }
-        return null;
-      case EventCategory.polarAlignment:
-      case EventCategory.job:
-      case EventCategory.session:
-      case EventCategory.catalog:
-        // P1-2/P1-3/P1-5/P1-12 categories are consumed via dedicated UI
-        // surfaces (job progress toast, session-ownership banner,
-        // Catalog management panel); not routed through the
-        // cross-platform notification system.
-        return null;
-    }
-  }
-
-  (NotificationCategory, Map<String, String>)? _classifySequencerEvent(
-      NightshadeEvent event) {
-    switch (event.eventType) {
-      case 'Started':
-        return (NotificationCategory.sequenceStarted, <String, String>{});
-      case 'Completed':
-        return (NotificationCategory.sequenceCompleted, <String, String>{});
-      case 'Stopped':
-      case 'Error':
-        return (NotificationCategory.sequenceFailed, <String, String>{});
-      case 'Paused':
-        return (NotificationCategory.sequencePaused, <String, String>{});
-      case 'Resumed':
-        return (NotificationCategory.sequenceResumed, <String, String>{});
-      case 'TargetStarted':
-        return (
-          NotificationCategory.targetStarted,
-          <String, String>{
-            'target.name': (event.data['target_name'] as String?) ?? '',
-            'target.id': (event.data['target_id'] as String?) ?? '',
-          },
-        );
-      case 'TargetCompleted':
-        return (
-          NotificationCategory.targetCompleted,
-          <String, String>{
-            'target.name': (event.data['target_name'] as String?) ?? '',
-            'target.id': (event.data['target_id'] as String?) ?? '',
-          },
-        );
-      case 'NodeCompleted':
-        final nodeType = (event.data['node_type'] as String? ?? '')
-            .toLowerCase();
-        final success = event.data['success'] as bool? ?? true;
-        if (nodeType.contains('autofocus')) {
-          return (
-            success
-                ? NotificationCategory.autofocusCompleted
-                : NotificationCategory.autofocusFailed,
-            <String, String>{},
-          );
-        }
-        return null;
-      case 'InstructionProgress':
-        final instr = (event.data['instruction'] as String? ?? '')
-            .toLowerCase();
-        if (instr.contains('meridian')) {
-          return (
-            NotificationCategory.meridianFlipPerformed,
-            <String, String>{},
-          );
-        }
-        return null;
-      case 'TriggerFired':
-        return (
-          NotificationCategory.triggerFired,
-          <String, String>{
-            'trigger.name': (event.data['trigger_name'] as String?) ?? '',
-          },
-        );
-      case 'RecoveryStarted':
-        return (NotificationCategory.recoveryStarted, <String, String>{});
-      case 'RecoveryRecovered':
-        return (NotificationCategory.recoveryRecovered, <String, String>{});
-      case 'RecoveryGaveUp':
-        return (NotificationCategory.recoveryGaveUp, <String, String>{});
-      case 'FrameRejected':
-        return (
-          NotificationCategory.frameRejected,
-          <String, String>{
-            'frame.reason': (event.data['reason'] as String?) ?? '',
-          },
-        );
-    }
-    return null;
-  }
-
-  (NotificationCategory, Map<String, String>)? _classifyImagingEvent(
-      NightshadeEvent event) {
-    switch (event.eventType) {
-      case 'ExposureCompleted':
-        return (
-          NotificationCategory.frameCaptured,
-          <String, String>{
-            'frame': '${event.data['frame_number'] ?? ''}',
-            'exposure.duration': '${event.data['duration_secs'] ?? ''}',
-          },
-        );
-      case 'ExposureFailed':
-        return (
-          NotificationCategory.exposureFailed,
-          <String, String>{
-            'frame.reason': (event.data['error'] as String?) ??
-                (event.data['reason'] as String?) ??
-                '',
-          },
-        );
-    }
-    return null;
-  }
-
-  (NotificationCategory, Map<String, String>)? _classifyGuidingEvent(
-      NightshadeEvent event) {
-    switch (event.eventType) {
-      case 'StarLost':
-      case 'Disconnected':
-        return (NotificationCategory.guidingLost, <String, String>{});
-      case 'StarRecovered':
-      case 'Reconnected':
-        return (NotificationCategory.guidingRecovered, <String, String>{});
-    }
-    return null;
   }
 
   Map<String, String> _buildContext(

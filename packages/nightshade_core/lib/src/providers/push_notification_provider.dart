@@ -131,6 +131,17 @@ final pushNotificationConfigProvider =
 /// The service is re-created only when the backend changes (e.g., reconnect).
 /// Config changes are applied in-place via [PushNotificationService.updateConfig]
 /// to avoid creating duplicate event stream subscriptions.
+///
+/// NOTE (architecture-unification, Subsystem 3): this service still owns its
+/// own classification subscription. The plan's end-state demotes it to a
+/// pure broadcaster behind the router's SystemPushTransport, but that
+/// collapse is DEFERRED until the per-event `PushNotificationConfig` toggles
+/// are migrated into the routing matrix — otherwise the default matrix
+/// (which only routes the 8 critical-by-default categories to systemPush)
+/// would silently drop this service's non-critical mobile pushes
+/// (sequenceCompleted / targetCompleted / meridianFlip). See the cluster
+/// notes. Classification itself is already unified via the shared
+/// [NotificationEventClassifier].
 final pushNotificationServiceProvider = Provider<PushNotificationService>((ref) {
   final backend = ref.watch(diagnosticsBackendProvider);
 

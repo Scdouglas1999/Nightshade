@@ -114,6 +114,29 @@ enum NotificationCategory {
     }
   }
 
+  /// Single source of truth for "is this category operationally critical?".
+  ///
+  /// Critical categories are the ones an unattended operator must not miss:
+  /// they default into the `systemPush` (mobile) transport in the routing
+  /// matrix and drive the Run Dashboard's persistent critical banner. Both
+  /// the matrix defaults ([_criticalByDefault]) and any criticality check
+  /// elsewhere derive from this one list so they can never drift.
+  bool get isCritical {
+    switch (this) {
+      case NotificationCategory.sequenceFailed:
+      case NotificationCategory.recoveryGaveUp:
+      case NotificationCategory.weatherUnsafe:
+      case NotificationCategory.guidingLost:
+      case NotificationCategory.diskSpaceLow:
+      case NotificationCategory.equipmentDisconnected:
+      case NotificationCategory.autofocusFailed:
+      case NotificationCategory.exposureFailed:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   static NotificationCategory? fromStorageKey(String key) {
     for (final c in NotificationCategory.values) {
       if (c.name == key) return c;
@@ -382,21 +405,7 @@ class NotificationRoutingMatrix extends Equatable {
   List<Object?> get props => [enabled, rules];
 }
 
-bool _criticalByDefault(NotificationCategory c) {
-  switch (c) {
-    case NotificationCategory.sequenceFailed:
-    case NotificationCategory.recoveryGaveUp:
-    case NotificationCategory.weatherUnsafe:
-    case NotificationCategory.guidingLost:
-    case NotificationCategory.diskSpaceLow:
-    case NotificationCategory.equipmentDisconnected:
-    case NotificationCategory.autofocusFailed:
-    case NotificationCategory.exposureFailed:
-      return true;
-    default:
-      return false;
-  }
-}
+bool _criticalByDefault(NotificationCategory c) => c.isCritical;
 
 NotificationRoutingRule _defaultRuleFor(NotificationCategory category) {
   return NotificationRoutingMatrix.defaults().ruleFor(category);

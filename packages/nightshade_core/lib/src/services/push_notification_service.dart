@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import '../models/backend/event_types.dart';
+import '../models/notification/notification_categories.dart';
+import 'notification/event_classifier.dart';
 
 /// Priority level for push notifications sent to mobile devices
 enum PushNotificationPriority {
@@ -218,202 +220,20 @@ class PushNotificationService {
     }
   }
 
-  /// Convert an event to a push notification, or null if it should be skipped
+  /// Convert an event to a push notification, or null if it should be skipped.
+  ///
+  /// Classification is delegated to the shared [NotificationEventClassifier]
+  /// (the same one [NotificationRouter] uses) so the router and the mobile
+  /// push feed can never disagree about what an event *is*. This service
+  /// then applies its own per-event-type [PushNotificationConfig] toggle,
+  /// priority, and copy on top of that classification — preserving exactly
+  /// the subset of events it historically pushed.
   PushNotification? _eventToNotification(NightshadeEvent event) {
-    switch (event.category) {
-      case EventCategory.sequencer:
-        return _handleSequencerEvent(event);
-      case EventCategory.imaging:
-        return _handleImagingEvent(event);
-      case EventCategory.guiding:
-        return _handleGuidingEvent(event);
-      case EventCategory.safety:
-        return _handleSafetyEvent(event);
-      case EventCategory.equipment:
-        return _handleEquipmentEvent(event);
-      case EventCategory.system:
-        // P1-11 — OTA update lifecycle events. Only `UpdateAvailable`
-        // gets escalated to a phone push; the other variants (download
-        // progress, verification, apply) are operator-driven and the
-        // dashboard surfaces them in the Updates panel.
-        return _handleSystemEvent(event);
-      case EventCategory.polarAlignment:
-      case EventCategory.job:
-      case EventCategory.session:
-      case EventCategory.catalog:
-        // P1-2/P1-3/P1-5/P1-12 — job/session/catalog lifecycle events
-        // surface in the mobile UI directly; we don't escalate them to
-        // push notifications (operators get progress toasts inside the
-        // app).
-        return null;
-    }
-  }
-
-  PushNotification? _handleSequencerEvent(NightshadeEvent event) {
-    switch (event.eventType) {
-      case 'Completed':
-        if (!_config.notifySequenceCompleted) return null;
-        return PushNotification(
-          title: 'Sequence Complete',
-          body: 'Your imaging sequence has finished successfully.',
-          priority: PushNotificationPriority.normal,
-          eventType: event.eventType,
-          category: event.category,
-          timestamp: DateTime.now(),
-        );
-
-      case 'Error':
-        if (!_config.notifySequenceFailed) return null;
-        final message =
-            event.data['message'] as String? ?? 'Unknown error';
-        return PushNotification(
-          title: 'Sequence Error',
-          body: 'Sequence encountered an error: $message',
-          priority: PushNotificationPriority.high,
-          eventType: event.eventType,
-          category: event.category,
-          timestamp: DateTime.now(),
-        );
-
-      case 'Stopped':
-        if (!_config.notifySequenceFailed) return null;
-        return PushNotification(
-          title: 'Sequence Stopped',
-          body: 'The imaging sequence has been stopped.',
-          priority: PushNotificationPriority.normal,
-          eventType: event.eventType,
-          category: event.category,
-          timestamp: DateTime.now(),
-        );
-
-      case 'TargetCompleted':
-        if (!_config.notifySequenceCompleted) return null;
-        final targetName =
-            event.data['target_name'] as String? ?? 'Unknown target';
-        return PushNotification(
-          title: 'Target Complete',
-          body: 'Finished imaging target: $targetName',
-          priority: PushNotificationPriority.low,
-          eventType: event.eventType,
-          category: event.category,
-          timestamp: DateTime.now(),
-        );
-
-      case 'NodeCompleted':
-        // Check if this is an autofocus node that failed
-        final success = event.data['success'] as bool? ?? true;
-        final nodeType = event.data['node_type'] as String? ?? '';
-        if (!success &&
-            nodeType.toLowerCase().contains('autofocus') &&
-            _config.notifyAutofocusFailed) {
-          return PushNotification(
-            title: 'Autofocus Failed',
-            body: 'Autofocus did not complete successfully.',
-            priority: PushNotificationPriority.high,
-            eventType: event.eventType,
-            category: event.category,
-            timestamp: DateTime.now(),
-          );
-        }
-        return null;
-
-      case 'InstructionProgress':
-        // Check for meridian flip instruction progress
-        final instruction = event.data['instruction'] as String? ?? '';
-        if (instruction.toLowerCase().contains('meridian') &&
-            _config.notifyMeridianFlip) {
-          final detail = event.data['detail'] as String? ?? 'Performing meridian flip';
-          return PushNotification(
-            title: 'Meridian Flip',
-            body: detail,
-            priority: PushNotificationPriority.normal,
-            eventType: event.eventType,
-            category: event.category,
-            timestamp: DateTime.now(),
-          );
-        }
-        return null;
-
-      default:
-        return null;
-    }
-  }
-
-  PushNotification? _handleImagingEvent(NightshadeEvent event) {
-    switch (event.eventType) {
-      case 'ExposureFailed':
-        if (!_config.notifyExposureFailed) return null;
-        final error = event.data['error'] as String? ??
-            event.data['reason'] as String? ??
-            'Unknown error';
-        return PushNotification(
-          title: 'Exposure Failed',
-          body: 'Camera exposure failed: $error',
-          priority: PushNotificationPriority.high,
-          eventType: event.eventType,
-          category: event.category,
-          timestamp: DateTime.now(),
-        );
-
-      default:
-        return null;
-    }
-  }
-
-  PushNotification? _handleGuidingEvent(NightshadeEvent event) {
-    switch (event.eventType) {
-      case 'StarLost':
-        if (!_config.notifyGuidingLost) return null;
-        return PushNotification(
-          title: 'Guiding Lost',
-          body:
-              'Guide star has been lost. Guiding has stopped.',
-          priority: PushNotificationPriority.critical,
-          eventType: event.eventType,
-          category: event.category,
-          timestamp: DateTime.now(),
-        );
-
-      case 'Disconnected':
-        if (!_config.notifyGuidingLost) return null;
-        return PushNotification(
-          title: 'Guider Disconnected',
-          body:
-              'PHD2 guiding has disconnected.',
-          priority: PushNotificationPriority.high,
-          eventType: event.eventType,
-          category: event.category,
-          timestamp: DateTime.now(),
-        );
-
-      default:
-        return null;
-    }
-  }
-
-  PushNotification? _handleSafetyEvent(NightshadeEvent event) {
-    // All safety events are critical and should always generate notifications
-    // if the weather unsafe toggle is enabled
-    if (!_config.notifyWeatherUnsafe) return null;
-
-    return PushNotification(
-      title: 'Weather Unsafe',
-      body: 'Safety monitor reports unsafe conditions. '
-          'The mount may be parked to protect equipment.',
-      priority: PushNotificationPriority.critical,
-      eventType: event.eventType,
-      category: event.category,
-      timestamp: DateTime.now(),
-    );
-  }
-
-  /// P1-11 — system / OTA events. Only `UpdateAvailable` surfaces as a
-  /// phone push so a remote operator gets notified that a new build is
-  /// ready to install. Download / verification / apply events fan out
-  /// through the regular WS event stream and the dashboard's Updates
-  /// panel; they don't warrant a system-level notification.
-  PushNotification? _handleSystemEvent(NightshadeEvent event) {
-    if (event.eventType == 'UpdateAvailable') {
+    // P1-11 — OTA update is a system event the shared classifier does not
+    // route (it is operator-driven, not a notification category). Handle it
+    // first so it still surfaces as a phone push.
+    if (event.category == EventCategory.system &&
+        event.eventType == 'UpdateAvailable') {
       final latest = event.data['latestVersion'] as String? ?? 'a new version';
       final current =
           event.data['currentVersion'] as String? ?? 'the current build';
@@ -427,41 +247,138 @@ class PushNotificationService {
         timestamp: DateTime.now(),
       );
     }
-    return null;
+
+    final classified = NotificationEventClassifier.classify(event);
+    if (classified == null) return null;
+
+    final spec = _pushSpecFor(classified.category);
+    if (spec == null) return null; // category this feed doesn't push
+    if (!spec.enabled(_config)) return null; // per-event toggle off
+
+    // A folded category (e.g. guidingLost = StarLost + Disconnected) may
+    // carry an eventType-specific priority/title/body override.
+    final override = spec.override?.call(event);
+
+    return PushNotification(
+      title: override?.title ?? spec.title,
+      body: override?.body ?? spec.body(event),
+      priority: override?.priority ?? spec.priority,
+      eventType: event.eventType,
+      category: event.category,
+      timestamp: DateTime.now(),
+    );
   }
 
-  PushNotification? _handleEquipmentEvent(NightshadeEvent event) {
-    switch (event.eventType) {
-      case 'Disconnected':
-        if (!_config.notifyEquipmentDisconnected) return null;
-        final deviceType =
-            event.data['device_type'] as String? ?? 'Unknown';
-        final deviceId =
-            event.data['device_id'] as String? ?? 'Unknown';
-        return PushNotification(
+  /// Per-category push spec: the toggle gate, priority, title, and body
+  /// builder for each [NotificationCategory] this mobile feed escalates.
+  /// Returns `null` for categories the mobile feed intentionally does NOT
+  /// push (matching the historical [PushNotificationService] coverage).
+  _PushSpec? _pushSpecFor(NotificationCategory category) {
+    switch (category) {
+      case NotificationCategory.sequenceCompleted:
+        return _PushSpec(
+          enabled: (c) => c.notifySequenceCompleted,
+          priority: PushNotificationPriority.normal,
+          title: 'Sequence Complete',
+          body: (_) => 'Your imaging sequence has finished successfully.',
+        );
+      case NotificationCategory.sequenceFailed:
+        // The classifier folds both `Error` and `Stopped` into
+        // sequenceFailed. Preserve the original per-eventType copy +
+        // priority (Error = high w/ message, Stopped = normal).
+        return _PushSpec(
+          enabled: (c) => c.notifySequenceFailed,
+          priority: PushNotificationPriority.high,
+          title: 'Sequence Error',
+          body: (e) => 'Sequence encountered an error: '
+              '${e.data['message'] as String? ?? 'Unknown error'}',
+          override: (e) => e.eventType == 'Stopped'
+              ? const _PushOverride(
+                  priority: PushNotificationPriority.normal,
+                  title: 'Sequence Stopped',
+                  body: 'The imaging sequence has been stopped.',
+                )
+              : null,
+        );
+      case NotificationCategory.targetCompleted:
+        return _PushSpec(
+          enabled: (c) => c.notifySequenceCompleted,
+          priority: PushNotificationPriority.low,
+          title: 'Target Complete',
+          body: (e) =>
+              'Finished imaging target: '
+              '${e.data['target_name'] as String? ?? 'Unknown target'}',
+        );
+      case NotificationCategory.autofocusFailed:
+        return _PushSpec(
+          enabled: (c) => c.notifyAutofocusFailed,
+          priority: PushNotificationPriority.high,
+          title: 'Autofocus Failed',
+          body: (_) => 'Autofocus did not complete successfully.',
+        );
+      case NotificationCategory.meridianFlipPerformed:
+        return _PushSpec(
+          enabled: (c) => c.notifyMeridianFlip,
+          priority: PushNotificationPriority.normal,
+          title: 'Meridian Flip',
+          body: (e) =>
+              e.data['detail'] as String? ?? 'Performing meridian flip',
+        );
+      case NotificationCategory.exposureFailed:
+        return _PushSpec(
+          enabled: (c) => c.notifyExposureFailed,
+          priority: PushNotificationPriority.high,
+          title: 'Exposure Failed',
+          body: (e) => 'Camera exposure failed: '
+              '${e.data['error'] as String? ?? e.data['reason'] as String? ?? 'Unknown error'}',
+        );
+      case NotificationCategory.guidingLost:
+        // The classifier folds StarLost + Disconnected into guidingLost.
+        // Preserve the original priority split (StarLost = critical,
+        // Disconnected = high) and copy.
+        return _PushSpec(
+          enabled: (c) => c.notifyGuidingLost,
+          priority: PushNotificationPriority.critical,
+          title: 'Guiding Lost',
+          body: (_) => 'Guide star has been lost. Guiding has stopped.',
+          override: (e) => e.eventType == 'Disconnected'
+              ? const _PushOverride(
+                  priority: PushNotificationPriority.high,
+                  title: 'Guider Disconnected',
+                  body: 'PHD2 guiding has disconnected.',
+                )
+              : null,
+        );
+      case NotificationCategory.weatherUnsafe:
+        return _PushSpec(
+          enabled: (c) => c.notifyWeatherUnsafe,
+          priority: PushNotificationPriority.critical,
+          title: 'Weather Unsafe',
+          body: (_) => 'Safety monitor reports unsafe conditions. '
+              'The mount may be parked to protect equipment.',
+        );
+      case NotificationCategory.equipmentDisconnected:
+        // Classifier folds Disconnected + Error into equipmentDisconnected.
+        return _PushSpec(
+          enabled: (c) => c.notifyEquipmentDisconnected,
+          priority: PushNotificationPriority.high,
           title: 'Device Disconnected',
-          body: '$deviceType device disconnected: $deviceId',
-          priority: PushNotificationPriority.high,
-          eventType: event.eventType,
-          category: event.category,
-          timestamp: DateTime.now(),
+          body: (e) =>
+              '${e.data['device_type'] as String? ?? 'Unknown'} device '
+              'disconnected: ${e.data['device_id'] as String? ?? 'Unknown'}',
+          override: (e) => e.eventType == 'Error'
+              ? _PushOverride(
+                  priority: PushNotificationPriority.high,
+                  title: 'Equipment Error',
+                  body: '${e.data['device_type'] as String? ?? 'Unknown'} '
+                      'error: ${e.data['message'] as String? ?? 'Unknown error'}',
+                )
+              : null,
         );
-
-      case 'Error':
-        if (!_config.notifyEquipmentDisconnected) return null;
-        final message =
-            event.data['message'] as String? ?? 'Unknown error';
-        final deviceType =
-            event.data['device_type'] as String? ?? 'Unknown';
-        return PushNotification(
-          title: 'Equipment Error',
-          body: '$deviceType error: $message',
-          priority: PushNotificationPriority.high,
-          eventType: event.eventType,
-          category: event.category,
-          timestamp: DateTime.now(),
-        );
-
+      // Categories the mobile push feed intentionally does NOT escalate
+      // (they surface in-app only): sequence start/pause/resume, target
+      // start, frame captured/rejected, trigger fired, recovery lifecycle,
+      // weather-safe-again, cloud, disk, autofocus-completed, etc.
       default:
         return null;
     }
@@ -473,4 +390,39 @@ class PushNotificationService {
     _subscription = null;
     _notificationController.close();
   }
+}
+
+/// How a single [NotificationCategory] is escalated to a mobile push: which
+/// config toggle gates it, its default priority, and the title/body copy.
+/// The [override] callback handles folded categories whose individual
+/// eventTypes need different priority/copy (e.g. guidingLost covers both a
+/// critical StarLost and a high-priority guider Disconnected).
+class _PushSpec {
+  final bool Function(PushNotificationConfig) enabled;
+  final PushNotificationPriority priority;
+  final String title;
+  final String Function(NightshadeEvent) body;
+  final _PushOverride? Function(NightshadeEvent)? override;
+
+  const _PushSpec({
+    required this.enabled,
+    required this.priority,
+    required this.title,
+    required this.body,
+    this.override,
+  });
+}
+
+/// A per-eventType override of the priority/title/body within a folded
+/// [NotificationCategory].
+class _PushOverride {
+  final PushNotificationPriority priority;
+  final String title;
+  final String body;
+
+  const _PushOverride({
+    required this.priority,
+    required this.title,
+    required this.body,
+  });
 }
