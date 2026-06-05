@@ -281,7 +281,7 @@ class _NoMapForBucketBlock extends ConsumerWidget {
           'Capture 20+ dark frames at this temperature, then click Build '
           'to generate one.',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textSecondary,
             height: 1.4,
           ),
@@ -364,7 +364,7 @@ class _AlternateBucketChip extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: NightshadeDecorations.emphasisSurface(
         colors.accent,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -376,7 +376,7 @@ class _AlternateBucketChip extends ConsumerWidget {
               'A map exists for ${alternateBucket.label} ($signedDelta C '
               'from current).',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textPrimary,
                 height: 1.4,
               ),
@@ -438,7 +438,7 @@ class _StatusLine extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: colors.background,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -450,7 +450,7 @@ class _StatusLine extends StatelessWidget {
             child: Text(
               message,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textPrimary,
                 height: 1.4,
               ),
@@ -590,7 +590,7 @@ class _ApplyToggle extends ConsumerWidget {
         Expanded(
           child: Text(
             'Apply during capture',
-            style: TextStyle(fontSize: 12, color: colors.textPrimary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
           ),
         ),
         NightshadeSwitch(
@@ -799,7 +799,7 @@ class _CorrectionSettings extends ConsumerWidget {
         Text(
           'Correction settings',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: FontWeight.w600,
             color: colors.textSecondary,
             letterSpacing: 0.5,
@@ -813,7 +813,7 @@ class _CorrectionSettings extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Auto-apply when map exists',
-                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
               ),
             ),
             NightshadeSwitch(
@@ -834,7 +834,7 @@ class _CorrectionSettings extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Replacement method',
-                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
               ),
             ),
             NightshadeDropdown(
@@ -858,7 +858,7 @@ class _CorrectionSettings extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Kernel size',
-                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
               ),
             ),
             NightshadeDropdown(
@@ -883,7 +883,7 @@ class _CorrectionSettings extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Save original to Raw/ subdir',
-                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
               ),
             ),
             NightshadeSwitch(

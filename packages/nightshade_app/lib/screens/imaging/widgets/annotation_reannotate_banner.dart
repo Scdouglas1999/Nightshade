@@ -26,7 +26,7 @@ class ReAnnotateSuggestionBanner extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: NightshadeDecorations.statusChip(
         colors.success,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -43,7 +43,7 @@ class ReAnnotateSuggestionBanner extends ConsumerWidget {
               're-annotate to find more objects?',
               style: TextStyle(
                 color: colors.textPrimary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -55,18 +55,18 @@ class ReAnnotateSuggestionBanner extends ConsumerWidget {
                   const ReAnnotateSuggestion.none();
               ref.read(annotationServiceProvider).reAnnotate();
             },
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: NightshadeDecorations.tintedBadge(
                 colors.success,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
               child: Text(
                 'Re-annotate',
                 style: TextStyle(
                   color: foreground,
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -78,7 +78,7 @@ class ReAnnotateSuggestionBanner extends ConsumerWidget {
               ref.read(reAnnotateSuggestionProvider.notifier).state =
                   const ReAnnotateSuggestion.none();
             },
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             child: Padding(
               padding: const EdgeInsets.all(4),
               child: Icon(

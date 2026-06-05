@@ -59,17 +59,20 @@ class AnnotationMiniChips extends ConsumerWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
+                  // absolute: chip overlay scrim over the live image canvas
                   color: Colors.black.withValues(alpha: 0.6),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(
+                    // absolute: chip border over the live image canvas
                     color: Colors.white.withValues(alpha: 0.2),
                   ),
                 ),
                 child: Text(
                   obj.commonName ?? obj.name,
                   style: const TextStyle(
+                    // absolute: chip label over the live image canvas
                     color: Colors.white,
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w500,
                   ),
                 ),

@@ -23,7 +23,7 @@ class _CalibratedBadge extends ConsumerWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: colors.success.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border),
       ),
       child: Padding(
@@ -41,7 +41,7 @@ class _CalibratedBadge extends ConsumerWidget {
               'Calibrated',
               style: TextStyle(
                 color: colors.onPrimary,
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 fontWeight: FontWeight.w600,
               ),
             ),

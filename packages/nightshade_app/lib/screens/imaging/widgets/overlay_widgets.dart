@@ -19,9 +19,10 @@ class OverlayChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      // absolute: HUD chip drawn over the live image canvas
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Row(
@@ -32,7 +33,7 @@ class OverlayChip extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: Colors.white70,
             ),
           ),
@@ -83,12 +84,13 @@ class _OverlayIconButtonState extends State<OverlayIconButton> {
               duration: const Duration(milliseconds: 150),
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
+                // absolute: HUD button hover tint over the live image canvas
                 color: widget.isActive
                     ? widget.colors.primary.withValues(alpha: 0.3)
                     : _isHovered
                         ? Colors.white.withValues(alpha: 0.15)
                         : Colors.transparent,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 border: widget.isActive
                     ? Border.all(
                         color: widget.colors.primary.withValues(alpha: 0.5))
@@ -97,6 +99,7 @@ class _OverlayIconButtonState extends State<OverlayIconButton> {
               child: Icon(
                 widget.icon,
                 size: 18,
+                // absolute: HUD icon over the live image canvas
                 color: widget.isActive
                     ? widget.colors.primary
                     : _isHovered
@@ -131,9 +134,10 @@ class HistogramWidget extends StatelessWidget {
       width: histogramWidth,
       height: 80,
       padding: const EdgeInsets.all(12),
+      // absolute: histogram HUD panel over the live image canvas
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Column(
@@ -142,7 +146,7 @@ class HistogramWidget extends StatelessWidget {
           Text(
             'Histogram',
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               fontWeight: FontWeight.w500,
               color: colors.textMuted,
             ),
@@ -159,14 +163,15 @@ class HistogramWidget extends StatelessWidget {
                   )
                 : Container(
                     decoration: BoxDecoration(
+                      // absolute: empty-state fill in the image-canvas HUD panel
                       color: Colors.white.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     ),
                     child: Center(
                       child: Text(
                         'No data',
                         style: TextStyle(
-                          fontSize: 9,
+                          fontSize: NightshadeTypography.fontSize9,
                           color: colors.textMuted,
                         ),
                       ),
@@ -232,9 +237,10 @@ class ImageStatsOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(12),
+      // absolute: image-stats HUD panel over the live image canvas
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
       ),
       child: Column(
@@ -288,7 +294,7 @@ class StatLine extends StatelessWidget {
           Text(
             '$label:',
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: colors.textMuted,
             ),
           ),
@@ -296,8 +302,9 @@ class StatLine extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w500,
+              // absolute: stat value over the live image canvas HUD
               color: Colors.white70,
               fontFeatures: [FontFeature.tabularFigures()],
             ),
@@ -325,6 +332,7 @@ class ExposureProgressOverlay extends StatelessWidget {
     final progressValue = (progress.percent / 100.0).clamp(0.0, 1.0);
 
     return Container(
+      // absolute: exposure progress scrim over the live image canvas
       color: Colors.black.withValues(alpha: 0.7),
       child: Center(
         child: Column(
@@ -345,7 +353,7 @@ class ExposureProgressOverlay extends StatelessWidget {
                     child: Text(
                       '${progress.percent.toStringAsFixed(0)}%',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: NightshadeTypography.fontSize16,
                         fontWeight: FontWeight.bold,
                         color: colors.primary,
                       ),
@@ -358,8 +366,9 @@ class ExposureProgressOverlay extends StatelessWidget {
             Text(
               statusText,
               style: const TextStyle(
-                fontSize: 14,
+                fontSize: NightshadeTypography.fontSize14,
                 fontWeight: FontWeight.w600,
+                // absolute: status label over the live image canvas
                 color: Colors.white,
               ),
             ),
@@ -368,7 +377,8 @@ class ExposureProgressOverlay extends StatelessWidget {
               Text(
                 '${progress.remaining.toStringAsFixed(1)}s remaining',
                 style: const TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
+                  // absolute: remaining-time label over the live image canvas
                   color: Colors.white70,
                 ),
               ),
@@ -378,7 +388,8 @@ class ExposureProgressOverlay extends StatelessWidget {
                 child: Text(
                   'Frame ${progress.frameNumber} of ${progress.totalFrames}',
                   style: const TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
+                    // absolute: frame-count label over the live image canvas
                     color: Colors.white54,
                   ),
                 ),

@@ -108,7 +108,7 @@ class _CompactStretchControls extends StatelessWidget {
             compact: true,
             value: settings.enabled,
             labelStyle: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color:
                   settings.enabled ? colors.textPrimary : colors.textSecondary,
             ),
@@ -177,7 +177,7 @@ class _ExpandedStretchControls extends StatelessWidget {
           label: 'Auto-Stretch',
           value: settings.enabled,
           labelStyle: TextStyle(
-            fontSize: 13,
+            fontSize: NightshadeTypography.fontSize13,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
@@ -468,7 +468,7 @@ class _MethodDropdown extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(color: colors.border),
         ),
         child: DropdownButtonHideUnderline(
@@ -482,9 +482,9 @@ class _MethodDropdown extends StatelessWidget {
               color: colors.textSecondary,
             ),
             dropdownColor: colors.surface,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textPrimary,
             ),
             items: AutoStretchMethod.values.map((method) {
@@ -496,7 +496,7 @@ class _MethodDropdown extends StatelessWidget {
                     Text(
                       _methodNames[method] ?? method.name,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: colors.textPrimary,
                       ),
                     ),
@@ -544,7 +544,7 @@ class _CompactIconButtonState extends State<_CompactIconButton> {
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: _isHovered ? widget.colors.surfaceHover : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
           ),
           child: Icon(
             widget.icon,
@@ -581,7 +581,7 @@ class _SettingRow extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             color: colors.textSecondary,
           ),
         ),
@@ -648,7 +648,7 @@ class _SliderSetting extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textSecondary,
                 ),
               ),
@@ -669,12 +669,12 @@ class _SliderSetting extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
                   formatValue(value),
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontFamily: 'JetBrains Mono',
                     color: colors.textPrimary,
                   ),
@@ -745,12 +745,12 @@ class _TextButtonState extends State<_TextButton> {
             decoration: BoxDecoration(
               color:
                   _isHovered ? widget.colors.surfaceHover : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Text(
               widget.label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: _isHovered
                     ? widget.colors.primary
                     : widget.colors.textSecondary,

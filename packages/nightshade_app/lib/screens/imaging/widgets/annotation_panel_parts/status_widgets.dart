@@ -35,7 +35,7 @@ class AnnotationCatalogBanner extends StatelessWidget {
               'Annotations are enabled but no catalog is installed. Download the annotation catalog to identify objects in your images.',
               style: TextStyle(
                 color: colors.textPrimary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
           ),
@@ -90,7 +90,7 @@ class AnnotationStatusIndicator extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: _getBackgroundColor(annotationState.status),
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(
             color: _getBorderColor(annotationState.status),
           ),
@@ -109,7 +109,7 @@ class AnnotationStatusIndicator extends ConsumerWidget {
                       _getStatusText(annotationState.status),
                   style: TextStyle(
                     color: _getTextColor(annotationState.status),
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -119,7 +119,7 @@ class AnnotationStatusIndicator extends ConsumerWidget {
                     style: TextStyle(
                       color: _getTextColor(annotationState.status)
                           .withValues(alpha: 0.7),
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,

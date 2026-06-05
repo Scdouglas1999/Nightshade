@@ -51,6 +51,7 @@ class SciencePsfOverlayPainter extends CustomPainter {
     final tileW = imageWidth / cols;
     final tileH = imageHeight / rows;
     final borderPaint = Paint()
+      // absolute: tile grid line over the image canvas
       ..color = Colors.white.withValues(alpha: 0.08)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.6;
@@ -225,6 +226,7 @@ class ScienceUniformityOverlayPainter extends CustomPainter {
     final tileW = imageWidth / cols;
     final tileH = imageHeight / rows;
     final borderPaint = Paint()
+      // absolute: tile grid line over the image canvas
       ..color = Colors.white.withValues(alpha: 0.08)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.6;
@@ -328,6 +330,7 @@ class ScienceClipOverlayPainter extends CustomPainter {
     final tileW = imageWidth / cols;
     final tileH = imageHeight / rows;
     final borderPaint = Paint()
+      // absolute: tile grid line over the image canvas
       ..color = Colors.white.withValues(alpha: 0.08)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 0.6;

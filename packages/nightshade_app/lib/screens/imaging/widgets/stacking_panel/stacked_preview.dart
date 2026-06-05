@@ -127,7 +127,7 @@ class _StackedPreviewState extends State<_StackedPreview> {
         height: 180,
         decoration: BoxDecoration(
           color: widget.colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         ),
         child: Center(
           child: Column(
@@ -144,7 +144,7 @@ class _StackedPreviewState extends State<_StackedPreview> {
               const SizedBox(height: 8),
               Text('Rendering preview...',
                   style:
-                      TextStyle(fontSize: 11, color: widget.colors.textMuted)),
+                      TextStyle(fontSize: NightshadeTypography.fontSize11, color: widget.colors.textMuted)),
             ],
           ),
         ),
@@ -152,7 +152,7 @@ class _StackedPreviewState extends State<_StackedPreview> {
     }
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       child: AspectRatio(
         aspectRatio: widget.width / widget.height,
         child: RawImage(

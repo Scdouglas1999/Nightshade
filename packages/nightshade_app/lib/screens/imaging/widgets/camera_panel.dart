@@ -99,7 +99,7 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
               margin: const EdgeInsets.only(bottom: 16),
               decoration: NightshadeDecorations.emphasisSurface(
                 widget.colors.warning,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Row(
                 children: [
@@ -110,7 +110,7 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                     child: Text(
                       'No camera connected',
                       style:
-                          TextStyle(fontSize: 12, color: widget.colors.warning),
+                          TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.warning),
                     ),
                   ),
                 ],
@@ -130,7 +130,7 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                     children: [
                       Text('Current',
                           style: TextStyle(
-                              fontSize: 12,
+                              fontSize: NightshadeTypography.fontSize12,
                               color: widget.colors.textSecondary)),
                       Row(
                         children: [
@@ -139,7 +139,7 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                                 ? '${cameraState.temperature!.toStringAsFixed(1)}°C'
                                 : '---',
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: NightshadeTypography.fontSize16,
                               fontWeight: FontWeight.w600,
                               color: widget.colors.textPrimary,
                             ),
@@ -167,14 +167,14 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                     children: [
                       Text('Power',
                           style: TextStyle(
-                              fontSize: 12,
+                              fontSize: NightshadeTypography.fontSize12,
                               color: widget.colors.textSecondary)),
                       Text(
                         isConnected && cameraState.coolerPower != null
                             ? '${cameraState.coolerPower!.toStringAsFixed(0)}%'
                             : '---',
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: NightshadeTypography.fontSize14,
                           fontWeight: FontWeight.w500,
                           color: widget.colors.textPrimary,
                         ),
@@ -189,12 +189,12 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                         children: [
                           Text('Target',
                               style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: NightshadeTypography.fontSize12,
                                   color: widget.colors.textSecondary)),
                           Text(
                             '${coolingStatus.targetTemp.toStringAsFixed(1)}°C',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: NightshadeTypography.fontSize12,
                               color: widget.colors.textSecondary,
                             ),
                           ),
@@ -306,7 +306,7 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
               child: Text(
                 'Cooling not supported by this camera',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: widget.colors.textSecondary,
                   fontStyle: FontStyle.italic,
                 ),
@@ -489,7 +489,7 @@ class DebayeringCard extends ConsumerWidget {
               Text(
                 'Enable Debayering',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textSecondary,
                 ),
               ),
@@ -504,7 +504,7 @@ class DebayeringCard extends ConsumerWidget {
           const SizedBox(height: 8),
           Text(
             'Enable for color cameras to convert raw Bayer data to RGB',
-            style: TextStyle(fontSize: 10, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
           ),
           const SizedBox(height: 16),
 
@@ -570,7 +570,7 @@ class DebayeringCard extends ConsumerWidget {
                     child: Text(
                       'Auto-detect from FITS header',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: debayerEnabled
                             ? colors.textSecondary
                             : colors.textMuted,

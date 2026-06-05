@@ -199,7 +199,7 @@ class ControlSection extends StatelessWidget {
         Text(
           title,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             fontWeight: FontWeight.w600,
             color: colors.textMuted,
             letterSpacing: 0.5,
@@ -430,7 +430,7 @@ class _EditableCompactInputState extends State<EditableCompactInput> {
             ),
             decoration: BoxDecoration(
               color: widget.colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(
                 color:
                     _isEditing ? widget.colors.primary : widget.colors.border,
@@ -460,7 +460,7 @@ class _EditableCompactInputState extends State<EditableCompactInput> {
                       : Text(
                           widget.value,
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: NightshadeTypography.fontSize13,
                             fontWeight: FontWeight.w500,
                             color: widget.colors.textPrimary,
                           ),
@@ -470,7 +470,7 @@ class _EditableCompactInputState extends State<EditableCompactInput> {
                   Text(
                     widget.suffix!,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: widget.colors.textMuted,
                     ),
                   ),
@@ -581,7 +581,7 @@ class InputRow extends StatelessWidget {
                   child: Text(
                     value ?? '',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: colors.textPrimary,
                     ),
                   ),
@@ -648,7 +648,7 @@ class InputRowEditable extends StatelessWidget {
             child: TextField(
               controller: TextEditingController(text: value),
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textPrimary,
               ),
               decoration: InputDecoration(
@@ -658,7 +658,7 @@ class InputRowEditable extends StatelessWidget {
                 isDense: true,
                 suffixText: suffix,
                 suffixStyle: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   color: colors.textMuted,
                 ),
               ),
@@ -769,7 +769,7 @@ class SliderRowInteractive extends StatelessWidget {
             context,
             label: label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: isEnabled ? colors.textSecondary : colors.textMuted,
             ),
             helpId: helpId,
@@ -801,7 +801,7 @@ class SliderRowInteractive extends StatelessWidget {
             '${value.toStringAsFixed(1)}$suffix',
             textAlign: TextAlign.right,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontFeatures: const [FontFeature.tabularFigures()],
               color: isEnabled ? colors.textPrimary : colors.textMuted,
             ),
@@ -859,7 +859,7 @@ class _SmallButtonState extends State<SmallButton> {
                           alpha: NightshadeTokens.opacitySubtle,
                         )
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(color: primaryColor),
                 )
               : NightshadeDecorations.filledButton(
@@ -885,7 +885,7 @@ class _SmallButtonState extends State<SmallButton> {
                 child: Text(
                   widget.label,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w500,
                     color: widget.isOutline
                         ? primaryColor

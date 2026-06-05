@@ -255,7 +255,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                   children: [
                     Text('Status',
                         style: TextStyle(
-                            fontSize: 12, color: widget.colors.textSecondary)),
+                            fontSize: NightshadeTypography.fontSize12, color: widget.colors.textSecondary)),
                     Row(
                       children: [
                         Container(
@@ -278,7 +278,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                                   ? 'Error'
                                   : 'Idle',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: NightshadeTypography.fontSize12,
                             fontWeight: FontWeight.w500,
                             color: isRunning
                                 ? widget.colors.success
@@ -300,7 +300,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                       'Live stacking from a local file is only available on the '
                       'imaging host. Capture frames on the host to stack remotely.',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: widget.colors.textMuted,
                       ),
                     ),
@@ -463,7 +463,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                   children: [
                     Text('Enabled',
                         style: TextStyle(
-                            fontSize: 12, color: widget.colors.textSecondary)),
+                            fontSize: NightshadeTypography.fontSize12, color: widget.colors.textSecondary)),
                     NightshadeSwitch(
                       value: config.sigmaClipEnabled,
                       onChanged: (value) {

@@ -178,7 +178,7 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -203,7 +203,7 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
                           ? '${angle.toStringAsFixed(1)}°'
                           : '---',
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: NightshadeTypography.fontSize18,
                         fontWeight: FontWeight.w700,
                         fontFeatures: const [FontFeature.tabularFigures()],
                         color: _isConnected
@@ -217,7 +217,7 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
                         child: Text(
                           'Moving...',
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: NightshadeTypography.fontSize10,
                             color: colors.accent,
                             fontWeight: FontWeight.w500,
                           ),
@@ -235,7 +235,7 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
             Text(
               'Mechanical: ${mechanicalAngle.toStringAsFixed(1)}°',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
               ),
             ),
@@ -245,7 +245,7 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
               child: Text(
                 'Rotator not connected',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textMuted,
                 ),
               ),
@@ -268,14 +268,14 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
           child: Container(
             decoration: BoxDecoration(
               color: colors.background,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               border: Border.all(color: colors.border),
             ),
             child: TextField(
               controller: _angleController,
               focusNode: _angleFocusNode,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: colors.textPrimary,
               ),
               decoration: InputDecoration(
@@ -286,12 +286,12 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
                 hintText:
                     '${minAngle.toStringAsFixed(1)} - ${maxAngle.toStringAsFixed(1)}',
                 hintStyle: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textMuted,
                 ),
                 suffixText: '°',
                 suffixStyle: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textMuted,
                 ),
               ),
@@ -400,17 +400,17 @@ class _RelativeMoveButtonState extends State<_RelativeMoveButton> {
           decoration: _isHovered && isEnabled
               ? NightshadeDecorations.selectedSurface(
                   widget.colors.primary,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 )
               : BoxDecoration(
                   color: widget.colors.background,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                   border: Border.all(color: widget.colors.border),
                 ),
           child: Text(
             widget.label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w600,
               fontFeatures: const [FontFeature.tabularFigures()],
               color: textColor,

@@ -248,7 +248,7 @@ class _StatusReadoutCluster extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textSecondary,
             ),
           ),
@@ -497,7 +497,7 @@ class _LabeledToolbarToggleState extends State<_LabeledToolbarToggle> {
             Text(
               widget.label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: FontWeight.w500,
                 color: accent,
               ),
@@ -564,7 +564,7 @@ class _OverlayMenuRow extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: colors.textPrimary,
               ),
             ),
@@ -574,7 +574,7 @@ class _OverlayMenuRow extends StatelessWidget {
             Text(
               subtitle!,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
               ),
             ),

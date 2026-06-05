@@ -336,7 +336,7 @@ class _DurationFieldState extends State<_DurationField> {
                       textAlign: TextAlign.right,
                       keyboardType: TextInputType.number,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         fontWeight: FontWeight.w600,
                         fontFeatures: const [FontFeature.tabularFigures()],
                         color: colors.textPrimary,
@@ -352,7 +352,7 @@ class _DurationFieldState extends State<_DurationField> {
                       _formatted,
                       textAlign: TextAlign.right,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         fontWeight: FontWeight.w600,
                         fontFeatures: const [FontFeature.tabularFigures()],
                         color: colors.textPrimary,
@@ -360,7 +360,7 @@ class _DurationFieldState extends State<_DurationField> {
                     ),
             ),
             const SizedBox(width: 2),
-            Text('s', style: TextStyle(fontSize: 11, color: colors.textMuted)),
+            Text('s', style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted)),
           ],
         ),
       ),
@@ -450,7 +450,7 @@ class _ExposurePopover extends StatelessWidget {
             Text(
               'G${settings.gain}',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: FontWeight.w500,
                 fontFeatures: const [FontFeature.tabularFigures()],
                 color: colors.textSecondary,
@@ -575,7 +575,7 @@ class _BannerStats extends ConsumerWidget {
         Text(
           value,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: FontWeight.w600,
             fontFeatures: const [FontFeature.tabularFigures()],
             color: colors.textSecondary,

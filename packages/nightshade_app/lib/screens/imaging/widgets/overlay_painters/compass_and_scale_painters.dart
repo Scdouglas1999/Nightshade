@@ -112,7 +112,7 @@ class CompassOverlayPainter extends CustomPainter {
       text: text,
       style: TextStyle(
         color: color,
-        fontSize: 13,
+        fontSize: NightshadeTypography.fontSize13,
         fontWeight: FontWeight.w700,
         shadows: const [
           Shadow(blurRadius: 4, color: Color(0xFF000000), offset: Offset(0, 0)),
@@ -236,7 +236,7 @@ class ScaleBarPainter extends CustomPainter {
       text: bestLabel,
       style: const TextStyle(
         color: Color(0xFFFFFFFF),
-        fontSize: 12,
+        fontSize: NightshadeTypography.fontSize12,
         fontWeight: FontWeight.w600,
         shadows: [
           Shadow(blurRadius: 4, color: Color(0xFF000000), offset: Offset(0, 0)),
@@ -260,7 +260,7 @@ class ScaleBarPainter extends CustomPainter {
         bgWidth,
         bgHeight,
       ),
-      const Radius.circular(4),
+      const Radius.circular(NightshadeTokens.radiusInline4),
     );
     final bgPaint = Paint()
       ..color = const Color(0xAA000000)

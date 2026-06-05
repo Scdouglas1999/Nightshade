@@ -16,6 +16,7 @@ class StarFieldPainter extends CustomPainter {
       final brightness = random.nextDouble() * 0.25 + 0.05;
       final radius = random.nextDouble() * 1.2 + 0.3;
 
+      // absolute: simulated star field drawn on the preview canvas
       paint.color = Colors.white.withValues(alpha: brightness);
       canvas.drawCircle(Offset(x, y), radius, paint);
     }

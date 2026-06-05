@@ -20,6 +20,7 @@ class FullscreenImageViewer extends StatelessWidget {
     return Navigator.of(context, rootNavigator: true).push<void>(
       PageRouteBuilder<void>(
         opaque: true,
+        // absolute: fullscreen image is viewed on pure black, not theme surface
         barrierColor: Colors.black,
         transitionDuration: const Duration(milliseconds: 180),
         pageBuilder: (_, __, ___) => FullscreenImageViewer(image: image),
@@ -33,6 +34,7 @@ class FullscreenImageViewer extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     return Scaffold(
+      // absolute: image canvas backdrop stays pure black regardless of theme
       backgroundColor: Colors.black,
       body: Stack(
         children: [

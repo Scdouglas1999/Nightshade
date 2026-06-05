@@ -215,7 +215,7 @@ class CelestialGridPainter extends CustomPainter {
   }) {
     final textStyle = ui.TextStyle(
       color: _labelColor,
-      fontSize: 9,
+      fontSize: NightshadeTypography.fontSize9,
       fontFamily: 'monospace',
     );
     final paragraphBuilder = ui.ParagraphBuilder(ui.ParagraphStyle(
@@ -256,7 +256,8 @@ class CelestialGridPainter extends CustomPainter {
       textHeight + padding * 2,
     );
     canvas.drawRRect(
-      RRect.fromRectAndRadius(bgRect, const Radius.circular(2)),
+      RRect.fromRectAndRadius(
+          bgRect, const Radius.circular(NightshadeTokens.radiusInline2)),
       Paint()..color = _labelBgColor,
     );
 

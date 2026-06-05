@@ -182,14 +182,14 @@ class CapturePanel extends ConsumerWidget {
                   children: [
                     Text('Captured',
                         style: TextStyle(
-                            fontSize: 12, color: colors.textSecondary)),
+                            fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary)),
                     Flexible(
                       child: Text(
                         '${sessionImages.length} frames',
                         textAlign: TextAlign.end,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            fontSize: 12,
+                            fontSize: NightshadeTypography.fontSize12,
                             fontWeight: FontWeight.w500,
                             color: colors.textPrimary),
                       ),
@@ -202,14 +202,14 @@ class CapturePanel extends ConsumerWidget {
                   children: [
                     Text('Integration',
                         style: TextStyle(
-                            fontSize: 12, color: colors.textSecondary)),
+                            fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary)),
                     Flexible(
                       child: Text(
                         _formatDuration(sessionState.totalIntegrationSecs),
                         textAlign: TextAlign.end,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                            fontSize: 12,
+                            fontSize: NightshadeTypography.fontSize12,
                             fontWeight: FontWeight.w500,
                             color: colors.textPrimary),
                       ),
@@ -224,7 +224,7 @@ class CapturePanel extends ConsumerWidget {
                     children: [
                       Text('Status',
                           style: TextStyle(
-                              fontSize: 12, color: colors.textSecondary)),
+                              fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary)),
                       Row(
                         children: [
                           Container(
@@ -239,7 +239,7 @@ class CapturePanel extends ConsumerWidget {
                           Text(
                             'Active',
                             style: TextStyle(
-                                fontSize: 12,
+                                fontSize: NightshadeTypography.fontSize12,
                                 fontWeight: FontWeight.w500,
                                 color: colors.success),
                           ),
@@ -253,13 +253,13 @@ class CapturePanel extends ConsumerWidget {
                     children: [
                       Text('Duration',
                           style: TextStyle(
-                              fontSize: 12, color: colors.textSecondary)),
+                              fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary)),
                       Text(
                         sessionState.duration != null
                             ? _formatSessionDuration(sessionState.duration!)
                             : '--:--:--',
                         style: TextStyle(
-                            fontSize: 12,
+                            fontSize: NightshadeTypography.fontSize12,
                             fontWeight: FontWeight.w500,
                             color: colors.textPrimary),
                       ),
@@ -365,7 +365,7 @@ class CapturePanel extends ConsumerWidget {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 color: colors.surface,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(color: colors.border),
               ),
               child: Column(
@@ -430,7 +430,7 @@ class CapturePanel extends ConsumerWidget {
                   title: Text(
                     'Park mount after ending session',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: NightshadeTypography.fontSize14,
                       color: mountConnected
                           ? colors.textPrimary
                           : colors.textSecondary,

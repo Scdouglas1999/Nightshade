@@ -134,7 +134,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                       Text(
                         'Mount Status',
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: NightshadeTypography.fontSize14,
                           fontWeight: FontWeight.w600,
                           color: colors.textPrimary,
                         ),
@@ -194,7 +194,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                   Text(
                     'Actions',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: NightshadeTypography.fontSize14,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                     ),
@@ -266,7 +266,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                   Text(
                     'Alignment',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: NightshadeTypography.fontSize14,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                     ),
@@ -298,7 +298,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                   Text(
                     'GoTo / Sync',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: NightshadeTypography.fontSize14,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                     ),
@@ -391,7 +391,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                   Text(
                     'Pulse Guide',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: NightshadeTypography.fontSize14,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                     ),
@@ -443,7 +443,7 @@ class _InfoRow extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(fontSize: 11, color: colors.textSecondary)),
+        Text(label, style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary)),
         const SizedBox(height: 2),
         Text(
           value,
@@ -469,12 +469,12 @@ class _StatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
         border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Text(
         label,
-        style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: color),
+        style: TextStyle(fontSize: NightshadeTypography.fontSize10, fontWeight: FontWeight.w600, color: color),
       ),
     );
   }
@@ -494,10 +494,10 @@ class _PulseButton extends StatelessWidget {
       children: [
         Material(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           child: InkWell(
             onTap: onPressed,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             child: Container(
               width: 48,
               height: 48,
@@ -507,7 +507,7 @@ class _PulseButton extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 4),
-        Text(label, style: TextStyle(fontSize: 10, color: colors.textSecondary)),
+        Text(label, style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary)),
       ],
     );
   }
