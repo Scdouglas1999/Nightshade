@@ -542,6 +542,43 @@ class CurrentSchedulerDecisionNotifier
   }
 }
 
+/// Read-only PREVIEW of what the live autopilot would run right now.
+///
+/// This is the single source of truth for the Planner's "what will run
+/// tonight" headline: it runs the SchedulerEngine's pure, side-effect-free
+/// [SchedulerEngine.previewDecision] over the SAME candidate set the autopilot
+/// scores (goals / constraints / horizon / filters / scheduled windows /
+/// active-project scope), at the engine's current clock and hysteresis state.
+/// By construction the target the human sees here is the target the rig will
+/// slew to — no competing scorer.
+///
+/// It does NOT dispatch, park, or mutate engine status. It re-runs whenever
+/// the engine's last decision changes (so it stays in step with live ticks and
+/// trigger-driven re-evaluations) and whenever a candidate input changes; the
+/// auto-reeval listeners that poke the engine cover the underlying data edits.
+final schedulerPreviewDecisionProvider =
+    FutureProvider.autoDispose<SchedulerDecision>((ref) async {
+  final engine = ref.watch(schedulerEngineProvider);
+  final clock = ref.watch(clockProvider);
+  // Re-derive the preview each time the autopilot publishes a fresh decision
+  // so the read-only view tracks live evaluation. Watching the decision (not
+  // just reading it once) keeps the headline current after ticks/triggers.
+  ref.watch(currentSchedulerDecisionProvider);
+  return engine.previewDecision(clock.now());
+});
+
+/// Read-only ranked candidate list (best-first, eligible only) the autopilot
+/// would consider right now — the headline ordering for the Planner. Shares
+/// the preview decision's inputs and side-effect-free guarantee; the first
+/// entry equals [schedulerPreviewDecisionProvider]'s chosen target.
+final schedulerPreviewRankingProvider =
+    FutureProvider.autoDispose<List<TargetScore>>((ref) async {
+  final engine = ref.watch(schedulerEngineProvider);
+  final clock = ref.watch(clockProvider);
+  ref.watch(currentSchedulerDecisionProvider);
+  return engine.previewRanking(clock.now());
+});
+
 /// Quick-access provider for the list of all integration goals (refreshes
 /// when the operator edits them).
 final allIntegrationGoalsProvider =

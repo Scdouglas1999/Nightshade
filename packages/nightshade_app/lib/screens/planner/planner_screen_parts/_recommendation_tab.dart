@@ -131,7 +131,16 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Authoritative headline: a READ-ONLY preview of the live
+              // SchedulerEngine's decision — the exact target the autopilot
+              // would slew to right now. This is what the rig runs; the
+              // suggestion-based card below is the whole-night OUTLOOK
+              // supplement (peak altitude / transit / window hours), not a
+              // competing #1 ranker (architecture-unification plan, §1).
+              _AutopilotPreviewBanner(colors: colors),
               if (effectivePrimary != null) ...[
+                _OutlookSectionLabel(colors: colors),
+                const SizedBox(height: NightshadeTokens.spaceSm),
                 _PrimaryTargetCard(
                   target: effectivePrimary,
                   plan: plan,

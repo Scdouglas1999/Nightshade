@@ -1132,4 +1132,202 @@ void main() {
       await engine.dispose();
     });
   });
+
+  group('SchedulerEngine - read-only preview (Planner unification)', () {
+    test('previewRanking is side-effect-free: status/decision/dispatch unchanged',
+        () async {
+      final sink = _RecordingSink();
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'High in south', raHours: 14.0, decDegrees: 30.0),
+        _candidate(id: 2, name: 'Rising east', raHours: 20.0, decDegrees: 20.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: _fixedNow,
+      );
+
+      // Engine is IDLE and has never evaluated: a preview must not start it,
+      // dispatch anything, or mutate its status/lastDecision.
+      expect(engine.status.state, SchedulerState.idle);
+      expect(engine.lastDecision, isNull);
+
+      final statusBefore = engine.status;
+      final ranking = await engine.previewRanking(_fixedNow());
+
+      expect(ranking, isNotEmpty,
+          reason: 'at deep night both targets are eligible');
+      // Hard-rejected candidates are omitted; only eligible ones returned.
+      expect(ranking.every((s) => !s.hardConstraintFailed), isTrue);
+
+      // No side effects whatsoever.
+      expect(engine.status, same(statusBefore),
+          reason: 'preview must not mutate engine status');
+      expect(engine.status.state, SchedulerState.idle);
+      expect(engine.status.currentTargetId, isNull);
+      expect(engine.lastDecision, isNull,
+          reason: 'preview must not publish a decision');
+      expect(sink.dispatched, isEmpty,
+          reason: 'preview must never dispatch a sequence');
+      expect(sink.pauseCount, 0);
+      expect(sink.stopCount, 0);
+      expect(sink.parkCount, 0);
+
+      await engine.dispose();
+    });
+
+    test(
+        'previewRanking ordering equals mapping scoreCandidate over the same '
+        'candidates (eligible, best-first)', () async {
+      final sink = _RecordingSink();
+      final now = _fixedNow();
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'High in south', raHours: 14.0, decDegrees: 30.0),
+        _candidate(id: 2, name: 'Setting west', raHours: 4.0, decDegrees: 10.0),
+        _candidate(id: 3, name: 'Rising east', raHours: 20.0, decDegrees: 20.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: () => now,
+      );
+
+      final ranking = await engine.previewRanking(now);
+
+      // Independently reproduce the expected order using the public pure
+      // scorer: score all, drop hard-failed, sort by totalScore desc.
+      final expected = candidates
+          .map((c) => engine.scoreCandidate(c, now))
+          .where((s) => !s.hardConstraintFailed)
+          .toList()
+        ..sort((a, b) => b.totalScore.compareTo(a.totalScore));
+
+      expect(ranking.map((s) => s.targetId).toList(),
+          expected.map((s) => s.targetId).toList());
+
+      await engine.dispose();
+    });
+
+    test(
+        "previewDecision top pick equals the engine's live lastDecision for the "
+        'same candidates + clock', () async {
+      final sink = _RecordingSink();
+      final now = _fixedNow();
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'High in south', raHours: 14.0, decDegrees: 30.0),
+        _candidate(id: 2, name: 'Setting west', raHours: 4.0, decDegrees: 10.0),
+        _candidate(id: 3, name: 'Rising east', raHours: 20.0, decDegrees: 20.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: () => now,
+      );
+
+      // Run the live autopilot once so lastDecision reflects a real dispatch.
+      await engine.start();
+      final live = engine.lastDecision!;
+      expect(live.chosenTargetId, isNotNull);
+      final dispatchedBefore = sink.dispatched.length;
+
+      // The preview, computed for the SAME clock + candidate set + hysteresis
+      // state, must agree with what the autopilot actually chose.
+      final preview = await engine.previewDecision(now);
+      expect(preview.chosenTargetId, live.chosenTargetId,
+          reason: 'the human preview must equal the rig pick by construction');
+      expect(preview.chosenTargetName, live.chosenTargetName);
+      expect(preview.score, live.score);
+
+      // And the preview itself dispatched / mutated nothing.
+      expect(sink.dispatched.length, dispatchedBefore,
+          reason: 'preview must not dispatch');
+      expect(engine.lastDecision, same(live),
+          reason: 'preview must not replace the published decision');
+
+      // previewRanking.first must agree with the chosen pick too.
+      final ranking = await engine.previewRanking(now);
+      expect(ranking.first.targetId, live.chosenTargetId);
+
+      await engine.dispose();
+    });
+
+    test(
+        'previewDecision respects live hysteresis state (matches what the rig '
+        'would keep running)', () async {
+      final sink = _RecordingSink();
+      var preferB = false;
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => <SchedulerCandidate>[
+          _candidate(
+            id: 100,
+            name: 'A',
+            raHours: 14.0,
+            decDegrees: 30.0,
+            userPriority: preferB ? 6 : 5,
+          ),
+          _candidate(
+            id: 200,
+            name: 'B',
+            raHours: 14.0,
+            decDegrees: 30.0,
+            userPriority: preferB ? 7 : 5,
+          ),
+        ],
+        clock: _fixedNow,
+      );
+
+      await engine.start();
+      final firstPick = engine.lastDecision!.chosenTargetId!;
+
+      // Nudge B's priority slightly above A — not enough to clear the 1.20
+      // hysteresis ratio. The live engine will STICK with the current target.
+      preferB = true;
+      await engine.evaluateNow();
+      expect(engine.lastDecision!.chosenTargetId, firstPick,
+          reason: 'sub-threshold challenger must not flip the rig');
+
+      // The preview must report the SAME held target, not the marginally
+      // higher-scoring challenger — otherwise the human sees a pick the rig
+      // will not actually switch to.
+      final preview = await engine.previewDecision(_fixedNow());
+      expect(preview.chosenTargetId, firstPick,
+          reason: 'preview must honour the same hysteresis the autopilot uses');
+
+      await engine.dispose();
+    });
+
+    test('previewRanking on an all-rejected (daylight) set is empty, no effects',
+        () async {
+      final sink = _RecordingSink();
+      DateTime daytime() => DateTime.utc(2026, 5, 11, 17, 0);
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 30, name: 'Circumpolar', raHours: 7.0, decDegrees: 40.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: daytime,
+      );
+
+      final ranking = await engine.previewRanking(daytime());
+      expect(ranking, isEmpty,
+          reason: 'the Sun gate hard-rejects every candidate in daylight');
+
+      final preview = await engine.previewDecision(daytime());
+      expect(preview.chosenTargetId, isNull);
+
+      expect(sink.dispatched, isEmpty);
+      expect(sink.parkCount, 0,
+          reason: 'preview must never park even at end-of-night');
+      expect(engine.lastDecision, isNull);
+
+      await engine.dispose();
+    });
+  });
 }

@@ -57,6 +57,27 @@ class SchedulerCandidate {
   }
 }
 
+/// Result of the engine's pure [SchedulerEngine._evaluate] step: the fully
+/// built [SchedulerDecision] plus the structured outcome the side-effecting
+/// caller ([SchedulerEngine._evaluateOnce]) needs to act on.
+///
+/// [winner] is null when no candidate is eligible (the no-eligible/empty
+/// paths). [isSwitch] mirrors `decision.isSwitch` and is the signal to
+/// dispatch + re-arm the end-of-night park. Keeping these alongside the
+/// decision lets the read-only preview path reuse [SchedulerEngine._evaluate]
+/// without re-deriving them or touching engine state.
+class _EvaluationOutcome {
+  final SchedulerDecision decision;
+  final TargetScore? winner;
+  final bool isSwitch;
+
+  const _EvaluationOutcome({
+    required this.decision,
+    required this.winner,
+    required this.isSwitch,
+  });
+}
+
 /// Site location used for altitude/azimuth and twilight math.
 class SchedulerSite {
   final double latitudeDegrees;
