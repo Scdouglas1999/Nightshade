@@ -19,7 +19,7 @@ class _ProgressPanelContainer extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: NightshadeDecorations.emphasisSurface(
         accent,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: child,
     );
@@ -81,7 +81,7 @@ class _CoolingProgressPanel extends StatelessWidget {
               Text(
                 isWarming ? 'Warming Camera' : 'Cooling Camera',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -155,14 +155,14 @@ class _TempDisplay extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 9,
+            fontSize: NightshadeTypography.fontSize9,
             color: colors.textMuted,
           ),
         ),
         Text(
           temp != null ? '${temp!.toStringAsFixed(1)}Â°C' : '--Â°C',
           style: TextStyle(
-            fontSize: 16,
+            fontSize: NightshadeTypography.fontSize16,
             fontWeight: FontWeight.w700,
             color: isTarget ? colors.info : colors.textPrimary,
           ),
@@ -186,7 +186,7 @@ class _PowerGauge extends StatelessWidget {
         Text(
           'Power',
           style: TextStyle(
-            fontSize: 9,
+            fontSize: NightshadeTypography.fontSize9,
             color: colors.textMuted,
           ),
         ),
@@ -196,7 +196,7 @@ class _PowerGauge extends StatelessWidget {
               width: 40,
               height: 8,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 child: LinearProgressIndicator(
                   value: power / 100.0,
                   backgroundColor: colors.border,
@@ -214,7 +214,7 @@ class _PowerGauge extends StatelessWidget {
             Text(
               '${power.toStringAsFixed(0)}%',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),

@@ -72,7 +72,7 @@ class SequenceTreeContextMenu extends ConsumerWidget {
       ),
       color: colors.surfaceElevated,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         side: BorderSide(color: colors.border),
       ),
       // Wider min-width: the default 112px clips "Group into Sequential
@@ -132,7 +132,7 @@ class SequenceTreeContextMenu extends ConsumerWidget {
           Flexible(
             child: Text(
               label,
-              style: TextStyle(fontSize: 13, color: effectiveLabel),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: effectiveLabel),
               overflow: TextOverflow.ellipsis,
               softWrap: false,
             ),
@@ -518,7 +518,7 @@ class _InsertNodePicker extends ConsumerWidget {
                     Text(
                       'Insert node',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: NightshadeTypography.fontSize14,
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
                       ),
@@ -537,7 +537,7 @@ class _InsertNodePicker extends ConsumerWidget {
                         child: Text(
                           category.name,
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: NightshadeTypography.fontSize11,
                             fontWeight: FontWeight.w600,
                             color: colors.textMuted,
                             letterSpacing: 0.4,
@@ -546,7 +546,7 @@ class _InsertNodePicker extends ConsumerWidget {
                       ),
                       for (final item in category.items)
                         InkWell(
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                           onTap: () {
                             final newNode = item.createNode();
                             final notifier =
@@ -576,7 +576,7 @@ class _InsertNodePicker extends ConsumerWidget {
                                   height: 28,
                                   decoration: BoxDecoration(
                                     color: colors.surfaceAlt,
-                                    borderRadius: BorderRadius.circular(6),
+                                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                                   ),
                                   child: Icon(
                                     LucideIcons.box,
@@ -593,7 +593,7 @@ class _InsertNodePicker extends ConsumerWidget {
                                       Text(
                                         item.name,
                                         style: TextStyle(
-                                          fontSize: 13,
+                                          fontSize: NightshadeTypography.fontSize13,
                                           fontWeight: FontWeight.w500,
                                           color: colors.textPrimary,
                                         ),
@@ -601,7 +601,7 @@ class _InsertNodePicker extends ConsumerWidget {
                                       Text(
                                         item.description,
                                         style: TextStyle(
-                                          fontSize: 11,
+                                          fontSize: NightshadeTypography.fontSize11,
                                           color: colors.textMuted,
                                         ),
                                         maxLines: 1,

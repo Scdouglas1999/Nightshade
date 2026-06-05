@@ -227,13 +227,13 @@ class TemplatesTab extends ConsumerWidget {
                           Text(
                             'Failed to load templates',
                             style: TextStyle(
-                                color: colors.textPrimary, fontSize: 16),
+                                color: colors.textPrimary, fontSize: NightshadeTypography.fontSize16),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             error.toString(),
                             style: TextStyle(
-                                color: colors.textMuted, fontSize: 12),
+                                color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
                           ),
                         ],
                       ),
@@ -279,7 +279,7 @@ class _TemplatesSectionHeader extends StatelessWidget {
               Text(
                 title,
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: NightshadeTypography.fontSize16,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                 ),
@@ -288,7 +288,7 @@ class _TemplatesSectionHeader extends StatelessWidget {
               Text(
                 subtitle,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textMuted,
                   height: 1.3,
                 ),

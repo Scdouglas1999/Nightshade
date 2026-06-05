@@ -179,7 +179,7 @@ class NodeTimingSection extends ConsumerWidget {
             padding: EdgeInsets.all(sectionPadding),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
             child: Column(
@@ -221,7 +221,7 @@ class NodeTimingSection extends ConsumerWidget {
           padding: EdgeInsets.all(sectionPadding),
           decoration: NightshadeDecorations.iconChip(
             colors.primary,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             borderAlpha: 0.2,
           ),
           child: Column(

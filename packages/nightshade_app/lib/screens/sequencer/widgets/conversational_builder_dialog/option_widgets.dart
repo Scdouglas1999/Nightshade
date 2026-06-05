@@ -46,7 +46,7 @@ class _OptionChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: color,
                 fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
               ),
@@ -79,7 +79,7 @@ class _MaxHoursPicker extends StatelessWidget {
           ChoiceChip(
             label: Text(
               opt == null ? 'No cap' : '${opt.toStringAsFixed(0)}h',
-              style: const TextStyle(fontSize: 11),
+              style: const TextStyle(fontSize: NightshadeTypography.fontSize11),
             ),
             selected: value == opt,
             onSelected: (_) => onChanged(opt),

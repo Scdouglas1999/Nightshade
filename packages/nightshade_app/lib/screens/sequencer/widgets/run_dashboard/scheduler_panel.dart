@@ -132,7 +132,7 @@ class RunDashboardSchedulerPanel extends ConsumerWidget {
                 child: Text(
                   'TARGET SCHEDULER',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.6,
                     color: colors.textMuted,
@@ -151,7 +151,7 @@ class RunDashboardSchedulerPanel extends ConsumerWidget {
               child: Text(
                 'No scheduler decisions yet. The panel populates as soon as '
                 'a TargetScheduler node makes its first pick.',
-                style: TextStyle(fontSize: 12, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
               ),
             )
           else
@@ -200,14 +200,14 @@ class _DecisionRow extends StatelessWidget {
               Text(
                 decision.displayDetail,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textPrimary,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 _formatRelative(decision.time),
-                style: TextStyle(fontSize: 10, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
               ),
               if (topScores.isNotEmpty) ...[
                 const SizedBox(height: NightshadeTokens.spaceXs),

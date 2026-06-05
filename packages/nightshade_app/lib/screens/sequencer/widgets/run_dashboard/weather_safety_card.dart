@@ -43,7 +43,7 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
                 child: Text(
                   'SAFETY',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.6,
                     color: colors.textMuted,
@@ -73,7 +73,7 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
                         child: Text(
                           statusText,
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: NightshadeTypography.fontSize10,
                             fontWeight: FontWeight.w700,
                             color: statusColor,
                             letterSpacing: 0.4,
@@ -112,7 +112,7 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
                     child: Text(
                       safety.failModeWarning!,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: colors.warning,
                       ),
                     ),
@@ -126,7 +126,7 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
             Text(
               safety.actions.reason!,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textSecondary,
               ),
             ),
@@ -357,7 +357,7 @@ class _ConditionRow extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: TextStyle(fontSize: 11, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -365,7 +365,7 @@ class _ConditionRow extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w700,
               color: valueColor,
               fontFeatures: const [FontFeature.tabularFigures()],
@@ -395,7 +395,7 @@ class _SourceRow extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,
           ),
         ),
@@ -403,7 +403,7 @@ class _SourceRow extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w600,
             color: colors.textSecondary,
           ),

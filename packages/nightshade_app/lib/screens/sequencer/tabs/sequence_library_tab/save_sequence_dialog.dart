@@ -85,7 +85,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
   Widget build(BuildContext context) {
     return Dialog(
       backgroundColor: widget.colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       child: ConstrainedBox(
         constraints: AdaptiveDialogConstraints.hybrid(
           context,
@@ -104,7 +104,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
                     height: 40,
                     decoration: NightshadeDecorations.tintedBadge(
                       widget.colors.primary,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                     ),
                     child: Icon(
                       LucideIcons.save,
@@ -119,7 +119,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
                       Text(
                         'Save Sequence',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: NightshadeTypography.fontSize18,
                           fontWeight: FontWeight.w700,
                           color: widget.colors.textPrimary,
                         ),
@@ -127,7 +127,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
                       Text(
                         'Save to your sequence library',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           color: widget.colors.textMuted,
                         ),
                       ),
@@ -142,7 +142,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
               Text(
                 'Sequence Name',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: widget.colors.textSecondary,
                 ),
@@ -152,13 +152,13 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
                   color: widget.colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                   border: Border.all(color: widget.colors.border),
                 ),
                 child: TextField(
                   controller: _nameController,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                     color: widget.colors.textPrimary,
                   ),
                   decoration: InputDecoration(
@@ -176,7 +176,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
               Text(
                 'Description (optional)',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: widget.colors.textSecondary,
                 ),
@@ -186,14 +186,14 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
                   color: widget.colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                   border: Border.all(color: widget.colors.border),
                 ),
                 child: TextField(
                   controller: _descriptionController,
                   maxLines: 2,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                     color: widget.colors.textPrimary,
                   ),
                   decoration: InputDecoration(
@@ -212,7 +212,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: widget.colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                 ),
                 child: Row(
                   children: [
@@ -222,7 +222,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
                       child: Text(
                         'Saving ${widget.sequence.nodes.length} nodes',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           color: widget.colors.textSecondary,
                         ),
                       ),

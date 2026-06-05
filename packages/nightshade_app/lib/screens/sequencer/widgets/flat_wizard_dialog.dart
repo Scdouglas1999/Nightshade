@@ -285,7 +285,7 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
                     padding: const EdgeInsets.all(16),
                     decoration: NightshadeDecorations.emphasisSurface(
                       colors.success,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     ),
                     child: Column(
                       children: [
@@ -331,7 +331,7 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: colors.surface,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(color: colors.border),
               ),
               child: Column(
@@ -466,7 +466,7 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
                 Text(
                   'Edit filters...',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textMuted,
                   ),
                 ),

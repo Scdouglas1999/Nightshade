@@ -82,7 +82,7 @@ class TargetNotesSection extends ConsumerWidget {
         padding: const EdgeInsets.all(8),
         child: Text(
           'Notes unavailable: $e',
-          style: TextStyle(fontSize: 11, color: colors.error),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.error),
         ),
       ),
     );
@@ -98,7 +98,7 @@ class TargetNotesSection extends ConsumerWidget {
         Text(
           headerLabel,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w700,
             color: colors.textSecondary,
             letterSpacing: 0.3,
@@ -110,11 +110,11 @@ class TargetNotesSection extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Text(
               '${notes.length}',
-              style: TextStyle(fontSize: 10, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
             ),
           ),
         const Spacer(),
@@ -139,7 +139,7 @@ class TargetNotesSection extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
             child: Text(
               'No notes yet. The first one is always the most useful.',
-              style: TextStyle(fontSize: 11, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
             ),
           )
         else
@@ -284,7 +284,7 @@ class RunNotesSection extends ConsumerWidget {
       loading: () => const SizedBox.shrink(),
       error: (e, _) => Text(
         'Notes unavailable: $e',
-        style: TextStyle(fontSize: 11, color: colors.error),
+        style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.error),
       ),
     );
   }
@@ -372,7 +372,7 @@ class _NotesPanelLayout extends StatelessWidget {
         Text(
           title,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w700,
             color: colors.textSecondary,
             letterSpacing: 0.3,
@@ -384,11 +384,11 @@ class _NotesPanelLayout extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Text(
               '${notes.length}',
-              style: TextStyle(fontSize: 10, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
             ),
           ),
         const Spacer(),
@@ -405,7 +405,7 @@ class _NotesPanelLayout extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
             child: Text(
               emptyHint,
-              style: TextStyle(fontSize: 11, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
             ),
           )
         : Column(

@@ -21,7 +21,7 @@ class _DiagnosticIssueTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -36,7 +36,7 @@ class _DiagnosticIssueTile extends StatelessWidget {
                 Text(
                   issue.title,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -45,7 +45,7 @@ class _DiagnosticIssueTile extends StatelessWidget {
                 Text(
                   issue.description,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -54,7 +54,7 @@ class _DiagnosticIssueTile extends StatelessWidget {
                   Text(
                     issue.resolutionHint!,
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                       color: colors.primary,
                       fontStyle: FontStyle.italic,
                     ),

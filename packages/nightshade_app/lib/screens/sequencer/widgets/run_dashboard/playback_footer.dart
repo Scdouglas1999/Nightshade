@@ -220,7 +220,7 @@ class _BigButtonState extends State<_BigButton> {
               Text(
                 widget.label,
                 style: TextStyle(
-                  fontSize: isMobile ? 14 : 16,
+                  fontSize: isMobile ? NightshadeTypography.fontSize14 : NightshadeTypography.fontSize16,
                   fontWeight: FontWeight.w700,
                   color: fgFinal,
                   letterSpacing: 0.3,

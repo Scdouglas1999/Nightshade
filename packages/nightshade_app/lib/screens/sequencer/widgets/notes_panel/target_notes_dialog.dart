@@ -32,7 +32,7 @@ class _TargetNotesDialogState extends ConsumerState<TargetNotesDialog> {
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         side: BorderSide(color: colors.border),
       ),
       child: SizedBox(
@@ -70,7 +70,7 @@ class _TargetNotesDialogState extends ConsumerState<TargetNotesDialog> {
                                   ? 'No notes yet for this target.'
                                   : 'No notes match the current filter.',
                               style: TextStyle(
-                                  fontSize: 13, color: colors.textMuted),
+                                  fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
                             ),
                           ),
                         )
@@ -130,14 +130,14 @@ class _TargetNotesDialogState extends ConsumerState<TargetNotesDialog> {
                 Text(
                   'Notes — ${widget.targetId}',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: NightshadeTypography.fontSize18,
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
                 ),
                 Text(
                   '$total note${total == 1 ? '' : 's'} on this target',
-                  style: TextStyle(fontSize: 12, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
                 ),
               ],
             ),

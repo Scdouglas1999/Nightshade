@@ -31,7 +31,7 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
             Text(
               'Sequence Library',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: NightshadeTypography.fontSize24,
                 fontWeight: FontWeight.w700,
                 color: widget.colors.textPrimary,
               ),
@@ -40,7 +40,7 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
             Text(
               'Browse and load your saved imaging sequences',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: widget.colors.textMuted,
               ),
             ),
@@ -54,7 +54,7 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: widget.colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(color: widget.colors.border),
           ),
           child: PopupMenuButton<SequenceSortOrder>(
@@ -81,7 +81,7 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
                 Text(
                   _getSortLabel(sortOrder),
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: widget.colors.textSecondary,
                   ),
                 ),
@@ -101,7 +101,7 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             color: widget.colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             border: Border.all(color: widget.colors.border),
           ),
           child: Row(
@@ -116,13 +116,13 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
                     ref.read(sequenceSearchProvider.notifier).state = value;
                   },
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     color: widget.colors.textPrimary,
                   ),
                   decoration: InputDecoration(
                     hintText: 'Search sequences...',
                     hintStyle: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       color: widget.colors.textMuted,
                     ),
                     border: InputBorder.none,
@@ -176,7 +176,7 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
           Text(
             label,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               color: value == current
                   ? widget.colors.primary
                   : widget.colors.textPrimary,

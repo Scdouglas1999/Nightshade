@@ -46,7 +46,7 @@ class _ExposureProgressPanel extends StatelessWidget {
               Text(
                 'Exposure: ${node.filter ?? 'No Filter'}',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -55,7 +55,7 @@ class _ExposureProgressPanel extends StatelessWidget {
               Text(
                 '$currentFrame / $totalFrames frames',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   color: colors.textMuted,
                 ),
               ),
@@ -135,7 +135,7 @@ class _FrameGrid extends StatelessWidget {
                 : isCurrent
                     ? colors.info
                     : colors.surface,
-            borderRadius: BorderRadius.circular(3),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
             border: Border.all(
               color: isCompleted
                   ? colors.success

@@ -11,6 +11,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 class BroadcastPanel extends ConsumerWidget {
   const BroadcastPanel({super.key});
@@ -183,7 +184,7 @@ class _ActiveCard extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: const Color(0xFFFFFFFF),
                     border: Border.all(color: cs.outlineVariant),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                   ),
                   child: _BroadcastQr(url: url),
                 ),

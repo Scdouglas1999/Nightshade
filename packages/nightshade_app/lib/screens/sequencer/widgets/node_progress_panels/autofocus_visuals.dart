@@ -28,10 +28,11 @@ class _StarZoomPanel extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface.withValues(alpha: 0.95),
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
         border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
+            // absolute: drop-shadow scrim (theme-independent)
             color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 4,
             offset: const Offset(1, 1),
@@ -78,7 +79,7 @@ class _StarZoomPanel extends StatelessWidget {
                 // Counter
                 Text(
                   '${currentIndex + 1}/${starCrops.length}',
-                  style: TextStyle(fontSize: 9, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
                 ),
                 // Next arrow
                 _buildNavButton(
@@ -305,7 +306,7 @@ class _VCurvePainter extends CustomPainter {
     final textPainter = TextPainter(
       text: TextSpan(
         text: 'Collecting data...',
-        style: TextStyle(color: colors.textMuted, fontSize: 11),
+        style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
       ),
       textDirection: TextDirection.ltr,
     );
@@ -325,7 +326,7 @@ class _VCurvePainter extends CustomPainter {
       double minHfr,
       double maxHfr,
       FocusRange range) {
-    final textStyle = TextStyle(color: colors.textMuted, fontSize: 8);
+    final textStyle = TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize8);
 
     // Y-axis label (HFR)
     final yLabel = TextPainter(

@@ -50,7 +50,7 @@ class RunDashboardCloudMotionPanel extends ConsumerWidget {
                 child: Text(
                   'CLOUD MOTION',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.6,
                     color: colors.textMuted,
@@ -67,7 +67,7 @@ class RunDashboardCloudMotionPanel extends ConsumerWidget {
                 child: Text(
                   coverLabel,
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     fontWeight: FontWeight.w700,
                     color: coverColor,
                   ),
@@ -100,7 +100,7 @@ class RunDashboardCloudMotionPanel extends ConsumerWidget {
             Text(
               'Cloud-motion unavailable: ${_reasonLabel(unavailableReason)}',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontStyle: FontStyle.italic,
                 color: colors.textMuted,
               ),
@@ -147,13 +147,13 @@ class RunDashboardCloudMotionPanel extends ConsumerWidget {
         Expanded(
           child: Text(
             label,
-            style: TextStyle(fontSize: 11, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
           ),
         ),
         Text(
           value,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w600,
             color: highlight ?? colors.textPrimary,
           ),

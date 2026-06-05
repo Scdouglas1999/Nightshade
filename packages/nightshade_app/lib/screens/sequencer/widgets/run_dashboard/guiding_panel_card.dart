@@ -45,7 +45,7 @@ class RunDashboardGuidingCard extends ConsumerWidget {
               Text(
                 'GUIDING',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
                   color: colors.textMuted,
@@ -69,7 +69,7 @@ class RunDashboardGuidingCard extends ConsumerWidget {
                             ? 'Calibrating'
                             : 'Idle',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                       fontWeight: FontWeight.w700,
                       color: guider.isGuiding
                           ? colors.success
@@ -164,7 +164,7 @@ class _RmsStat extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             color: colors.textMuted,
             fontWeight: FontWeight.w600,
             letterSpacing: 0.4,
@@ -175,7 +175,7 @@ class _RmsStat extends StatelessWidget {
           value != null ? '${value!.toStringAsFixed(2)}"' : '—',
           style: NightshadeTypography.withTabular(
             TextStyle(
-              fontSize: isTotal ? 14 : 12,
+              fontSize: isTotal ? NightshadeTypography.fontSize14 : NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w700,
               color: _color(),
             ),

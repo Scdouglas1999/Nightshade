@@ -140,7 +140,7 @@ class _HorizontalStrip extends StatelessWidget {
           Text(
             'TELEMETRY',
             style: TextStyle(
-              fontSize: 9,
+              fontSize: NightshadeTypography.fontSize9,
               fontWeight: FontWeight.w700,
               color: colors.textMuted,
               letterSpacing: 0.8,
@@ -555,7 +555,7 @@ class _VerticalLayout extends StatelessWidget {
               Text(
                 'Equipment',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
                   color: colors.textMuted,
@@ -567,7 +567,7 @@ class _VerticalLayout extends StatelessWidget {
           if (blocks.isEmpty)
             Text(
               'No equipment connected',
-              style: TextStyle(fontSize: 12, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
             )
           else
             for (var i = 0; i < blocks.length; i++) ...[
@@ -648,7 +648,7 @@ class _TelemetryItem extends StatelessWidget {
           Text(
             '$label: ',
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: colors.textMuted,
               fontWeight: FontWeight.w500,
             ),
@@ -656,7 +656,7 @@ class _TelemetryItem extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: valueColor ?? colors.textSecondary,
               fontWeight: FontWeight.w600,
               fontFeatures: const [FontFeature.tabularFigures()],
@@ -715,7 +715,7 @@ class _DeviceBlock extends StatelessWidget {
               child: Text(
                 name,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -733,7 +733,7 @@ class _DeviceBlock extends StatelessWidget {
               child: Text(
                 statusText,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   fontWeight: FontWeight.w700,
                   color: statusColor,
                   letterSpacing: 0.4,
@@ -747,7 +747,7 @@ class _DeviceBlock extends StatelessWidget {
           Text(
             deviceName!,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: colors.textMuted,
             ),
             overflow: TextOverflow.ellipsis,
@@ -784,7 +784,7 @@ class _TelemetryRow extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textMuted,
             ),
           ),
@@ -792,7 +792,7 @@ class _TelemetryRow extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w600,
               color: valueColor ?? colors.textSecondary,
               fontFeatures: const [FontFeature.tabularFigures()],

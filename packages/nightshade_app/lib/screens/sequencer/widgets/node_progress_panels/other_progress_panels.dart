@@ -37,7 +37,7 @@ class _SlewProgressPanel extends StatelessWidget {
                 child: Text(
                   isCentering ? 'Centering Target' : 'Slewing to Target',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -47,7 +47,7 @@ class _SlewProgressPanel extends StatelessWidget {
                 Text(
                   '${separation.toStringAsFixed(1)}" remaining',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     color: colors.textMuted,
                   ),
                 ),
@@ -93,7 +93,7 @@ class _FilterProgressPanel extends StatelessWidget {
                 child: Text(
                   detail.isNotEmpty ? detail : 'Changing Filter',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -154,7 +154,7 @@ class _DefaultProgressPanel extends StatelessWidget {
                     child: Text(
                       detail,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: isError ? colors.error : colors.textPrimary,
                         fontWeight:
                             isError ? FontWeight.w600 : FontWeight.normal,

@@ -105,7 +105,7 @@ class _RunDashboardRecoveryBannerState
                       Text(
                         'RECOVERING',
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: NightshadeTypography.fontSize10,
                           fontWeight: FontWeight.w800,
                           color: colors.error,
                           letterSpacing: 0.8,
@@ -116,7 +116,7 @@ class _RunDashboardRecoveryBannerState
                         child: Text(
                           ctx.cause.displayLabel,
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: NightshadeTypography.fontSize14,
                             fontWeight: FontWeight.w700,
                             color: colors.textPrimary,
                           ),
@@ -139,7 +139,7 @@ class _RunDashboardRecoveryBannerState
                     Text(
                       'Last error: ${ctx.lastError}',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: colors.textMuted,
                       ),
                       maxLines: 2,
@@ -402,7 +402,7 @@ class SequencerStatusLed extends ConsumerWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: FontWeight.w700,
             color: colors.textSecondary,
             letterSpacing: 0.4,

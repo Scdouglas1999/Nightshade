@@ -120,7 +120,7 @@ class _FilterChangeProperties extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(color: colors.border),
                   ),
                   child: DropdownButtonHideUnderline(
@@ -134,7 +134,7 @@ class _FilterChangeProperties extends ConsumerWidget {
                       ),
                       dropdownColor: colors.surface,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         color: colors.textPrimary,
                       ),
                       items: filterOptions.map((filter) {
@@ -246,7 +246,7 @@ class _WarmCameraProperties extends ConsumerWidget {
           padding: const EdgeInsets.all(12),
           decoration: NightshadeDecorations.tintedBadge(
             colors.warning,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           ),
           child: Row(
             children: [
@@ -449,7 +449,7 @@ class _TransportMultiSelect extends StatelessWidget {
         Text(
           'Empty = use the matrix\'s default for "Custom" notifications. Tick one or more to override per-node.',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,
           ),
         ),
@@ -465,7 +465,7 @@ class _TransportMultiSelect extends StatelessWidget {
               label: Text(
                 configured ? kind.label : '${kind.label} (not configured)',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: configured
                       ? (isSelected ? colors.background : colors.textPrimary)
                       : colors.textMuted,
@@ -512,7 +512,7 @@ class _NotificationPreview extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -521,7 +521,7 @@ class _NotificationPreview extends StatelessWidget {
           Text(
             'Preview',
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               fontWeight: FontWeight.w700,
               color: colors.textMuted,
               letterSpacing: 0.4,
@@ -531,7 +531,7 @@ class _NotificationPreview extends StatelessWidget {
           Text(
             title.isEmpty ? '(no title)' : title,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               fontWeight: FontWeight.w600,
               color: title.isEmpty ? colors.textMuted : colors.textPrimary,
             ),
@@ -540,7 +540,7 @@ class _NotificationPreview extends StatelessWidget {
           Text(
             body.isEmpty ? '(no body)' : body,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: body.isEmpty ? colors.textMuted : colors.textSecondary,
               fontStyle: FontStyle.italic,
             ),

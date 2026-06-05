@@ -102,14 +102,14 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               ? NightshadeDecorations.cardSelected(
                   categoryColor,
                   background: widget.colors.surface,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   borderWidth: 2,
                 )
               : BoxDecoration(
                   color: _isHovered
                       ? categoryColor.withValues(alpha: 0.06)
                       : widget.colors.surface,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(
                     color: isRunning
                         ? widget.colors.info
@@ -183,7 +183,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               margin: const EdgeInsets.only(right: 10),
               decoration: BoxDecoration(
                 color: statusColor,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
               ),
             ),
 
@@ -193,7 +193,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
             height: 36,
             decoration: NightshadeDecorations.statusChip(
               categoryColor,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               bordered: false,
             ),
             child: isRunning
@@ -217,7 +217,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                 Text(
                   node.displayName,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                     fontWeight: FontWeight.w600,
                     color: widget.colors.textPrimary,
                   ),
@@ -226,7 +226,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                   Text(
                     node.mosaicPanel!.mosaicName,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: widget.colors.textMuted,
                     ),
                   ),
@@ -240,13 +240,13 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: NightshadeDecorations.statusChip(
                 widget.colors.accent,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 bordered: false,
               ),
               child: Text(
                 node.mosaicPanel!.displayLabel,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   fontWeight: FontWeight.w600,
                   color: widget.colors.accent,
                 ),
@@ -370,12 +370,12 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: widget.colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
               child: Text(
                 'P${node.priority}',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   fontWeight: FontWeight.w500,
                   color: widget.colors.textMuted,
                 ),
@@ -532,7 +532,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                   Text(
                     statusLabel,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       fontWeight: FontWeight.w600,
                       color: widget.nodeStatus == NodeStatus.running
                           ? widget.colors.info
@@ -545,7 +545,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                   Text(
                     planLabel,
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                       color: widget.colors.textMuted,
                     ),
                     maxLines: 1,
@@ -583,24 +583,24 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               Text(
                 '${stats.completedFrames}/${stats.totalFrames} done',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w600,
                   color: widget.colors.textSecondary,
                 ),
               ),
               const SizedBox(width: 6),
-              Text('•', style: TextStyle(fontSize: 11, color: widget.colors.textMuted)),
+              Text('•', style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: widget.colors.textMuted)),
               const SizedBox(width: 6),
               Text(
                 '${completedMins}m / ${totalMins}m',
                 style:
-                    TextStyle(fontSize: 11, color: widget.colors.textMuted),
+                    TextStyle(fontSize: NightshadeTypography.fontSize11, color: widget.colors.textMuted),
               ),
               const Spacer(),
               Text(
                 '${(stats.fraction * 100).round()}%',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w600,
                   color: widget.colors.textSecondary,
                 ),
@@ -720,7 +720,7 @@ class _CoordinateChip extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: FontWeight.w500,
             color: colors.textMuted,
           ),
@@ -729,7 +729,7 @@ class _CoordinateChip extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
             fontFamily: 'monospace',
@@ -757,7 +757,7 @@ class _ConstraintChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -767,7 +767,7 @@ class _ConstraintChip extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textSecondary,
             ),
           ),

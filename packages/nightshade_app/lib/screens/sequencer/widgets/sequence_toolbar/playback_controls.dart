@@ -127,7 +127,7 @@ class _PlayButtonState extends State<_PlayButton> {
               Text(
                 widget.label,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w600,
                   color: onPrimary,
                 ),
@@ -170,7 +170,7 @@ class _PauseButtonState extends State<_PauseButton> {
             color: _isHovered
                 ? widget.colors.warning.withValues(alpha: 0.2)
                 : widget.colors.warning.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             border: Border.all(
               color: widget.colors.warning.withValues(alpha: 0.5),
             ),
@@ -187,7 +187,7 @@ class _PauseButtonState extends State<_PauseButton> {
               Text(
                 'Pause',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w600,
                   color: widget.colors.warning,
                 ),
@@ -242,7 +242,7 @@ class _ControlButtonState extends State<_ControlButton> {
               color: _isHovered && !isDisabled
                   ? widget.colors.surfaceAlt
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: widget.colors.border),
             ),
             child: Icon(

@@ -40,7 +40,7 @@ class _PreflightSectionState extends State<_PreflightSection> {
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -48,7 +48,7 @@ class _PreflightSectionState extends State<_PreflightSection> {
         children: [
           InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
               child: Row(
@@ -57,7 +57,7 @@ class _PreflightSectionState extends State<_PreflightSection> {
                     padding: const EdgeInsets.all(6),
                     decoration: NightshadeDecorations.statusChip(
                       tone,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                       bordered: false,
                     ),
                     child: Icon(widget.icon, size: 14, color: tone),
@@ -67,7 +67,7 @@ class _PreflightSectionState extends State<_PreflightSection> {
                     child: Text(
                       widget.title,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
                       ),
@@ -78,13 +78,13 @@ class _PreflightSectionState extends State<_PreflightSection> {
                         const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: NightshadeDecorations.statusChip(
                       tone,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                       bordered: false,
                     ),
                     child: Text(
                       '${widget.issues.length}',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         fontWeight: FontWeight.w700,
                         color: tone,
                       ),
@@ -167,7 +167,7 @@ class _IssueRow extends StatelessWidget {
                 Text(
                   issue.title,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -176,7 +176,7 @@ class _IssueRow extends StatelessWidget {
                 Text(
                   issue.description,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -192,7 +192,7 @@ class _IssueRow extends StatelessWidget {
                         child: Text(
                           issue.resolutionHint!,
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: NightshadeTypography.fontSize10,
                             color: colors.primary,
                             fontStyle: FontStyle.italic,
                           ),

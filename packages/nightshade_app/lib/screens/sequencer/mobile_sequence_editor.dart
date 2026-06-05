@@ -451,7 +451,7 @@ class _MobileNodeRow extends StatelessWidget {
         margin: EdgeInsets.fromLTRB(16 + row.depth * 16.0, 4, 16, 4),
         decoration: BoxDecoration(
           color: colors.error.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         ),
         child: Icon(
           LucideIcons.trash2,
@@ -462,19 +462,19 @@ class _MobileNodeRow extends StatelessWidget {
       onDismissed: (_) => onDismissed(),
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         child: Container(
           margin: EdgeInsets.fromLTRB(16 + row.depth * 16.0, 4, 16, 4),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: isCurrent
               ? NightshadeDecorations.emphasisSurface(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 )
               : BoxDecoration(
                   color: colors.surface,
                   border: Border.all(color: colors.border),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
           child: Row(
             children: [
@@ -487,7 +487,7 @@ class _MobileNodeRow extends StatelessWidget {
                     Text(
                       row.node.name,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         fontWeight:
                             isCurrent ? FontWeight.w700 : FontWeight.w500,
                         color: colors.textPrimary,
@@ -561,13 +561,13 @@ class _StatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: NightshadeDecorations.tintedBadge(
         color,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       ),
       child: Text(
         label,
         style: TextStyle(
           color: color,
-          fontSize: 10,
+          fontSize: NightshadeTypography.fontSize10,
           fontWeight: FontWeight.w700,
         ),
       ),
@@ -675,7 +675,7 @@ class _SequencerRecoveryActionsBannerState
                 child: Text(
                   ctx.cause.displayLabel,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
@@ -728,13 +728,13 @@ class _RecoveryChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: NightshadeDecorations.tintedBadge(
         color,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       ),
       child: Text(
         label,
         style: TextStyle(
           color: color,
-          fontSize: 11,
+          fontSize: NightshadeTypography.fontSize11,
           fontWeight: FontWeight.w700,
           // Tabular figures keep the countdown from jittering as digits change.
           fontFeatures: const [FontFeature.tabularFigures()],

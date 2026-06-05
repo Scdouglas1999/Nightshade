@@ -36,7 +36,7 @@ class RunDashboardTriggerFeed extends ConsumerWidget {
               Text(
                 'RECENT EVENTS',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
                   color: colors.textMuted,
@@ -51,7 +51,7 @@ class RunDashboardTriggerFeed extends ConsumerWidget {
                   vertical: NightshadeTokens.spaceMd),
               child: Text(
                 'No events yet.',
-                style: TextStyle(fontSize: 12, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
               ),
             )
           else
@@ -121,7 +121,7 @@ class _EventRow extends StatelessWidget {
                   Text(
                     event.category,
                     style: TextStyle(
-                      fontSize: 9,
+                      fontSize: NightshadeTypography.fontSize9,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.5,
                       color: color,
@@ -132,7 +132,7 @@ class _EventRow extends StatelessWidget {
                     child: Text(
                       event.title,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
                       ),
@@ -155,7 +155,7 @@ class _EventRow extends StatelessWidget {
                 Text(
                   event.message,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,
                   ),
                   maxLines: 2,

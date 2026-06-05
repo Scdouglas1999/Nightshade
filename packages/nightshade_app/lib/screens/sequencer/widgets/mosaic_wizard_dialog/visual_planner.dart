@@ -122,15 +122,16 @@ class _CoordHud extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
+        // absolute: HUD scrim over the dark sky planner canvas
         color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       ),
       child: Text(
         'RA ${ra.toStringAsFixed(3)}h   Dec ${dec.toStringAsFixed(2)}°   '
         'Rot ${rotation.toStringAsFixed(0)}°',
         style: TextStyle(
           color: colors.textPrimary,
-          fontSize: 11,
+          fontSize: NightshadeTypography.fontSize11,
           fontFamily: 'monospace',
         ),
       ),
@@ -147,21 +148,24 @@ class _Legend extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
+        // absolute: HUD scrim over the dark sky planner canvas
         color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(LucideIcons.move, size: 11, color: colors.primary),
           const SizedBox(width: 4),
+          // absolute: HUD label over the dark sky planner canvas
           const Text('Drag centre',
-              style: TextStyle(color: Colors.white70, fontSize: 10)),
+              style: TextStyle(color: Colors.white70, fontSize: NightshadeTypography.fontSize10)),
           const SizedBox(width: 12),
           Icon(LucideIcons.mousePointerClick, size: 11, color: colors.accent),
           const SizedBox(width: 4),
+          // absolute: HUD label over the dark sky planner canvas
           const Text('Tap panel to toggle',
-              style: TextStyle(color: Colors.white70, fontSize: 10)),
+              style: TextStyle(color: Colors.white70, fontSize: NightshadeTypography.fontSize10)),
         ],
       ),
     );
@@ -185,8 +189,9 @@ class _ZoomControls extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
+        // absolute: HUD scrim over the dark sky planner canvas
         color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -194,15 +199,18 @@ class _ZoomControls extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.add, size: 14),
             onPressed: onZoomIn,
+            // absolute: HUD control over the dark sky planner canvas
             color: Colors.white70,
             padding: const EdgeInsets.all(2),
             constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
           ),
           Text('${(zoom * 100).round()}%',
-              style: const TextStyle(color: Colors.white54, fontSize: 9)),
+              // absolute: HUD label over the dark sky planner canvas
+              style: const TextStyle(color: Colors.white54, fontSize: NightshadeTypography.fontSize9)),
           IconButton(
             icon: const Icon(Icons.remove, size: 14),
             onPressed: onZoomOut,
+            // absolute: HUD control over the dark sky planner canvas
             color: Colors.white70,
             padding: const EdgeInsets.all(2),
             constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
@@ -210,6 +218,7 @@ class _ZoomControls extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.center_focus_strong, size: 14),
             onPressed: onReset,
+            // absolute: HUD control over the dark sky planner canvas
             color: Colors.white70,
             padding: const EdgeInsets.all(2),
             constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
@@ -320,10 +329,12 @@ class _PanelLayer extends StatelessWidget {
             decoration: BoxDecoration(
               color: p.enabled
                   ? colors.primary.withValues(alpha: 0.18)
+                  // absolute: disabled panel over the dark sky planner canvas
                   : Colors.grey.withValues(alpha: 0.05),
               border: Border.all(
                 color: p.enabled
                     ? colors.primary
+                    // absolute: disabled panel over the dark sky planner canvas
                     : Colors.grey.withValues(alpha: 0.5),
                 width: 1.5,
               ),
@@ -333,6 +344,7 @@ class _PanelLayer extends StatelessWidget {
                 '${p.index + 1}',
                 style: TextStyle(
                   fontSize: math.max(10, pxWidth * 0.12),
+                  // absolute: disabled panel index over the dark sky canvas
                   color: p.enabled ? colors.textPrimary : Colors.white24,
                   fontWeight: FontWeight.w700,
                 ),

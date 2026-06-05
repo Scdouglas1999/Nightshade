@@ -133,7 +133,7 @@ class SequenceDiffDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         side: BorderSide(color: colors.border),
       ),
       child: ConstrainedBox(
@@ -171,14 +171,14 @@ class SequenceDiffDialog extends StatelessWidget {
                 Text(
                   'Sequence Diff',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: NightshadeTypography.fontSize18,
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
                 ),
                 Text(
                   '${diff.previousName} → ${diff.currentName}',
-                  style: TextStyle(fontSize: 12, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
                 ),
               ],
             ),
@@ -206,7 +206,7 @@ class SequenceDiffDialog extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'No structural changes between these runs.',
-                style: TextStyle(fontSize: 13, color: colors.textSecondary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textSecondary),
               ),
             ],
           ),
@@ -262,7 +262,7 @@ class SequenceDiffDialog extends StatelessWidget {
           Text(
             diff.summary,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textMuted,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
@@ -292,13 +292,13 @@ class _SummaryChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: NightshadeDecorations.iconChip(
         color,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         borderAlpha: 0.4,
       ),
       child: Text(
         diff.summary,
         style: TextStyle(
-          fontSize: 12,
+          fontSize: NightshadeTypography.fontSize12,
           fontWeight: FontWeight.w600,
           color: color,
           fontFeatures: const [FontFeature.tabularFigures()],
@@ -343,7 +343,7 @@ class _DiffSection extends StatelessWidget {
               Text(
                 title,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                   letterSpacing: 0.3,
@@ -388,7 +388,7 @@ class _DiffNodeRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: entryColor.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: entryColor.withValues(alpha: 0.3)),
       ),
       child: Column(
@@ -403,7 +403,7 @@ class _DiffNodeRow extends StatelessWidget {
                   symbol,
                   style: TextStyle(
                     fontWeight: FontWeight.w900,
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                     color: entryColor,
                     fontFamily: 'monospace',
                   ),
@@ -414,12 +414,12 @@ class _DiffNodeRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
                   entry.nodeKind,
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     fontWeight: FontWeight.w600,
                     color: colors.textMuted,
                     letterSpacing: 0.3,
@@ -431,7 +431,7 @@ class _DiffNodeRow extends StatelessWidget {
                 child: Text(
                   entry.label,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -473,12 +473,12 @@ class _FieldChangeRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(3),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
           ),
           child: Text(
             change.field,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               fontWeight: FontWeight.w600,
               color: colors.textSecondary,
             ),
@@ -527,12 +527,12 @@ class _ValueChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: NightshadeDecorations.tintedBadge(
         color,
-        borderRadius: BorderRadius.circular(3),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
       ),
       child: Text(
         value,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: NightshadeTypography.fontSize11,
           color: color,
           fontFamily: 'monospace',
         ),

@@ -105,7 +105,7 @@ class SmartNightSafetyWatchdogsSection extends StatelessWidget {
           style: TextStyle(
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
-            fontSize: 13,
+            fontSize: NightshadeTypography.fontSize13,
           ),
         ),
         const SizedBox(height: 4),
@@ -113,7 +113,7 @@ class SmartNightSafetyWatchdogsSection extends StatelessWidget {
           'These run in parallel with the imaging branch and fire by '
           'condition, not by list position.',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,
           ),
         ),
@@ -137,7 +137,7 @@ class SmartNightSafetyWatchdogsSection extends StatelessWidget {
                         TextSpan(
                           text: '${w.title} — ',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: NightshadeTypography.fontSize12,
                             fontWeight: FontWeight.w600,
                             color: colors.textSecondary,
                           ),
@@ -145,7 +145,7 @@ class SmartNightSafetyWatchdogsSection extends StatelessWidget {
                         TextSpan(
                           text: w.detail,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: NightshadeTypography.fontSize12,
                             color: colors.textSecondary,
                           ),
                         ),

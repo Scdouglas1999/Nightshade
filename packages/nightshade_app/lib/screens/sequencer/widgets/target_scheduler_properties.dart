@@ -343,7 +343,7 @@ class _WeightSumIndicator extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: NightshadeDecorations.iconChip(
         color,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         children: [
@@ -387,7 +387,7 @@ class _PreviewPlaceholder extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Text(
@@ -657,7 +657,7 @@ class _TierOrderIndicator extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: NightshadeDecorations.iconChip(
         colors.warning,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         children: [
@@ -799,7 +799,7 @@ class _ScoreRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -809,7 +809,7 @@ class _ScoreRow extends StatelessWidget {
             height: 28,
             decoration: BoxDecoration(
               color: fillColor,
-              borderRadius: BorderRadius.circular(3),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
             ),
           ),
           const SizedBox(width: 10),

@@ -350,7 +350,7 @@ class _TriggerConfigurationDialogState
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: ListTile(
@@ -358,7 +358,7 @@ class _TriggerConfigurationDialogState
           padding: const EdgeInsets.all(8),
           decoration: NightshadeDecorations.tintedBadge(
             trigger.conditionColor(colors),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           ),
           child: Icon(
             trigger.conditionIcon,
@@ -589,7 +589,7 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
               _resetHint!,
               key: const ValueKey('trigger_threshold_reset_hint'),
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.warning,
               ),
             ),

@@ -17,7 +17,7 @@ class _CountBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: NightshadeDecorations.statusChip(
         color,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         bordered: false,
       ),
       child: Row(
@@ -28,7 +28,7 @@ class _CountBadge extends StatelessWidget {
           Text(
             count.toString(),
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w700,
               color: color,
             ),
@@ -87,7 +87,7 @@ class _StartSequenceButtonState extends State<_StartSequenceButton> {
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           decoration: BoxDecoration(
             color: buttonColors.background,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(color: buttonColors.border),
           ),
           child: Row(
@@ -102,7 +102,7 @@ class _StartSequenceButtonState extends State<_StartSequenceButton> {
               Text(
                 widget.hasWarningsOnly ? 'Start Anyway' : 'Start Sequence',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w600,
                   color: onPrimary,
                 ),

@@ -75,14 +75,14 @@ class SequenceTimeline extends ConsumerWidget {
       height: 60,
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Center(
         child: Text(
           'No sequence nodes to visualize',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             color: colors.textMuted,
           ),
         ),

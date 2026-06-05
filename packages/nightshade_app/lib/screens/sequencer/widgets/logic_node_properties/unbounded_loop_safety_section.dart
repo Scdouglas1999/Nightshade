@@ -23,7 +23,7 @@ class _UnboundedLoopSafetySection extends ConsumerWidget {
             margin: const EdgeInsets.only(bottom: 12),
             decoration: NightshadeDecorations.emphasisSurface(
               colors.warning,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -94,7 +94,7 @@ class _UnboundedLoopSafetySection extends ConsumerWidget {
                       height: 32,
                       decoration: BoxDecoration(
                         color: colors.surfaceAlt,
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                         border: Border.all(color: colors.border),
                       ),
                       child: Icon(LucideIcons.x,
@@ -112,7 +112,7 @@ class _UnboundedLoopSafetySection extends ConsumerWidget {
           padding: const EdgeInsets.all(10),
           decoration: NightshadeDecorations.tintedBadge(
             colors.info,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,

@@ -20,7 +20,7 @@ class _AnimatedProgressBar extends StatelessWidget {
           children: [
             Expanded(
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 child: TweenAnimationBuilder<double>(
                   tween: Tween(begin: 0, end: progress),
                   duration: const Duration(milliseconds: 300),
@@ -41,7 +41,7 @@ class _AnimatedProgressBar extends StatelessWidget {
               child: Text(
                 '${(progress * 100).toStringAsFixed(0)}%',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   fontWeight: FontWeight.w600,
                   color: colors.textMuted,
                 ),

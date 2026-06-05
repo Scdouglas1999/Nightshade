@@ -106,7 +106,7 @@ class LoopProperties extends ConsumerWidget {
                           horizontal: 12, vertical: 10),
                       decoration: BoxDecoration(
                         color: colors.surfaceAlt,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                         border: Border.all(color: colors.border),
                       ),
                       child: Row(
@@ -119,7 +119,7 @@ class LoopProperties extends ConsumerWidget {
                                 ? '${node.repeatUntil!.hour.toString().padLeft(2, '0')}:${node.repeatUntil!.minute.toString().padLeft(2, '0')}'
                                 : 'Select time...',
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: NightshadeTypography.fontSize13,
                               color: node.repeatUntil != null
                                   ? colors.textPrimary
                                   : colors.textMuted,

@@ -55,7 +55,7 @@ class RunDashboardObservatoryPanel extends ConsumerWidget {
               Text(
                 'OBSERVATORY',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
                   color: colors.textMuted,
@@ -67,7 +67,7 @@ class RunDashboardObservatoryPanel extends ConsumerWidget {
           if (blocks.isEmpty)
             Text(
               'No dome, cover, or switch connected.',
-              style: TextStyle(fontSize: 12, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
             )
           else
             for (var i = 0; i < blocks.length; i++) ...[
@@ -239,7 +239,7 @@ class _ObservatoryBlock extends StatelessWidget {
               child: Text(
                 name,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -256,7 +256,7 @@ class _ObservatoryBlock extends StatelessWidget {
               child: Text(
                 statusText,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   fontWeight: FontWeight.w700,
                   color: statusColor,
                   letterSpacing: 0.4,
@@ -269,7 +269,7 @@ class _ObservatoryBlock extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             deviceName!,
-            style: TextStyle(fontSize: 10, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
             overflow: TextOverflow.ellipsis,
           ),
         ],
@@ -304,7 +304,7 @@ class _Row extends StatelessWidget {
           Expanded(
             child: Text(
               label,
-              style: TextStyle(fontSize: 11, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -312,7 +312,7 @@ class _Row extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w600,
               color: valueColor ?? colors.textSecondary,
               fontFeatures: const [FontFeature.tabularFigures()],

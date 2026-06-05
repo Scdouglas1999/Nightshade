@@ -111,7 +111,7 @@ class SequenceLibraryTab extends ConsumerWidget {
                             ),
                             decoration: BoxDecoration(
                               color: colors.surfaceAlt,
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                               border: Border.all(color: colors.border),
                             ),
                             child: Row(
@@ -123,7 +123,7 @@ class SequenceLibraryTab extends ConsumerWidget {
                                 Text(
                                   'Tip: Use "Save Current" to save your sequence',
                                   style: TextStyle(
-                                    fontSize: 12,
+                                    fontSize: NightshadeTypography.fontSize12,
                                     color: colors.textSecondary,
                                   ),
                                 ),
@@ -157,12 +157,12 @@ class SequenceLibraryTab extends ConsumerWidget {
                     const SizedBox(height: 16),
                     Text(
                       'Failed to load sequences',
-                      style: TextStyle(color: colors.textPrimary, fontSize: 16),
+                      style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize16),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       error.toString(),
-                      style: TextStyle(color: colors.textMuted, fontSize: 12),
+                      style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
                     ),
                     const SizedBox(height: 16),
                     NightshadeButton(

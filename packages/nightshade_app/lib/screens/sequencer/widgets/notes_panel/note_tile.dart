@@ -22,7 +22,7 @@ class _NoteTile extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -31,7 +31,7 @@ class _NoteTile extends StatelessWidget {
           Row(
             children: [
               if (note.sentiment != null) ...[
-                Text(note.sentiment!, style: const TextStyle(fontSize: 14)),
+                Text(note.sentiment!, style: const TextStyle(fontSize: NightshadeTypography.fontSize14)),
                 const SizedBox(width: 6),
               ],
               if (note.title != null && note.title!.isNotEmpty)
@@ -39,7 +39,7 @@ class _NoteTile extends StatelessWidget {
                   child: Text(
                     note.title!,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       fontWeight: FontWeight.w700,
                       color: colors.textPrimary,
                     ),
@@ -52,7 +52,7 @@ class _NoteTile extends StatelessWidget {
                   child: Text(
                     dateFormat.format(note.createdAt),
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       fontWeight: FontWeight.w600,
                       color: colors.textSecondary,
                     ),
@@ -65,13 +65,13 @@ class _NoteTile extends StatelessWidget {
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: NightshadeDecorations.statusChip(
                     colors.accent,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     bordered: false,
                   ),
                   child: Text(
                     'run #${note.sequenceRunId}',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                       fontWeight: FontWeight.w600,
                       color: colors.accent,
                     ),
@@ -101,7 +101,7 @@ class _NoteTile extends StatelessWidget {
               padding: const EdgeInsets.only(top: 2),
               child: Text(
                 dateFormat.format(note.createdAt),
-                style: TextStyle(fontSize: 11, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
               ),
             ),
           if (note.body.isNotEmpty) ...[
@@ -148,12 +148,12 @@ class _NoteTile extends StatelessWidget {
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: NightshadeDecorations.tintedBadge(
                       colors.primary,
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     ),
                     child: Text(
                       '#$tag',
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: NightshadeTypography.fontSize10,
                         fontWeight: FontWeight.w500,
                         color: colors.primary,
                       ),
@@ -176,7 +176,7 @@ class _NoteTile extends StatelessWidget {
                       const SizedBox(width: 3),
                       Text(
                         path.split(RegExp(r'[\\/]')).last,
-                        style: TextStyle(fontSize: 10, color: colors.textMuted),
+                        style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                       ),
                     ],
                   ),
@@ -220,32 +220,32 @@ MarkdownStyleSheet _noteBodyMarkdownStyle(
   BuildContext context,
   NightshadeColors colors,
 ) {
-  final base = TextStyle(fontSize: 12, color: colors.textPrimary);
+  final base = TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary);
   return MarkdownStyleSheet(
     p: base,
     h1: base.copyWith(
-      fontSize: 14,
+      fontSize: NightshadeTypography.fontSize14,
       fontWeight: FontWeight.w700,
     ),
     h2: base.copyWith(
-      fontSize: 13,
+      fontSize: NightshadeTypography.fontSize13,
       fontWeight: FontWeight.w700,
     ),
     h3: base.copyWith(
-      fontSize: 12,
+      fontSize: NightshadeTypography.fontSize12,
       fontWeight: FontWeight.w600,
     ),
     em: base.copyWith(fontStyle: FontStyle.italic),
     strong: base.copyWith(fontWeight: FontWeight.w700),
     code: base.copyWith(
       fontFamily: 'monospace',
-      fontSize: 11,
+      fontSize: NightshadeTypography.fontSize11,
       backgroundColor: colors.surfaceAlt,
       color: colors.accent,
     ),
     codeblockDecoration: BoxDecoration(
       color: colors.surfaceAlt,
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       border: Border.all(color: colors.border),
     ),
     codeblockPadding: const EdgeInsets.all(6),

@@ -21,7 +21,7 @@ class _StartGuidingProperties extends ConsumerWidget {
         Text(
           'Guiding Settings',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
@@ -117,7 +117,7 @@ class _StopGuidingProperties extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -130,7 +130,7 @@ class _StopGuidingProperties extends StatelessWidget {
             'additional settings.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
               height: 1.5,
             ),

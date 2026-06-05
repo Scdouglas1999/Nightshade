@@ -27,7 +27,7 @@ class _FilterRow extends StatelessWidget {
             child: Text(
               filterName,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -95,12 +95,12 @@ class _KindToggle extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
             color: active ? colors.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           ),
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               fontWeight: FontWeight.w600,
               color: active ? colors.background : colors.textMuted,
             ),
@@ -113,7 +113,7 @@ class _KindToggle extends StatelessWidget {
       padding: const EdgeInsets.all(2),
       decoration: BoxDecoration(
         color: colors.background,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -160,20 +160,20 @@ class _AddFilterRowState extends State<_AddFilterRow> {
           Expanded(
             child: TextField(
               controller: _ctl,
-              style: TextStyle(fontSize: 12, color: widget.colors.textPrimary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.textPrimary),
               decoration: InputDecoration(
                 hintText: 'Filter name (e.g. Ha)',
                 hintStyle:
-                    TextStyle(fontSize: 12, color: widget.colors.textMuted),
+                    TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.textMuted),
                 isDense: true,
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                   borderSide: BorderSide(color: widget.colors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                   borderSide: BorderSide(color: widget.colors.border),
                 ),
               ),
@@ -192,7 +192,7 @@ class _AddFilterRowState extends State<_AddFilterRow> {
                 Icon(LucideIcons.plus, size: 14, color: widget.colors.primary),
             label: Text(
               'Add',
-              style: TextStyle(fontSize: 12, color: widget.colors.primary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.primary),
             ),
           ),
         ],

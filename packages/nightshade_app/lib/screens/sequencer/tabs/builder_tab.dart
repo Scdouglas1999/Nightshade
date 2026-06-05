@@ -74,10 +74,10 @@ class BuilderTab extends ConsumerWidget {
                   indicatorColor: colors.primary,
                   dividerColor: colors.border,
                   labelStyle: const TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w600,
                   ),
-                  unselectedLabelStyle: const TextStyle(fontSize: 12),
+                  unselectedLabelStyle: const TextStyle(fontSize: NightshadeTypography.fontSize12),
                   tabs: const [
                     Tab(text: 'Palette'),
                     Tab(text: 'Sequence'),
@@ -120,7 +120,7 @@ class _InstructionPalette extends StatelessWidget {
             child: Text(
               'Instruction Palette',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: NightshadeTypography.fontSize14,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -248,7 +248,7 @@ class _BuilderWorkspace extends StatelessWidget {
           Text(
             'Sequence Timeline',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: NightshadeTypography.fontSize14,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
             ),
@@ -258,7 +258,7 @@ class _BuilderWorkspace extends StatelessWidget {
             child: Container(
               decoration: BoxDecoration(
                 color: colors.surface,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(color: colors.border),
               ),
               child: Center(
@@ -274,7 +274,7 @@ class _BuilderWorkspace extends StatelessWidget {
                     Text(
                       'Drag instructions here',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: NightshadeTypography.fontSize14,
                         color: colors.textSecondary,
                       ),
                     ),
@@ -282,7 +282,7 @@ class _BuilderWorkspace extends StatelessWidget {
                     Text(
                       'Or double-click an instruction to add it',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: colors.textMuted,
                       ),
                     ),
@@ -305,7 +305,7 @@ class _BuilderWorkspace extends StatelessWidget {
           Text(
             'Instruction Properties',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: NightshadeTypography.fontSize14,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
             ),
@@ -315,7 +315,7 @@ class _BuilderWorkspace extends StatelessWidget {
             child: Text(
               'Select an instruction to edit its properties',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textMuted,
               ),
             ),
@@ -364,7 +364,7 @@ class _InstructionCategoryState extends State<_InstructionCategory> {
               Text(
                 widget.title,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: colors.textSecondary,
                 ),
@@ -415,12 +415,12 @@ class _InstructionItemState extends State<_InstructionItem> {
         data: widget.instruction,
         feedback: Material(
           elevation: 4,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: colors.primary,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -430,7 +430,7 @@ class _InstructionItemState extends State<_InstructionItem> {
                 Text(
                   widget.instruction.name,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: onPrimary,
                     fontWeight: FontWeight.w500,
                   ),
@@ -443,7 +443,7 @@ class _InstructionItemState extends State<_InstructionItem> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: _isHovered ? colors.surfaceHover : colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             border: Border.all(color: colors.border),
           ),
           child: Row(
@@ -457,7 +457,7 @@ class _InstructionItemState extends State<_InstructionItem> {
               Text(
                 widget.instruction.name,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textPrimary,
                 ),
               ),

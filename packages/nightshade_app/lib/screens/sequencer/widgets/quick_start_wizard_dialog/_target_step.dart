@@ -14,7 +14,7 @@ extension _TargetStep on _QuickStartWizardDialogState {
       children: [
         Text(
           'Search for a target or enter coordinates manually.',
-          style: TextStyle(color: colors.textSecondary, fontSize: 13),
+          style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13),
         ),
         const SizedBox(height: 16),
 
@@ -40,15 +40,15 @@ extension _TargetStep on _QuickStartWizardDialogState {
                   )
                 : null,
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               borderSide: BorderSide(color: colors.border),
             ),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               borderSide: BorderSide(color: colors.border),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               borderSide: BorderSide(color: colors.primary),
             ),
             filled: true,
@@ -66,7 +66,7 @@ extension _TargetStep on _QuickStartWizardDialogState {
             constraints: const BoxConstraints(maxHeight: 150),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
             child: ListView.builder(
@@ -78,17 +78,17 @@ extension _TargetStep on _QuickStartWizardDialogState {
                   dense: true,
                   title: Text(
                     target.name,
-                    style: TextStyle(color: colors.textPrimary, fontSize: 13),
+                    style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize13),
                   ),
                   subtitle: Text(
                     '${target.catalogId ?? ""} | RA: ${_formatRa(target.ra)} Dec: ${_formatDec(target.dec)}',
-                    style: TextStyle(color: colors.textMuted, fontSize: 11),
+                    style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
                   ),
                   trailing: target.magnitude != null
                       ? Text(
                           'mag ${target.magnitude!.toStringAsFixed(1)}',
                           style:
-                              TextStyle(color: colors.textMuted, fontSize: 11),
+                              TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
                         )
                       : null,
                   onTap: () => _selectTarget(target),
@@ -110,15 +110,15 @@ extension _TargetStep on _QuickStartWizardDialogState {
                   labelText: 'Right Ascension',
                   hintText: '12h 30m 0s or 12.5',
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.primary),
                   ),
                   filled: true,
@@ -138,15 +138,15 @@ extension _TargetStep on _QuickStartWizardDialogState {
                   labelText: 'Declination',
                   hintText: "+45d 30' 0\" or 45.5",
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.primary),
                   ),
                   filled: true,
@@ -166,7 +166,7 @@ extension _TargetStep on _QuickStartWizardDialogState {
             padding: const EdgeInsets.all(12),
             decoration: NightshadeDecorations.emphasisSurface(
               colors.primary,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Row(
               children: [
@@ -176,7 +176,7 @@ extension _TargetStep on _QuickStartWizardDialogState {
                   child: Text(
                     'Selected: ${_selectedTarget!.name}'
                     '${_selectedTarget!.objectType != null ? " (${_selectedTarget!.objectType})" : ""}',
-                    style: TextStyle(color: colors.textPrimary, fontSize: 13),
+                    style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize13),
                   ),
                 ),
               ],

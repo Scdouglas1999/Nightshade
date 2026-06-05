@@ -202,7 +202,7 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
                 Text(
                   'Resume from previous night?',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: NightshadeTypography.fontSize16,
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
@@ -211,7 +211,7 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
                   '${widget.carryOvers.length} target'
                   '${widget.carryOvers.length == 1 ? '' : 's'} '
                   'have unfinished integration in a recent session.',
-                  style: TextStyle(fontSize: 12, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
                 ),
               ],
             ),
@@ -238,7 +238,7 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -249,13 +249,13 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
               children: [
                 Text(
                   'Carry-over total',
-                  style: TextStyle(fontSize: 11, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   _formatHours(totalCampaignSecs),
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: NightshadeTypography.fontSize18,
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
@@ -269,13 +269,13 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
               children: [
                 Text(
                   'Most recent night',
-                  style: TextStyle(fontSize: 11, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   _formatHours(totalPrevSecs),
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: NightshadeTypography.fontSize18,
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
@@ -290,14 +290,14 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
                 children: [
                   Text(
                     'Budget remaining',
-                    style: TextStyle(fontSize: 11, color: colors.textMuted),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     _formatHours((totalBudgetSecs - totalCampaignSecs)
                         .clamp(0, double.infinity)),
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: NightshadeTypography.fontSize18,
                       fontWeight: FontWeight.w700,
                       color: colors.primary,
                     ),
@@ -320,11 +320,11 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
           ),
           child: Text(
             '${e.key}: ${_formatHours(e.value)}',
-            style: TextStyle(fontSize: 10, color: colors.textSecondary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
           ),
         ),
       );
@@ -334,7 +334,7 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -348,7 +348,7 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
                 child: Text(
                   co.targetName,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
@@ -357,7 +357,7 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
               if (co.previousSessionStartedAt != null)
                 Text(
                   _formatDate(co.previousSessionStartedAt!),
-                  style: TextStyle(fontSize: 11, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                 ),
             ],
           ),
@@ -368,14 +368,14 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
             'recent session '
             '(${co.previousAcceptedFrames} accepted frames). '
             'Campaign total: ${_formatHours(co.campaignIntegrationSecs)}.',
-            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
           ),
           if (co.budgetSecs != null) ...[
             const SizedBox(height: 4),
             Text(
               'Budget ${_formatHours(co.budgetSecs!)}; '
               '${_formatHours(co.remainingSecs ?? 0)} remaining.',
-              style: TextStyle(fontSize: 11, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
             ),
           ],
           if (filterChips.isNotEmpty) ...[
@@ -501,7 +501,7 @@ class _DecisionChip extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
             color: selected ? colors.primary : colors.textSecondary,
           ),

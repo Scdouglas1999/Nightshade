@@ -184,7 +184,7 @@ class _Header extends StatelessWidget {
               Text(
                 'Why did this fail?',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
                   color: colors.textMuted,
@@ -194,7 +194,7 @@ class _Header extends StatelessWidget {
               Text(
                 record.likelyCause.humanLabel,
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: NightshadeTypography.fontSize18,
                   fontWeight: FontWeight.w700,
                   color: causeColor,
                 ),
@@ -204,7 +204,7 @@ class _Header extends StatelessWidget {
                 'Frame ${record.frameIndex}/${record.totalFrames} â€¢ '
                 'Captured ${_formatDateTime(record.createdAt)}',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textSecondary,
                 ),
               ),
@@ -350,7 +350,7 @@ class _PathFallback extends StatelessWidget {
           Text(
             'Preview unavailable',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w600,
               color: colors.textSecondary,
             ),
@@ -360,7 +360,7 @@ class _PathFallback extends StatelessWidget {
             Text(
               subtitle!,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 color: colors.textMuted,
               ),
               textAlign: TextAlign.center,
@@ -370,7 +370,7 @@ class _PathFallback extends StatelessWidget {
           SelectableText(
             path,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: colors.textMuted,
               fontFamily: 'monospace',
             ),
@@ -404,7 +404,7 @@ class _DetailSidePanel extends StatelessWidget {
         Text(
           record.reason,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             color: colors.textPrimary,
             height: 1.4,
           ),
@@ -416,7 +416,7 @@ class _DetailSidePanel extends StatelessWidget {
           Text(
             'No structured evidence â€” classifier could not muster a verdict.',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontStyle: FontStyle.italic,
               color: colors.textMuted,
             ),
@@ -435,7 +435,7 @@ class _DetailSidePanel extends StatelessWidget {
                       height: 4,
                       decoration: BoxDecoration(
                         color: causeColor,
-                        borderRadius: BorderRadius.circular(2),
+                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
                       ),
                     ),
                   ),
@@ -444,7 +444,7 @@ class _DetailSidePanel extends StatelessWidget {
                     child: Text(
                       bullet,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: colors.textPrimary,
                         height: 1.4,
                       ),
@@ -472,7 +472,7 @@ class _DetailSidePanel extends StatelessWidget {
           Text(
             'No telemetry available at capture time.',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontStyle: FontStyle.italic,
               color: colors.textMuted,
             ),
@@ -508,7 +508,7 @@ class _SectionHeader extends StatelessWidget {
     return Text(
       label,
       style: TextStyle(
-        fontSize: 10,
+        fontSize: NightshadeTypography.fontSize10,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.6,
         color: colors.textMuted,
@@ -543,7 +543,7 @@ class _MetricsGrid extends StatelessWidget {
                   child: Text(
                     e.$1,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textMuted,
                     ),
                   ),

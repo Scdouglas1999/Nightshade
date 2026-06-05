@@ -442,7 +442,7 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
             padding: const EdgeInsets.all(12),
             decoration: NightshadeDecorations.tintedBadge(
               colors.primary,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Row(
               children: [
@@ -522,7 +522,7 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(color: colors.border),
                   ),
                   child: DropdownButtonHideUnderline(
@@ -536,7 +536,7 @@ class _ExposureRichState extends ConsumerState<_ExposureProperties> {
                       ),
                       dropdownColor: colors.surface,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         color: colors.textPrimary,
                       ),
                       items: filterOptions.map((filter) {
@@ -628,7 +628,7 @@ class _ExposureRecommendationCard extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: NightshadeDecorations.iconChip(
         colors.primary,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         borderAlpha: 0.28,
       ),
       child: Column(

@@ -119,7 +119,7 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                         margin: const EdgeInsets.only(right: 12),
                         decoration: NightshadeDecorations.statusChip(
                           widget.colors.warning,
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                           bordered: false,
                         ),
                         child: Row(
@@ -134,7 +134,7 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                             Text(
                               'PAUSED',
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: NightshadeTypography.fontSize10,
                                 fontWeight: FontWeight.w700,
                                 color: widget.colors.warning,
                                 letterSpacing: 0.5,
@@ -159,7 +159,7 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                                     ? 'Paused — no active node'
                                     : 'Starting...'),
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: NightshadeTypography.fontSize13,
                               fontWeight: FontWeight.w600,
                               color: widget.colors.textPrimary,
                             ),
@@ -170,7 +170,7 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                             Text(
                               progress.message!,
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: NightshadeTypography.fontSize11,
                                 color: widget.colors.textMuted,
                               ),
                               maxLines: 1,
@@ -208,7 +208,7 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                           Text(
                             progress.currentTarget!,
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: NightshadeTypography.fontSize11,
                               color: widget.colors.textSecondary,
                             ),
                           ),
@@ -227,7 +227,7 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                           Text(
                             progress.currentFilter!,
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: NightshadeTypography.fontSize11,
                               color: widget.colors.textSecondary,
                             ),
                           ),
@@ -256,7 +256,7 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                         Text(
                           'Progress',
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: NightshadeTypography.fontSize10,
                             color: widget.colors.textMuted,
                           ),
                         ),
@@ -266,7 +266,7 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                             Text(
                               '${progress.completedExposures}/${progress.totalExposures}',
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: NightshadeTypography.fontSize10,
                                 fontWeight: FontWeight.w600,
                                 color: widget.colors.textSecondary,
                                 fontFeatures: const [FontFeature.tabularFigures()],
@@ -277,13 +277,13 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: NightshadeDecorations.statusChip(
                                 widget.colors.primary,
-                                borderRadius: BorderRadius.circular(4),
+                                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                                 bordered: false,
                               ),
                               child: Text(
                                 '${(progress.progressPercent * 100).toStringAsFixed(0)}%',
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: NightshadeTypography.fontSize10,
                                   fontWeight: FontWeight.w700,
                                   color: widget.colors.primary,
                                   fontFeatures: const [FontFeature.tabularFigures()],
@@ -302,7 +302,7 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                           height: 8,
                           decoration: BoxDecoration(
                             color: widget.colors.surfaceAlt,
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                           ),
                         ),
                         FractionallySizedBox(
@@ -311,7 +311,7 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                             height: 8,
                             decoration: BoxDecoration(
                               color: widget.colors.primary,
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                             ),
                           ),
                         ),
@@ -322,8 +322,9 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                             child: Container(
                               height: 8,
                               decoration: BoxDecoration(
+                                // absolute: lightening sheen over the filled progress bar
                                 color: Colors.white.withValues(alpha: 0.1),
-                                borderRadius: BorderRadius.circular(4),
+                                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                               ),
                             ),
                           ),
@@ -357,7 +358,7 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                       Text(
                         _formatDuration(progress.elapsedSecs),
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: widget.colors.textSecondary,
                           fontFeatures: const [FontFeature.tabularFigures()],
                         ),
@@ -377,7 +378,7 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                         Text(
                           '~${_formatDuration(progress.estimatedRemainingSecs!)}',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: NightshadeTypography.fontSize11,
                             color: widget.colors.textMuted,
                             fontFeatures: const [FontFeature.tabularFigures()],
                           ),

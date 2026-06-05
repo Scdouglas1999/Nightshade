@@ -17,7 +17,7 @@ class _ScriptProperties extends ConsumerWidget {
         Text(
           'Script Settings',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
@@ -75,7 +75,7 @@ class _ScriptProperties extends ConsumerWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: colors.warning.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -86,7 +86,7 @@ class _ScriptProperties extends ConsumerWidget {
                 child: Text(
                   'Scripts run with sequence context variables available as environment variables',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.warning,
                   ),
                 ),
@@ -127,7 +127,7 @@ class _SimpleInstructionInfo extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -138,7 +138,7 @@ class _SimpleInstructionInfo extends StatelessWidget {
             description,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
               height: 1.5,
             ),
@@ -188,7 +188,7 @@ class _DomeProperties extends ConsumerWidget {
         Text(
           title,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
@@ -222,7 +222,7 @@ class _DomeProperties extends ConsumerWidget {
               ? 'Only operates the shutter, dome will not rotate'
               : 'Will operate both shutter and dome rotation',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,
             fontStyle: FontStyle.italic,
           ),
@@ -232,7 +232,7 @@ class _DomeProperties extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             border: Border.all(color: colors.border),
           ),
           child: Column(
@@ -243,7 +243,7 @@ class _DomeProperties extends ConsumerWidget {
                 description,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textSecondary,
                   height: 1.5,
                 ),
@@ -277,7 +277,7 @@ class _UnknownNodeProperties extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.warning.withValues(alpha: 0.08),
         border: Border.all(color: colors.warning.withValues(alpha: 0.4)),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -291,7 +291,7 @@ class _UnknownNodeProperties extends StatelessWidget {
                 Text(
                   'No property editor for $typeName',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w600,
                     color: colors.warning,
                   ),
@@ -300,7 +300,7 @@ class _UnknownNodeProperties extends StatelessWidget {
                 Text(
                   'This node will still run with its current values, but you cannot edit them here. '
                   'Save and re-load to keep its state; report this if you expected an editor.',
-                  style: TextStyle(fontSize: 11, color: colors.textSecondary),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
                 ),
               ],
             ),
@@ -414,7 +414,7 @@ class _CalibratorOnProperties extends ConsumerWidget {
                       '${node.brightness}',
                       textAlign: TextAlign.right,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
                       ),
@@ -424,7 +424,7 @@ class _CalibratorOnProperties extends ConsumerWidget {
               ),
               Text(
                 '0 = off, 255 = maximum brightness',
-                style: TextStyle(fontSize: 11, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
               ),
             ],
           ),
@@ -500,7 +500,7 @@ class _CoverCalibratorScaffold extends StatelessWidget {
         Text(
           title,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
@@ -512,7 +512,7 @@ class _CoverCalibratorScaffold extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             border: Border.all(color: colors.border),
           ),
           child: Column(
@@ -523,7 +523,7 @@ class _CoverCalibratorScaffold extends StatelessWidget {
                 description,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textSecondary,
                   height: 1.5,
                 ),
@@ -580,7 +580,7 @@ class _InstructionSetInfo extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -591,7 +591,7 @@ class _InstructionSetInfo extends StatelessWidget {
             'Container for sequential instructions. All children execute in order from top to bottom.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
               height: 1.5,
             ),
@@ -600,7 +600,7 @@ class _InstructionSetInfo extends StatelessWidget {
           Text(
             '${node.childIds.length} children',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textMuted,
             ),
           ),

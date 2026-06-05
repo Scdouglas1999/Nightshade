@@ -35,7 +35,7 @@ class PostSessionStatsDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         side: BorderSide(color: colors.border),
       ),
       child: SizedBox(
@@ -61,7 +61,7 @@ class PostSessionStatsDialog extends StatelessWidget {
                         Text(
                           'Session Summary',
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: NightshadeTypography.fontSize18,
                             fontWeight: FontWeight.w700,
                             color: colors.textPrimary,
                           ),
@@ -69,7 +69,7 @@ class PostSessionStatsDialog extends StatelessWidget {
                         Text(
                           sequenceName,
                           style:
-                              TextStyle(fontSize: 13, color: colors.textMuted),
+                              TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
                         ),
                       ],
                     ),
@@ -195,7 +195,7 @@ class PostSessionStatsDialog extends StatelessWidget {
                               child: Text(
                                 te.key,
                                 style: TextStyle(
-                                  fontSize: 13,
+                                  fontSize: NightshadeTypography.fontSize13,
                                   fontWeight: FontWeight.w600,
                                   color: colors.textPrimary,
                                 ),
@@ -230,7 +230,7 @@ class PostSessionStatsDialog extends StatelessWidget {
                               child: Text(
                                 msg,
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: NightshadeTypography.fontSize12,
                                   color: colors.error,
                                 ),
                               ),
@@ -296,7 +296,7 @@ class _Section extends StatelessWidget {
             Text(
               title,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 fontWeight: FontWeight.w700,
                 color: titleColor ?? colors.textPrimary,
                 letterSpacing: 0.3,
@@ -332,13 +332,13 @@ class _StatRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: 13, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
           ),
           const Spacer(),
           Text(
             value,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               fontWeight: FontWeight.w500,
               color: valueColor ?? colors.textPrimary,
             ),

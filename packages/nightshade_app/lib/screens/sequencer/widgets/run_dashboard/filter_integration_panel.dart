@@ -52,7 +52,7 @@ class RunDashboardFilterIntegration extends ConsumerWidget {
                 child: Text(
                   'PER-FILTER INTEGRATION',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.6,
                     color: colors.textMuted,
@@ -70,7 +70,7 @@ class RunDashboardFilterIntegration extends ConsumerWidget {
               child: Text(
                 'No exposures configured.',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textMuted,
                 ),
               ),
@@ -206,7 +206,7 @@ class _FilterRow extends StatelessWidget {
         child: Text(
           name.length > 3 ? name.substring(0, 3) : name,
           style: TextStyle(
-            fontSize: 9,
+            fontSize: NightshadeTypography.fontSize9,
             fontWeight: FontWeight.w700,
             color: color,
           ),

@@ -53,10 +53,10 @@ class _MiniTimeline extends StatelessWidget {
       height: 16,
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
         child: Row(
           children: segments.map((segment) {
             final widthFraction = segment.duration / totalDuration;

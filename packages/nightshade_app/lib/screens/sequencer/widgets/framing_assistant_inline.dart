@@ -230,7 +230,7 @@ class _ContextCard extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -244,7 +244,7 @@ class _ContextCard extends StatelessWidget {
                 child: Text(
                   target.targetName,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
@@ -258,7 +258,7 @@ class _ContextCard extends StatelessWidget {
             'RA ${target.raHours.toStringAsFixed(4)}h  '
             'Dec ${target.decDegrees.toStringAsFixed(3)}°',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textSecondary,
               fontFamily: 'monospace',
             ),
@@ -271,7 +271,7 @@ class _ContextCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   fovLabel,
-                  style: TextStyle(fontSize: 11, color: colors.textSecondary),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
                 ),
               ),
             ],
@@ -301,7 +301,7 @@ class _RotationControls extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -313,7 +313,7 @@ class _RotationControls extends StatelessWidget {
               const SizedBox(width: 6),
               Text('Rotation',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   )),
@@ -321,7 +321,7 @@ class _RotationControls extends StatelessWidget {
               Text(
                 '${rotation.toStringAsFixed(0)}°',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: NightshadeTypography.fontSize14,
                   color: colors.primary,
                   fontWeight: FontWeight.w700,
                   fontFamily: 'monospace',
@@ -349,7 +349,7 @@ class _RotationControls extends StatelessWidget {
           Text(
             'Drag the FOV outline on the sky view to adjust rotation '
             'visually. Drag inside the box to nudge the target centre.',
-            style: TextStyle(fontSize: 10, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
           ),
         ],
       ),

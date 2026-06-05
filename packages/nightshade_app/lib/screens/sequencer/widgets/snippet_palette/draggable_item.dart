@@ -51,13 +51,13 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
       color: Colors.transparent,
       child: InkWell(
         onTap: () => widget.onSnippetTap?.call(widget.snippet),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         child: Container(
           margin: const EdgeInsets.only(top: 6),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: widget.colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             border: Border.all(color: widget.colors.border),
           ),
           child: Row(
@@ -67,7 +67,7 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                 height: 40,
                 decoration: NightshadeDecorations.tintedBadge(
                   widget.categoryColor,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                 ),
                 child: Icon(
                   widget.getIcon(widget.snippet.iconName),
@@ -86,7 +86,7 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                           child: Text(
                             widget.snippet.name,
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: NightshadeTypography.fontSize14,
                               fontWeight: FontWeight.w600,
                               color: widget.colors.textPrimary,
                             ),
@@ -100,12 +100,12 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                             ),
                             decoration: NightshadeDecorations.tintedBadge(
                               widget.colors.info,
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               'Built-in',
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: NightshadeTypography.fontSize10,
                                 fontWeight: FontWeight.w500,
                                 color: widget.colors.info,
                               ),
@@ -117,7 +117,7 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                     Text(
                       widget.snippet.description,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: widget.colors.textMuted,
                       ),
                       maxLines: 1,
@@ -153,7 +153,7 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: widget.categoryColor.withValues(alpha: 0.2),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border:
                 Border.all(color: widget.categoryColor.withValues(alpha: 0.5)),
             boxShadow: [
@@ -176,7 +176,7 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
               Text(
                 widget.snippet.name,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w500,
                   color: widget.colors.textPrimary,
                 ),
@@ -198,7 +198,7 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
               color: _isHovered
                   ? widget.colors.surfaceAlt
                   : widget.colors.background,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(
                 color: _isHovered
                     ? widget.categoryColor.withValues(alpha: 0.5)
@@ -212,7 +212,7 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                   height: 28,
                   decoration: NightshadeDecorations.tintedBadge(
                     widget.categoryColor,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                   ),
                   child: Icon(
                     widget.getIcon(widget.snippet.iconName),
@@ -231,7 +231,7 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                             child: Text(
                               widget.snippet.name,
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: NightshadeTypography.fontSize11,
                                 fontWeight: FontWeight.w500,
                                 color: _isHovered
                                     ? widget.colors.textPrimary
@@ -247,12 +247,12 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                               ),
                               decoration: NightshadeDecorations.tintedBadge(
                                 widget.colors.info,
-                                borderRadius: BorderRadius.circular(3),
+                                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
                               ),
                               child: Text(
                                 'Built-in',
                                 style: TextStyle(
-                                  fontSize: 8,
+                                  fontSize: NightshadeTypography.fontSize8,
                                   fontWeight: FontWeight.w500,
                                   color: widget.colors.info,
                                 ),
@@ -263,7 +263,7 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                       Text(
                         widget.snippet.description,
                         style: TextStyle(
-                          fontSize: 9,
+                          fontSize: NightshadeTypography.fontSize9,
                           color: widget.colors.textMuted,
                         ),
                         maxLines: 1,
@@ -372,7 +372,7 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
       children: [
         Icon(icon, size: 14, color: color),
         const SizedBox(width: 10),
-        Text(label, style: TextStyle(color: color, fontSize: 13)),
+        Text(label, style: TextStyle(color: color, fontSize: NightshadeTypography.fontSize13)),
       ],
     );
   }

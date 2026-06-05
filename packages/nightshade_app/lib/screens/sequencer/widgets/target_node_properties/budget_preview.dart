@@ -32,7 +32,7 @@ class _BudgetPreview extends StatelessWidget {
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: colors.background,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -41,7 +41,7 @@ class _BudgetPreview extends StatelessWidget {
           Text(
             'Resolved budget',
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               fontWeight: FontWeight.w700,
               color: colors.textMuted,
               letterSpacing: 0.4,
@@ -50,7 +50,7 @@ class _BudgetPreview extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             summary,
-            style: TextStyle(fontSize: 12, color: colors.textPrimary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
           ),
           if (resolved.isNotEmpty) ...[
             const SizedBox(height: 4),
@@ -58,7 +58,7 @@ class _BudgetPreview extends StatelessWidget {
               resolved.entries
                   .map((e) => '${e.key} ${_formatDuration(e.value)}')
                   .join(' · '),
-              style: TextStyle(fontSize: 11, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
             ),
           ],
         ],

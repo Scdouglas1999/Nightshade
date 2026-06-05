@@ -108,7 +108,7 @@ class _StarterCard extends ConsumerWidget {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Padding(
@@ -123,7 +123,7 @@ class _StarterCard extends ConsumerWidget {
                   height: 44,
                   decoration: NightshadeDecorations.statusChip(
                     _skillColor(colors, sample.skillLevel),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     bordered: false,
                   ),
                   child: Icon(
@@ -140,7 +140,7 @@ class _StarterCard extends ConsumerWidget {
                       Text(
                         sample.displayName,
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: NightshadeTypography.fontSize14,
                           fontWeight: FontWeight.w600,
                           color: colors.textPrimary,
                         ),
@@ -171,7 +171,7 @@ class _StarterCard extends ConsumerWidget {
                                   child: Text(
                                     sample.expectedTotalTime,
                                     style: TextStyle(
-                                      fontSize: 11,
+                                      fontSize: NightshadeTypography.fontSize11,
                                       color: colors.textMuted,
                                     ),
                                     overflow: TextOverflow.ellipsis,
@@ -193,7 +193,7 @@ class _StarterCard extends ConsumerWidget {
                 child: Text(
                   sample.description,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                     height: 1.4,
                   ),
@@ -286,12 +286,12 @@ class _StarterBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: NightshadeDecorations.statusChip(
         colors.accent,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       ),
       child: Text(
         'Starter',
         style: TextStyle(
-          fontSize: 10,
+          fontSize: NightshadeTypography.fontSize10,
           fontWeight: FontWeight.w600,
           color: colors.accent,
         ),
@@ -313,12 +313,12 @@ class _SkillBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: NightshadeDecorations.statusChip(
         color,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       ),
       child: Text(
         skillLevel.label,
         style: TextStyle(
-          fontSize: 10,
+          fontSize: NightshadeTypography.fontSize10,
           fontWeight: FontWeight.w600,
           color: color,
         ),
@@ -346,7 +346,7 @@ class _StartersError extends StatelessWidget {
             Text(
               'Failed to load starter sequences',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: NightshadeTypography.fontSize14,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -355,7 +355,7 @@ class _StartersError extends StatelessWidget {
             Text(
               '$error',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
             ),
           ],
         ),

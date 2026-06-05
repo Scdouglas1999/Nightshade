@@ -125,7 +125,7 @@ class LightCurvePanel extends ConsumerWidget {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
             ),
           ),
         ],
@@ -158,7 +158,7 @@ class _Header extends StatelessWidget {
         Text(
           'LIGHT CURVE',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.6,
             color: colors.textMuted,
@@ -168,7 +168,7 @@ class _Header extends StatelessWidget {
         Text(
           filter == null ? target : '$target Â· $filter',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
@@ -219,13 +219,13 @@ class _SummaryRow extends StatelessWidget {
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: NightshadeDecorations.statusChip(
               colors.warning,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
               bordered: false,
             ),
             child: Text(
               '$cadenceBreaks cadence break${cadenceBreaks == 1 ? '' : 's'}',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w600,
                 color: colors.warning,
               ),
@@ -255,7 +255,7 @@ class _Metric extends StatelessWidget {
         Text(
           label.toUpperCase(),
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             fontWeight: FontWeight.w700,
             letterSpacing: 0.6,
             color: colors.textMuted,
@@ -392,7 +392,7 @@ class _LightCurvePainter extends CustomPainter {
       text: TextSpan(
         text: text,
         style: NightshadeTypography.withTabular(
-          TextStyle(fontSize: 9, color: color),
+          TextStyle(fontSize: NightshadeTypography.fontSize9, color: color),
         ),
       ),
       textDirection: TextDirection.ltr,

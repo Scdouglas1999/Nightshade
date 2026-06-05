@@ -183,7 +183,7 @@ class _WaitingState extends StatelessWidget {
           const SizedBox(height: NightshadeTokens.spaceSm),
           Text(
             'Waiting for first frame…',
-            style: TextStyle(fontSize: 12, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
           ),
         ],
       ),
@@ -737,7 +737,7 @@ class _HistoryColumn extends StatelessWidget {
               child: Text(
                 'History',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.4,
                   color: colors.textMuted,
@@ -882,7 +882,7 @@ class _HistoryTileState extends ConsumerState<_HistoryTile> {
                 Text(
                   _filterLabel(),
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: NightshadeTypography.fontSize9,
                     fontWeight: FontWeight.w700,
                     color: highlight ? colors.primary : colors.textSecondary,
                   ),
@@ -892,7 +892,7 @@ class _HistoryTileState extends ConsumerState<_HistoryTile> {
                   child: Text(
                     _exposureLabel(),
                     style: NightshadeTypography.withTabular(
-                      TextStyle(fontSize: 9, color: colors.textMuted),
+                      TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -1023,7 +1023,7 @@ class _FrameInspectDialog extends ConsumerWidget {
                     child: Text(
                       _fileName(image.filePath),
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: NightshadeTypography.fontSize14,
                         fontWeight: FontWeight.w700,
                         color: colors.textPrimary,
                       ),
@@ -1115,7 +1115,7 @@ class _InspectPreview extends ConsumerWidget {
           const SizedBox(height: NightshadeTokens.spaceSm),
           Text(
             'Preview unavailable',
-            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
           ),
         ],
       ),

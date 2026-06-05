@@ -244,13 +244,13 @@ class ImportSequenceFlow {
                   'Importing this file would create a sequence with '
                   '${errors.length} blocking error(s). Some features may '
                   "not work until you fix them.",
-                  style: TextStyle(fontSize: 13, color: colors.textPrimary),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
                 ),
                 const SizedBox(height: 12),
                 if (errors.isNotEmpty) ...[
                   Text('Errors',
                       style: TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           fontWeight: FontWeight.w600,
                           color: colors.error)),
                   const SizedBox(height: 4),
@@ -262,21 +262,21 @@ class ImportSequenceFlow {
                         children: [
                           Text('- ${issue.title}',
                               style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: NightshadeTypography.fontSize12,
                                   color: colors.textPrimary,
                                   fontWeight: FontWeight.w500)),
                           Padding(
                             padding: const EdgeInsets.only(left: 12),
                             child: Text(issue.description,
                                 style: TextStyle(
-                                    fontSize: 11, color: colors.textSecondary)),
+                                    fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary)),
                           ),
                           if (issue.resolutionHint != null)
                             Padding(
                               padding: const EdgeInsets.only(left: 12),
                               child: Text('Fix: ${issue.resolutionHint!}',
                                   style: TextStyle(
-                                      fontSize: 11,
+                                      fontSize: NightshadeTypography.fontSize11,
                                       color: colors.textMuted,
                                       fontStyle: FontStyle.italic)),
                             ),
@@ -288,7 +288,7 @@ class ImportSequenceFlow {
                   const SizedBox(height: 12),
                   Text('Warnings',
                       style: TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           fontWeight: FontWeight.w600,
                           color: colors.warning)),
                   const SizedBox(height: 4),
@@ -297,14 +297,14 @@ class ImportSequenceFlow {
                       padding: const EdgeInsets.symmetric(vertical: 1),
                       child: Text('- ${issue.title}: ${issue.description}',
                           style: TextStyle(
-                              fontSize: 11, color: colors.textSecondary)),
+                              fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary)),
                     ),
                 ],
                 if (infos.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Text('Info',
                       style: TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           fontWeight: FontWeight.w600,
                           color: colors.info)),
                   const SizedBox(height: 4),
@@ -313,7 +313,7 @@ class ImportSequenceFlow {
                       padding: const EdgeInsets.symmetric(vertical: 1),
                       child: Text('- ${issue.title}',
                           style:
-                              TextStyle(fontSize: 11, color: colors.textMuted)),
+                              TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted)),
                     ),
                 ],
               ],
@@ -495,7 +495,7 @@ class ImportSequenceFlow {
                     Text(
                       'No file selected',
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: NightshadeTypography.fontSize15,
                         fontWeight: FontWeight.w700,
                         color: colors.textPrimary,
                       ),
@@ -509,7 +509,7 @@ class ImportSequenceFlow {
                   'Astrobin (.csv), Nightshade observing list (.json), '
                   'iCalendar (.ics).',
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     color: colors.textSecondary,
                     height: 1.4,
                   ),
@@ -592,7 +592,7 @@ class ImportSequenceFlow {
           child: Text(
             '"${error.currentSequenceName}" has unsaved changes. Opening the '
             'imported sequence will discard them.',
-            style: TextStyle(fontSize: 13, color: colors.textPrimary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
           ),
         ),
         actions: [
@@ -645,7 +645,7 @@ class ImportSequenceFlow {
                 'This file uses ${unsupported.length} node type(s) Nightshade '
                 "doesn't support. Importing them as-is would leave your "
                 'sequence incomplete.',
-                style: TextStyle(fontSize: 13, color: colors.textPrimary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
               ),
               const SizedBox(height: 8),
               for (final u in unsupported.take(8))
@@ -653,17 +653,17 @@ class ImportSequenceFlow {
                   padding: const EdgeInsets.symmetric(vertical: 1),
                   child: Text('- ${u.sourceType} - ${u.name}',
                       style:
-                          TextStyle(fontSize: 12, color: colors.textSecondary)),
+                          TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary)),
                 ),
               if (unsupported.length > 8)
                 Text('  ... and ${unsupported.length - 8} more',
-                    style: TextStyle(fontSize: 12, color: colors.textMuted)),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted)),
               const SizedBox(height: 12),
               Text(
                 'You can force-import anyway. Unsupported nodes will be '
                 'dropped and listed in the summary so you can re-create them '
                 'manually.',
-                style: TextStyle(fontSize: 12, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
               ),
             ],
           ),

@@ -401,7 +401,7 @@ class _Header extends StatelessWidget {
             child: Text(
               'Target Queue',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -411,13 +411,13 @@ class _Header extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
             child: Text(
               '$queueLength',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textSecondary,
                 fontWeight: FontWeight.w600,
               ),
@@ -429,7 +429,7 @@ class _Header extends StatelessWidget {
               message: 'Collapse panel',
               child: InkWell(
                 onTap: onCollapse,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 child: Padding(
                   padding: const EdgeInsets.all(4),
                   child: Icon(
@@ -530,7 +530,7 @@ class _Dropdown<T> extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 6),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(color: colors.border),
         ),
         child: Row(
@@ -546,7 +546,7 @@ class _Dropdown<T> extends StatelessWidget {
                   isExpanded: true,
                   iconSize: 14,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textPrimary,
                   ),
                   dropdownColor: colors.surface,
@@ -586,7 +586,7 @@ class _EmptyState extends ConsumerWidget {
               'Your target queue is empty.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textSecondary,
                 fontWeight: FontWeight.w600,
               ),
@@ -597,7 +597,7 @@ class _EmptyState extends ConsumerWidget {
               'Drag them into the sequence tree to start a plan.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
               ),
             ),
@@ -622,7 +622,7 @@ class _NoMatchesState extends StatelessWidget {
             'No targets match the current filter.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textMuted,
             ),
           ),
@@ -759,7 +759,7 @@ class _RowCard extends StatelessWidget {
         color: target.isActive
             ? colors.primary.withValues(alpha: 0.06)
             : colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: accent),
       ),
       padding: const EdgeInsets.all(10),
@@ -775,7 +775,7 @@ class _RowCard extends StatelessWidget {
                 child: Text(
                   target.displayName,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
@@ -787,7 +787,7 @@ class _RowCard extends StatelessWidget {
                   message: 'Add to sequence',
                   child: InkWell(
                     onTap: onAddPressed,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     child: Padding(
                       padding: const EdgeInsets.all(3),
                       child: Icon(LucideIcons.plus,
@@ -800,7 +800,7 @@ class _RowCard extends StatelessWidget {
                   message: 'Remove from queue',
                   child: InkWell(
                     onTap: onRemovePressed,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     child: Padding(
                       padding: const EdgeInsets.all(3),
                       child: Icon(LucideIcons.x,
@@ -814,7 +814,7 @@ class _RowCard extends StatelessWidget {
           Text(
             coordsText,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: colors.textSecondary,
               fontFamily: 'monospace',
             ),
@@ -895,7 +895,7 @@ class _Stat extends StatelessWidget {
         Text(
           label.toUpperCase(),
           style: TextStyle(
-            fontSize: 8,
+            fontSize: NightshadeTypography.fontSize8,
             color: colors.textMuted,
             letterSpacing: 0.6,
             fontWeight: FontWeight.w700,
@@ -905,7 +905,7 @@ class _Stat extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: highlight ? colors.primary : colors.textPrimary,
             fontWeight: FontWeight.w600,
           ),

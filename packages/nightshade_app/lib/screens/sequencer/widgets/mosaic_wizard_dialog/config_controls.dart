@@ -29,7 +29,7 @@ class _GridSizer extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -111,7 +111,7 @@ class _IntStepper extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(label,
-            style: TextStyle(fontSize: 11, color: colors.textSecondary)),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary)),
         const SizedBox(height: 4),
         Row(
           children: [
@@ -126,7 +126,7 @@ class _IntStepper extends StatelessWidget {
                 child: Text(
                   '$value',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: NightshadeTypography.fontSize18,
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
@@ -165,13 +165,13 @@ class _StepperButton extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         child: Container(
           width: 28,
           height: 28,
           decoration: BoxDecoration(
             border: Border.all(color: colors.border),
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             color: enabled ? colors.surfaceAlt : Colors.transparent,
           ),
           child: Icon(
@@ -212,12 +212,12 @@ class _SliderRow extends StatelessWidget {
         Row(
           children: [
             Text(label,
-                style: TextStyle(fontSize: 11, color: colors.textSecondary)),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary)),
             const Spacer(),
             Text(
               '${value.toStringAsFixed(0)}$suffix',
               style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.primary,
                   fontWeight: FontWeight.w700),
             ),
@@ -270,7 +270,7 @@ class _StatsCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -301,14 +301,14 @@ class _StatsCard extends StatelessWidget {
         children: [
           Text(label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textSecondary,
                 fontWeight: highlight ? FontWeight.bold : FontWeight.normal,
               )),
           Text(
             value,
             style: TextStyle(
-              fontSize: highlight ? 14 : 12,
+              fontSize: highlight ? NightshadeTypography.fontSize14 : NightshadeTypography.fontSize12,
               color: highlight ? colors.accent : colors.primary,
               fontWeight: FontWeight.w700,
             ),
@@ -350,7 +350,7 @@ class _AdvancedPanel extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -358,7 +358,7 @@ class _AdvancedPanel extends StatelessWidget {
         children: [
           InkWell(
             onTap: onToggle,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             child: Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
@@ -368,7 +368,7 @@ class _AdvancedPanel extends StatelessWidget {
                   Expanded(
                     child: Text('Advanced (numerical)',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: NightshadeTypography.fontSize13,
                           fontWeight: FontWeight.w600,
                           color: colors.textPrimary,
                         )),

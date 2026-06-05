@@ -21,7 +21,7 @@ class _StatChip extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,
           ),
         ),
@@ -71,10 +71,10 @@ class _IconButtonState extends State<_IconButton> {
               color: _isHovered
                   ? NightshadeDecorations.tintedBadge(
                       color,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     ).color
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Icon(
               widget.icon,

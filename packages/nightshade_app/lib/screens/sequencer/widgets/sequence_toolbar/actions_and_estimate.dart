@@ -73,7 +73,7 @@ class _ToolbarOverflowMenu extends StatelessWidget {
                   Text(
                     a.label!,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       color: a.onPressed == null
                           ? colors.textMuted
                           : colors.textPrimary,
@@ -129,7 +129,7 @@ class _SequenceTimeEstimate extends StatelessWidget {
         clipBehavior: Clip.hardEdge,
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(color: colors.border),
         ),
         child: Row(
@@ -144,7 +144,7 @@ class _SequenceTimeEstimate extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 softWrap: false,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textSecondary,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
@@ -160,7 +160,7 @@ class _SequenceTimeEstimate extends StatelessWidget {
                 overflow: TextOverflow.ellipsis,
                 softWrap: false,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textSecondary,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
@@ -183,7 +183,7 @@ class _SequenceTimeEstimate extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   softWrap: false,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textMuted,
                     fontStyle: FontStyle.italic,
                     fontFeatures: const [FontFeature.tabularFigures()],

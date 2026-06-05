@@ -78,12 +78,12 @@ class EstimatedCompletionWidget extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: NightshadeDecorations.statusChip(
                 colors.success,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Text(
                 'RUNNING',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   color: colors.success,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
@@ -153,7 +153,7 @@ class _InfoChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 9,
+                fontSize: NightshadeTypography.fontSize9,
                 color: colors.textMuted,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 0.3,
@@ -162,7 +162,7 @@ class _InfoChip extends StatelessWidget {
             Text(
               value,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: isActive ? colors.success : colors.textPrimary,
                 fontWeight: FontWeight.w600,
                 fontFeatures: const [FontFeature.tabularFigures()],
@@ -219,7 +219,7 @@ class _TargetBreakdownChipState extends State<_TargetBreakdownChip> {
                   Text(
                     'Targets',
                     style: TextStyle(
-                      fontSize: 9,
+                      fontSize: NightshadeTypography.fontSize9,
                       color: widget.colors.textMuted,
                       fontWeight: FontWeight.w500,
                       letterSpacing: 0.3,
@@ -231,7 +231,7 @@ class _TargetBreakdownChipState extends State<_TargetBreakdownChip> {
                       Text(
                         '${widget.targets.length}',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           color: widget.colors.textPrimary,
                           fontWeight: FontWeight.w600,
                           fontFeatures: const [FontFeature.tabularFigures()],
@@ -270,7 +270,7 @@ class _TargetBreakdownChipState extends State<_TargetBreakdownChip> {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: widget.colors.surface,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: widget.colors.border),
             ),
             child: Column(
@@ -280,7 +280,7 @@ class _TargetBreakdownChipState extends State<_TargetBreakdownChip> {
                 Text(
                   'Target Breakdown',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w600,
                     color: widget.colors.textPrimary,
                   ),
@@ -318,7 +318,7 @@ class _TargetBreakdownChipState extends State<_TargetBreakdownChip> {
             child: Text(
               target.targetName,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: widget.colors.textPrimary,
                 fontWeight: FontWeight.w500,
               ),
@@ -329,7 +329,7 @@ class _TargetBreakdownChipState extends State<_TargetBreakdownChip> {
           Text(
             raStr,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: widget.colors.textMuted,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
@@ -338,7 +338,7 @@ class _TargetBreakdownChipState extends State<_TargetBreakdownChip> {
           Text(
             decStr,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: widget.colors.textSecondary,
               fontWeight: FontWeight.w600,
               fontFeatures: const [FontFeature.tabularFigures()],
@@ -422,7 +422,7 @@ class LoopIterationBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: colors.primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(
           color: Color.lerp(colors.primary, colors.accent, progress)!,
           width: 1.5,
@@ -440,7 +440,7 @@ class LoopIterationBadge extends StatelessWidget {
           Text(
             '$current/$total',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w700,
               color: Color.lerp(colors.primary, colors.accent, progress),
               fontFeatures: const [FontFeature.tabularFigures()],
@@ -468,7 +468,7 @@ class NodeProgressIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       child: Stack(
         children: [
           // Progress bar background
@@ -493,7 +493,7 @@ class NodeProgressIndicator extends StatelessWidget {
             Positioned.fill(
               child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(
                     color: colors.success,
                     width: 2,
@@ -528,7 +528,7 @@ class ActiveBranchHighlight extends StatelessWidget {
       children: [
         Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(
               color: colors.success.withValues(alpha: 0.6),
               width: 2,

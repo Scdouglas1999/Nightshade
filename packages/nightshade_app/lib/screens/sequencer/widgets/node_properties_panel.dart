@@ -78,7 +78,7 @@ class NodePropertiesPanel extends ConsumerWidget {
             height: 4,
             decoration: BoxDecoration(
               color: colors.border,
-              borderRadius: BorderRadius.circular(2),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
             ),
           ),
         ),
@@ -97,7 +97,7 @@ class NodePropertiesPanel extends ConsumerWidget {
               Text(
                 'Properties',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: NightshadeTypography.fontSize18,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                 ),
@@ -158,7 +158,7 @@ class NodePropertiesPanel extends ConsumerWidget {
                   child: Text(
                     'Properties',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                     ),
@@ -169,7 +169,7 @@ class NodePropertiesPanel extends ConsumerWidget {
                     message: 'Collapse panel',
                     child: InkWell(
                       onTap: onCollapse,
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                       child: Padding(
                         padding: const EdgeInsets.all(4),
                         child: Icon(

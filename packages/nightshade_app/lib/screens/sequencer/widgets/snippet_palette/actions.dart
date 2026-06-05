@@ -18,7 +18,7 @@ void _showCreateSnippetDialog() {
         builder: (context, setDialogState) => AlertDialog(
           backgroundColor: widget.colors.surfaceOverlay,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           ),
           title: Row(
             children: [
@@ -31,7 +31,7 @@ void _showCreateSnippetDialog() {
               Text(
                 'Create Template',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: NightshadeTypography.fontSize18,
                   fontWeight: FontWeight.w600,
                   color: widget.colors.textPrimary,
                 ),
@@ -73,7 +73,7 @@ void _showCreateSnippetDialog() {
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
                     color: widget.colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(color: widget.colors.border),
                   ),
                   child: DropdownButtonHideUnderline(
@@ -82,7 +82,7 @@ void _showCreateSnippetDialog() {
                       isExpanded: true,
                       dropdownColor: widget.colors.surfaceOverlay,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: NightshadeTypography.fontSize14,
                         color: widget.colors.textPrimary,
                       ),
                       items: SnippetCategory.values.map((category) {
@@ -171,7 +171,7 @@ void _showCreateSnippetDialog() {
     return Text(
       text,
       style: TextStyle(
-        fontSize: 12,
+        fontSize: NightshadeTypography.fontSize12,
         fontWeight: FontWeight.w500,
         color: widget.colors.textSecondary,
       ),
@@ -187,27 +187,27 @@ void _showCreateSnippetDialog() {
       controller: controller,
       maxLines: maxLines,
       style: TextStyle(
-        fontSize: 14,
+        fontSize: NightshadeTypography.fontSize14,
         color: widget.colors.textPrimary,
       ),
       decoration: InputDecoration(
         hintText: hintText,
         hintStyle: TextStyle(
-          fontSize: 14,
+          fontSize: NightshadeTypography.fontSize14,
           color: widget.colors.textMuted,
         ),
         filled: true,
         fillColor: widget.colors.surfaceAlt,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           borderSide: BorderSide(color: widget.colors.border),
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           borderSide: BorderSide(color: widget.colors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           borderSide: BorderSide(color: widget.colors.primary),
         ),
         contentPadding:
@@ -246,19 +246,19 @@ void _showCreateSnippetDialog() {
         final isSelected = name == selectedIconName;
         return InkWell(
           onTap: () => onIconSelected(name),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           child: Container(
             width: 40,
             height: 40,
             decoration: isSelected
                 ? NightshadeDecorations.selectedSurface(
                     widget.colors.primary,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     fillAlpha: 0.2,
                   )
                 : BoxDecoration(
                     color: widget.colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(color: widget.colors.border),
                   ),
             child: Icon(
@@ -322,7 +322,7 @@ void _showCreateSnippetDialog() {
       builder: (context) => AlertDialog(
         backgroundColor: widget.colors.surfaceOverlay,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         ),
         title: Row(
           children: [
@@ -335,7 +335,7 @@ void _showCreateSnippetDialog() {
             Text(
               'Delete Template',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: NightshadeTypography.fontSize18,
                 fontWeight: FontWeight.w600,
                 color: widget.colors.textPrimary,
               ),
@@ -350,7 +350,7 @@ void _showCreateSnippetDialog() {
           child: Text(
             'Are you sure you want to delete "${snippet.name}"? This action cannot be undone.',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: NightshadeTypography.fontSize14,
               color: widget.colors.textSecondary,
             ),
           ),
@@ -527,7 +527,7 @@ void _showCreateSnippetDialog() {
       builder: (ctx) => AlertDialog(
         backgroundColor: widget.colors.surfaceOverlay,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         ),
         title: Row(
           children: [
@@ -541,7 +541,7 @@ void _showCreateSnippetDialog() {
               child: Text(
                 title,
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: NightshadeTypography.fontSize18,
                   fontWeight: FontWeight.w600,
                   color: widget.colors.textPrimary,
                 ),
@@ -561,7 +561,7 @@ void _showCreateSnippetDialog() {
               Text(
                 body,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   color: widget.colors.textSecondary,
                 ),
               ),
@@ -572,7 +572,7 @@ void _showCreateSnippetDialog() {
                   decoration: BoxDecoration(
                     color: widget.colors.surfaceAlt,
                     border: Border.all(color: widget.colors.border),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                   ),
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(12),
@@ -587,7 +587,7 @@ void _showCreateSnippetDialog() {
                                     ? '• ${i.message}'
                                     : '• ${i.field}: ${i.message}',
                                 style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: NightshadeTypography.fontSize12,
                                   color: widget.colors.textPrimary,
                                   fontFamily: 'monospace',
                                 ),

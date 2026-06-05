@@ -37,7 +37,7 @@ class RunDashboardExposureProgress extends ConsumerWidget {
               Text(
                 'EXPOSURE',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
                   color: colors.textMuted,
@@ -96,7 +96,7 @@ class RunDashboardExposureProgress extends ConsumerWidget {
               Text(
                 'Sequence',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textMuted,
                   fontWeight: FontWeight.w600,
                   letterSpacing: 0.4,

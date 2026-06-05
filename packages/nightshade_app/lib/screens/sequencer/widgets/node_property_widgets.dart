@@ -25,7 +25,7 @@ class NodeQuickTimeButton extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             border: Border.all(color: colors.border),
           ),
           alignment: Alignment.center,
@@ -132,7 +132,7 @@ class _NodeTextInputState extends State<NodeTextInput> {
       padding: EdgeInsets.symmetric(horizontal: inputPaddingH),
       decoration: BoxDecoration(
         color: widget.colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: widget.colors.border),
       ),
       child: TextField(
@@ -248,7 +248,7 @@ class _NodeNumberInputState extends State<NodeNumberInput> {
       padding: EdgeInsets.symmetric(horizontal: inputPaddingH),
       decoration: BoxDecoration(
         color: widget.colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: widget.colors.border),
       ),
       child: Row(
@@ -393,7 +393,7 @@ class _NodeNumberInputWithHintState extends State<NodeNumberInputWithHint> {
       padding: EdgeInsets.symmetric(horizontal: inputPaddingH),
       decoration: BoxDecoration(
         color: widget.colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(
           color: widget.isProfileDefault
               ? widget.colors.border.withValues(alpha: 0.5)
@@ -505,7 +505,7 @@ class NodeDropdown<T> extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: dropdownPaddingH),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: DropdownButtonHideUnderline(
@@ -579,10 +579,10 @@ class _NodeDangerButtonState extends State<NodeDangerButton> {
             color: _isHovered
                 ? NightshadeDecorations.tintedBadge(
                     widget.colors.error,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   ).color
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(
               color: _isHovered ? widget.colors.error : widget.colors.border,
             ),
@@ -618,7 +618,7 @@ class _NodeDangerButtonState extends State<NodeDangerButton> {
 
 /// Responsive section header used consistently across all property panels.
 ///
-/// Replaces the ad-hoc `Text(..., fontSize: 12, fontWeight: w600)` pattern
+/// Replaces the ad-hoc `Text(..., fontSize: NightshadeTypography.fontSize12, fontWeight: w600)` pattern
 /// with a single widget that scales for high-res desktop displays.
 class NodeSectionHeader extends StatelessWidget {
   final NightshadeColors colors;

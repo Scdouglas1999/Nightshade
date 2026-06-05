@@ -14,7 +14,7 @@ extension _WizardShell on _QuickStartWizardDialogState {
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         side: BorderSide(color: colors.border),
       ),
       child: ConstrainedBox(
@@ -60,7 +60,7 @@ extension _WizardShell on _QuickStartWizardDialogState {
                   'Quick-Start Sequence Wizard',
                   style: TextStyle(
                     color: colors.textPrimary,
-                    fontSize: 18,
+                    fontSize: NightshadeTypography.fontSize18,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -69,7 +69,7 @@ extension _WizardShell on _QuickStartWizardDialogState {
                   _stepTitle(_currentStep),
                   style: TextStyle(
                     color: colors.textSecondary,
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                   ),
                 ),
               ],
@@ -121,7 +121,7 @@ extension _WizardShell on _QuickStartWizardDialogState {
                       color: isCompleted || isCurrent
                           ? colors.primary
                           : colors.border,
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
                     ),
                   ),
                 ),

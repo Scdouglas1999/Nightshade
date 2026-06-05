@@ -144,7 +144,7 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
             height: 4,
             decoration: BoxDecoration(
               color: widget.colors.border,
-              borderRadius: BorderRadius.circular(2),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
             ),
           ),
         ),
@@ -166,7 +166,7 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                   Text(
                     'Add Node',
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: NightshadeTypography.fontSize18,
                       fontWeight: FontWeight.w700,
                       color: widget.colors.textPrimary,
                     ),
@@ -179,7 +179,7 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
                   color: widget.colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                   border: Border.all(color: widget.colors.border),
                 ),
                 child: Row(
@@ -195,13 +195,13 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                         controller: _searchController,
                         onChanged: (value) => setState(() => _searchQuery = value),
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: NightshadeTypography.fontSize14,
                           color: widget.colors.textPrimary,
                         ),
                         decoration: InputDecoration(
                           hintText: 'Search nodes...',
                           hintStyle: TextStyle(
-                            fontSize: 14,
+                            fontSize: NightshadeTypography.fontSize14,
                             color: widget.colors.textMuted,
                           ),
                           border: InputBorder.none,
@@ -315,7 +315,7 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                           message: 'Collapse panel',
                           child: InkWell(
                             onTap: widget.onCollapse,
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                             child: Padding(
                               padding: const EdgeInsets.all(4),
                               child: Icon(
@@ -334,7 +334,7 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
                     padding: EdgeInsets.symmetric(horizontal: searchPadding),
                     decoration: BoxDecoration(
                       color: widget.colors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                       border: Border.all(color: widget.colors.border),
                     ),
                     child: Row(
@@ -420,7 +420,7 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
               margin: EdgeInsets.all(tipPadding),
               decoration: NightshadeDecorations.iconChip(
                 widget.colors.info,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 borderAlpha: 0.2,
               ),
               child: Row(
@@ -504,7 +504,7 @@ class _CategorySectionState extends ConsumerState<_CategorySection> {
                   height: badgeSize,
                   decoration: NightshadeDecorations.statusChip(
                     widget.categoryColor,
-                    borderRadius: BorderRadius.circular(isMobile ? 8 : 6),
+                    borderRadius: BorderRadius.circular(isMobile ? NightshadeTokens.radiusInline8 : NightshadeTokens.radiusMd),
                     bordered: false,
                   ),
                   child: Icon(
@@ -644,18 +644,18 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
     // FocusRing wraps the InkWell so keyboard nav lands here with a visible
     // accent ring; the InkWell only paints a ripple on pointer events.
     return FocusRing(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       child: Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: _addNode,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         child: Container(
           margin: const EdgeInsets.only(top: 6),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: widget.colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             border: Border.all(color: widget.colors.border),
           ),
           child: Row(
@@ -665,7 +665,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
                 height: 40,
                 decoration: NightshadeDecorations.tintedBadge(
                   widget.categoryColor,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                 ),
                 child: Icon(
                   widget.getIcon(widget.item.icon),
@@ -681,7 +681,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
                     Text(
                       widget.item.name,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: NightshadeTypography.fontSize14,
                         fontWeight: FontWeight.w600,
                         color: widget.colors.textPrimary,
                       ),
@@ -690,7 +690,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
                     Text(
                       widget.item.description,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: widget.colors.textMuted,
                       ),
                       maxLines: 1,
@@ -732,7 +732,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
             padding: EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
             decoration: NightshadeDecorations.selectedSurface(
               widget.categoryColor,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               fillAlpha: 0.2,
             ),
             child: Row(
@@ -760,7 +760,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
         // GestureDetector (double-tap activator), keeping the node palette
         // navigable for keyboard-only users.
         child: FocusRing(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           child: MouseRegion(
           onEnter: (_) => setState(() => _isHovered = true),
           onExit: (_) => setState(() => _isHovered = false),
@@ -774,7 +774,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
                 color: _isHovered
                     ? widget.colors.surfaceAlt
                     : widget.colors.background,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(
                   color: _isHovered
                       ? widget.categoryColor.withValues(alpha: 0.5)
@@ -788,7 +788,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
                     height: iconBoxSize,
                     decoration: NightshadeDecorations.tintedBadge(
                       widget.categoryColor,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                     ),
                     child: Icon(
                       widget.getIcon(widget.item.icon),

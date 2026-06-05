@@ -130,11 +130,11 @@ class _SequenceHeader extends ConsumerWidget {
                   color: followExecution
                       ? NightshadeDecorations.statusChip(
                           colors.info,
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                           bordered: false,
                         ).color
                       : colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                   border: Border.all(
                     color: followExecution
                         ? colors.info.withValues(alpha: 0.4)
@@ -155,7 +155,7 @@ class _SequenceHeader extends ConsumerWidget {
                     Text(
                       'Follow',
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: NightshadeTypography.fontSize10,
                         fontWeight: FontWeight.w600,
                         color: followExecution ? colors.info : colors.textMuted,
                       ),
@@ -172,7 +172,7 @@ class _SequenceHeader extends ConsumerWidget {
           Text(
             '${sequence.targetHeaders.length} targets',
             style: TextStyle(
-              fontSize: isMobile ? 11 : 12,
+              fontSize: isMobile ? NightshadeTypography.fontSize11 : NightshadeTypography.fontSize12,
               color: colors.textMuted,
             ),
           ),
@@ -183,7 +183,7 @@ class _SequenceHeader extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -197,7 +197,7 @@ class _SequenceHeader extends ConsumerWidget {
                 Text(
                   '${sequence.nodes.length} nodes',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,
                   ),
                 ),

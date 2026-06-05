@@ -54,7 +54,7 @@ class EquipmentStatusWidget extends ConsumerWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.border),
         ),
         child: Column(
@@ -67,7 +67,7 @@ class EquipmentStatusWidget extends ConsumerWidget {
                 Text(
                   'Equipment Status',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w600,
                     color: colors.textSecondary,
                     letterSpacing: 0.5,
@@ -220,11 +220,11 @@ class _CompactStatusIndicator extends StatelessWidget {
           color: isConnected
               ? NightshadeDecorations.statusChip(
                   colors.success,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                   bordered: false,
                 ).color
               : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
           border: Border.all(
             color: isConnected
                 ? colors.success.withValues(alpha: 0.3)
@@ -265,10 +265,10 @@ class _ExpandedStatusChip extends StatelessWidget {
         color: isConnected
             ? NightshadeDecorations.tintedBadge(
                 colors.success,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               ).color
             : colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(
           color: isConnected
               ? colors.success.withValues(alpha: 0.3)
@@ -291,7 +291,7 @@ class _ExpandedStatusChip extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   fontWeight: FontWeight.w500,
                   color: colors.textSecondary,
                 ),
@@ -299,7 +299,7 @@ class _ExpandedStatusChip extends StatelessWidget {
               Text(
                 isConnected ? (deviceName ?? 'Connected') : 'Not Connected',
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: NightshadeTypography.fontSize9,
                   color: isConnected ? colors.success : colors.textMuted,
                 ),
               ),

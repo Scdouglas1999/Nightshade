@@ -537,7 +537,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
               margin: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: colors.background,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(color: colors.border),
               ),
               clipBehavior: Clip.antiAlias,
@@ -585,7 +585,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
       padding: const EdgeInsets.all(16),
       decoration: NightshadeDecorations.iconChip(
         colors.warning,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         borderAlpha: 0.4,
       ),
       child: Column(
@@ -611,7 +611,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
             '"${info.sequenceName}" was interrupted $ageStr. '
             '${info.completedExposures} frames captured (${integrationMins}m '
             'integration). Resuming picks up at the next unfinished panel.',
-            style: TextStyle(color: colors.textSecondary, fontSize: 13),
+            style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13),
           ),
           const SizedBox(height: 12),
           Wrap(

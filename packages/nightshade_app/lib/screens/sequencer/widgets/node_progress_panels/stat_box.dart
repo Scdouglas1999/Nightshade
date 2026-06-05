@@ -21,14 +21,14 @@ class _StatBox extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: NightshadeDecorations.tintedBadge(
         color,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: 9, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
           ),
           Row(
             crossAxisAlignment: CrossAxisAlignment.baseline,
@@ -37,7 +37,7 @@ class _StatBox extends StatelessWidget {
               Text(
                 value,
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: NightshadeTypography.fontSize16,
                   fontWeight: FontWeight.w700,
                   color: color,
                 ),
@@ -46,7 +46,7 @@ class _StatBox extends StatelessWidget {
                 const SizedBox(width: 2),
                 Text(
                   unit,
-                  style: TextStyle(fontSize: 10, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                 ),
               ],
             ],

@@ -42,7 +42,7 @@ class RunDashboardTargetHeader extends ConsumerWidget {
             Text(
               'No target configured',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: NightshadeTypography.fontSize14,
                 fontWeight: FontWeight.w600,
                 color: colors.textSecondary,
               ),
@@ -100,7 +100,7 @@ class RunDashboardTargetHeader extends ConsumerWidget {
     final name = Text(
       target.displayName,
       style: TextStyle(
-        fontSize: isMobile ? 18 : 22,
+        fontSize: isMobile ? NightshadeTypography.fontSize18 : NightshadeTypography.fontSize22,
         fontWeight: FontWeight.w700,
         color: colors.textPrimary,
       ),
@@ -238,7 +238,7 @@ class _BudgetProgressPanel extends ConsumerWidget {
                 child: Text(
                   f,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w700,
                     color: isMet ? colors.success : colors.textSecondary,
                   ),
@@ -247,7 +247,7 @@ class _BudgetProgressPanel extends ConsumerWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: ClipRRect(
-                  borderRadius: BorderRadius.circular(3),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
                   child: LinearProgressIndicator(
                     value: fraction.clamp(0.0, 1.0),
                     minHeight: 6,
@@ -285,7 +285,7 @@ class _BudgetProgressPanel extends ConsumerWidget {
         padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(
               color: budget.budgetMet ? colors.success : colors.border),
         ),
@@ -299,7 +299,7 @@ class _BudgetProgressPanel extends ConsumerWidget {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     letterSpacing: 0.6,
                     fontWeight: FontWeight.w700,
                     color: titleColor,
@@ -365,7 +365,7 @@ class _TargetProgress extends ConsumerWidget {
               Text(
                 '${stats.completedFrames}/${stats.totalFrames} frames',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w600,
                   color: colors.textSecondary,
                 ),
@@ -374,7 +374,7 @@ class _TargetProgress extends ConsumerWidget {
               Text(
                 '•',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textMuted,
                 ),
               ),
@@ -382,7 +382,7 @@ class _TargetProgress extends ConsumerWidget {
               Text(
                 '${completedMins}m / ${totalMins}m',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textMuted,
                 ),
               ),
@@ -390,7 +390,7 @@ class _TargetProgress extends ConsumerWidget {
               Text(
                 '${(stats.fraction * 100).round()}%',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w600,
                   color: colors.textSecondary,
                 ),
@@ -459,7 +459,7 @@ class _HeaderStat extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 color: colors.textMuted,
                 letterSpacing: 0.4,
                 fontWeight: FontWeight.w600,

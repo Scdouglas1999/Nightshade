@@ -200,7 +200,7 @@ class SmartExposureProperties extends ConsumerWidget {
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
                     color: colors.warning.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(
                         color: colors.warning.withValues(alpha: 0.4)),
                   ),
@@ -321,7 +321,7 @@ class _PlanList extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.border),
         ),
         child: Row(
@@ -411,7 +411,7 @@ class _PlanRow extends StatelessWidget {
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.border),
         ),
         child: Column(
@@ -461,7 +461,7 @@ class _PlanRow extends StatelessWidget {
                                 const EdgeInsets.symmetric(horizontal: 12),
                             decoration: BoxDecoration(
                               color: colors.surface,
-                              borderRadius: BorderRadius.circular(8),
+                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                               border: Border.all(color: colors.border),
                             ),
                             child: Text(
@@ -624,7 +624,7 @@ class _PlanRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: DropdownButtonHideUnderline(
@@ -722,7 +722,7 @@ class _BudgetInputState extends State<_BudgetInput> {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(color: colors.border),
           ),
           child: TextField(
@@ -824,7 +824,7 @@ class _EstimateSummary extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: NightshadeDecorations.tintedBadge(
         colors.primary,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

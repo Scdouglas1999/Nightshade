@@ -18,7 +18,7 @@ class _IntegrationBudgetSection extends ConsumerWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -91,7 +91,7 @@ class _IntegrationBudgetSection extends ConsumerWidget {
               'Stop a target once it has accumulated N hours of '
               'integration, with optional per-filter caps or ratios.',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
               ),
             ),
@@ -143,7 +143,7 @@ class _BudgetEditor extends ConsumerWidget {
         Text(
           'Per-filter caps',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: FontWeight.w600,
             color: colors.textSecondary,
           ),
@@ -187,7 +187,7 @@ class _BudgetEditor extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Stop target when budget met',
-                style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
               ),
             ),
             NodeToggleSwitch(

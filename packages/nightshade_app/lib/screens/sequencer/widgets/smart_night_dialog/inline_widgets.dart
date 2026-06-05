@@ -36,7 +36,7 @@ class _StepChip extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: NightshadeTypography.fontSize11,
           fontWeight: FontWeight.w500,
           color: fg,
         ),
@@ -67,7 +67,7 @@ class _SettingsRow extends StatelessWidget {
               label,
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
           ),
@@ -122,7 +122,7 @@ class _CompactNumberFieldState extends State<_CompactNumberField> {
             keyboardType: const TextInputType.numberWithOptions(
               decimal: true,
             ),
-            style: TextStyle(fontSize: 12, color: colors.textPrimary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
             decoration: InputDecoration(
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(
@@ -130,7 +130,7 @@ class _CompactNumberFieldState extends State<_CompactNumberField> {
                 vertical: 6,
               ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
             ),
             onSubmitted: (text) {
@@ -147,7 +147,7 @@ class _CompactNumberFieldState extends State<_CompactNumberField> {
           const SizedBox(width: 4),
           Text(
             widget.suffix,
-            style: TextStyle(color: colors.textSecondary, fontSize: 11),
+            style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize11),
           ),
         ],
       ],
@@ -164,7 +164,7 @@ class _MissingLocationCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: NightshadeDecorations.emphasisSurface(
         colors.warning,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         children: [
@@ -175,7 +175,7 @@ class _MissingLocationCard extends StatelessWidget {
               'No observer location set — open Settings → Location and '
               'enter your latitude / longitude. Smart Night needs them to '
               'compute the dark window.',
-              style: TextStyle(color: colors.textPrimary, fontSize: 13),
+              style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize13),
             ),
           ),
         ],
@@ -209,7 +209,7 @@ class _MissingProfileCard extends StatelessWidget {
               'Open the Equipment screen and activate a profile before '
               'running Smart Night.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: colors.textSecondary, fontSize: 12),
+              style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
             ),
           ],
         ),
@@ -278,7 +278,7 @@ class _EmptyTargetsCard extends StatelessWidget {
               'Add targets in the Planner or lower the min-altitude / '
               'min-score knobs in suggestion settings.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: colors.textSecondary, fontSize: 12),
+              style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
             ),
           ],
         ),
@@ -315,7 +315,7 @@ class _ProfileRow extends StatelessWidget {
               label,
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
           ),
@@ -324,7 +324,7 @@ class _ProfileRow extends StatelessWidget {
               value,
               style: TextStyle(
                 color: colors.textPrimary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -355,7 +355,7 @@ class _StrategyTile extends StatelessWidget {
     final descriptors = _descriptors(strategy);
     return InkWell(
       onTap: filtersAvailable ? onSelected : null,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
@@ -363,10 +363,10 @@ class _StrategyTile extends StatelessWidget {
           color: isSelected
               ? NightshadeDecorations.tintedBadge(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ).color
               : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(
             color: isSelected ? colors.primary : colors.border,
           ),
@@ -397,7 +397,7 @@ class _StrategyTile extends StatelessWidget {
                     descriptors.subtitle,
                     style: TextStyle(
                       color: colors.textSecondary,
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                     ),
                   ),
                 ],
@@ -509,7 +509,7 @@ class _TargetTile extends StatelessWidget {
     final autoBorder = (isAutoMode && autoPickedTop);
     return InkWell(
       onTap: isAutoMode ? null : onToggle,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       child: Container(
         margin: const EdgeInsets.only(bottom: 6),
         padding: const EdgeInsets.all(10),
@@ -517,10 +517,10 @@ class _TargetTile extends StatelessWidget {
           color: isSelected
               ? NightshadeDecorations.tintedBadge(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ).color
               : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(
             color: autoBorder
                 ? colors.primary
@@ -542,7 +542,7 @@ class _TargetTile extends StatelessWidget {
                 style: TextStyle(
                   color: colors.textMuted,
                   fontWeight: FontWeight.w600,
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                 ),
               ),
             ),
@@ -556,7 +556,7 @@ class _TargetTile extends StatelessWidget {
                     style: TextStyle(
                       color: colors.textPrimary,
                       fontWeight: FontWeight.w600,
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -569,7 +569,7 @@ class _TargetTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: colors.textSecondary,
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                     ),
                   ),
                 ],
@@ -580,13 +580,13 @@ class _TargetTile extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: NightshadeDecorations.emphasisSurface(
                 colors.primary,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
               child: Text(
                 '${suggestion.totalScore.toStringAsFixed(0)}/100',
                 style: TextStyle(
                   color: colors.primary,
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -639,7 +639,7 @@ class _PlannedTargetCard extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -655,7 +655,7 @@ class _PlannedTargetCard extends StatelessWidget {
                   style: TextStyle(
                     color: colors.textPrimary,
                     fontWeight: FontWeight.w600,
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                   ),
                 ),
               ),
@@ -663,7 +663,7 @@ class _PlannedTargetCard extends StatelessWidget {
                 '${planned.suggestion.totalScore.toStringAsFixed(0)}/100',
                 style: TextStyle(
                   color: colors.primary,
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -672,7 +672,7 @@ class _PlannedTargetCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             planned.rationale,
-            style: TextStyle(color: colors.textSecondary, fontSize: 11),
+            style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize11),
           ),
           const SizedBox(height: 8),
           _WindowBar(
@@ -696,7 +696,7 @@ class _PlannedTargetCard extends StatelessWidget {
                 'across ${planned.filterPlans.length} filter(s).',
                 style: TextStyle(
                   color: colors.textMuted,
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                 ),
               ),
             ),
@@ -729,14 +729,14 @@ class _FilterRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: NightshadeDecorations.tintedBadge(
               colors.primary,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             alignment: Alignment.center,
             child: Text(
               plan.filterName,
               style: TextStyle(
                 color: colors.primary,
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -755,7 +755,7 @@ class _FilterRow extends StatelessWidget {
               textAlign: TextAlign.center,
               style: TextStyle(
                 color: colors.textPrimary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -775,7 +775,7 @@ class _FilterRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
               ),
             ),
           ),
@@ -808,7 +808,7 @@ class _WindowBar extends StatelessWidget {
           '(${(mins / 60).toStringAsFixed(1)}h)',
           style: TextStyle(
             color: colors.textSecondary,
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
           ),
         ),
       ],
@@ -849,7 +849,7 @@ class _SummaryRow extends StatelessWidget {
               label,
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
           ),
@@ -857,7 +857,7 @@ class _SummaryRow extends StatelessWidget {
             value,
             style: TextStyle(
               color: colors.textPrimary,
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w500,
             ),
           ),

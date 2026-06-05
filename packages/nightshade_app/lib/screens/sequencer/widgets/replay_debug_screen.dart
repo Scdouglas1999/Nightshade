@@ -131,12 +131,12 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
           const SizedBox(height: 12),
           Text(
             'No decisions recorded for this run.',
-            style: TextStyle(fontSize: 14, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize14, color: colors.textMuted),
           ),
           const SizedBox(height: 4),
           Text(
             'Older runs may pre-date the replay log.',
-            style: TextStyle(fontSize: 12, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
           ),
         ],
       ),
@@ -168,7 +168,7 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
               Text(
                 '${filtered.length} of ${all.length} decisions',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textMuted,
                   fontWeight: FontWeight.w600,
                 ),
@@ -273,7 +273,7 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
               Text(
                 'Time range: $startLabel — $endLabel',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textMuted,
                   fontWeight: FontWeight.w600,
                 ),
@@ -282,7 +282,7 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
                 TextButton(
                   onPressed: () =>
                       setState(() => _timeRange = const RangeValues(0, 1)),
-                  child: const Text('Reset', style: TextStyle(fontSize: 11)),
+                  child: const Text('Reset', style: TextStyle(fontSize: NightshadeTypography.fontSize11)),
                 ),
             ],
           ),
@@ -494,7 +494,7 @@ class _DecisionTileState extends State<_DecisionTile> {
                     timeLabel,
                     style: TextStyle(
                       fontFeatures: const [FontFeature.tabularFigures()],
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: c.textMuted,
                     ),
                   ),
@@ -504,13 +504,13 @@ class _DecisionTileState extends State<_DecisionTile> {
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: NightshadeDecorations.statusChip(
                     badgeColor,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     bordered: false,
                   ),
                   child: Text(
                     widget.decision.category.displayLabel,
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                       fontWeight: FontWeight.w700,
                       color: badgeColor,
                     ),
@@ -521,7 +521,7 @@ class _DecisionTileState extends State<_DecisionTile> {
                   child: Text(
                     widget.decision.summary,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       color: c.textPrimary,
                       fontWeight: FontWeight.w500,
                     ),
@@ -548,18 +548,18 @@ class _DecisionTileState extends State<_DecisionTile> {
                 decoration: BoxDecoration(
                   color: c.surfaceAlt,
                   border: Border.all(color: c.border),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     if (widget.decision.nodeId != null)
                       Text('Node: ${widget.decision.nodeId}',
-                          style: TextStyle(fontSize: 11, color: c.textMuted)),
+                          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: c.textMuted)),
                     if (widget.decision.details.isEmpty)
                       Text(
                         'No extra details.',
-                        style: TextStyle(fontSize: 11, color: c.textMuted),
+                        style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: c.textMuted),
                       )
                     else
                       Text(
@@ -567,7 +567,7 @@ class _DecisionTileState extends State<_DecisionTile> {
                             .convert(widget.decision.details),
                         style: TextStyle(
                           fontFamily: 'monospace',
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: c.textPrimary,
                         ),
                       ),
@@ -579,14 +579,14 @@ class _DecisionTileState extends State<_DecisionTile> {
                           onPressed: widget.onAddNote,
                           icon: const Icon(LucideIcons.bookOpen, size: 12),
                           label: const Text('Add note',
-                              style: TextStyle(fontSize: 11)),
+                              style: TextStyle(fontSize: NightshadeTypography.fontSize11)),
                         ),
                         if (isForensicsLinked)
                           TextButton.icon(
                             onPressed: widget.onJumpToForensics,
                             icon: const Icon(LucideIcons.fileSearch, size: 12),
                             label: const Text('Forensics',
-                                style: TextStyle(fontSize: 11)),
+                                style: TextStyle(fontSize: NightshadeTypography.fontSize11)),
                           ),
                       ],
                     ),

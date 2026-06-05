@@ -113,7 +113,7 @@ class _StripBody extends ConsumerWidget {
               Flexible(
                 child: Text(
                   'Failed to load frame thumbnails: $error',
-                  style: TextStyle(fontSize: 10, color: colors.warning),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.warning),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -209,14 +209,14 @@ class _MoreBadge extends StatelessWidget {
         height: tilePx,
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(color: colors.border),
         ),
         alignment: Alignment.center,
         child: Text(
           '+$count',
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             fontWeight: FontWeight.w600,
             color: colors.textMuted,
           ),
@@ -352,7 +352,7 @@ class _ThumbnailTileState extends ConsumerState<_ThumbnailTile> {
               height: px,
               decoration: BoxDecoration(
                 color: widget.colors.surface,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 border: Border.all(
                   color: borderColor,
                   width: 2,
@@ -372,7 +372,7 @@ class _ThumbnailTileState extends ConsumerState<_ThumbnailTile> {
                 child: Text(
                   widget.thumbnail.filter ?? 'L',
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: NightshadeTypography.fontSize9,
                     fontWeight: FontWeight.w600,
                     color: widget.colors.textSecondary,
                   ),
@@ -506,7 +506,7 @@ class _FullFrameDialog extends ConsumerWidget {
                     child: Text(
                       t.fileName,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
                       ),
@@ -557,7 +557,7 @@ class _FullFrameDialog extends ConsumerWidget {
                             'Preview unavailable for ${t.fileName}.\nOpen in the imaging viewer for the full frame.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                                color: colors.textMuted, fontSize: 12),
+                                color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
                           ),
                         ],
                       ),
@@ -593,10 +593,10 @@ class _FrameMetadata extends StatelessWidget {
             children: [
               Text(label,
                   style:
-                      TextStyle(fontSize: 10, color: colors.textMuted)),
+                      TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted)),
               Text(value,
                   style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: colors.textPrimary,
                       fontWeight: FontWeight.w600)),
             ],

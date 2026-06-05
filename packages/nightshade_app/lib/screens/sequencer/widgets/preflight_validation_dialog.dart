@@ -243,7 +243,7 @@ class _PreFlightValidationDialogState
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: SizedBox(
         width: dialogSize.width,
@@ -283,7 +283,7 @@ class _PreFlightValidationDialogState
             padding: const EdgeInsets.all(10),
             decoration: NightshadeDecorations.tintedBadge(
               colors.primary,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             ),
             child: Icon(LucideIcons.clipboardCheck,
                 color: colors.primary, size: 20),
@@ -296,7 +296,7 @@ class _PreFlightValidationDialogState
                 Text(
                   'Pre-Flight Validation',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: NightshadeTypography.fontSize16,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -304,7 +304,7 @@ class _PreFlightValidationDialogState
                 Text(
                   'Checking sequence before execution',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -339,7 +339,7 @@ class _PreFlightValidationDialogState
           Text(
             'Running validation checks...',
             style: TextStyle(
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               color: colors.textSecondary,
             ),
           ),
@@ -359,7 +359,7 @@ class _PreFlightValidationDialogState
           Text(
             'No sequence to validate',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: NightshadeTypography.fontSize14,
               color: colors.textPrimary,
             ),
           ),
@@ -418,7 +418,7 @@ class _PreFlightValidationDialogState
               Text(
                 'General',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: colors.textSecondary,
                   letterSpacing: 0.5,
@@ -442,7 +442,7 @@ class _PreFlightValidationDialogState
                     'Capture missing darks',
                     style: TextStyle(
                       color: colors.primary,
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                     ),
                   ),
                 ),
@@ -475,7 +475,7 @@ class _PreFlightValidationDialogState
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -488,7 +488,7 @@ class _PreFlightValidationDialogState
               Text(
                 'Simulation',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                 ),
@@ -497,7 +497,7 @@ class _PreFlightValidationDialogState
               if (simulation != null)
                 Text(
                   'Ends ${_formatClock(simulation.end)}',
-                  style: TextStyle(fontSize: 11, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                 ),
             ],
           ),
@@ -512,7 +512,7 @@ class _PreFlightValidationDialogState
                   child: Text(
                     unavailableReason ?? 'Simulation unavailable.',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: colors.textSecondary,
                     ),
                   ),
@@ -615,7 +615,7 @@ class _PreFlightValidationDialogState
             : hasWarnings
                 ? colors.warning
                 : colors.success,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         children: [
@@ -644,7 +644,7 @@ class _PreFlightValidationDialogState
                           ? 'Ready with Warnings'
                           : 'All Checks Passed',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                     fontWeight: FontWeight.w600,
                     color: hasErrors
                         ? colors.error
@@ -660,7 +660,7 @@ class _PreFlightValidationDialogState
                           ? '$warningCount warning(s) found'
                           : 'Sequence is ready to run',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -723,7 +723,7 @@ class _PreFlightValidationDialogState
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -733,7 +733,7 @@ class _PreFlightValidationDialogState
             padding: const EdgeInsets.all(6),
             decoration: NightshadeDecorations.statusChip(
               issueColor,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               bordered: false,
             ),
             child: Icon(issueIcon, size: 14, color: issueColor),
@@ -748,7 +748,7 @@ class _PreFlightValidationDialogState
                     Text(
                       issue.title,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
                       ),
@@ -759,12 +759,12 @@ class _PreFlightValidationDialogState
                           horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: colors.surfaceAlt,
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                       ),
                       child: Text(
                         issue.category.label,
                         style: TextStyle(
-                          fontSize: 9,
+                          fontSize: NightshadeTypography.fontSize9,
                           fontWeight: FontWeight.w600,
                           color: colors.textMuted,
                           letterSpacing: 0.3,
@@ -777,7 +777,7 @@ class _PreFlightValidationDialogState
                 Text(
                   issue.description,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -792,7 +792,7 @@ class _PreFlightValidationDialogState
                         child: Text(
                           issue.resolutionHint!,
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: NightshadeTypography.fontSize11,
                             color: colors.primary,
                             fontStyle: FontStyle.italic,
                           ),
@@ -823,7 +823,7 @@ class _PreFlightValidationDialogState
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: colors.info.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.info.withValues(alpha: 0.30)),
       ),
       child: Row(
@@ -838,7 +838,7 @@ class _PreFlightValidationDialogState
                 Text(
                   'Sequence has changed since last successful run',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -850,7 +850,7 @@ class _PreFlightValidationDialogState
                   '${diff.removed.length} removed, '
                   '${diff.modified.length} modified node(s).',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -864,7 +864,7 @@ class _PreFlightValidationDialogState
               'View changes',
               style: TextStyle(
                 color: colors.info,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
           ),
@@ -878,7 +878,7 @@ class _PreFlightValidationDialogState
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -888,7 +888,7 @@ class _PreFlightValidationDialogState
           Text(
             'Looking Good!',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: NightshadeTypography.fontSize14,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
             ),
@@ -897,7 +897,7 @@ class _PreFlightValidationDialogState
           Text(
             'No issues found. Your sequence is ready to run.',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
             ),
           ),

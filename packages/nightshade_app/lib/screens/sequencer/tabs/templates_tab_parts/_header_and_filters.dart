@@ -18,7 +18,7 @@ class _SnippetSummaryCard extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: NightshadeDecorations.iconChip(
         colors.accent,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         borderAlpha: 0.2,
       ),
       child: Row(
@@ -28,7 +28,7 @@ class _SnippetSummaryCard extends ConsumerWidget {
             height: 40,
             decoration: NightshadeDecorations.statusChip(
               colors.accent,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               bordered: false,
             ),
             child: Icon(
@@ -45,7 +45,7 @@ class _SnippetSummaryCard extends ConsumerWidget {
                 Text(
                   'Reusable Snippets',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -54,7 +54,7 @@ class _SnippetSummaryCard extends ConsumerWidget {
                 Text(
                   '$snippetCount snippets available. Switch to Builder tab and use the Snippets panel (Ctrl+T) to add them.',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -119,7 +119,7 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
               child: Text(
                 'Templates',
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: NightshadeTypography.fontSize20,
                   fontWeight: FontWeight.w700,
                   color: widget.colors.textPrimary,
                 ),
@@ -153,7 +153,7 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             color: widget.colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             border: Border.all(color: widget.colors.border),
           ),
           child: Row(
@@ -168,13 +168,13 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
                     ref.read(templateSearchProvider.notifier).state = value;
                   },
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                     color: widget.colors.textPrimary,
                   ),
                   decoration: InputDecoration(
                     hintText: 'Search templates...',
                     hintStyle: TextStyle(
-                      fontSize: 14,
+                      fontSize: NightshadeTypography.fontSize14,
                       color: widget.colors.textMuted,
                     ),
                     border: InputBorder.none,
@@ -214,7 +214,7 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
                   Text(
                     'Sequence Templates',
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: NightshadeTypography.fontSize24,
                       fontWeight: FontWeight.w700,
                       color: widget.colors.textPrimary,
                     ),
@@ -223,7 +223,7 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
                   Text(
                     'Start with a template or save your sequences for reuse',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       color: widget.colors.textMuted,
                     ),
                     maxLines: 1,
@@ -243,7 +243,7 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   decoration: BoxDecoration(
                     color: widget.colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                     border: Border.all(color: widget.colors.border),
                   ),
                   child: Row(
@@ -259,13 +259,13 @@ class _TemplatesHeaderState extends ConsumerState<_TemplatesHeader> {
                                 value;
                           },
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: NightshadeTypography.fontSize13,
                             color: widget.colors.textPrimary,
                           ),
                           decoration: InputDecoration(
                             hintText: 'Search...',
                             hintStyle: TextStyle(
-                              fontSize: 13,
+                              fontSize: NightshadeTypography.fontSize13,
                               color: widget.colors.textMuted,
                             ),
                             border: InputBorder.none,
@@ -433,7 +433,7 @@ class _ActionButtonState extends State<_ActionButton> {
                 : _isHovered
                     ? widget.colors.surfaceAlt
                     : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: widget.isPrimary
                 ? null
                 : Border.all(color: widget.colors.border),
@@ -451,7 +451,7 @@ class _ActionButtonState extends State<_ActionButton> {
               Text(
                 widget.label,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w500,
                   color: widget.isPrimary
                       ? onPrimary

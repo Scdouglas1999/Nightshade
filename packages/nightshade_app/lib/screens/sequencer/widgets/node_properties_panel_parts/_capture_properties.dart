@@ -20,7 +20,7 @@ class _DitherProperties extends ConsumerWidget {
         Text(
           'Dither Settings',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
@@ -164,7 +164,7 @@ class _DitherProperties extends ConsumerWidget {
                 ? 'Walks a ${node.gridSize}x${node.gridSize} grid — visits ${node.gridSize * node.gridSize} positions before cycling. Best for uniform sky coverage.'
                 : 'Random offsets each dither. Best for averaging out fixed-pattern noise; classic choice.',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textMuted,
               fontStyle: FontStyle.italic,
             ),

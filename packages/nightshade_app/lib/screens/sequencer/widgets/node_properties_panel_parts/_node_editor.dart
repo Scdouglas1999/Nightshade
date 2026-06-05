@@ -24,7 +24,7 @@ class _EmptySelection extends StatelessWidget {
           Text(
             'Select a node',
             style: TextStyle(
-              fontSize: isMobile ? 16 : 13,
+              fontSize: isMobile ? NightshadeTypography.fontSize16 : NightshadeTypography.fontSize13,
               color: colors.textSecondary,
             ),
           ),
@@ -32,7 +32,7 @@ class _EmptySelection extends StatelessWidget {
           Text(
             'to view its properties',
             style: TextStyle(
-              fontSize: isMobile ? 14 : 11,
+              fontSize: isMobile ? NightshadeTypography.fontSize14 : NightshadeTypography.fontSize11,
               color: colors.textMuted,
             ),
           ),

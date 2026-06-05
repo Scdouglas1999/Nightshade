@@ -115,7 +115,7 @@ class NodeSummaryLine extends ConsumerWidget {
 
 /// Muted inline text for a non-emphasized [StaticFragment]. `labelQuiet`
 /// (11px) is the design-system muted-label token — it replaces the old
-/// hardcoded `fontSize: 10/12` subtitle literal.
+/// hardcoded `fontSize: NightshadeTypography.fontSize10/12` subtitle literal.
 class _MutedText extends StatelessWidget {
   final String text;
   final Color color;

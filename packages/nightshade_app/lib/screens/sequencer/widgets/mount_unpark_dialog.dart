@@ -129,7 +129,7 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: ConstrainedBox(
         constraints: AdaptiveDialogConstraints.hybrid(
@@ -175,7 +175,7 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
             Text(
               'Mount is Parked',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: NightshadeTypography.fontSize18,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -188,7 +188,7 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
               'Your mount is currently parked. The sequence will automatically unpark the mount and continue.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: colors.textSecondary,
                 height: 1.5,
               ),
@@ -203,7 +203,7 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
                     const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(color: colors.border),
                 ),
                 child: Row(
@@ -218,14 +218,14 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
                     Text(
                       'Unparking in ',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: NightshadeTypography.fontSize14,
                         color: colors.textSecondary,
                       ),
                     ),
                     Text(
                       '$_remainingSeconds',
                       style: TextStyle(
-                        fontSize: 24,
+                        fontSize: NightshadeTypography.fontSize24,
                         fontWeight: FontWeight.w700,
                         color: colors.warning,
                         fontFeatures: const [FontFeature.tabularFigures()],
@@ -234,7 +234,7 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
                     Text(
                       ' seconds',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: NightshadeTypography.fontSize14,
                         color: colors.textSecondary,
                       ),
                     ),
@@ -250,7 +250,7 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
                 width: 200,
                 decoration: BoxDecoration(
                   color: colors.border,
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
                 ),
                 child: FractionallySizedBox(
                   alignment: Alignment.centerLeft,
@@ -258,7 +258,7 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
                   child: Container(
                     decoration: BoxDecoration(
                       color: colors.warning,
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
                     ),
                   ),
                 ),
@@ -280,7 +280,7 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
                   Text(
                     'Unparking mount...',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: NightshadeTypography.fontSize14,
                       color: colors.textSecondary,
                     ),
                   ),
