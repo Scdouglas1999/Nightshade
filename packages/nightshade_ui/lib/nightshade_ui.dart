@@ -7,6 +7,7 @@
 library;
 
 export 'src/theme/nightshade_theme_system.dart';
+export 'src/theme/nightshade_icons.dart';
 export 'breakpoints.dart';
 export 'src/tokens/breakpoint_tokens.dart';
 export 'src/tokens/shell_chrome_metrics.dart';

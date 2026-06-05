@@ -79,6 +79,40 @@ exact size while removing the magic number:
 `36` = `statValue` are reachable as named styles and not used as raw literals in
 the screens.)
 
+### Inline `TextStyle(fontSize:, fontWeight:)` combo → named role
+
+The first migration pass swapped raw `fontSize: N` for `fontSize: fontSizeNN`.
+The **next** pass folds a whole inline `TextStyle(fontSize: …, fontWeight: …)`
+onto a single **named role** where the (size + weight) pair has one. Map the
+recurring combos found across the screens as follows — apply the call-site color
+via `.copyWith(color:)` / `.colored(…)`:
+
+| inline combo (size + weight) | sites | named role | exact? |
+|------------------------------|-------|------------|--------|
+| `14` + `w600`                | 32    | `h5`         | yes |
+| `12` + `w600`                | 27    | `h6`         | yes |
+| `16` + `w600`                | 15    | `h4`         | yes |
+| `13` + `w500`                | 11    | `label`      | yes |
+| `12` + `w500`                | 12    | `labelSm`    | yes |
+| `11` + `w500`                | 13    | `labelQuiet` | yes |
+| `13` + `w600`                | 27    | `labelStrong`   | adopts family height/tracking |
+| `11` + `w600`                | 29    | `labelStrongSm` | adopts family height/tracking |
+
+`labelStrong` (13/w600) and `labelStrongSm` (11/w600) are **new** roles added for
+this pass — they fill the semibold-small gap the screens reached for most. They
+carry the `label` family's `height`/`letterSpacing`; a bare inline
+`TextStyle(fontSize: 13, fontWeight: w600)` has neither, so folding onto the role
+adds the family line-height/tracking. At semibold small sizes that is an
+intended, imperceptible refinement — **not** a guaranteed pixel-identical swap.
+If a call site must stay pixel-exact (e.g. inside a tight golden), keep the
+numeric `fontSizeNN` token instead.
+
+**Fold a combo onto a role only when the rest of the inline style matches** the
+role (no custom `height`/`letterSpacing`/`fontFamily` that the role lacks); when
+it carries extra properties, keep the numeric `fontSizeNN` token and leave the
+inline `fontWeight`. Mono/tabular combos belong to the `mono*` / `telemetry*`
+roles, not these.
+
 ## Colors — `Colors.*` → semantic
 
 The semantic palette (`NightshadeColors.of(context)`) is **complete** for the

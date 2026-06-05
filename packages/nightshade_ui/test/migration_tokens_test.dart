@@ -87,6 +87,18 @@ void main() {
       expect(NightshadeTypography.h2.fontSize,
           NightshadeTypography.fontSize24);
     });
+
+    test('semibold-small inline combos fold onto named roles', () {
+      // The migration map folds inline TextStyle(fontSize:, fontWeight:) combos
+      // onto these roles; lock the (size + weight) of the two NEW roles added
+      // for the semibold-small gap so the fold target stays correct.
+      expect(NightshadeTypography.labelStrong.fontSize,
+          NightshadeTypography.fontSize13);
+      expect(NightshadeTypography.labelStrong.fontWeight, FontWeight.w600);
+      expect(NightshadeTypography.labelStrongSm.fontSize,
+          NightshadeTypography.fontSize11);
+      expect(NightshadeTypography.labelStrongSm.fontWeight, FontWeight.w600);
+    });
   });
 
   group('Semantic color coverage for migration', () {

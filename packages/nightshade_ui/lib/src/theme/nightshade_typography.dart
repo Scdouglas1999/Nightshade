@@ -223,6 +223,37 @@ abstract final class NightshadeTypography {
     letterSpacing: 0.1,
   );
 
+  /// Label strong - Emphasized small label / inline value (13px, Semi-bold).
+  ///
+  /// The semibold-small style the screens reach for most after the named
+  /// scale — a strong key/value label or list-row title. It fills the 13/w600
+  /// gap between [label] (13/w500) and [h6] (12/w600). The screen layer carries
+  /// ~27 inline `TextStyle(fontSize: 13, fontWeight: w600, color: …)` literals
+  /// that this folds; apply the call-site color with `.copyWith(color:)` /
+  /// `.colored(…)`. (Folding adopts this role's line-height/tracking from the
+  /// label family — a deliberate, imperceptible refinement, NOT the purely
+  /// mechanical numeric-token swap. See docs/design/token-migration-map.md.)
+  static const TextStyle labelStrong = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+    height: 1.38,
+    letterSpacing: 0.1,
+  );
+
+  /// Label strong small - Emphasized tiny label (11px, Semi-bold).
+  ///
+  /// The 11/w600 sibling of [labelStrong] — small section headers and emphasized
+  /// chips/badges. Folds the ~29 inline `TextStyle(fontSize: 11, fontWeight:
+  /// w600, …)` literals in the screens (same folding caveat as [labelStrong]).
+  static const TextStyle labelStrongSm = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+    height: 1.27,
+    letterSpacing: 0.1,
+  );
+
   // ===========================================================================
   // Caption & Utility Styles
   // ===========================================================================
