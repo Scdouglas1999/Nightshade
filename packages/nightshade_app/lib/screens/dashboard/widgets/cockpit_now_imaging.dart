@@ -63,11 +63,8 @@ class CockpitNowImaging extends ConsumerWidget {
     final altText = sky != null
         ? '${sky.altitudeDeg.toStringAsFixed(1)}°'
         : (hasLocation ? '—' : 'set location');
-    final altColor = sky == null
-        ? colors.textMuted
-        : sky.altitudeDeg < 30
-            ? colors.warning
-            : colors.success;
+    final altColor =
+        sky == null ? colors.textMuted : _altitudeColor(sky, colors);
 
     final setLabel = sky == null
         ? 'To set'
@@ -114,6 +111,22 @@ class CockpitNowImaging extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Grade the target's altitude against the *effective horizon* the rest of
+/// the dashboard uses (`sky.horizonDeg`) instead of a hardcoded 30°. Below the
+/// horizon the target is unobservable (error); within a margin above it the
+/// target is low and degrading (warning); comfortably above it is good. The
+/// 15° margin is clamped so a high obstruction horizon (e.g. 40°) still leaves
+/// a sensible "low" band rather than collapsing warning/success together.
+Color _altitudeColor(RunDashboardSkyStats sky, NightshadeColors colors) {
+  final horizon = sky.horizonDeg;
+  if (sky.altitudeDeg <= horizon) return colors.error;
+  final margin = (90.0 - horizon) * 0.25 < 15.0
+      ? (90.0 - horizon) * 0.25
+      : 15.0;
+  if (sky.altitudeDeg < horizon + margin) return colors.warning;
+  return colors.success;
 }
 
 class _Identity extends StatelessWidget {

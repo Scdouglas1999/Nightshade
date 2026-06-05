@@ -60,6 +60,7 @@ class RunDashboardLiveFrame extends ConsumerWidget {
             colors: colors,
             image: currentImage,
             filterLabel: resolvedFilter,
+            hfrHistory: _hfrHistory(sessionImages),
           );
 
           if (!showHistory) {
@@ -86,6 +87,23 @@ class RunDashboardLiveFrame extends ConsumerWidget {
     );
   }
 
+  /// Recent per-frame HFR values (oldest→newest) for the inline sparkline.
+  /// Pulls from the same session history the column renders from; frames
+  /// without a measured HFR are skipped so the trend reflects only real
+  /// measurements. Capped to keep the sparkline readable.
+  static List<double> _hfrHistory(List<CapturedImage> history) {
+    const maxPoints = 40;
+    final values = <double>[];
+    for (final image in history) {
+      final hfr = image.stats?.hfr;
+      if (hfr != null && hfr > 0) values.add(hfr);
+    }
+    if (values.length > maxPoints) {
+      return values.sublist(values.length - maxPoints);
+    }
+    return values;
+  }
+
   static String? _resolveFilter(
     String? currentFilter,
     List<CapturedImage> history,
@@ -109,11 +127,13 @@ class _FramePane extends StatelessWidget {
   final NightshadeColors colors;
   final CapturedImageData? image;
   final String? filterLabel;
+  final List<double> hfrHistory;
 
   const _FramePane({
     required this.colors,
     required this.image,
     required this.filterLabel,
+    required this.hfrHistory,
   });
 
   @override
@@ -138,6 +158,8 @@ class _FramePane extends StatelessWidget {
                 colors: colors,
                 filterLabel: filterLabel,
                 exposure: img.settings.exposureTime,
+                stats: img.stats,
+                hfrHistory: hfrHistory,
               ),
             ),
         ],
@@ -421,56 +443,254 @@ class _ControlButton extends StatelessWidget {
   }
 }
 
-/// Filter + exposure metadata badge for the current frame.
+/// Filter + exposure + live-quality metadata badge for the current frame.
+///
+/// Beyond filter/exposure this overlays the measured quality of the displayed
+/// sub — HFR, star count, FWHM — colour-graded for HFR, plus a compact
+/// HFR-vs-time sparkline so trends (focus drifting, clouds rolling in) are
+/// visible at a glance. Quality fields appear only when measured; an
+/// unanalysed frame shows just filter + exposure rather than fabricated zeros.
+///
+/// Eccentricity is intentionally absent: [ImageStats] does not carry it (only
+/// hfr / fwhm / starCount), so surfacing it here would require a core/native
+/// change outside this cluster's scope. Tracked as deferred.
 class _FrameBadge extends StatelessWidget {
   final NightshadeColors colors;
   final String? filterLabel;
   final double exposure;
+  final ImageStats? stats;
+  final List<double> hfrHistory;
 
   const _FrameBadge({
     required this.colors,
     required this.filterLabel,
     required this.exposure,
+    required this.stats,
+    required this.hfrHistory,
   });
+
+  Color _hfrColor(double hfr) {
+    // Absolute HFR thresholds are arcsec-pixel dependent, but as a fraction-
+    // free at-a-glance cue these match the conventional "tight/soft/bad"
+    // bands most CMOS imaging trains read at. Relative trend is carried by
+    // the sparkline; this is just a static colour cue for the latest value.
+    if (hfr <= 3.0) return colors.success;
+    if (hfr <= 5.0) return colors.warning;
+    return colors.error;
+  }
 
   @override
   Widget build(BuildContext context) {
+    final s = stats;
+    final hfr = s?.hfr;
+    final fwhm = s?.fwhm;
+    final starCount = s?.starCount;
+
+    final captionStyle = NightshadeTypography.withTabular(
+      NightshadeTypography.captionSm.copyWith(
+        fontWeight: FontWeight.w600,
+        color: colors.textSecondary,
+      ),
+    );
+
+    final firstRow = <Widget>[
+      Icon(LucideIcons.filter, size: 10, color: colors.textMuted),
+      const SizedBox(width: 4),
+      Text(filterLabel ?? 'No filter', style: captionStyle),
+      const SizedBox(width: 8),
+      Container(width: 1, height: 10, color: colors.border),
+      const SizedBox(width: 8),
+      Text(
+        '${exposure.toStringAsFixed(exposure >= 10 ? 0 : 1)}s',
+        style: captionStyle,
+      ),
+    ];
+
+    final qualityChips = <Widget>[
+      if (hfr != null)
+        _QualityChip(
+          colors: colors,
+          icon: LucideIcons.circleDot,
+          label: 'HFR',
+          value: hfr.toStringAsFixed(2),
+          valueColor: _hfrColor(hfr),
+        ),
+      if (fwhm != null)
+        _QualityChip(
+          colors: colors,
+          icon: LucideIcons.scan,
+          label: 'FWHM',
+          value: fwhm.toStringAsFixed(2),
+        ),
+      if (starCount != null)
+        _QualityChip(
+          colors: colors,
+          icon: LucideIcons.star,
+          label: 'Stars',
+          value: '$starCount',
+        ),
+    ];
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
       decoration: BoxDecoration(
         color: colors.surface.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
         border: Border.all(color: colors.border),
       ),
-      child: Row(
+      child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Icon(LucideIcons.filter, size: 10, color: colors.textMuted),
-          const SizedBox(width: 4),
-          Text(
-            filterLabel ?? 'No filter',
-            style: NightshadeTypography.withTabular(
-              NightshadeTypography.captionSm.copyWith(
-                fontWeight: FontWeight.w600,
-                color: colors.textSecondary,
+          Row(mainAxisSize: MainAxisSize.min, children: firstRow),
+          if (qualityChips.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < qualityChips.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  qualityChips[i],
+                ],
+              ],
+            ),
+          ],
+          // Sparkline needs at least 2 points to draw a line.
+          if (hfrHistory.length >= 2) ...[
+            const SizedBox(height: 5),
+            SizedBox(
+              width: 96,
+              height: 18,
+              child: CustomPaint(
+                painter: _HfrSparklinePainter(
+                  values: hfrHistory,
+                  lineColor: colors.primary,
+                  fillColor: colors.primary.withValues(alpha: 0.15),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 8),
-          Container(width: 1, height: 10, color: colors.border),
-          const SizedBox(width: 8),
-          Text(
-            '${exposure.toStringAsFixed(exposure >= 10 ? 0 : 1)}s',
-            style: NightshadeTypography.withTabular(
-              NightshadeTypography.captionSm.copyWith(
-                fontWeight: FontWeight.w600,
-                color: colors.textSecondary,
-              ),
-            ),
-          ),
+          ],
         ],
       ),
     );
+  }
+}
+
+/// One compact quality readout (HFR / FWHM / Stars) for the frame badge.
+class _QualityChip extends StatelessWidget {
+  final NightshadeColors colors;
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color? valueColor;
+
+  const _QualityChip({
+    required this.colors,
+    required this.icon,
+    required this.label,
+    required this.value,
+    this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 10, color: colors.textMuted),
+        const SizedBox(width: 3),
+        Text(
+          '$label ',
+          style: NightshadeTypography.captionSm.copyWith(
+            color: colors.textMuted,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        Text(
+          value,
+          style: NightshadeTypography.withTabular(
+            NightshadeTypography.captionSm.copyWith(
+              fontWeight: FontWeight.w700,
+              color: valueColor ?? colors.textSecondary,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Minimal HFR-vs-time sparkline. Auto-scales to the data's min/max so the
+/// trend fills the cell regardless of absolute HFR. Newest point on the right.
+class _HfrSparklinePainter extends CustomPainter {
+  final List<double> values;
+  final Color lineColor;
+  final Color fillColor;
+
+  const _HfrSparklinePainter({
+    required this.values,
+    required this.lineColor,
+    required this.fillColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.length < 2) return;
+
+    var minV = values.first;
+    var maxV = values.first;
+    for (final v in values) {
+      if (v < minV) minV = v;
+      if (v > maxV) maxV = v;
+    }
+    final range = (maxV - minV).abs();
+    // Flat series: draw a centred line rather than dividing by zero.
+    final span = range < 1e-6 ? 1.0 : range;
+
+    final dx = size.width / (values.length - 1);
+    double yFor(double v) {
+      final norm = (v - minV) / span; // 0 (best/low) .. 1 (worst/high)
+      // Lower HFR is better → draw it higher on screen (smaller y).
+      return size.height - (1.0 - norm) * size.height;
+    }
+
+    final linePath = Path();
+    for (var i = 0; i < values.length; i++) {
+      final x = dx * i;
+      final y = yFor(values[i]);
+      if (i == 0) {
+        linePath.moveTo(x, y);
+      } else {
+        linePath.lineTo(x, y);
+      }
+    }
+
+    final fillPath = Path.from(linePath)
+      ..lineTo(size.width, size.height)
+      ..lineTo(0, size.height)
+      ..close();
+
+    canvas.drawPath(fillPath, Paint()..color = fillColor);
+    canvas.drawPath(
+      linePath,
+      Paint()
+        ..color = lineColor
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.3
+        ..strokeJoin = StrokeJoin.round,
+    );
+
+    // Marker on the latest point.
+    final lastX = dx * (values.length - 1);
+    final lastY = yFor(values.last);
+    canvas.drawCircle(Offset(lastX, lastY), 1.8, Paint()..color = lineColor);
+  }
+
+  @override
+  bool shouldRepaint(covariant _HfrSparklinePainter oldDelegate) {
+    return oldDelegate.values != values ||
+        oldDelegate.lineColor != lineColor ||
+        oldDelegate.fillColor != fillColor;
   }
 }
 

@@ -129,24 +129,71 @@ final runDashboardSkyStatsProvider =
 ///
 /// We sum the two so the bar reads as "total acquired so far this run."
 class RunDashboardFilterTotals {
-  /// Filter name -> seconds of integration acquired this session.
+  /// Filter name -> seconds of *accepted* integration acquired this session.
+  /// This is the integration that actually counts toward the goal — rejected
+  /// subs are excluded so the bar never over-reports usable signal.
   final Map<String, double> integrationSecs;
+
+  /// Filter name -> seconds of *total acquired* integration this session,
+  /// i.e. accepted + rejected. Surfaced separately so the operator can see
+  /// how much time was spent versus how much produced usable data (a large
+  /// gap means a lot of subs are being thrown away — clouds, wind, focus).
+  final Map<String, double> totalAcquiredSecs;
 
   /// Filter name -> goal seconds taken from each `ExposureNode` in the
   /// loaded sequence (count * durationSecs). When the same filter is
   /// reused across multiple exposure nodes the values accumulate.
   final Map<String, double> goalSecs;
 
+  /// The filter the executor is currently exposing, or null when idle.
+  final String? inFlightFilter;
+
+  /// Elapsed seconds of the in-flight exposure (0 when idle). Kept separate
+  /// from [integrationSecs] because the current sub hasn't been written to
+  /// disk or accepted yet — folding it into the accepted total would lie.
+  final double inFlightElapsedSecs;
+
   const RunDashboardFilterTotals({
     required this.integrationSecs,
+    required this.totalAcquiredSecs,
     required this.goalSecs,
+    this.inFlightFilter,
+    this.inFlightElapsedSecs = 0.0,
   });
 
-  static const empty =
-      RunDashboardFilterTotals(integrationSecs: {}, goalSecs: {});
+  static const empty = RunDashboardFilterTotals(
+    integrationSecs: {},
+    totalAcquiredSecs: {},
+    goalSecs: {},
+  );
 
   /// Returns true if no exposures are configured for any filter.
   bool get isEmpty => integrationSecs.isEmpty && goalSecs.isEmpty;
+
+  /// Rejected (accepted-vs-total gap) seconds for [filter].
+  double rejectedSecsFor(String filter) {
+    final total = totalAcquiredSecs[filter] ?? 0.0;
+    final accepted = integrationSecs[filter] ?? 0.0;
+    final gap = total - accepted;
+    return gap > 0 ? gap : 0.0;
+  }
+}
+
+/// Accepted + total-acquired per-filter integration for a session.
+class RunDashboardSessionIntegration {
+  /// Filter -> accepted (isAccepted == true) light-frame seconds.
+  final Map<String, double> acceptedSecs;
+
+  /// Filter -> all light-frame seconds (accepted + rejected).
+  final Map<String, double> totalSecs;
+
+  const RunDashboardSessionIntegration({
+    required this.acceptedSecs,
+    required this.totalSecs,
+  });
+
+  static const empty =
+      RunDashboardSessionIntegration(acceptedSecs: {}, totalSecs: {});
 }
 
 /// Compute the goal totals from the loaded sequence's exposure nodes.
@@ -164,45 +211,93 @@ Map<String, double> _computeGoalSecs(Sequence? sequence) {
   return out;
 }
 
-/// Pulls accepted light-frame integration totals from the database for the
-/// session id provided.
-final runDashboardSessionFilterTotalsProvider =
-    FutureProvider.family<Map<String, double>, int>((ref, sessionId) async {
+/// Pulls light-frame integration totals from the database for the session id
+/// provided, split into accepted-only and total-acquired (accepted +
+/// rejected). A single DB scan produces both so the dashboard can show "usable
+/// vs spent" without a second query.
+final runDashboardSessionIntegrationProvider = FutureProvider.family<
+    RunDashboardSessionIntegration, int>((ref, sessionId) async {
   final dao = ref.watch(imagesDaoProvider);
   final images = await dao.getImagesForSession(sessionId);
-  final totals = <String, double>{};
+  final accepted = <String, double>{};
+  final total = <String, double>{};
   for (final img in images) {
     if (img.frameType != 'light') continue;
-    if (!img.isAccepted) continue;
     final filter = (img.filter == null || img.filter!.isEmpty)
         ? 'Unfiltered'
         : img.filter!;
-    totals[filter] = (totals[filter] ?? 0.0) + img.exposureDuration;
+    total[filter] = (total[filter] ?? 0.0) + img.exposureDuration;
+    if (img.isAccepted) {
+      accepted[filter] = (accepted[filter] ?? 0.0) + img.exposureDuration;
+    }
   }
-  return totals;
+  return RunDashboardSessionIntegration(
+    acceptedSecs: accepted,
+    totalSecs: total,
+  );
+});
+
+/// Pulls accepted light-frame integration totals from the database for the
+/// session id provided. Derived from [runDashboardSessionIntegrationProvider]
+/// so callers that only need the accepted map (e.g. the budget panel) don't
+/// trigger a second DB scan.
+final runDashboardSessionFilterTotalsProvider =
+    Provider.family<AsyncValue<Map<String, double>>, int>((ref, sessionId) {
+  return ref
+      .watch(runDashboardSessionIntegrationProvider(sessionId))
+      .whenData((integration) => integration.acceptedSecs);
 });
 
 /// Combined per-filter totals + goals for the active sequence/session.
+///
+/// Surfaces three honest quantities per filter:
+///   * accepted integration (counts toward the goal),
+///   * total acquired integration (accepted + rejected; what was spent),
+///   * the in-flight exposure's elapsed seconds against the current filter,
+///     so the operator sees integration tick up live rather than jumping a
+///     whole sub at a time once a frame is written.
 final runDashboardFilterTotalsProvider =
     Provider<RunDashboardFilterTotals>((ref) {
   final sequence = ref.watch(currentSequenceProvider);
   final goals = _computeGoalSecs(sequence);
 
+  final progress = ref.watch(sequenceProgressProvider);
+  final exposure = ref.watch(exposureProgressProvider);
+  final executionState = ref.watch(sequenceExecutionStateProvider);
+  final isActive = executionState == SequenceExecutionState.running ||
+      executionState == SequenceExecutionState.paused ||
+      executionState == SequenceExecutionState.stopping;
+  // Only treat the current exposure's elapsed time as "in flight" while the
+  // executor is actually running a frame — not during downloads or when idle.
+  final inFlightFilter = isActive ? progress.currentFilter : null;
+  final inFlightElapsed = (isActive &&
+          !exposure.isDownloading &&
+          exposure.frameNumber > 0 &&
+          exposure.elapsed > 0)
+      ? exposure.elapsed
+      : 0.0;
+
   final sessionId = ref.watch(sessionStateProvider).dbSessionId;
   if (sessionId == null) {
     return RunDashboardFilterTotals(
       integrationSecs: const {},
+      totalAcquiredSecs: const {},
       goalSecs: goals,
+      inFlightFilter: inFlightFilter,
+      inFlightElapsedSecs: inFlightElapsed,
     );
   }
 
-  final totalsAsync =
-      ref.watch(runDashboardSessionFilterTotalsProvider(sessionId));
-  final totals = totalsAsync.valueOrNull ?? const <String, double>{};
+  final integration =
+      ref.watch(runDashboardSessionIntegrationProvider(sessionId)).valueOrNull ??
+          RunDashboardSessionIntegration.empty;
 
   return RunDashboardFilterTotals(
-    integrationSecs: totals,
+    integrationSecs: integration.acceptedSecs,
+    totalAcquiredSecs: integration.totalSecs,
     goalSecs: goals,
+    inFlightFilter: inFlightFilter,
+    inFlightElapsedSecs: inFlightElapsed,
   );
 });
 
