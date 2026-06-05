@@ -683,11 +683,7 @@ class _DarkGroupTile extends StatelessWidget {
               children: [
                 Text(
                   '${group.frameType.toUpperCase()} - ${group.exposureTime}s',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    fontSize: NightshadeTypography.fontSize13,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(

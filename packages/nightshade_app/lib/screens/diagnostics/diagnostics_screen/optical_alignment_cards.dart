@@ -154,11 +154,7 @@ class _CollimationCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'Collimation',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize14,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
               ),
               const Spacer(),
               Container(
@@ -169,11 +165,7 @@ class _CollimationCard extends StatelessWidget {
                 ),
                 child: Text(
                   severity,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w600,
-                    color: severityColor,
-                  ),
+                  style: NightshadeTypography.labelStrongSm.copyWith(color: severityColor),
                 ),
               ),
             ],

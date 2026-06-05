@@ -102,7 +102,7 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
       backgroundColor: colors.surface,
       title: Row(
         children: [
-          Icon(Icons.power, color: colors.primary, size: 24),
+          Icon(NightshadeIcons.power, color: colors.primary, size: 24),
           const SizedBox(width: 12),
           Text(
             'INDI Server Configuration',
@@ -126,7 +126,7 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline, color: colors.primary, size: 16),
+                  Icon(NightshadeIcons.info, color: colors.primary, size: 16),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -189,7 +189,7 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
               width: double.infinity,
               child: NightshadeButton(
                 onPressed: _testConnection,
-                icon: Icons.cloud_sync,
+                icon: NightshadeIcons.refresh,
                 label: _isConnecting ? 'Testing...' : 'Test Connection',
                 variant: ButtonVariant.outline,
                 isLoading: _isConnecting,
@@ -211,8 +211,8 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
                   children: [
                     Icon(
                       (_connectionSuccess ?? false)
-                          ? Icons.check_circle
-                          : Icons.error,
+                          ? NightshadeIcons.success
+                          : NightshadeIcons.error,
                       size: 16,
                       color: (_connectionSuccess ?? false)
                           ? colors.success

@@ -24,11 +24,7 @@ class _HealthGradeCard extends StatelessWidget {
         children: [
           Text(
             'Optical Health',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize14,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 16),
           Container(
@@ -48,11 +44,7 @@ class _HealthGradeCard extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             health.qualityLabel,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
-              fontWeight: FontWeight.w500,
-              color: gradeColor,
-            ),
+            style: NightshadeTypography.label.copyWith(color: gradeColor),
           ),
           const SizedBox(height: 6),
           Text(
@@ -153,11 +145,7 @@ class _ScoreBar extends StatelessWidget {
           child: Text(
             clampedValue.toStringAsFixed(0),
             textAlign: TextAlign.right,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w600,
-              color: barColor,
-            ),
+            style: NightshadeTypography.labelStrongSm.copyWith(color: barColor),
           ),
         ),
       ],
@@ -202,11 +190,7 @@ class _TiltAssessmentCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'Tilt',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize14,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
               ),
               const Spacer(),
               Container(
@@ -217,11 +201,7 @@ class _TiltAssessmentCard extends StatelessWidget {
                 ),
                 child: Text(
                   severity,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w600,
-                    color: severityColor,
-                  ),
+                  style: NightshadeTypography.labelStrongSm.copyWith(color: severityColor),
                 ),
               ),
             ],

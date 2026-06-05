@@ -90,11 +90,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
               ),
               Text(
                 deviceName,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize14,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                 overflow: TextOverflow.ellipsis,
               ),
             ],

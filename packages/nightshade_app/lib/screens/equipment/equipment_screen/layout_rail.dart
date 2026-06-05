@@ -35,11 +35,7 @@ class _DashboardHeader extends StatelessWidget {
             child: Text(
               profileName!,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize16,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
           ),
           if (isMobile) ...[
@@ -146,11 +142,7 @@ class _PolarAlignmentShortcut extends ConsumerWidget {
                   children: [
                     Text(
                       'Polar Alignment',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                     ),
                     const SizedBox(height: 2),
                     Text(

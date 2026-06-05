@@ -411,11 +411,7 @@ class _CalStatusCard extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize13,
-                    fontWeight: FontWeight.w600,
-                    color: available ? colors.success : colors.textSecondary,
-                  ),
+                  style: NightshadeTypography.labelStrong.copyWith(color: available ? colors.success : colors.textSecondary),
                 ),
               ],
             ),

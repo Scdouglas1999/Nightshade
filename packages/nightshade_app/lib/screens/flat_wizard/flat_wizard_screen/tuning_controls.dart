@@ -73,11 +73,7 @@ class _ToleranceSlider extends StatelessWidget {
       children: [
         Text(
           '±${value.toStringAsFixed(0)}%',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize16,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -147,11 +143,7 @@ class _FrameCountInput extends StatelessWidget {
           ),
           child: Text(
             '$value',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize16,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
           ),
         ),
         IconButton(
@@ -250,11 +242,7 @@ class _TwilightOption extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize14,
-                fontWeight: FontWeight.w600,
-                color: isSelected ? colors.primary : colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: isSelected ? colors.primary : colors.textPrimary),
             ),
             Text(
               description,

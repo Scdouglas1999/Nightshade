@@ -139,11 +139,7 @@ class AboutSettings extends StatelessWidget {
                   children: [
                     Text(
                       'System Information',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize14,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                     ),
                     const SizedBox(height: 16),
                     SettingsInfoRow(

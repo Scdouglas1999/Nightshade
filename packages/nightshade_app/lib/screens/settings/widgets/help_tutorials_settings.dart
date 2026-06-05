@@ -315,11 +315,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
             const SizedBox(width: 12),
             Text(
               'Reset Tutorial Progress?',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: NightshadeTypography.fontSize16,
-                fontWeight: FontWeight.w600,
-              ),
+              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
           ],
         ),
@@ -456,11 +452,7 @@ class _TutorialRow extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      fontWeight: FontWeight.w500,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.label.copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 2),
                   Row(

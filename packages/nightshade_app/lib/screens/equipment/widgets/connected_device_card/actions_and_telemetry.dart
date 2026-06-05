@@ -268,11 +268,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
           children: [
             Text(
               'Additional Info',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                fontWeight: FontWeight.w600,
-                color: colors.textMuted,
-              ),
+              style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textMuted),
             ),
             const SizedBox(height: 8),
             ..._buildExpandedTelemetry(colors),

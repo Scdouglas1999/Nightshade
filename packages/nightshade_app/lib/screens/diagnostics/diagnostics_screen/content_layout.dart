@@ -56,11 +56,7 @@ class _DiagnosticsContent extends ConsumerWidget {
             const SizedBox(height: 12),
             Text(
               context.l10n.text('diagnosticsFailedTitle'),
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize16,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(

@@ -34,22 +34,14 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                   width: 36,
                   child: Text(
                     '#',
-                    style: TextStyle(
-                      color: colors.textMuted,
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: NightshadeTypography.h6.copyWith(color: colors.textMuted),
                   ),
                 ),
                 Expanded(
                   flex: 2,
                   child: Text(
                     'Filter Name',
-                    style: TextStyle(
-                      color: colors.textMuted,
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: NightshadeTypography.h6.copyWith(color: colors.textMuted),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -57,11 +49,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                   width: dialogMaxWidth(context, 100),
                   child: Text(
                     'Focus Offset',
-                    style: TextStyle(
-                      color: colors.textMuted,
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: NightshadeTypography.h6.copyWith(color: colors.textMuted),
                   ),
                 ),
                 const SizedBox(width: 36), // Space for delete button
@@ -174,11 +162,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                   children: [
                     Text(
                       'Binning',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        fontWeight: FontWeight.w500,
-                        color: colors.textSecondary,
-                      ),
+                      style: NightshadeTypography.labelSm.copyWith(color: colors.textSecondary),
                     ),
                     const SizedBox(height: 6),
                     Container(
@@ -434,11 +418,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                 hasAny
                     ? 'Camera SDK reported:'
                     : 'Camera SDK did not report any recommendation',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
               ),
             ],
           ),

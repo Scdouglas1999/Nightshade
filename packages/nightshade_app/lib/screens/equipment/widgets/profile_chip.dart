@@ -323,11 +323,7 @@ class _AddProfileChipState extends State<AddProfileChip> {
               const SizedBox(width: 8),
               Text(
                 'New Profile',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w500,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.label.copyWith(color: colors.textSecondary),
               ),
             ],
           ),

@@ -93,11 +93,7 @@ class ObservingListsSettings extends ConsumerWidget {
             const SizedBox(height: 16),
             Text(
               'No observing lists yet',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize16,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
@@ -384,11 +380,7 @@ class _ActionChip extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                fontWeight: FontWeight.w500,
-                color: color,
-              ),
+              style: NightshadeTypography.labelQuiet.copyWith(color: color),
             ),
           ],
         ),

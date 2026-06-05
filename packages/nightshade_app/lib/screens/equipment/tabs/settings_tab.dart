@@ -80,11 +80,7 @@ class _CameraSettingsCard extends ConsumerWidget {
           children: [
             Text(
               'Camera Settings',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             _SettingRow(
@@ -146,11 +142,7 @@ class _MountSettingsCard extends ConsumerWidget {
           children: [
             Text(
               'Mount Settings',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             NightshadeSwitchRow(
@@ -213,11 +205,7 @@ class _FocuserSettingsCard extends ConsumerWidget {
           children: [
             Text(
               'Focuser Settings',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             Tooltip(
@@ -286,11 +274,7 @@ class _GuiderSettingsCard extends ConsumerWidget {
           children: [
             Text(
               'Guider Settings',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             _SettingRow(
@@ -632,7 +616,7 @@ class _BuiltinGuiderSettingsCardState
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: _initialized ? _resetDefaults : null,
-                  icon: const Icon(Icons.refresh, size: 14),
+                  icon: const Icon(NightshadeIcons.refresh, size: 14),
                   label: const Text('Reset',
                       style: TextStyle(fontSize: NightshadeTypography.fontSize12)),
                 ),
@@ -641,7 +625,7 @@ class _BuiltinGuiderSettingsCardState
               Expanded(
                 child: FilledButton.icon(
                   onPressed: _initialized ? _applyConfig : null,
-                  icon: const Icon(Icons.check, size: 14),
+                  icon: const Icon(NightshadeIcons.check, size: 14),
                   label: const Text('Apply',
                       style: TextStyle(fontSize: NightshadeTypography.fontSize12)),
                 ),
@@ -663,11 +647,7 @@ class _BuiltinGuiderSettingsCardState
                 Expanded(
                   child: Text(
                     'Built-in Guider',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize14,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                   ),
                 ),
                 Container(

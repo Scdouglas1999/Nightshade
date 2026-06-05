@@ -279,11 +279,7 @@ class _SetupStep extends StatelessWidget {
           child: Center(
             child: Text(
               number,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                fontWeight: FontWeight.w600,
-                color: colors.primary,
-              ),
+              style: NightshadeTypography.labelStrong.copyWith(color: colors.primary),
             ),
           ),
         ),
@@ -343,11 +339,7 @@ class _ProfileMismatchBanner extends ConsumerWidget {
               'Device Mismatch: The connected ${mismatches.join(", ")} '
               '${mismatches.length == 1 ? 'does' : 'do'} not match the '
               'assignments in the active profile "${activeProfile.name}".',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.warning,
-                fontWeight: FontWeight.w500,
-              ),
+              style: NightshadeTypography.labelSm.copyWith(color: colors.warning),
             ),
           ),
           const SizedBox(width: 8),

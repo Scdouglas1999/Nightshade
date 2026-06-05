@@ -177,11 +177,7 @@ class ProfileSidebar extends ConsumerWidget {
             const SizedBox(height: 16),
             Text(
               'No profiles yet',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
@@ -623,11 +619,7 @@ class _ProfileCardState extends State<_ProfileCard>
                     Expanded(
                       child: Text(
                         widget.profile.name,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
-                          fontWeight: FontWeight.w600,
-                          color: widget.colors.textPrimary,
-                        ),
+                        style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),

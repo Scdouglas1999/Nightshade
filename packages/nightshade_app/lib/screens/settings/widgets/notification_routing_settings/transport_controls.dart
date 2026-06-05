@@ -162,7 +162,7 @@ class _TestSendButtonState extends ConsumerState<_TestSendButton> {
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: Icon(
-              _result!.success ? Icons.check_circle : Icons.error_outline,
+              _result!.success ? NightshadeIcons.success : NightshadeIcons.error,
               size: 18,
               color: _result!.success
                   ? NightshadeColors.of(context).success

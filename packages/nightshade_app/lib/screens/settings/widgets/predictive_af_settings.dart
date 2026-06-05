@@ -439,11 +439,7 @@ class _ModelRowState extends State<_ModelRow> {
               const SizedBox(width: 8),
               Text(
                 m.filterName,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w600,
-                  color: c.textPrimary,
-                ),
+                style: NightshadeTypography.labelStrong.copyWith(color: c.textPrimary),
               ),
               const SizedBox(width: 12),
               _stat('Slope', '${m.slopeStepsPerC.toStringAsFixed(1)} steps/°C', c),

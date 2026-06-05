@@ -207,11 +207,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                         Expanded(
                           child: Text(
                             widget.profile.name,
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize13,
-                              fontWeight: FontWeight.w600,
-                              color: NightshadeColors.of(context).textPrimary,
-                            ),
+                            style: NightshadeTypography.labelStrong.copyWith(color: NightshadeColors.of(context).textPrimary),
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),

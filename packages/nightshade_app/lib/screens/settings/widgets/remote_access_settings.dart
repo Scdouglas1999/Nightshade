@@ -386,11 +386,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                     ),
                     title: Text(
                       l10n.text('remoteAccessDetailsTitle'),
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        fontWeight: FontWeight.w600,
-                        color: NightshadeColors.of(context).textPrimary,
-                      ),
+                      style: NightshadeTypography.labelStrong.copyWith(color: NightshadeColors.of(context).textPrimary),
                     ),
                     subtitle: Text(
                       l10n.text('remoteAccessDetailsBody'),

@@ -388,11 +388,7 @@ class _InsightCard extends StatelessWidget {
               children: [
                 Text(
                   insight.title,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 3),
                 Text(
@@ -465,11 +461,7 @@ class _DeviceHeartbeatChip extends ConsumerWidget {
             children: [
               Text(
                 _resolveDeviceName(ref, snapshot.deviceId),
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
               ),
               Text(
                 snapshot.isHealthy

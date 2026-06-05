@@ -262,11 +262,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   subtitle: 'Estimated naked-eye limit for Bortle ${settings.bortleClass}',
                   trailing: Text(
                     '${BortleScale.limitingMagnitude(settings.bortleClass).toStringAsFixed(1)}m',
-                    style: TextStyle(
-                      color: NightshadeColors.of(context).textPrimary,
-                      fontSize: NightshadeTypography.fontSize14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: NightshadeTypography.h5.copyWith(color: NightshadeColors.of(context).textPrimary),
                   ),
                   isLast: true,
                   isMobile: widget.isMobile,

@@ -102,11 +102,7 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
             flex: 2,
             child: Text(
               widget.filterName,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                fontWeight: FontWeight.w500,
-                color: NightshadeColors.of(context).textPrimary,
-              ),
+              style: NightshadeTypography.labelSm.copyWith(color: NightshadeColors.of(context).textPrimary),
               overflow: TextOverflow.ellipsis,
             ),
           ),

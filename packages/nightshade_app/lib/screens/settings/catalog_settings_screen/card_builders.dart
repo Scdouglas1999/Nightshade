@@ -55,11 +55,7 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
                       children: [
                         Text(
                           title,
-                          style: TextStyle(
-                            color: colors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: NightshadeTypography.fontSize16,
-                          ),
+                          style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
                         ),
                         const SizedBox(width: 8),
                         if (isInstalled)
@@ -74,11 +70,7 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
                             ),
                             child: Text(
                               'Installed',
-                              style: TextStyle(
-                                color: colors.success,
-                                fontSize: NightshadeTypography.fontSize11,
-                                fontWeight: FontWeight.w500,
-                              ),
+                              style: NightshadeTypography.labelQuiet.copyWith(color: colors.success),
                             ),
                           ),
                       ],
@@ -95,7 +87,7 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
                 ),
               ),
               IconButton(
-                icon: Icon(Icons.folder_open, color: colors.textSecondary),
+                icon: Icon(NightshadeIcons.folderOpen, color: colors.textSecondary),
                 onPressed: _isDownloading ? null : () => _importCatalog(type),
                 tooltip: 'Import from file',
               ),
@@ -191,11 +183,7 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
           ),
           child: Text(
             value,
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontWeight: FontWeight.w500,
-              fontSize: NightshadeTypography.fontSize13,
-            ),
+            style: NightshadeTypography.label.copyWith(color: colors.textPrimary),
           ),
         ),
       ],

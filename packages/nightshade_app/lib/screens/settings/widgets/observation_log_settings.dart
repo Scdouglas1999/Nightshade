@@ -251,11 +251,7 @@ class _ObservationLogSettingsState
               children: [
                 Text(
                   _formatDate(log.timestamp),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
                 ),
                 Text(
                   _formatTime(log.timestamp),
@@ -278,11 +274,7 @@ class _ObservationLogSettingsState
                   children: [
                     Text(
                       log.objectName,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize14,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                     ),
                     if (log.catalogId != null) ...[
                       const SizedBox(width: 6),

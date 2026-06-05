@@ -145,11 +145,7 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
                 children: [
                   Text(
                     'Clear all replay history',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 4),
                   Text(

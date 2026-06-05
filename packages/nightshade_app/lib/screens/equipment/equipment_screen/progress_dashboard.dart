@@ -60,11 +60,7 @@ class _ConnectAllProgressStrip extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Text(
               state.isSweeping ? 'Connecting…' : 'Connect All result',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                fontWeight: FontWeight.w600,
-                color: colors.textSecondary,
-              ),
+              style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
             ),
           ),
           for (final event in entries)
@@ -111,11 +107,7 @@ class _ConnectAllProgressChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             event.deviceType,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textPrimary,
-              fontWeight: FontWeight.w500,
-            ),
+            style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(width: 6),
           if (event.status == DeviceConnectProgressStatus.connecting)
@@ -132,11 +124,7 @@ class _ConnectAllProgressChip extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              color: color,
-              fontWeight: FontWeight.w600,
-            ),
+            style: NightshadeTypography.labelStrongSm.copyWith(color: color),
           ),
         ],
       ),
@@ -256,11 +244,7 @@ class _ConnectionStatusSummary extends ConsumerWidget {
           const SizedBox(width: 6),
           Text(
             '$connectedCount connected',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w600,
-              color: colors.success,
-            ),
+            style: NightshadeTypography.labelStrongSm.copyWith(color: colors.success),
           ),
         ],
       ),
@@ -423,11 +407,7 @@ class _DeviceDashboard extends ConsumerWidget {
               const SizedBox(height: 16),
               Text(
                 'No devices connected',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize16,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
               ),
               const SizedBox(height: 8),
               Text(
@@ -457,11 +437,7 @@ class _DeviceDashboard extends ConsumerWidget {
               const SizedBox(height: 16),
               Text(
                 'No devices assigned',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize16,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
               ),
               const SizedBox(height: 8),
               Text(

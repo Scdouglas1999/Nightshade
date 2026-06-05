@@ -117,11 +117,7 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
           // Icon picker
           Text(
             'Icon',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w500,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.labelSm.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -142,11 +138,7 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
           // Color picker
           Text(
             'Accent Color',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w500,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.labelSm.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: 8),
           Wrap(

@@ -22,11 +22,7 @@ class _PsfFieldMapCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'PSF Field Map',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize14,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
               ),
               const Spacer(),
               Text(

@@ -100,22 +100,14 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
                 child: Center(
                   child: Text(
                     '${widget.position}',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontWeight: FontWeight.w600,
-                      color: NightshadeColors.of(context).primary,
-                    ),
+                    style: NightshadeTypography.h6.copyWith(color: NightshadeColors.of(context).primary),
                   ),
                 ),
               ),
               const SizedBox(width: 10),
               Text(
                 widget.filterName,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize14,
-                  fontWeight: FontWeight.w600,
-                  color: NightshadeColors.of(context).textPrimary,
-                ),
+                style: NightshadeTypography.h5.copyWith(color: NightshadeColors.of(context).textPrimary),
               ),
             ],
           ),

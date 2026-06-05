@@ -359,11 +359,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                           if (!compact) ...[
                             Text(
                               _isExpanded ? 'Collapse' : 'Expand',
-                              style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize11,
-                                fontWeight: FontWeight.w500,
-                                color: colors.textSecondary,
-                              ),
+                              style: NightshadeTypography.labelQuiet.copyWith(color: colors.textSecondary),
                             ),
                             const SizedBox(width: 4),
                           ],

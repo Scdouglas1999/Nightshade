@@ -204,11 +204,7 @@ class _ContentsCard extends StatelessWidget {
         children: [
           Text(
             'Will include',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize14,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 12),
           for (final entry in items) ...[
@@ -226,11 +222,7 @@ class _ContentsCard extends StatelessWidget {
                       children: [
                         Text(
                           entry.$1,
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize13,
-                            fontWeight: FontWeight.w600,
-                            color: colors.textPrimary,
-                          ),
+                          style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                         ),
                         const SizedBox(height: 2),
                         Text(
@@ -284,11 +276,7 @@ class _LastResultCard extends StatelessWidget {
               children: [
                 Text(
                   'Last dump',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize13,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 4),
                 SelectableText(

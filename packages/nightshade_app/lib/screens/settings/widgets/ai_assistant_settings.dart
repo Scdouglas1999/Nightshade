@@ -632,11 +632,7 @@ class _TestResultBadge extends StatelessWidget {
               result.success
                   ? 'OK (${result.roundTripMs}ms)'
                   : 'Failed (${result.roundTripMs}ms)',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: color,
-                fontWeight: FontWeight.w600,
-              ),
+              style: NightshadeTypography.labelStrongSm.copyWith(color: color),
             ),
           ],
         ),

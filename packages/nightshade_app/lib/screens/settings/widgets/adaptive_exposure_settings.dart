@@ -112,11 +112,7 @@ class _AdaptiveExposureSettingsState
                 Expanded(
                   child: Text(
                     'Enable global default',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                   ),
                 ),
                 SettingsSwitch(
@@ -259,11 +255,7 @@ class _LabeledTextField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: FontWeight.w600,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: 4),
         TextField(
@@ -340,11 +332,7 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
       children: [
         Text(
           'Per-filter overrides',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: NightshadeTokens.spaceXs),
         Text(

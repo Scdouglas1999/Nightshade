@@ -327,11 +327,7 @@ class _AutoSaveStatusCard extends ConsumerWidget {
             children: [
               Text(
                 'Auto-Save Status',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize16,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
               ),
               const SizedBox(height: 16),
               _StatusRow(
@@ -393,11 +389,7 @@ class _QuickActionsCard extends StatelessWidget {
           children: [
             Text(
               'Quick Actions',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize16,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             Row(
@@ -461,11 +453,7 @@ class _RecentBackupsCard extends StatelessWidget {
               children: [
                 Text(
                   'Recent Backups',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize16,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
                 ),
                 const Spacer(),
                 IconButton(
@@ -559,11 +547,7 @@ class _BackupTile extends StatelessWidget {
       ),
       title: Text(
         backup.fileName,
-        style: TextStyle(
-          color: colors.textPrimary,
-          fontWeight: FontWeight.w500,
-          fontSize: NightshadeTypography.fontSize13,
-        ),
+        style: NightshadeTypography.label.copyWith(color: colors.textPrimary),
       ),
       subtitle: Text(
         '${_formatFileSize(backup.fileSize)} | $timestamp',

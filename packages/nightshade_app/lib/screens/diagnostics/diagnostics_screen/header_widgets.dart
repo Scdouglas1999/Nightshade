@@ -30,11 +30,7 @@ class _DocsInfoChip extends StatelessWidget {
                   'Learn more about optical diagnostics',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: colors.accent,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: NightshadeTypography.labelSm.copyWith(color: colors.accent),
                 ),
               ),
             ],

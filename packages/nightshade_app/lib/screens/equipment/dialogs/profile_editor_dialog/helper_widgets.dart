@@ -60,11 +60,7 @@ class _SectionCard extends StatelessWidget {
                       children: [
                         Text(
                           title,
-                          style: TextStyle(
-                            color: colors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: NightshadeTypography.fontSize14,
-                          ),
+                          style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                         ),
                         if (!isExpanded) ...[
                           const SizedBox(height: 2),
@@ -310,11 +306,7 @@ class _DeviceRow extends StatelessWidget {
                   children: [
                     Text(
                       type,
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: NightshadeTypography.fontSize11,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: NightshadeTypography.labelQuiet.copyWith(color: colors.textSecondary),
                     ),
                     const SizedBox(height: 4),
                     // Friendly name text field

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -181,7 +182,7 @@ class _BackendChipState extends State<_BackendChip> {
               children: [
                 if (widget.isRecommended) ...[
                   Icon(
-                    Icons.star,
+                    NightshadeIcons.star,
                     size: 10,
                     color: widget.isSelected ? backendColor : colors.warning,
                   ),
@@ -199,7 +200,7 @@ class _BackendChipState extends State<_BackendChip> {
                 if (unsupportedReason != null) ...[
                   const SizedBox(width: 3),
                   Icon(
-                    Icons.block,
+                    LucideIcons.ban,
                     size: 10,
                     color: colors.textMuted,
                   ),
@@ -207,7 +208,7 @@ class _BackendChipState extends State<_BackendChip> {
                 if (widget.isSelected) ...[
                   const SizedBox(width: 3),
                   Icon(
-                    Icons.check,
+                    NightshadeIcons.check,
                     size: 10,
                     color: backendColor,
                   ),
@@ -281,7 +282,7 @@ class CompactBackendSelector extends StatelessWidget {
             child: Row(
               children: [
                 if (isRecommended)
-                  Icon(Icons.star, size: 12, color: colors.warning)
+                  Icon(NightshadeIcons.star, size: 12, color: colors.warning)
                 else
                   const SizedBox(width: 12),
                 const SizedBox(width: 6),
@@ -290,10 +291,10 @@ class CompactBackendSelector extends StatelessWidget {
                 if (unsupportedReason != null)
                   Tooltip(
                     message: unsupportedReason,
-                    child: Icon(Icons.block, size: 14, color: colors.textMuted),
+                    child: Icon(LucideIcons.ban, size: 14, color: colors.textMuted),
                   )
                 else if (backend == selectedBackend)
-                  Icon(Icons.check, size: 14, color: colors.success),
+                  Icon(NightshadeIcons.check, size: 14, color: colors.success),
               ],
             ),
           );
@@ -318,7 +319,7 @@ class CompactBackendSelector extends StatelessWidget {
             ),
             const SizedBox(width: 4),
             Icon(
-              Icons.arrow_drop_down,
+              NightshadeIcons.chevronDown,
               size: 14,
               color: colors.textSecondary,
             ),

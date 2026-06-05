@@ -527,11 +527,7 @@ class _StatusIndicator extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize13,
-            fontWeight: FontWeight.w500,
-            color: color,
-          ),
+          style: NightshadeTypography.label.copyWith(color: color),
         ),
       ],
     );
@@ -606,11 +602,7 @@ class _ExposureCountdownState extends State<_ExposureCountdown> {
           const SizedBox(width: 12),
           Text(
             'CAPTURING: ${remaining.toStringAsFixed(1)}s remaining',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
-              fontWeight: FontWeight.w600,
-              color: colors.primary,
-            ),
+            style: NightshadeTypography.labelStrong.copyWith(color: colors.primary),
           ),
           const SizedBox(width: 16),
           Expanded(
@@ -656,11 +648,7 @@ class _VisualizationsSection extends ConsumerWidget {
             children: [
               Text(
                 'Visualizations',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
               ),
               const Spacer(),
               _ToggleButton(
@@ -783,11 +771,7 @@ class _AduConvergenceGraph extends StatelessWidget {
         children: [
           Text(
             'ADU Convergence',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w600,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
           ),
           const Spacer(),
           Center(
@@ -866,11 +850,7 @@ class _FilterCard extends StatelessWidget {
         children: [
           Text(
             filter.filterName,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
           ),
           const Spacer(),
           Text(

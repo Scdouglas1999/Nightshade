@@ -22,11 +22,7 @@ class _IssuesCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'Findings',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize14,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
               ),
               const Spacer(),
               Text(
@@ -89,11 +85,7 @@ class _IssueRow extends StatelessWidget {
               children: [
                 Text(
                   issue.title,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize13,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(

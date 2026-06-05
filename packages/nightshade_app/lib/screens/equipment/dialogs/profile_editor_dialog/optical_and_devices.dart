@@ -157,11 +157,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w500,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.labelSm.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(width: NightshadeTokens.spaceXs),
         helpAffordance(context, title: helpTitle, body: helpBody),

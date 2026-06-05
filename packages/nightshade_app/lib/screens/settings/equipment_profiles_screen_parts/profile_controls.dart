@@ -108,11 +108,7 @@ class _FieldCard extends StatelessWidget {
               inputFormatters: [
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
               ],
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
               decoration: InputDecoration(
                 border: InputBorder.none,
                 contentPadding:
@@ -139,13 +135,9 @@ class _FieldCard extends StatelessWidget {
               alignment: Alignment.centerLeft,
               child: Text(
                 value ?? 'Not set',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize14,
-                  fontWeight: FontWeight.w600,
-                  color: value != null && value != 'Not set' && value != 'N/A'
+                style: NightshadeTypography.h5.copyWith(color: value != null && value != 'Not set' && value != 'N/A'
                       ? colors.textPrimary
-                      : colors.textMuted,
-                ),
+                      : colors.textMuted),
               ),
             ),
           ),
@@ -206,13 +198,9 @@ class _BinningSelector extends StatelessWidget {
                       child: Center(
                         child: Text(
                           '$i',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            fontWeight: FontWeight.w600,
-                            color: value == i
+                          style: NightshadeTypography.h6.copyWith(color: value == i
                                 ? colors.background
-                                : colors.textSecondary,
-                          ),
+                                : colors.textSecondary),
                         ),
                       ),
                     ),
@@ -279,11 +267,7 @@ class _FilterChip extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             name,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w600,
-              color: filterColor,
-            ),
+            style: NightshadeTypography.h6.copyWith(color: filterColor),
           ),
         ],
       ),
@@ -382,11 +366,7 @@ class _DeviceChip extends StatelessWidget {
               ),
               Text(
                 id,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w500,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -438,11 +418,7 @@ class _EditableDeviceChip extends StatelessWidget {
                 message: fullId,
                 child: Text(
                   id,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w500,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
                 ),
               ),
             ],

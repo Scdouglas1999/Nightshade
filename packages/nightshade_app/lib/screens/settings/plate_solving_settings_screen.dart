@@ -567,11 +567,7 @@ class _QuickStartStep extends StatelessWidget {
                     Expanded(
                       child: Text(
                         title,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textPrimary,
-                        ),
+                        style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                       ),
                     ),
                   ],

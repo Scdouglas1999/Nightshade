@@ -12,11 +12,7 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       title,
-      style: TextStyle(
-        fontSize: NightshadeTypography.fontSize12,
-        fontWeight: FontWeight.w600,
-        color: colors.textSecondary,
-      ),
+      style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
     );
   }
 }
