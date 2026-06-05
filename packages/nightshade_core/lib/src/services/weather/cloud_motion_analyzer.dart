@@ -637,12 +637,20 @@ class CloudMotionAnalyzer {
 
   /// Estimate cloud density at a specific location from a snapshot.
   ///
-  /// Returns the opacity of the most-specific (smallest-area) frame in
+  /// Returns the radar intensity of the most-specific (smallest-area) frame in
   /// [snapshot] whose geographic bounds enclose ([lat], [lon]), or 0.0 when no
   /// frame covers the point. Using the smallest enclosing frame means a tiling
-  /// of small bounded frames produces a real per-cell field, while a single
-  /// whole-area frame falls back to its single opacity value (a uniform field,
-  /// flagged as such upstream).
+  /// of small bounded frames produces a real per-cell field.
+  ///
+  /// When the enclosing frame carries a per-cell [RadarFrame.intensityGrid]
+  /// (real spatial radar decoded from the provider's tiles), the density is the
+  /// intensity of the grid cell containing the point — so a single whole-FOV
+  /// frame now yields a genuinely spatially-varying field whose cloud centroid
+  /// moves between snapshots. A frame with no grid falls back to its single
+  /// [RadarFrame.opacity] value (a uniform box, flagged as such upstream).
+  ///
+  /// No-data frames ([RadarFrame.isNoData]) contribute nothing: they signal a
+  /// failed tile fetch/decode and must never masquerade as cloud cover.
   double _estimateCloudDensity(
     List<RadarFrame> snapshot,
     double lat,
@@ -652,6 +660,12 @@ class CloudMotionAnalyzer {
     double bestArea = double.infinity;
 
     for (final frame in snapshot) {
+      // A no-data frame carries no usable radar signal — skip it entirely so it
+      // never fabricates density at any point.
+      if (frame.isNoData) {
+        continue;
+      }
+
       // Skip frames that do not cover this point.
       if (lat < frame.south ||
           lat > frame.north ||
@@ -666,11 +680,43 @@ class CloudMotionAnalyzer {
           (frame.east - frame.west).abs();
       if (area < bestArea) {
         bestArea = area;
-        bestDensity = frame.opacity;
+        bestDensity = _frameDensityAt(frame, lat, lon);
       }
     }
 
     return bestDensity ?? 0.0;
+  }
+
+  /// Density of a single frame at ([lat], [lon]).
+  ///
+  /// Reads the per-cell [RadarFrame.intensityGrid] when present (row-major,
+  /// rows N→S, columns W→E), mapping the point to its grid cell. Falls back to
+  /// the frame's scalar [RadarFrame.opacity] when no grid is available.
+  double _frameDensityAt(RadarFrame frame, double lat, double lon) {
+    final grid = frame.intensityGrid;
+    if (grid == null || grid.isEmpty || grid.first.isEmpty) {
+      // No per-cell data: the whole frame is a single uniform box.
+      return frame.opacity;
+    }
+
+    final rows = grid.length;
+    final cols = grid.first.length;
+
+    final latSpan = frame.north - frame.south;
+    final lonSpan = frame.east - frame.west;
+    if (latSpan <= 0 || lonSpan <= 0) {
+      return frame.opacity;
+    }
+
+    // Rows run NORTH→SOUTH: fraction from the north edge.
+    final rowFrac = (frame.north - lat) / latSpan;
+    // Columns run WEST→EAST: fraction from the west edge.
+    final colFrac = (lon - frame.west) / lonSpan;
+
+    final row = (rowFrac * rows).floor().clamp(0, rows - 1);
+    final col = (colFrac * cols).floor().clamp(0, cols - 1);
+
+    return grid[row][col];
   }
 
   /// Calculate circular mean of angles to handle 0/360 wraparound.

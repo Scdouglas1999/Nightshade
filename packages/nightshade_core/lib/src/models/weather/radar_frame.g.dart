@@ -15,6 +15,11 @@ _$RadarFrameImpl _$$RadarFrameImplFromJson(Map<String, dynamic> json) =>
       east: (json['east'] as num).toDouble(),
       west: (json['west'] as num).toDouble(),
       opacity: (json['opacity'] as num?)?.toDouble() ?? 1.0,
+      intensityGrid: (json['intensityGrid'] as List<dynamic>?)
+          ?.map((e) =>
+              (e as List<dynamic>).map((e) => (e as num).toDouble()).toList())
+          .toList(),
+      isNoData: json['isNoData'] as bool? ?? false,
       isForecast: json['isForecast'] as bool? ?? false,
       tileType: $enumDecodeNullable(_$RadarTileTypeEnumMap, json['tileType']) ??
           RadarTileType.xyz,
@@ -34,6 +39,8 @@ Map<String, dynamic> _$$RadarFrameImplToJson(_$RadarFrameImpl instance) =>
       'east': instance.east,
       'west': instance.west,
       'opacity': instance.opacity,
+      'intensityGrid': instance.intensityGrid,
+      'isNoData': instance.isNoData,
       'isForecast': instance.isForecast,
       'tileType': _$RadarTileTypeEnumMap[instance.tileType]!,
       'wmsLayers': instance.wmsLayers,

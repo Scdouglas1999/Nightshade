@@ -1,6 +1,10 @@
 import 'dart:developer' as developer;
+import 'dart:math' as math;
 import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
+import '../radar_colormaps.dart';
 import '../radar_provider.dart';
+import '../radar_tile_decoder.dart';
 import '../../../models/weather/weather_models.dart';
 
 /// GOES satellite infrared imagery provider for cloud cover visualization.
@@ -38,8 +42,22 @@ class GoesSatelliteProvider extends RadarProvider {
     west: -152.0, // West Pacific margin (includes Hawaii)
   );
 
+  /// Width/height (pixels) of the WMS GetMap image fetched per frame.
+  static const int _wmsImageSize = 256;
+
+  /// Resolution of the decoded intensity grid (cells per side) over the FOV.
+  static const int _gridResolution = 48;
+
+  /// Half-side padding (degrees) added around the FOV bounding box.
+  static const double _boundsPaddingDeg = 0.25;
+
+  /// Pure image decoding/resampling helper (no I/O).
+  final RadarTileDecoder _decoder;
+
   /// Creates a new GOES satellite provider.
-  GoesSatelliteProvider({http.Client? client}) : _client = client ?? http.Client();
+  GoesSatelliteProvider({http.Client? client})
+      : _client = client ?? http.Client(),
+        _decoder = const RadarTileDecoder();
 
   @override
   String get name => 'GOES Satellite';
@@ -86,23 +104,16 @@ class GoesSatelliteProvider extends RadarProvider {
         roundedMinutes,
       );
 
-      final frame = RadarFrame(
-        timestamp: timestamp,
-        tileUrlTemplate: _baseWmsUrl,
-        north: _coverage.north,
-        south: _coverage.south,
-        east: _coverage.east,
-        west: _coverage.west,
-        opacity: 1.0,
-        isForecast: false,
-        tileType: RadarTileType.wms,
-        wmsLayers: _layerName,
-        wmsAdditionalOptions: {
-          'transparent': 'true',
-        },
-      );
+      // Geographic bounding box of the analysis FOV around the observer.
+      final fov = _fovBounds(latitude, longitude, radiusKm);
 
-      developer.log('Built satellite frame for $timestamp, layer: $_layerName', name: 'GoesSatellite', level: 800);
+      final frame = await _decodeFrame(timestamp, fov);
+
+      developer.log(
+          'Built satellite frame for $timestamp, layer: $_layerName '
+          '(${frame.isNoData ? "no-data" : "with spatial data"})',
+          name: 'GoesSatellite',
+          level: 800);
 
       return RadarFetchResult.success([frame]);
     } on http.ClientException catch (e) {
@@ -148,9 +159,125 @@ class GoesSatelliteProvider extends RadarProvider {
     return [west, south, east, north];
   }
 
+  /// Fetches and decodes the GOES IR WMS image for one timestamp into a
+  /// [RadarFrame] with a real per-cell cloud-intensity grid over the FOV.
+  /// Returns a no-data frame when the image cannot be fetched or decoded.
+  Future<RadarFrame> _decodeFrame(DateTime timestamp, _FovBounds fov) async {
+    final url = _getMapUrl(fov);
+    const wmsOptions = {'transparent': 'true'};
+
+    img.Image? image;
+    try {
+      final response = await _client.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        image = _decoder.decodePng(response.bodyBytes);
+      } else {
+        developer.log('GOES GetMap status ${response.statusCode}',
+            name: 'GoesSatellite', level: 900);
+      }
+    } catch (e) {
+      developer.log('GOES GetMap fetch failed: $e',
+          name: 'GoesSatellite', level: 900);
+    }
+
+    if (image == null) {
+      return RadarFrame(
+        timestamp: timestamp,
+        tileUrlTemplate: _baseWmsUrl,
+        north: fov.north,
+        south: fov.south,
+        east: fov.east,
+        west: fov.west,
+        opacity: 1.0,
+        isForecast: false,
+        tileType: RadarTileType.wms,
+        wmsLayers: _layerName,
+        wmsAdditionalOptions: wmsOptions,
+        isNoData: true,
+      );
+    }
+
+    final grid = _decoder.buildIntensityGridFromWmsImage(
+      image: image,
+      colormap: RadarColormaps.goesInfrared,
+      imageNorth: fov.north,
+      imageSouth: fov.south,
+      imageWest: fov.west,
+      imageEast: fov.east,
+      gridRows: _gridResolution,
+      gridCols: _gridResolution,
+    );
+
+    return RadarFrame(
+      timestamp: timestamp,
+      tileUrlTemplate: _baseWmsUrl,
+      north: fov.north,
+      south: fov.south,
+      east: fov.east,
+      west: fov.west,
+      opacity: 1.0,
+      isForecast: false,
+      tileType: RadarTileType.wms,
+      wmsLayers: _layerName,
+      wmsAdditionalOptions: wmsOptions,
+      intensityGrid: grid,
+      isNoData: grid == null,
+    );
+  }
+
+  /// Builds a WMS GetMap URL for the FOV in EPSG:4326 (plate-carrée).
+  String _getMapUrl(_FovBounds fov) {
+    final bbox = '${fov.west},${fov.south},${fov.east},${fov.north}';
+    return Uri.parse(_baseWmsUrl).replace(queryParameters: {
+      'service': 'WMS',
+      'version': '1.1.1',
+      'request': 'GetMap',
+      'layers': _layerName,
+      'format': 'image/png',
+      'transparent': 'true',
+      'srs': 'EPSG:4326',
+      'width': '$_wmsImageSize',
+      'height': '$_wmsImageSize',
+      'bbox': bbox,
+    }).toString();
+  }
+
+  /// Computes the padded geographic bounding box of a [radiusKm] circle around
+  /// the observer.
+  _FovBounds _fovBounds(double latitude, double longitude, double radiusKm) {
+    const earthRadiusKm = 6371.0;
+    final latDelta = (radiusKm / earthRadiusKm) * 180.0 / math.pi;
+    final cosLat = math.cos(latitude * math.pi / 180.0).abs();
+    final lonDelta = cosLat < 1e-6
+        ? 180.0
+        : (radiusKm / (earthRadiusKm * cosLat)) * 180.0 / math.pi;
+
+    return _FovBounds(
+      north: (latitude + latDelta + _boundsPaddingDeg).clamp(-90.0, 90.0),
+      south: (latitude - latDelta - _boundsPaddingDeg).clamp(-90.0, 90.0),
+      east: (longitude + lonDelta + _boundsPaddingDeg).clamp(-180.0, 180.0),
+      west: (longitude - lonDelta - _boundsPaddingDeg).clamp(-180.0, 180.0),
+    );
+  }
+
   @override
   void dispose() {
     _client.close();
     super.dispose();
   }
+}
+
+/// Padded geographic bounding box of the analysis FOV.
+class _FovBounds {
+  _FovBounds({
+    required this.north,
+    required this.south,
+    required this.east,
+    required this.west,
+  });
+
+  final double north;
+  final double south;
+  final double east;
+  final double west;
 }

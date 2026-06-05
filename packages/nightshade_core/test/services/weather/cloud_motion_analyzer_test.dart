@@ -216,4 +216,104 @@ void main() {
       );
     });
   });
+
+  // The per-cell intensityGrid path: this is what the tile-decoding providers
+  // (RainViewer / NOAA / GOES) now emit — ONE whole-FOV frame per timestamp
+  // carrying a real spatial field, instead of a tiling of bounded boxes. The
+  // analyzer must read the grid, see the band move, and report real motion.
+  group('CloudMotionAnalyzer intensityGrid path', () {
+    late CloudMotionAnalyzer analyzer;
+
+    const userLat = 40.0;
+    const userLon = -90.0;
+    const north = userLat + 1.0;
+    const south = userLat - 1.0;
+    const east = userLon + 1.0;
+    const west = userLon - 1.0;
+    const rows = 40;
+    const cols = 40;
+
+    setUp(() {
+      analyzer = CloudMotionAnalyzer();
+    });
+
+    /// A whole-FOV frame whose intensity grid is clear (0) everywhere except a
+    /// dense horizontal band [bandHalfRows] rows thick centred on [bandRow]
+    /// (row 0 = north edge), painted at intensity 0.9.
+    RadarFrame bandFrame(DateTime t, int bandRow, {int bandHalfRows = 2}) {
+      final grid = List<List<double>>.generate(
+        rows,
+        (r) => List<double>.generate(
+          cols,
+          (c) => (r - bandRow).abs() <= bandHalfRows ? 0.9 : 0.0,
+        ),
+      );
+      return RadarFrame(
+        timestamp: t,
+        tileUrlTemplate: 'grid',
+        north: north,
+        south: south,
+        east: east,
+        west: west,
+        opacity: 1.0,
+        intensityGrid: grid,
+      );
+    }
+
+    test('moving high-intensity band in the grid yields southward motion + ETA',
+        () {
+      final t0 = DateTime.utc(2024, 6, 15, 0, 0);
+      final t1 = DateTime.utc(2024, 6, 15, 0, 30);
+
+      // Band starts near the north edge (row 8) and moves toward the user at the
+      // grid centre (row 12): it is approaching from the north.
+      final frames = <RadarFrame>[
+        bandFrame(t0, 8),
+        bandFrame(t1, 12),
+      ];
+
+      final result = analyzer.analyzeMotionDetailed(
+        frames: frames,
+        userLatitude: userLat,
+        userLongitude: userLon,
+      );
+
+      expect(result.isAvailable, isTrue,
+          reason: 'a band that moves within the intensity grid must yield '
+              'real motion, not noSpatialData');
+      final motion = result.motion!;
+      expect(motion.speedKmh, greaterThan(1.0));
+      expect(motion.speedKmh, lessThan(200.0));
+      // North→south displacement → bearing ~180 deg.
+      expect(motion.directionDegrees, closeTo(180.0, 25.0));
+      expect(motion.etaToLocation, isNotNull);
+      expect(motion.etaToLocation!.inMinutes, greaterThan(0));
+    });
+
+    test('a no-data frame contributes no density (honest, not fabricated)', () {
+      final t0 = DateTime.utc(2024, 6, 15, 0, 0);
+      final t1 = DateTime.utc(2024, 6, 15, 0, 30);
+
+      // Both frames flagged no-data (failed tile decode). Even though one
+      // carries a populated grid, isNoData means the signal is untrusted and
+      // must not be read — so the analyzer sees no clouds at all.
+      final frames = <RadarFrame>[
+        bandFrame(t0, 8).copyWith(isNoData: true),
+        bandFrame(t1, 12).copyWith(isNoData: true),
+      ];
+
+      final result = analyzer.analyzeMotionDetailed(
+        frames: frames,
+        userLatitude: userLat,
+        userLongitude: userLon,
+      );
+
+      expect(result.isAvailable, isFalse);
+      expect(
+        result.unavailableReason,
+        CloudMotionUnavailableReason.noCloudsDetected,
+        reason: 'no-data frames must never masquerade as cloud cover',
+      );
+    });
+  });
 }

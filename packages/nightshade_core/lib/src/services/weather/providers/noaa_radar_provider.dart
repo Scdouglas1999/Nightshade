@@ -1,9 +1,11 @@
-// ignore_for_file: unused_element, unused_field
-
 import 'dart:developer' as developer;
+import 'dart:math' as math;
 
 import 'package:http/http.dart' as http;
+import 'package:image/image.dart' as img;
+import '../radar_colormaps.dart';
 import '../radar_provider.dart';
+import '../radar_tile_decoder.dart';
 import '../../../models/weather/weather_models.dart';
 
 /// NOAA NEXRAD radar provider for US and southern Canada coverage.
@@ -29,10 +31,6 @@ class NoaaRadarProvider extends RadarProvider {
   static const String _baseWmsUrl =
       'https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q.cgi?';
 
-  /// Time series metadata endpoint for available frames.
-  static const String _timeSeriesUrl =
-      'https://mesonet.agron.iastate.edu/cgi-bin/wms/nexrad/n0q-t.cgi';
-
   /// Maximum number of historical frames to fetch (last 2 hours at 5min intervals = ~24 frames).
   static const int _maxFrames = 24;
 
@@ -44,10 +42,26 @@ class NoaaRadarProvider extends RadarProvider {
     west: -130.0, // West coast + Pacific margin
   );
 
+  /// Width/height (pixels) of the WMS GetMap image fetched per frame for
+  /// per-cell decoding. 256² over a ~200 km FOV is ~0.8 km/pixel — well finer
+  /// than the analyzer's 10 km grid.
+  static const int _wmsImageSize = 256;
+
+  /// Resolution of the decoded intensity grid (cells per side) over the FOV.
+  static const int _gridResolution = 48;
+
+  /// Half-side padding (degrees) added around the FOV bounding box.
+  static const double _boundsPaddingDeg = 0.25;
+
+  /// Pure tile/image decoding helper (no I/O).
+  final RadarTileDecoder _decoder;
+
   /// Creates a new NOAA NEXRAD radar provider.
   ///
   /// Optionally accepts a custom HTTP [client] for testing or custom configuration.
-  NoaaRadarProvider({http.Client? client}) : _client = client ?? http.Client();
+  NoaaRadarProvider({http.Client? client})
+      : _client = client ?? http.Client(),
+        _decoder = const RadarTileDecoder();
 
   @override
   String get name => 'NOAA NEXRAD';
@@ -85,35 +99,21 @@ class NoaaRadarProvider extends RadarProvider {
         return RadarFetchResult.error('No radar frames available from NOAA');
       }
 
-      // Build radar frames from timestamps using WMS tile type
-      final frames = timestamps.map((timestamp) {
-        // Format timestamp for WMS TIME parameter (ISO 8601)
-        final timeParam = timestamp.toUtc().toIso8601String();
+      // Geographic bounding box of the analysis FOV around the observer.
+      final fov = _fovBounds(latitude, longitude, radiusKm);
 
-        return RadarFrame(
-          timestamp: timestamp,
-          // Base WMS URL without query parameters (flutter_map will add them)
-          tileUrlTemplate: _baseWmsUrl,
-          north: _coverage.north,
-          south: _coverage.south,
-          east: _coverage.east,
-          west: _coverage.west,
-          opacity: 1.0,
-          isForecast: false,
-          // Use WMS tile type for proper flutter_map handling
-          tileType: RadarTileType.wms,
-          wmsLayers: 'nexrad-n0q-900913',
-          wmsAdditionalOptions: {
-            'time': timeParam,
-            'transparent': 'true',
-          },
-        );
-      }).toList();
+      // Decode a per-cell intensity field for each timestamp by fetching a WMS
+      // GetMap image over the FOV (EPSG:4326 plate-carrée) and mapping the
+      // NEXRAD N0Q reflectivity colormap. A frame whose image cannot be fetched
+      // or decoded is emitted as a no-data frame, never a fabricated field.
+      final frames = <RadarFrame>[];
+      for (final timestamp in timestamps) {
+        frames.add(await _decodeFrame(timestamp, fov));
+      }
 
-      developer.log('NoaaRadarProvider: Built ${frames.length} WMS frames',
-          name: 'NoaaRadarProvider', level: 800);
       developer.log(
-          'NoaaRadarProvider: First frame time: ${frames.first.wmsAdditionalOptions?['time']}',
+          'NoaaRadarProvider: Built ${frames.length} frames '
+          '(${frames.where((f) => !f.isNoData).length} with spatial data)',
           name: 'NoaaRadarProvider',
           level: 800);
 
@@ -125,6 +125,115 @@ class NoaaRadarProvider extends RadarProvider {
     } catch (e) {
       return RadarFetchResult.error('Unexpected error fetching NOAA radar: $e');
     }
+  }
+
+  /// Fetches and decodes the NEXRAD WMS image for one timestamp into a
+  /// [RadarFrame] carrying a real per-cell intensity grid over the FOV. Returns
+  /// a no-data frame when the image cannot be fetched or decoded.
+  Future<RadarFrame> _decodeFrame(DateTime timestamp, _FovBounds fov) async {
+    final timeParam = timestamp.toUtc().toIso8601String();
+    final url = _getMapUrl(timeParam, fov);
+
+    final wmsOptions = {
+      'time': timeParam,
+      'transparent': 'true',
+    };
+
+    img.Image? image;
+    try {
+      final response = await _client.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        image = _decoder.decodePng(response.bodyBytes);
+      } else {
+        developer.log('NOAA GetMap status ${response.statusCode}',
+            name: 'NoaaRadarProvider', level: 900);
+      }
+    } catch (e) {
+      developer.log('NOAA GetMap fetch failed: $e',
+          name: 'NoaaRadarProvider', level: 900);
+    }
+
+    if (image == null) {
+      return RadarFrame(
+        timestamp: timestamp,
+        tileUrlTemplate: _baseWmsUrl,
+        north: fov.north,
+        south: fov.south,
+        east: fov.east,
+        west: fov.west,
+        opacity: 1.0,
+        isForecast: false,
+        tileType: RadarTileType.wms,
+        wmsLayers: 'nexrad-n0q-900913',
+        wmsAdditionalOptions: wmsOptions,
+        isNoData: true,
+      );
+    }
+
+    final grid = _decoder.buildIntensityGridFromWmsImage(
+      image: image,
+      colormap: RadarColormaps.nexradN0q,
+      imageNorth: fov.north,
+      imageSouth: fov.south,
+      imageWest: fov.west,
+      imageEast: fov.east,
+      gridRows: _gridResolution,
+      gridCols: _gridResolution,
+    );
+
+    return RadarFrame(
+      timestamp: timestamp,
+      tileUrlTemplate: _baseWmsUrl,
+      north: fov.north,
+      south: fov.south,
+      east: fov.east,
+      west: fov.west,
+      opacity: 1.0,
+      isForecast: false,
+      tileType: RadarTileType.wms,
+      wmsLayers: 'nexrad-n0q-900913',
+      wmsAdditionalOptions: wmsOptions,
+      intensityGrid: grid,
+      isNoData: grid == null,
+    );
+  }
+
+  /// Builds a WMS GetMap URL for the FOV in EPSG:4326 (plate-carrée), so the
+  /// returned image maps linearly to lon/lat for per-cell sampling.
+  String _getMapUrl(String timeParam, _FovBounds fov) {
+    // WMS 1.1.1 EPSG:4326 BBOX order is minx,miny,maxx,maxy = west,south,east,north.
+    final bbox = '${fov.west},${fov.south},${fov.east},${fov.north}';
+    return Uri.parse(_baseWmsUrl).replace(queryParameters: {
+      'service': 'WMS',
+      'version': '1.1.1',
+      'request': 'GetMap',
+      'layers': 'nexrad-n0q-900913',
+      'format': 'image/png',
+      'transparent': 'true',
+      'srs': 'EPSG:4326',
+      'width': '$_wmsImageSize',
+      'height': '$_wmsImageSize',
+      'time': timeParam,
+      'bbox': bbox,
+    }).toString();
+  }
+
+  /// Computes the padded geographic bounding box of a [radiusKm] circle around
+  /// the observer.
+  _FovBounds _fovBounds(double latitude, double longitude, double radiusKm) {
+    const earthRadiusKm = 6371.0;
+    final latDelta = (radiusKm / earthRadiusKm) * 180.0 / math.pi;
+    final cosLat = math.cos(latitude * math.pi / 180.0).abs();
+    final lonDelta = cosLat < 1e-6
+        ? 180.0
+        : (radiusKm / (earthRadiusKm * cosLat)) * 180.0 / math.pi;
+
+    return _FovBounds(
+      north: (latitude + latDelta + _boundsPaddingDeg).clamp(-90.0, 90.0),
+      south: (latitude - latDelta - _boundsPaddingDeg).clamp(-90.0, 90.0),
+      east: (longitude + lonDelta + _boundsPaddingDeg).clamp(-180.0, 180.0),
+      west: (longitude - lonDelta - _boundsPaddingDeg).clamp(-180.0, 180.0),
+    );
   }
 
   /// Fetches the list of available radar timestamps from IEM.
@@ -266,33 +375,6 @@ class NoaaRadarProvider extends RadarProvider {
     return Duration(hours: hours, minutes: minutes, seconds: seconds);
   }
 
-  /// Builds a tile URL template for a specific radar timestamp.
-  ///
-  /// The template includes {z}, {x}, {y} tokens that will be replaced
-  /// with actual tile coordinates by the map renderer.
-  String _buildTileUrlTemplate(DateTime timestamp) {
-    // Format timestamp for WMS TIME parameter (ISO 8601)
-    final timeParam = timestamp.toUtc().toIso8601String();
-
-    // WMS GetMap base URL with TIME parameter
-    // We use a fixed BBOX and SRS that will be overridden per-tile
-    final baseUrl = Uri.parse(_baseWmsUrl).replace(queryParameters: {
-      'service': 'WMS',
-      'version': '1.1.1',
-      'request': 'GetMap',
-      'layers': 'nexrad-n0q-900913',
-      'format': 'image/png',
-      'transparent': 'true',
-      'srs': 'EPSG:3857', // Web Mercator
-      'width': '256',
-      'height': '256',
-      'time': timeParam,
-      'bbox': '{bbox}', // Token for tile-specific bbox
-    });
-
-    return baseUrl.toString();
-  }
-
   @override
   String buildTileUrl(RadarFrame frame, int z, int x, int y) {
     // Calculate Web Mercator bounding box for this tile
@@ -326,4 +408,19 @@ class NoaaRadarProvider extends RadarProvider {
     _client.close();
     super.dispose();
   }
+}
+
+/// Padded geographic bounding box of the analysis FOV.
+class _FovBounds {
+  _FovBounds({
+    required this.north,
+    required this.south,
+    required this.east,
+    required this.west,
+  });
+
+  final double north;
+  final double south;
+  final double east;
+  final double west;
 }
