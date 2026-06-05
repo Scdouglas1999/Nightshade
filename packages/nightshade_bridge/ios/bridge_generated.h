@@ -1379,6 +1379,7 @@ typedef struct wire_cst_image_stats_result {
   double median;
   double std_dev;
   double *hfr;
+  double *eccentricity;
   uint32_t star_count;
 } wire_cst_image_stats_result;
 
@@ -2018,6 +2019,7 @@ typedef struct wire_cst_star_detection_result_api {
   double median_hfr;
   double median_fwhm;
   double median_snr;
+  double *median_eccentricity;
   double background;
   double noise;
 } wire_cst_star_detection_result_api;

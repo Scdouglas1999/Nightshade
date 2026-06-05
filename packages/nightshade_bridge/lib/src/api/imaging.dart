@@ -1795,6 +1795,11 @@ class ImageStatsResult {
   final double median;
   final double stdDev;
   final double? hfr;
+
+  /// Per-frame median star eccentricity (0.0 = round, →1.0 = trailed).
+  /// `None` when too few reliable stars to honestly measure — never a
+  /// fabricated value.
+  final double? eccentricity;
   final int starCount;
 
   const ImageStatsResult({
@@ -1804,6 +1809,7 @@ class ImageStatsResult {
     required this.median,
     required this.stdDev,
     this.hfr,
+    this.eccentricity,
     required this.starCount,
   });
 
@@ -1815,6 +1821,7 @@ class ImageStatsResult {
       median.hashCode ^
       stdDev.hashCode ^
       hfr.hashCode ^
+      eccentricity.hashCode ^
       starCount.hashCode;
 
   @override
@@ -1828,6 +1835,7 @@ class ImageStatsResult {
           median == other.median &&
           stdDev == other.stdDev &&
           hfr == other.hfr &&
+          eccentricity == other.eccentricity &&
           starCount == other.starCount;
 }
 
@@ -2209,6 +2217,10 @@ class StarDetectionResultApi {
   final double medianHfr;
   final double medianFwhm;
   final double medianSnr;
+
+  /// Per-frame median star eccentricity (0.0 = round, →1.0 = trailed).
+  /// `None` when too few reliable stars to honestly measure.
+  final double? medianEccentricity;
   final double background;
   final double noise;
 
@@ -2218,6 +2230,7 @@ class StarDetectionResultApi {
     required this.medianHfr,
     required this.medianFwhm,
     required this.medianSnr,
+    this.medianEccentricity,
     required this.background,
     required this.noise,
   });
@@ -2229,6 +2242,7 @@ class StarDetectionResultApi {
       medianHfr.hashCode ^
       medianFwhm.hashCode ^
       medianSnr.hashCode ^
+      medianEccentricity.hashCode ^
       background.hashCode ^
       noise.hashCode;
 
@@ -2242,6 +2256,7 @@ class StarDetectionResultApi {
           medianHfr == other.medianHfr &&
           medianFwhm == other.medianFwhm &&
           medianSnr == other.medianSnr &&
+          medianEccentricity == other.medianEccentricity &&
           background == other.background &&
           noise == other.noise;
 }

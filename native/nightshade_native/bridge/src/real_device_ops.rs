@@ -3004,6 +3004,26 @@ impl DeviceOps for RealDeviceOps {
         Ok(result)
     }
 
+    async fn measure_frame_eccentricity(
+        &self,
+        image_data: &nightshade_sequencer::ImageData,
+    ) -> DeviceResult<Option<f64>> {
+        use nightshade_imaging::{detect_stars, frame_eccentricity, StarDetectionConfig};
+
+        let img = nightshade_imaging::ImageData::from_u16(
+            image_data.width,
+            image_data.height,
+            1,
+            &image_data.data,
+        );
+
+        let config = StarDetectionConfig::default();
+        let stars = detect_stars(&img, &config);
+
+        // Fails closed (None) when too few reliable stars — never fabricated.
+        Ok(frame_eccentricity(&stars))
+    }
+
     // =========================================================================
     // COVER CALIBRATOR (FLAT PANEL)
     // =========================================================================

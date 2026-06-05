@@ -4093,6 +4093,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.median = cst_encode_f_64(apiObj.median);
     wireObj.std_dev = cst_encode_f_64(apiObj.stdDev);
     wireObj.hfr = cst_encode_opt_box_autoadd_f_64(apiObj.hfr);
+    wireObj.eccentricity = cst_encode_opt_box_autoadd_f_64(apiObj.eccentricity);
     wireObj.star_count = cst_encode_u_32(apiObj.starCount);
   }
 
@@ -5503,6 +5504,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.median_hfr = cst_encode_f_64(apiObj.medianHfr);
     wireObj.median_fwhm = cst_encode_f_64(apiObj.medianFwhm);
     wireObj.median_snr = cst_encode_f_64(apiObj.medianSnr);
+    wireObj.median_eccentricity =
+        cst_encode_opt_box_autoadd_f_64(apiObj.medianEccentricity);
     wireObj.background = cst_encode_f_64(apiObj.background);
     wireObj.noise = cst_encode_f_64(apiObj.noise);
   }
@@ -19087,6 +19090,8 @@ final class wire_cst_image_stats_result extends ffi.Struct {
 
   external ffi.Pointer<ffi.Double> hfr;
 
+  external ffi.Pointer<ffi.Double> eccentricity;
+
   @ffi.Uint32()
   external int star_count;
 }
@@ -20140,6 +20145,8 @@ final class wire_cst_star_detection_result_api extends ffi.Struct {
 
   @ffi.Double()
   external double median_snr;
+
+  external ffi.Pointer<ffi.Double> median_eccentricity;
 
   @ffi.Double()
   external double background;

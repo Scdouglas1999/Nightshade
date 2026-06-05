@@ -1460,42 +1460,6 @@ pub async fn execute_exposure_with_renderer(
     let quality_check_default = ctx.default_quality_check.clone();
     let reject_folder_override = ctx.reject_folder_path.clone();
 
-    // Wave 3 Image Grading — honest-absence guard for the eccentricity gate.
-    //
-    // `detect_stars_in_image` returns only `(x, y, hfr)`; no per-star shape
-    // moments are available, so frame eccentricity is never measured and the
-    // `Some(ecc)` arm in `grade_frame` can never reject. If the operator
-    // enabled `eccentricity_threshold`, they expect trailed frames to be
-    // culled — silently never firing would lull them into trusting a gate
-    // that does nothing. Announce it loudly once per burst (the audit's
-    // silent-fallback rule: an un-fireable safety gate must say so).
-    {
-        let ecc_active = config
-            .quality_check
-            .as_ref()
-            .or(quality_check_default.as_ref())
-            .map(|qc| qc.requires_eccentricity())
-            .unwrap_or(false);
-        if ecc_active {
-            let msg = format!(
-                "Eccentricity reject gate is enabled (threshold {:?}) but this build \
-                 does not measure frame eccentricity: the star detector returns no \
-                 per-star shape data. Trailed/elongated frames will NOT be rejected by \
-                 the eccentricity check. Use the HFR or star-count gates for tracking \
-                 failures, or remove the eccentricity threshold.",
-                config
-                    .quality_check
-                    .as_ref()
-                    .or(quality_check_default.as_ref())
-                    .and_then(|qc| qc.eccentricity_threshold)
-            );
-            tracing::warn!("[GRADE] {}", msg);
-            if let Some(event_tx) = &ctx.event_tx {
-                let _ = event_tx.send(crate::executor::ExecutorEvent::Error { message: msg });
-            }
-        }
-    }
-
     for frame in 1..=config.count {
         if let Some(result) = ctx.check_cancelled() {
             return result;
@@ -1609,15 +1573,8 @@ pub async fn execute_exposure_with_renderer(
             }
         };
 
-        // Wave 3 Image Grading: derive star count from the star detector
-        // (cheap because the detector ran inside calculate_image_hfr and is
-        // cached) so the grading check can apply the star_count_min floor.
-        // Eccentricity is NOT measured: `detect_stars_in_image` returns only
-        // `(x, y, hfr)` with no per-star shape moments, so it stays `None`
-        // here. The grading logic treats `None` as "unknown, don't reject",
-        // which is why an enabled `eccentricity_threshold` can never fire —
-        // the loud one-time diagnostic emitted before this loop warns the
-        // operator instead of letting that gate pretend to work.
+        // Wave 3 Image Grading: derive star count from the star detector so
+        // the grading check can apply the star_count_min floor.
         let measured_star_count = match ctx.device_ops.detect_stars_in_image(&image_data).await {
             Ok(stars) => Some(stars.len() as u32),
             Err(e) => {
@@ -1630,9 +1587,28 @@ pub async fn execute_exposure_with_renderer(
                 None
             }
         };
+
+        // Per-frame eccentricity (0.0 = round, →1.0 = trailed) from the star
+        // shape moments. `None` is honest absence — no stars, or too few
+        // reliable stars to form a stable median — which `grade_frame` treats
+        // as "unknown, don't reject". With stars present this is a real
+        // measurement, so a configured `eccentricity_threshold` now fires.
+        let measured_eccentricity =
+            match ctx.device_ops.measure_frame_eccentricity(&image_data).await {
+                Ok(ecc) => ecc,
+                Err(e) => {
+                    tracing::debug!(
+                        "Frame {}/{} - eccentricity measurement failed for grading: {}",
+                        frame,
+                        config.count,
+                        e
+                    );
+                    None
+                }
+            };
         let metrics = crate::quality::FrameMetrics {
             hfr: measured_hfr,
-            eccentricity: None,
+            eccentricity: measured_eccentricity,
             star_count: measured_star_count,
         };
 

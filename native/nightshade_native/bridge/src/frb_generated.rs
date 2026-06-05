@@ -11766,6 +11766,7 @@ impl SseDecode for crate::api::imaging::ImageStatsResult {
         let mut var_median = <f64>::sse_decode(deserializer);
         let mut var_stdDev = <f64>::sse_decode(deserializer);
         let mut var_hfr = <Option<f64>>::sse_decode(deserializer);
+        let mut var_eccentricity = <Option<f64>>::sse_decode(deserializer);
         let mut var_starCount = <u32>::sse_decode(deserializer);
         return crate::api::imaging::ImageStatsResult {
             min: var_min,
@@ -11774,6 +11775,7 @@ impl SseDecode for crate::api::imaging::ImageStatsResult {
             median: var_median,
             std_dev: var_stdDev,
             hfr: var_hfr,
+            eccentricity: var_eccentricity,
             star_count: var_starCount,
         };
     }
@@ -14178,6 +14180,7 @@ impl SseDecode for crate::api::imaging::StarDetectionResultApi {
         let mut var_medianHfr = <f64>::sse_decode(deserializer);
         let mut var_medianFwhm = <f64>::sse_decode(deserializer);
         let mut var_medianSnr = <f64>::sse_decode(deserializer);
+        let mut var_medianEccentricity = <Option<f64>>::sse_decode(deserializer);
         let mut var_background = <f64>::sse_decode(deserializer);
         let mut var_noise = <f64>::sse_decode(deserializer);
         return crate::api::imaging::StarDetectionResultApi {
@@ -14186,6 +14189,7 @@ impl SseDecode for crate::api::imaging::StarDetectionResultApi {
             median_hfr: var_medianHfr,
             median_fwhm: var_medianFwhm,
             median_snr: var_medianSnr,
+            median_eccentricity: var_medianEccentricity,
             background: var_background,
             noise: var_noise,
         };
@@ -16138,6 +16142,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::imaging::ImageStatsResult {
             self.median.into_into_dart().into_dart(),
             self.std_dev.into_into_dart().into_dart(),
             self.hfr.into_into_dart().into_dart(),
+            self.eccentricity.into_into_dart().into_dart(),
             self.star_count.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -17955,6 +17960,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::imaging::StarDetectionResultA
             self.median_hfr.into_into_dart().into_dart(),
             self.median_fwhm.into_into_dart().into_dart(),
             self.median_snr.into_into_dart().into_dart(),
+            self.median_eccentricity.into_into_dart().into_dart(),
             self.background.into_into_dart().into_dart(),
             self.noise.into_into_dart().into_dart(),
         ]
@@ -19530,6 +19536,7 @@ impl SseEncode for crate::api::imaging::ImageStatsResult {
         <f64>::sse_encode(self.median, serializer);
         <f64>::sse_encode(self.std_dev, serializer);
         <Option<f64>>::sse_encode(self.hfr, serializer);
+        <Option<f64>>::sse_encode(self.eccentricity, serializer);
         <u32>::sse_encode(self.star_count, serializer);
     }
 }
@@ -21433,6 +21440,7 @@ impl SseEncode for crate::api::imaging::StarDetectionResultApi {
         <f64>::sse_encode(self.median_hfr, serializer);
         <f64>::sse_encode(self.median_fwhm, serializer);
         <f64>::sse_encode(self.median_snr, serializer);
+        <Option<f64>>::sse_encode(self.median_eccentricity, serializer);
         <f64>::sse_encode(self.background, serializer);
         <f64>::sse_encode(self.noise, serializer);
     }
@@ -23103,6 +23111,7 @@ mod io {
                 median: self.median.cst_decode(),
                 std_dev: self.std_dev.cst_decode(),
                 hfr: self.hfr.cst_decode(),
+                eccentricity: self.eccentricity.cst_decode(),
                 star_count: self.star_count.cst_decode(),
             }
         }
@@ -24643,6 +24652,7 @@ mod io {
                 median_hfr: self.median_hfr.cst_decode(),
                 median_fwhm: self.median_fwhm.cst_decode(),
                 median_snr: self.median_snr.cst_decode(),
+                median_eccentricity: self.median_eccentricity.cst_decode(),
                 background: self.background.cst_decode(),
                 noise: self.noise.cst_decode(),
             }
@@ -25581,6 +25591,7 @@ mod io {
                 median: Default::default(),
                 std_dev: Default::default(),
                 hfr: core::ptr::null_mut(),
+                eccentricity: core::ptr::null_mut(),
                 star_count: Default::default(),
             }
         }
@@ -26484,6 +26495,7 @@ mod io {
                 median_hfr: Default::default(),
                 median_fwhm: Default::default(),
                 median_snr: Default::default(),
+                median_eccentricity: core::ptr::null_mut(),
                 background: Default::default(),
                 noise: Default::default(),
             }
@@ -31901,6 +31913,7 @@ mod io {
         median: f64,
         std_dev: f64,
         hfr: *mut f64,
+        eccentricity: *mut f64,
         star_count: u32,
     }
     #[repr(C)]
@@ -33200,6 +33213,7 @@ mod io {
         median_hfr: f64,
         median_fwhm: f64,
         median_snr: f64,
+        median_eccentricity: *mut f64,
         background: f64,
         noise: f64,
     }

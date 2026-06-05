@@ -385,6 +385,25 @@ pub trait DeviceOps: Send + Sync {
         image_data: &ImageData,
     ) -> DeviceResult<Vec<(f64, f64, f64)>>;
 
+    /// Measure the per-frame median star eccentricity (0.0 = round,
+    /// →1.0 = trailed/elongated).
+    ///
+    /// Returns `Ok(None)` when the metric cannot be honestly measured for
+    /// this frame (no stars, or too few reliable stars to form a stable
+    /// median). This feeds `FrameMetrics.eccentricity`, which the grading
+    /// gate treats as "unknown — do not reject". The default implementation
+    /// returns `Ok(None)`; the real backend (`UnifiedDeviceOps`) overrides
+    /// it to run the shape-moment detector. Callers MUST distinguish a real
+    /// `Some(ecc)` from `None` so a configured eccentricity gate is never
+    /// silently bypassed.
+    async fn measure_frame_eccentricity(
+        &self,
+        image_data: &ImageData,
+    ) -> DeviceResult<Option<f64>> {
+        let _ = image_data;
+        Ok(None)
+    }
+
     // =========================================================================
     // COVER CALIBRATOR (FLAT PANEL / DUST COVER) OPERATIONS
     // =========================================================================
@@ -1195,6 +1214,9 @@ mod tests {
         }
         async fn detect_stars_in_image(&self, d: &ImageData) -> DeviceResult<Vec<(f64, f64, f64)>> {
             self.inner.detect_stars_in_image(d).await
+        }
+        async fn measure_frame_eccentricity(&self, d: &ImageData) -> DeviceResult<Option<f64>> {
+            self.inner.measure_frame_eccentricity(d).await
         }
         async fn cover_calibrator_open_cover(&self, id: &str) -> DeviceResult<()> {
             self.inner.cover_calibrator_open_cover(id).await

@@ -12949,8 +12949,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ImageStatsResult dco_decode_image_stats_result(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 7)
-      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return ImageStatsResult(
       min: dco_decode_f_64(arr[0]),
       max: dco_decode_f_64(arr[1]),
@@ -12958,7 +12958,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       median: dco_decode_f_64(arr[3]),
       stdDev: dco_decode_f_64(arr[4]),
       hfr: dco_decode_opt_box_autoadd_f_64(arr[5]),
-      starCount: dco_decode_u_32(arr[6]),
+      eccentricity: dco_decode_opt_box_autoadd_f_64(arr[6]),
+      starCount: dco_decode_u_32(arr[7]),
     );
   }
 
@@ -14643,16 +14644,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   StarDetectionResultApi dco_decode_star_detection_result_api(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 7)
-      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return StarDetectionResultApi(
       stars: dco_decode_list_detected_star_info(arr[0]),
       starCount: dco_decode_u_32(arr[1]),
       medianHfr: dco_decode_f_64(arr[2]),
       medianFwhm: dco_decode_f_64(arr[3]),
       medianSnr: dco_decode_f_64(arr[4]),
-      background: dco_decode_f_64(arr[5]),
-      noise: dco_decode_f_64(arr[6]),
+      medianEccentricity: dco_decode_opt_box_autoadd_f_64(arr[5]),
+      background: dco_decode_f_64(arr[6]),
+      noise: dco_decode_f_64(arr[7]),
     );
   }
 
@@ -16682,6 +16684,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_median = sse_decode_f_64(deserializer);
     var var_stdDev = sse_decode_f_64(deserializer);
     var var_hfr = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_eccentricity = sse_decode_opt_box_autoadd_f_64(deserializer);
     var var_starCount = sse_decode_u_32(deserializer);
     return ImageStatsResult(
         min: var_min,
@@ -16690,6 +16693,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         median: var_median,
         stdDev: var_stdDev,
         hfr: var_hfr,
+        eccentricity: var_eccentricity,
         starCount: var_starCount);
   }
 
@@ -18831,6 +18835,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_medianHfr = sse_decode_f_64(deserializer);
     var var_medianFwhm = sse_decode_f_64(deserializer);
     var var_medianSnr = sse_decode_f_64(deserializer);
+    var var_medianEccentricity = sse_decode_opt_box_autoadd_f_64(deserializer);
     var var_background = sse_decode_f_64(deserializer);
     var var_noise = sse_decode_f_64(deserializer);
     return StarDetectionResultApi(
@@ -18839,6 +18844,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         medianHfr: var_medianHfr,
         medianFwhm: var_medianFwhm,
         medianSnr: var_medianSnr,
+        medianEccentricity: var_medianEccentricity,
         background: var_background,
         noise: var_noise);
   }
@@ -20664,6 +20670,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_64(self.median, serializer);
     sse_encode_f_64(self.stdDev, serializer);
     sse_encode_opt_box_autoadd_f_64(self.hfr, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.eccentricity, serializer);
     sse_encode_u_32(self.starCount, serializer);
   }
 
@@ -22488,6 +22495,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_64(self.medianHfr, serializer);
     sse_encode_f_64(self.medianFwhm, serializer);
     sse_encode_f_64(self.medianSnr, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.medianEccentricity, serializer);
     sse_encode_f_64(self.background, serializer);
     sse_encode_f_64(self.noise, serializer);
   }

@@ -1103,6 +1103,24 @@ impl DeviceOps for BridgeDeviceOps {
         Ok(result)
     }
 
+    async fn measure_frame_eccentricity(
+        &self,
+        image_data: &ImageData,
+    ) -> DeviceResult<Option<f64>> {
+        let img = nightshade_imaging::ImageData::from_u16(
+            image_data.width,
+            image_data.height,
+            1,
+            &image_data.data,
+        );
+
+        let config = nightshade_imaging::StarDetectionConfig::default();
+        let stars = nightshade_imaging::detect_stars(&img, &config);
+
+        // Fails closed (None) when too few reliable stars — never fabricated.
+        Ok(nightshade_imaging::frame_eccentricity(&stars))
+    }
+
     // =========================================================================
     // COVER CALIBRATOR (FLAT PANEL) OPERATIONS
     // =========================================================================
