@@ -328,7 +328,7 @@ class _AutoSaveStatusCard extends ConsumerWidget {
               Text(
                 'Auto-Save Status',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: NightshadeTypography.fontSize16,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -352,7 +352,7 @@ class _AutoSaveStatusCard extends ConsumerWidget {
                 const SizedBox(height: 12),
                 Text(
                   status.lastError!,
-                  style: TextStyle(color: colors.error, fontSize: 12),
+                  style: TextStyle(color: colors.error, fontSize: NightshadeTypography.fontSize12),
                 ),
               ],
             ],
@@ -394,7 +394,7 @@ class _QuickActionsCard extends StatelessWidget {
             Text(
               'Quick Actions',
               style: TextStyle(
-                fontSize: 16,
+                fontSize: NightshadeTypography.fontSize16,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -462,7 +462,7 @@ class _RecentBackupsCard extends StatelessWidget {
                 Text(
                   'Recent Backups',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: NightshadeTypography.fontSize16,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -549,7 +549,7 @@ class _BackupTile extends StatelessWidget {
         padding: const EdgeInsets.all(8),
         decoration: NightshadeDecorations.iconChip(
           isAutoSave ? colors.warning : colors.primary,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         ),
         child: Icon(
           isAutoSave ? LucideIcons.clock : LucideIcons.database,
@@ -562,14 +562,14 @@ class _BackupTile extends StatelessWidget {
         style: TextStyle(
           color: colors.textPrimary,
           fontWeight: FontWeight.w500,
-          fontSize: 13,
+          fontSize: NightshadeTypography.fontSize13,
         ),
       ),
       subtitle: Text(
         '${_formatFileSize(backup.fileSize)} | $timestamp',
         style: TextStyle(
           color: colors.textSecondary,
-          fontSize: 12,
+          fontSize: NightshadeTypography.fontSize12,
         ),
       ),
       trailing: Row(
@@ -625,14 +625,14 @@ class _StatusRow extends StatelessWidget {
                 label,
                 style: TextStyle(
                   color: colors.textSecondary,
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                 ),
               ),
               Text(
                 value,
                 style: TextStyle(
                   color: colors.textPrimary,
-                  fontSize: 14,
+                  fontSize: NightshadeTypography.fontSize14,
                   fontWeight: FontWeight.w500,
                 ),
               ),

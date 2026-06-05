@@ -71,7 +71,7 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: isMobile ? 18 : 22,
+              fontSize: isMobile ? NightshadeTypography.fontSize18 : NightshadeTypography.fontSize22,
               fontWeight: FontWeight.w700,
               color: colors.textPrimary,
             ),
@@ -94,7 +94,7 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
       ),
       error: (e, _) => Text(
         l10n.text('diagnosticsLoadSessionsFailed'),
-        style: TextStyle(color: colors.error, fontSize: 12),
+        style: TextStyle(color: colors.error, fontSize: NightshadeTypography.fontSize12),
       ),
     );
 
@@ -141,7 +141,7 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
             'Analytics tracks per-frame image quality and photometry; diagnostics aggregates anomaly patterns across the whole session to point at the underlying hardware cause. '
             'Come here when imaging shows degraded HFR or eccentricity, or when analytics keeps flagging the same quality issue. Lower tilt and collimation scores are better.',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
               height: 1.4,
             ),

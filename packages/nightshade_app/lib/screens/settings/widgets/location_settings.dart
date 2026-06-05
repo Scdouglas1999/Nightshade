@@ -264,7 +264,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                     '${BortleScale.limitingMagnitude(settings.bortleClass).toStringAsFixed(1)}m',
                     style: TextStyle(
                       color: NightshadeColors.of(context).textPrimary,
-                      fontSize: 14,
+                      fontSize: NightshadeTypography.fontSize14,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -285,7 +285,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                     'trees, or buildings.',
                     style: TextStyle(
                       color: NightshadeColors.of(context).textSecondary,
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                     ),
                   ),
                 ),
@@ -319,7 +319,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                         icon: Icon(LucideIcons.rotateCcw, size: 14,
                             color: NightshadeColors.of(context).primary),
                         label: Text('Reset All to 0\u00B0',
-                            style: TextStyle(color: NightshadeColors.of(context).primary, fontSize: 12)),
+                            style: TextStyle(color: NightshadeColors.of(context).primary, fontSize: NightshadeTypography.fontSize12)),
                         onPressed: () {
                           for (final dir in horizonDirections) {
                             _horizonControllers[dir]!.text = '0';

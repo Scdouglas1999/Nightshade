@@ -41,7 +41,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                         controller: _descController,
                         hint: 'Add a description...',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: NightshadeTypography.fontSize13,
                           color: NightshadeColors.of(context).textSecondary,
                         ),
                       )
@@ -49,7 +49,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                       Text(
                         widget.profile.description ?? 'No description',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: NightshadeTypography.fontSize13,
                           color: NightshadeColors.of(context).textMuted,
                         ),
                       ),
@@ -458,7 +458,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: NightshadeColors.of(context).surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   ),
                   child: Center(
                     child: Text(
@@ -507,7 +507,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                 Text(
                   'Focus position offset (in steps) when switching to each filter',
                   style:
-                      TextStyle(color: NightshadeColors.of(context).textMuted, fontSize: 12),
+                      TextStyle(color: NightshadeColors.of(context).textMuted, fontSize: NightshadeTypography.fontSize12),
                 ),
                 const SizedBox(height: 12),
                 ..._buildFilterOffsetRows(),
@@ -536,7 +536,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: NightshadeColors.of(context).surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   ),
                   child: Center(
                     child: Text(
@@ -598,7 +598,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                   child: Text(
                     'Click "Copy from Connected" to assign currently connected devices, or use X to clear individual assignments.',
                     style:
-                        TextStyle(color: NightshadeColors.of(context).textMuted, fontSize: 11),
+                        TextStyle(color: NightshadeColors.of(context).textMuted, fontSize: NightshadeTypography.fontSize11),
                   ),
                 ),
             ],
@@ -632,7 +632,7 @@ extension _ProfileDetailsRendering on _ProfileDetailsState {
                       child: Text(
                         widget.profile.name,
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: NightshadeTypography.fontSize18,
                           fontWeight: FontWeight.w600,
                           color: NightshadeColors.of(context).textPrimary,
                         ),

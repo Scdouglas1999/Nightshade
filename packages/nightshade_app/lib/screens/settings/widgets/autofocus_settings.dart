@@ -664,7 +664,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
             height: 32,
             decoration: BoxDecoration(
               color: NightshadeColors.of(context).surfaceAlt,
-              borderRadius: BorderRadius.circular(7),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusButton),
             ),
             child: Icon(icon,
                 size: 14, color: NightshadeColors.of(context).textSecondary),
@@ -677,7 +677,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w500,
                     color: NightshadeColors.of(context).textPrimary,
                   ),
@@ -687,7 +687,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                   Text(
                     subtitle,
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                       color: NightshadeColors.of(context).textMuted,
                     ),
                   ),
@@ -811,7 +811,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
               Text(
                 'Designated autofocus filter:',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w500,
                   color: NightshadeColors.of(context).textPrimary,
                 ),
@@ -897,7 +897,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
     final child = Text(
       text,
       style: TextStyle(
-        fontSize: 11,
+        fontSize: NightshadeTypography.fontSize11,
         fontWeight: FontWeight.w600,
         color: NightshadeColors.of(context).textSecondary,
       ),

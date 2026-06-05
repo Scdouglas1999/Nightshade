@@ -34,7 +34,7 @@ class _TiltDirectionPainter extends CustomPainter {
     canvas.drawCircle(center, 3, dotPaint);
 
     // Draw cardinal labels
-    final textStyle = TextStyle(fontSize: 9, color: textColor);
+    final textStyle = TextStyle(fontSize: NightshadeTypography.fontSize9, color: textColor);
     _drawLabel(
         canvas, 'T', Offset(center.dx, center.dy - radius - 2), textStyle);
     _drawLabel(
@@ -155,7 +155,7 @@ class _CollimationCard extends StatelessWidget {
               Text(
                 'Collimation',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: NightshadeTypography.fontSize14,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -165,12 +165,12 @@ class _CollimationCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: severityColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
                   severity,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w600,
                     color: severityColor,
                   ),
@@ -197,7 +197,7 @@ class _CollimationCard extends StatelessWidget {
           Center(
             child: Text(
               'Lower is better. Edge/center residual ratio: ${score.toStringAsFixed(1)}',
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
             ),
           ),
           const SizedBox(height: 4),
@@ -208,7 +208,7 @@ class _CollimationCard extends StatelessWidget {
                   : score >= 15
                       ? 'A mild offset is present. Recheck spacing before making larger adjustments.'
                       : 'Center and edge behavior look balanced for this session.',
-              style: TextStyle(fontSize: 11, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
               textAlign: TextAlign.center,
             ),
           ),

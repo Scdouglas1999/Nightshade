@@ -176,7 +176,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   Text(
                     section.label,
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: NightshadeTypography.fontSize18,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                     ),
@@ -230,7 +230,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   child: Text(
                     context.l10n.text('settingsTitle'),
                     style: TextStyle(
-                      fontSize: 20,
+                      fontSize: NightshadeTypography.fontSize20,
                       fontWeight: FontWeight.w700,
                       color: colors.textPrimary,
                     ),
@@ -299,11 +299,11 @@ class _SearchField extends StatelessWidget {
     return TextField(
       controller: controller,
       onChanged: onChanged,
-      style: TextStyle(fontSize: 13, color: colors.textPrimary),
+      style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
       decoration: InputDecoration(
         isDense: true,
         hintText: 'Search settings…',
-        hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
+        hintStyle: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
         prefixIcon:
             Icon(LucideIcons.search, size: 16, color: colors.textMuted),
         prefixIconConstraints:
@@ -320,11 +320,11 @@ class _SearchField extends StatelessWidget {
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
           borderSide: BorderSide(color: colors.border),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
           borderSide: BorderSide(color: colors.primary.withValues(alpha: 0.6)),
         ),
       ),
@@ -428,7 +428,7 @@ class _GroupHeaderState extends State<_GroupHeader> {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
           decoration: BoxDecoration(
             color: _hovered ? colors.surfaceAlt : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           ),
           child: Row(
             children: [
@@ -438,7 +438,7 @@ class _GroupHeaderState extends State<_GroupHeader> {
                 child: Text(
                   widget.title.toUpperCase(),
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.6,
                     color: colors.textSecondary,
@@ -486,7 +486,7 @@ class _DesktopSearchResults extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Text(
           'No settings match your search.',
-          style: TextStyle(fontSize: 13, color: colors.textMuted),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
         ),
       );
     }
@@ -557,7 +557,7 @@ class _MobileSectionList extends StatelessWidget {
                   Text(
                     title,
                     style: TextStyle(
-                      fontSize: 24,
+                      fontSize: NightshadeTypography.fontSize24,
                       fontWeight: FontWeight.w700,
                       color: colors.textPrimary,
                     ),
@@ -642,7 +642,7 @@ class _MobileSearchResults extends StatelessWidget {
         padding: const EdgeInsets.all(20),
         child: Text(
           'No settings match your search.',
-          style: TextStyle(fontSize: 14, color: colors.textMuted),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize14, color: colors.textMuted),
         ),
       );
     }
@@ -697,7 +697,7 @@ class _MobileGroupHeader extends StatelessWidget {
               child: Text(
                 title.toUpperCase(),
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
                   color: colors.textSecondary,
@@ -751,7 +751,7 @@ class _MobileSectionItem extends StatelessWidget {
               height: 40,
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               ),
               child: Icon(icon, size: 20, color: colors.textSecondary),
             ),
@@ -760,7 +760,7 @@ class _MobileSectionItem extends StatelessWidget {
               child: Text(
                 label,
                 style: TextStyle(
-                  fontSize: 15,
+                  fontSize: NightshadeTypography.fontSize15,
                   fontWeight: FontWeight.w500,
                   color: colors.textPrimary,
                 ),
@@ -817,7 +817,7 @@ class _CategoryItemState extends State<_CategoryItem> {
                 : _isHovered
                     ? widget.colors.surfaceAlt
                     : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             border: widget.isSelected
                 ? Border.all(
                     color: widget.colors.primary.withValues(alpha: 0.3))
@@ -839,7 +839,7 @@ class _CategoryItemState extends State<_CategoryItem> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     fontWeight:
                         widget.isSelected ? FontWeight.w600 : FontWeight.w500,
                     color: widget.isSelected

@@ -64,12 +64,12 @@ class ConnectionSettings extends ConsumerWidget {
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                 decoration: NightshadeDecorations.emphasisSurface(
                   statusColor,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Text(
                   connectionStatus,
                   style: TextStyle(
-                    fontSize: isMobile ? 10 : 11,
+                    fontSize: isMobile ? NightshadeTypography.fontSize10 : NightshadeTypography.fontSize11,
                     color: statusColor,
                     fontWeight: FontWeight.w600,
                   ),
@@ -85,7 +85,7 @@ class ConnectionSettings extends ConsumerWidget {
                 trailing: SelectableText(
                   serverAddress,
                   style: TextStyle(
-                    fontSize: isMobile ? 11 : 12,
+                    fontSize: isMobile ? NightshadeTypography.fontSize11 : NightshadeTypography.fontSize12,
                     color: colors.textPrimary,
                     fontFamily: 'monospace',
                   ),
@@ -327,7 +327,7 @@ class _PlatformCapabilityMatrixView extends StatelessWidget {
                 child: Text(
                   'Current platform: $platformLabel',
                   style: TextStyle(
-                    fontSize: isMobile ? 12 : 13,
+                    fontSize: isMobile ? NightshadeTypography.fontSize12 : NightshadeTypography.fontSize13,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -385,7 +385,7 @@ class _PlatformCapabilityRow extends StatelessWidget {
       padding: EdgeInsets.all(isMobile ? 10 : 12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt.withValues(alpha: 0.55),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border.withValues(alpha: 0.6)),
       ),
       child: isMobile
@@ -480,7 +480,7 @@ class _DriverLabel extends StatelessWidget {
         Text(
           driver.label,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w700,
             color: colors.textPrimary,
           ),
@@ -490,12 +490,12 @@ class _DriverLabel extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: NightshadeDecorations.statusChip(
             statusColor,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           ),
           child: Text(
             statusLabel,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               fontWeight: FontWeight.w600,
               color: statusColor,
             ),
@@ -530,7 +530,7 @@ class _DriverDetails extends StatelessWidget {
         Text(
           detailText,
           style: TextStyle(
-            fontSize: isMobile ? 11 : 12,
+            fontSize: isMobile ? NightshadeTypography.fontSize11 : NightshadeTypography.fontSize12,
             color: colors.textSecondary,
           ),
         ),
@@ -538,7 +538,7 @@ class _DriverDetails extends StatelessWidget {
         Text(
           driver.deviceCoverage,
           style: TextStyle(
-            fontSize: isMobile ? 10 : 11,
+            fontSize: isMobile ? NightshadeTypography.fontSize10 : NightshadeTypography.fontSize11,
             color: colors.textMuted,
           ),
         ),

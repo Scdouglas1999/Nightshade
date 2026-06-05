@@ -319,7 +319,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
       ),
       child: Column(
@@ -347,7 +347,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
           ),
           const SizedBox(height: 16),
           ClipRRect(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             child: LinearProgressIndicator(
               value: _downloadProgress,
               backgroundColor: colors.border,
@@ -360,7 +360,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
             _downloadStatus,
             style: TextStyle(
               color: colors.textSecondary,
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
             ),
           ),
         ],
@@ -374,7 +374,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -384,7 +384,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
             style: TextStyle(
               color: colors.textPrimary,
               fontWeight: FontWeight.w600,
-              fontSize: 16,
+              fontSize: NightshadeTypography.fontSize16,
             ),
           ),
           const SizedBox(height: 16),
@@ -392,7 +392,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
             'Select a package size based on your needs:',
             style: TextStyle(
               color: colors.textSecondary,
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
             ),
           ),
           const SizedBox(height: 16),
@@ -437,7 +437,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
           color: isSelected
               ? colors.primary.withValues(alpha: 0.1)
               : colors.border.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(
             color: isSelected ? colors.primary : colors.border,
             width: isSelected ? 2 : 1,
@@ -471,13 +471,13 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                         ),
                         decoration: BoxDecoration(
                           color: colors.border,
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                         ),
                         child: Text(
                           '~${package.approximateSizeMB} MB',
                           style: TextStyle(
                             color: colors.textSecondary,
-                            fontSize: 11,
+                            fontSize: NightshadeTypography.fontSize11,
                           ),
                         ),
                       ),
@@ -488,7 +488,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                     package.description,
                     style: TextStyle(
                       color: colors.textSecondary,
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -497,7 +497,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                     'DSOs: mag ≤ ${package.dsoMagnitudeLimit.toStringAsFixed(1)}',
                     style: TextStyle(
                       color: colors.textSecondary.withValues(alpha: 0.7),
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                     ),
                   ),
                 ],
@@ -522,7 +522,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
           style: TextStyle(
             color: colors.textPrimary,
             fontWeight: FontWeight.w600,
-            fontSize: 16,
+            fontSize: NightshadeTypography.fontSize16,
           ),
         ),
         const SizedBox(height: 16),
@@ -577,7 +577,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(
           color: isInstalled
               ? colors.success.withValues(alpha: 0.3)
@@ -593,7 +593,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                 padding: const EdgeInsets.all(12),
                 decoration: NightshadeDecorations.iconChip(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
                 child:
                     Icon(Icons.label_outline, color: colors.primary, size: 24),
@@ -610,7 +610,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                           style: TextStyle(
                             color: colors.textPrimary,
                             fontWeight: FontWeight.w600,
-                            fontSize: 16,
+                            fontSize: NightshadeTypography.fontSize16,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -622,13 +622,13 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                             ),
                             decoration: BoxDecoration(
                               color: colors.success.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               'Installed',
                               style: TextStyle(
                                 color: colors.success,
-                                fontSize: 11,
+                                fontSize: NightshadeTypography.fontSize11,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -640,7 +640,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                       'Galaxy List for the Advanced Detector Era - up to 22.5M galaxies for deep image annotation',
                       style: TextStyle(
                         color: colors.textSecondary,
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                       ),
                     ),
                   ],
@@ -653,7 +653,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
             'Source: glade.elte.hu via vizier.cds.unistra.fr',
             style: TextStyle(
               color: colors.textSecondary.withValues(alpha: 0.7),
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontFamily: 'monospace',
             ),
           ),
@@ -720,7 +720,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
               'Select catalog tier:',
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
               ),
             ),
             const SizedBox(height: 12),
@@ -787,7 +787,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
           color: isSelected
               ? colors.primary.withValues(alpha: 0.1)
               : colors.border.withValues(alpha: 0.5),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(
             color: isSelected ? colors.primary : colors.border,
             width: isSelected ? 2 : 1,
@@ -812,7 +812,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                         style: TextStyle(
                           color: colors.textPrimary,
                           fontWeight: FontWeight.w600,
-                          fontSize: 14,
+                          fontSize: NightshadeTypography.fontSize14,
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -823,7 +823,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                         ),
                         decoration: BoxDecoration(
                           color: colors.border,
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                         ),
                         child: Text(
                           package == AnnotationPackage.complete
@@ -831,7 +831,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                               : '~${package.approximateSizeMB} MB',
                           style: TextStyle(
                             color: colors.textSecondary,
-                            fontSize: 10,
+                            fontSize: NightshadeTypography.fontSize10,
                           ),
                         ),
                       ),
@@ -842,7 +842,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
                     package.description,
                     style: TextStyle(
                       color: colors.textSecondary,
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                     ),
                   ),
                 ],

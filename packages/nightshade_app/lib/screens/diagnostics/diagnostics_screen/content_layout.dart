@@ -57,7 +57,7 @@ class _DiagnosticsContent extends ConsumerWidget {
             Text(
               context.l10n.text('diagnosticsFailedTitle'),
               style: TextStyle(
-                fontSize: 16,
+                fontSize: NightshadeTypography.fontSize16,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -67,7 +67,7 @@ class _DiagnosticsContent extends ConsumerWidget {
               context.l10n.text('diagnosticsFailedBody'),
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textSecondary,
               ),
             ),

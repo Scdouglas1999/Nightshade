@@ -13,7 +13,7 @@ class _SectionHeader extends StatelessWidget {
     return Text(
       title,
       style: TextStyle(
-        fontSize: 12,
+        fontSize: NightshadeTypography.fontSize12,
         fontWeight: FontWeight.w600,
         color: colors.textSecondary,
       ),
@@ -39,7 +39,7 @@ class _FilterSelector extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -52,7 +52,7 @@ class _FilterSelector extends ConsumerWidget {
                   fwState.currentFilterName ??
                   'No filter',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: NightshadeTypography.fontSize14,
                 color: colors.textPrimary,
               ),
             ),
@@ -77,11 +77,11 @@ class _FilterChecklist extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         ),
         child: Text(
           'No filters available. Connect a filter wheel.',
-          style: TextStyle(color: colors.textMuted, fontSize: 13),
+          style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize13),
         ),
       );
     }
@@ -89,7 +89,7 @@ class _FilterChecklist extends ConsumerWidget {
     return Container(
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -139,7 +139,7 @@ class _FilterChecklistItem extends StatelessWidget {
             child: Text(
               filter.filterName,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: filter.enabled ? colors.textPrimary : colors.textMuted,
               ),
             ),
@@ -148,7 +148,7 @@ class _FilterChecklistItem extends StatelessWidget {
             Text(
               '~${filter.suggestedExposure!.toStringAsFixed(1)}s',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
                 fontFamily: 'monospace',
               ),

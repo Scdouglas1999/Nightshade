@@ -17,7 +17,7 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
             height: 40,
             decoration: NightshadeDecorations.emphasisSurface(
               colors.primary,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             ),
             child: Icon(
               isEditing ? LucideIcons.edit : LucideIcons.plus,
@@ -118,7 +118,7 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
           Text(
             'Icon',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w500,
               color: colors.textSecondary,
             ),
@@ -143,7 +143,7 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
           Text(
             'Accent Color',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w500,
               color: colors.textSecondary,
             ),
@@ -177,7 +177,7 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
           Container(
             decoration: BoxDecoration(
               color: colors.surface,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
             child: CheckboxListTile(
@@ -187,14 +187,14 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
                 'Default profile',
                 style: TextStyle(
                   color: colors.textPrimary,
-                  fontSize: 14,
+                  fontSize: NightshadeTypography.fontSize14,
                 ),
               ),
               subtitle: Text(
                 'Set as active profile on startup',
                 style: TextStyle(
                   color: colors.textSecondary,
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                 ),
               ),
               activeColor: colors.primary,

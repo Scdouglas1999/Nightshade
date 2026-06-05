@@ -43,7 +43,7 @@ class _ObservationLogSettingsState
               Text(
                 'Observation Log',
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: NightshadeTypography.fontSize20,
                   fontWeight: FontWeight.bold,
                   color: colors.textPrimary,
                 ),
@@ -83,7 +83,7 @@ class _ObservationLogSettingsState
                     filled: true,
                     fillColor: colors.background,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                       borderSide: BorderSide(color: colors.border),
                     ),
                     contentPadding:
@@ -204,7 +204,7 @@ class _ObservationLogSettingsState
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.background,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -252,7 +252,7 @@ class _ObservationLogSettingsState
                 Text(
                   _formatDate(log.timestamp),
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -260,7 +260,7 @@ class _ObservationLogSettingsState
                 Text(
                   _formatTime(log.timestamp),
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -279,7 +279,7 @@ class _ObservationLogSettingsState
                     Text(
                       log.objectName,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: NightshadeTypography.fontSize14,
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
                       ),
@@ -291,13 +291,13 @@ class _ObservationLogSettingsState
                             horizontal: 6, vertical: 2),
                         decoration: NightshadeDecorations.statusChip(
                           colors.primary,
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                           bordered: false,
                         ),
                         child: Text(
                           log.catalogId!,
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: NightshadeTypography.fontSize10,
                             fontWeight: FontWeight.w600,
                             color: colors.primary,
                           ),
@@ -313,7 +313,7 @@ class _ObservationLogSettingsState
                       Text(
                         log.objectType!,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: colors.textSecondary,
                         ),
                       ),
@@ -323,7 +323,7 @@ class _ObservationLogSettingsState
                       Text(
                         'Alt: ${log.altitude!.toStringAsFixed(1)}°',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: colors.textSecondary,
                         ),
                       ),
@@ -332,7 +332,7 @@ class _ObservationLogSettingsState
                       Text(
                         'Seeing: ${log.seeingConditions}',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: colors.textSecondary,
                         ),
                       ),
@@ -344,7 +344,7 @@ class _ObservationLogSettingsState
                   Text(
                     log.notes!,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: colors.textPrimary.withValues(alpha: 0.8),
                       fontStyle: FontStyle.italic,
                     ),
@@ -476,7 +476,7 @@ class _StatChip extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             color: colors.textSecondary,
             fontWeight: FontWeight.w500,
           ),
@@ -485,7 +485,7 @@ class _StatChip extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: NightshadeTypography.fontSize16,
             fontWeight: FontWeight.bold,
             color: colors.textPrimary,
           ),

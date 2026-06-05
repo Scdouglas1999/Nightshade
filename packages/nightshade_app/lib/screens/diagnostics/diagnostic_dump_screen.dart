@@ -63,7 +63,7 @@ class _DiagnosticDumpScreenState extends ConsumerState<DiagnosticDumpScreen> {
               Text(
                 'Diagnostic Dump',
                 style: TextStyle(
-                  fontSize: isMobile ? 18 : 22,
+                  fontSize: isMobile ? NightshadeTypography.fontSize18 : NightshadeTypography.fontSize22,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                 ),
@@ -77,7 +77,7 @@ class _DiagnosticDumpScreenState extends ConsumerState<DiagnosticDumpScreen> {
             'for attaching to bug reports. No telemetry is sent — the file '
             'stays on your machine until you share it.',
             style: TextStyle(
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               color: colors.textSecondary,
               height: 1.4,
             ),
@@ -196,7 +196,7 @@ class _ContentsCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -205,7 +205,7 @@ class _ContentsCard extends StatelessWidget {
           Text(
             'Will include',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: NightshadeTypography.fontSize14,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
             ),
@@ -227,7 +227,7 @@ class _ContentsCard extends StatelessWidget {
                         Text(
                           entry.$1,
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: NightshadeTypography.fontSize13,
                             fontWeight: FontWeight.w600,
                             color: colors.textPrimary,
                           ),
@@ -236,7 +236,7 @@ class _ContentsCard extends StatelessWidget {
                         Text(
                           entry.$2,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: NightshadeTypography.fontSize12,
                             color: colors.textSecondary,
                           ),
                         ),
@@ -270,7 +270,7 @@ class _LastResultCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.success),
       ),
       child: Row(
@@ -285,7 +285,7 @@ class _LastResultCard extends StatelessWidget {
                 Text(
                   'Last dump',
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -294,7 +294,7 @@ class _LastResultCard extends StatelessWidget {
                 SelectableText(
                   path,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                     fontFamily: 'monospace',
                   ),
@@ -304,7 +304,7 @@ class _LastResultCard extends StatelessWidget {
                   Text(
                     'Size: ${_formatBytes(bytes!)}',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: colors.textMuted,
                     ),
                   ),

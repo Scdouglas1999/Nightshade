@@ -23,7 +23,7 @@ class _IssuesCard extends StatelessWidget {
               Text(
                 'Findings',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: NightshadeTypography.fontSize14,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -31,7 +31,7 @@ class _IssuesCard extends StatelessWidget {
               const Spacer(),
               Text(
                 '${diagnostics.issues.length} item${diagnostics.issues.length == 1 ? '' : 's'}',
-                style: TextStyle(fontSize: 11, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
               ),
             ],
           ),
@@ -42,7 +42,7 @@ class _IssuesCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(vertical: 20),
                 child: Text(
                   'No issues detected',
-                  style: TextStyle(fontSize: 12, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
                 ),
               ),
             )
@@ -90,7 +90,7 @@ class _IssueRow extends StatelessWidget {
                 Text(
                   issue.title,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -99,7 +99,7 @@ class _IssueRow extends StatelessWidget {
                 Text(
                   issue.detail,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -127,7 +127,7 @@ class _DiagCard extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: child,
@@ -148,7 +148,7 @@ class _DiagnosticsLoadingSkeleton extends StatelessWidget {
             height: height,
             decoration: BoxDecoration(
               color: colors.surface,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
           ),

@@ -287,7 +287,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
             Text(
               'Logs',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: NightshadeTypography.fontSize24,
                 fontWeight: FontWeight.w700,
                 color: colors.textPrimary,
               ),
@@ -296,7 +296,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
             Text(
               'View application logs with filtering and export',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: colors.textSecondary,
               ),
             ),
@@ -314,7 +314,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
             child: Text(
               '${_filteredLogs.length} of ${_allLogs.length} entries',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
               ),
             ),
@@ -334,7 +334,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
                             ? 'No log entries yet'
                             : 'No entries match current filters',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: NightshadeTypography.fontSize13,
                           color: colors.textMuted,
                         ),
                       ),
@@ -396,24 +396,24 @@ class _LogViewerState extends ConsumerState<LogViewer>
           height: 32,
           child: TextField(
             controller: _searchController,
-            style: TextStyle(fontSize: 12, color: colors.textPrimary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
             decoration: InputDecoration(
               hintText: 'Search logs...',
-              hintStyle: TextStyle(fontSize: 12, color: colors.textMuted),
+              hintStyle: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
               prefixIcon:
                   Icon(LucideIcons.search, size: 14, color: colors.textMuted),
               prefixIconConstraints:
                   const BoxConstraints(minWidth: 32, maxWidth: 32),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 borderSide: BorderSide(color: colors.border),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 borderSide: BorderSide(color: colors.border),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 borderSide: BorderSide(color: colors.primary),
               ),
               filled: true,
@@ -439,7 +439,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border),
       ),
       child: DropdownButtonHideUnderline(
@@ -448,23 +448,23 @@ class _LogViewerState extends ConsumerState<LogViewer>
           isDense: true,
           hint: Text(
             'All sources',
-            style: TextStyle(fontSize: 12, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
           ),
           icon:
               Icon(LucideIcons.chevronDown, size: 14, color: colors.textMuted),
           dropdownColor: colors.surface,
-          style: TextStyle(fontSize: 12, color: colors.textPrimary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
           items: [
             DropdownMenuItem<String?>(
               value: null,
               child: Text('All sources',
-                  style: TextStyle(fontSize: 12, color: colors.textPrimary)),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary)),
             ),
             ...sortedSources.map((s) => DropdownMenuItem<String?>(
                   value: s,
                   child: Text(s,
                       style:
-                          TextStyle(fontSize: 12, color: colors.textPrimary)),
+                          TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary)),
                 )),
           ],
           onChanged: (value) => setState(() {
@@ -541,13 +541,13 @@ class _LogViewerState extends ConsumerState<LogViewer>
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
             decoration: NightshadeDecorations.statusChip(
               levelColor,
-              borderRadius: BorderRadius.circular(3),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
               bordered: false,
             ),
             child: Text(
               levelLabel,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 fontWeight: FontWeight.w700,
                 fontFamily: 'monospace',
                 color: levelColor,
@@ -621,17 +621,17 @@ class _LevelFilterButton extends StatelessWidget {
         decoration: isSelected
             ? NightshadeDecorations.selectedSurface(
                 effectiveColor,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               )
             : BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 border: Border.all(color: colors.border),
               ),
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             color: isSelected ? effectiveColor : colors.textSecondary,
           ),
@@ -665,11 +665,11 @@ class _ActionToggle extends StatelessWidget {
         decoration: isActive
             ? NightshadeDecorations.selectedSurface(
                 colors.primary,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               )
             : BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 border: Border.all(color: colors.border),
               ),
         child: Row(
@@ -684,7 +684,7 @@ class _ActionToggle extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
                 color: isActive ? colors.primary : colors.textSecondary,
               ),

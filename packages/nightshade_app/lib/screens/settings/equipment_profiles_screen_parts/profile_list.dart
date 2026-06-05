@@ -37,7 +37,7 @@ class _ProfileList extends StatelessWidget {
                 Text(
                   'Equipment Profiles',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: NightshadeTypography.fontSize20,
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
@@ -46,7 +46,7 @@ class _ProfileList extends StatelessWidget {
                 Text(
                   'Manage your imaging rigs and configurations',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -76,7 +76,7 @@ class _ProfileList extends StatelessWidget {
                 style: IconButton.styleFrom(
                   backgroundColor: colors.surfaceAlt,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     side: BorderSide(color: colors.border),
                   ),
                 ),
@@ -172,7 +172,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                 : _isHovered
                     ? NightshadeColors.of(context).surfaceAlt
                     : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             border: widget.isSelected
                 ? Border.all(
                     color: NightshadeColors.of(context).primary.withValues(alpha: 0.3))
@@ -187,7 +187,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                   color: widget.isActive
                       ? NightshadeColors.of(context).primary.withValues(alpha: 0.2)
                       : NightshadeColors.of(context).surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
                 child: Icon(
                   LucideIcons.aperture,
@@ -208,7 +208,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                           child: Text(
                             widget.profile.name,
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: NightshadeTypography.fontSize13,
                               fontWeight: FontWeight.w600,
                               color: NightshadeColors.of(context).textPrimary,
                             ),
@@ -223,12 +223,12 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                             decoration: BoxDecoration(
                               color:
                                   NightshadeColors.of(context).primary.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               'Active',
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: NightshadeTypography.fontSize10,
                                 fontWeight: FontWeight.w600,
                                 color: NightshadeColors.of(context).primary,
                               ),
@@ -242,7 +242,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                       Text(
                         widget.profile.description!,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: NightshadeColors.of(context).textMuted,
                         ),
                         maxLines: 1,

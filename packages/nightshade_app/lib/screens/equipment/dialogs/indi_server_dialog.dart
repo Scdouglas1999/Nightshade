@@ -121,7 +121,7 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
               padding: const EdgeInsets.all(12),
               decoration: NightshadeDecorations.emphasisSurface(
                 colors.primary,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -133,7 +133,7 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
                       'INDI (Instrument Neutral Distributed Interface) provides '
                       'cross-platform access to astronomical equipment on Linux and macOS.',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: colors.textSecondary,
                       ),
                     ),
@@ -205,7 +205,7 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
                   (_connectionSuccess ?? false)
                       ? colors.success
                       : colors.error,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Row(
                   children: [
@@ -223,7 +223,7 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
                       child: Text(
                         _statusMessage!,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: colors.textSecondary,
                         ),
                       ),

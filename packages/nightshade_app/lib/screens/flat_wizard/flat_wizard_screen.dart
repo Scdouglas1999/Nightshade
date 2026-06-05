@@ -114,7 +114,7 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: colors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             ),
             child: Icon(LucideIcons.sun, color: colors.primary, size: 24),
           ),
@@ -126,7 +126,7 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
                 Text(
                   'Flat Frame Wizard',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: NightshadeTypography.fontSize20,
                     fontWeight: FontWeight.bold,
                     color: colors.textPrimary,
                   ),
@@ -135,7 +135,7 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
                 Text(
                   'Capture calibration frames with optimal exposure',
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -167,7 +167,7 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
                     'Capturing',
                     style: TextStyle(
                       color: colors.success,
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       fontWeight: FontWeight.w500,
                     ),
                   ),

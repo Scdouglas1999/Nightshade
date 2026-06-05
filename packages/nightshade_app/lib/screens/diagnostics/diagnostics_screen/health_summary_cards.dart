@@ -25,7 +25,7 @@ class _HealthGradeCard extends StatelessWidget {
           Text(
             'Optical Health',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: NightshadeTypography.fontSize14,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
             ),
@@ -49,7 +49,7 @@ class _HealthGradeCard extends StatelessWidget {
           Text(
             health.qualityLabel,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               fontWeight: FontWeight.w500,
               color: gradeColor,
             ),
@@ -59,7 +59,7 @@ class _HealthGradeCard extends StatelessWidget {
             'Lower bars are better. Use this grade as a quick summary before diving into the field map and findings.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textMuted,
               height: 1.4,
             ),
@@ -125,7 +125,7 @@ class _ScoreBar extends StatelessWidget {
           width: 80,
           child: Text(
             label,
-            style: TextStyle(fontSize: 11, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
           ),
         ),
         Expanded(
@@ -133,7 +133,7 @@ class _ScoreBar extends StatelessWidget {
             height: 6,
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(3),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
             ),
             child: FractionallySizedBox(
               alignment: Alignment.centerLeft,
@@ -141,7 +141,7 @@ class _ScoreBar extends StatelessWidget {
               child: Container(
                 decoration: BoxDecoration(
                   color: barColor,
-                  borderRadius: BorderRadius.circular(3),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
                 ),
               ),
             ),
@@ -154,7 +154,7 @@ class _ScoreBar extends StatelessWidget {
             clampedValue.toStringAsFixed(0),
             textAlign: TextAlign.right,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w600,
               color: barColor,
             ),
@@ -203,7 +203,7 @@ class _TiltAssessmentCard extends StatelessWidget {
               Text(
                 'Tilt',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: NightshadeTypography.fontSize14,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -213,12 +213,12 @@ class _TiltAssessmentCard extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
                   color: severityColor.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
                   severity,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w600,
                     color: severityColor,
                   ),
@@ -249,7 +249,7 @@ class _TiltAssessmentCard extends StatelessWidget {
               direction == 'unknown'
                   ? 'Need more solved frames to determine tilt direction'
                   : 'Strongest tilt points toward $direction',
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
             ),
           ),
           const SizedBox(height: 4),
@@ -261,7 +261,7 @@ class _TiltAssessmentCard extends StatelessWidget {
                       ? 'Score ${score.toStringAsFixed(1)}: compare corners before making a mechanical change.'
                       : 'Score ${score.toStringAsFixed(1)}: tilt looks controlled for this session.',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
               ),
             ),

@@ -231,7 +231,7 @@ class _CardShell extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: NightshadeDecorations.emphasisSurface(
         borderColor,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -295,7 +295,7 @@ class _LinkText extends StatelessWidget {
               label,
               style: TextStyle(
                 color: colors.accent,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 decoration: TextDecoration.underline,
               ),
             ),

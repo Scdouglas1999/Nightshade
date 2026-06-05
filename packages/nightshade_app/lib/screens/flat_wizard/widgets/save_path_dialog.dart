@@ -86,7 +86,7 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
 
     return Dialog(
       backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       child: ConstrainedBox(
         constraints: AdaptiveDialogConstraints.hybrid(
           context,
@@ -105,7 +105,7 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
                   padding: const EdgeInsets.all(10),
                   decoration: NightshadeDecorations.tintedBadge(
                     colors.warning,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                   ),
                   child: Icon(
                     LucideIcons.folderOpen,
@@ -121,7 +121,7 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
                       Text(
                         'Save Location Required',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: NightshadeTypography.fontSize18,
                           fontWeight: FontWeight.bold,
                           color: colors.textPrimary,
                         ),
@@ -130,7 +130,7 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
                       Text(
                         'Choose where to save your flat frames',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: NightshadeTypography.fontSize13,
                           color: colors.textSecondary,
                         ),
                       ),
@@ -230,7 +230,7 @@ class _OptionCheckbox extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: () => onChanged(!value),
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
@@ -247,14 +247,14 @@ class _OptionCheckbox extends StatelessWidget {
                   Text(
                     label,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       color: colors.textPrimary,
                     ),
                   ),
                   Text(
                     description,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textMuted,
                     ),
                   ),

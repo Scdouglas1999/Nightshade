@@ -35,7 +35,7 @@ class _Section extends StatelessWidget {
               child: Text(
                 title,
                 style: TextStyle(
-                  fontSize: isMobile ? 13 : 14,
+                  fontSize: isMobile ? NightshadeTypography.fontSize13 : NightshadeTypography.fontSize14,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -89,7 +89,7 @@ class _FieldCard extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,
           ),
         ),
@@ -99,7 +99,7 @@ class _FieldCard extends StatelessWidget {
             height: 36,
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               border: Border.all(color: colors.border),
             ),
             child: TextField(
@@ -109,7 +109,7 @@ class _FieldCard extends StatelessWidget {
                 FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
               ],
               style: TextStyle(
-                fontSize: 14,
+                fontSize: NightshadeTypography.fontSize14,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -121,7 +121,7 @@ class _FieldCard extends StatelessWidget {
                 hintStyle: TextStyle(color: colors.textMuted),
                 suffixText: suffix,
                 suffixStyle: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textMuted,
                 ),
               ),
@@ -133,14 +133,14 @@ class _FieldCard extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             ),
             child: Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 value ?? 'Not set',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: NightshadeTypography.fontSize14,
                   fontWeight: FontWeight.w600,
                   color: value != null && value != 'Not set' && value != 'N/A'
                       ? colors.textPrimary
@@ -176,7 +176,7 @@ class _BinningSelector extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,
           ),
         ),
@@ -185,7 +185,7 @@ class _BinningSelector extends StatelessWidget {
           height: 36,
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             border: Border.all(color: colors.border),
           ),
           child: Row(
@@ -207,7 +207,7 @@ class _BinningSelector extends StatelessWidget {
                         child: Text(
                           '$i',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: NightshadeTypography.fontSize12,
                             fontWeight: FontWeight.w600,
                             color: value == i
                                 ? colors.background
@@ -263,7 +263,7 @@ class _FilterChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: NightshadeDecorations.statusChip(
         filterColor,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -280,7 +280,7 @@ class _FilterChip extends StatelessWidget {
           Text(
             name,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w600,
               color: filterColor,
             ),
@@ -308,7 +308,7 @@ class _EditableFilterChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -317,14 +317,14 @@ class _EditableFilterChip extends StatelessWidget {
             child: TextField(
               controller: controller,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textPrimary,
               ),
               decoration: InputDecoration(
                 border: InputBorder.none,
                 hintText: 'Filter name',
                 hintStyle: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textMuted,
                 ),
                 isDense: true,
@@ -362,7 +362,7 @@ class _DeviceChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -376,14 +376,14 @@ class _DeviceChip extends StatelessWidget {
               Text(
                 type,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   color: colors.textMuted,
                 ),
               ),
               Text(
                 id,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w500,
                   color: colors.textPrimary,
                 ),
@@ -416,7 +416,7 @@ class _EditableDeviceChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -430,7 +430,7 @@ class _EditableDeviceChip extends StatelessWidget {
               Text(
                 type,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   color: colors.textMuted,
                 ),
               ),
@@ -439,7 +439,7 @@ class _EditableDeviceChip extends StatelessWidget {
                 child: Text(
                   id,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w500,
                     color: colors.textPrimary,
                   ),

@@ -93,7 +93,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                       '\u00b0C',
                       style: TextStyle(
                         color: NightshadeColors.of(context).textSecondary,
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                       ),
                     ),
                   ],
@@ -165,7 +165,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: NightshadeDecorations.emphasisSurface(
                 NightshadeColors.of(context).primary,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Row(
                 children: [
@@ -176,7 +176,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                     child: Text(
                       uiState.statusMessage!,
                       style: TextStyle(
-                          color: NightshadeColors.of(context).textPrimary, fontSize: 13),
+                          color: NightshadeColors.of(context).textPrimary, fontSize: NightshadeTypography.fontSize13),
                     ),
                   ),
                   IconButton(
@@ -199,7 +199,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: NightshadeDecorations.emphasisSurface(
                 NightshadeColors.of(context).error,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Row(
                 children: [
@@ -210,7 +210,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                     child: Text(
                       uiState.errorMessage!,
                       style: TextStyle(
-                          color: NightshadeColors.of(context).textPrimary, fontSize: 13),
+                          color: NightshadeColors.of(context).textPrimary, fontSize: NightshadeTypography.fontSize13),
                     ),
                   ),
                   IconButton(
@@ -294,7 +294,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                             'No dark frames in library',
                             style: TextStyle(
                               color: NightshadeColors.of(context).textMuted,
-                              fontSize: 14,
+                              fontSize: NightshadeTypography.fontSize14,
                             ),
                           ),
                           const SizedBox(height: 4),
@@ -303,7 +303,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                             style: TextStyle(
                               color: NightshadeColors.of(context).textMuted
                                   .withValues(alpha: 0.7),
-                              fontSize: 12,
+                              fontSize: NightshadeTypography.fontSize12,
                             ),
                           ),
                         ],
@@ -533,7 +533,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               const SizedBox(height: 4),
               Text(
                 entry.filePath,
-                style: TextStyle(fontSize: 11, color: NightshadeColors.of(context).textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: NightshadeColors.of(context).textMuted),
               ),
               const SizedBox(height: 12),
               CheckboxListTile(
@@ -586,7 +586,7 @@ class _StatCard extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.border),
         ),
         child: Column(
@@ -596,7 +596,7 @@ class _StatCard extends StatelessWidget {
             Text(
               value,
               style: TextStyle(
-                fontSize: 20,
+                fontSize: NightshadeTypography.fontSize20,
                 fontWeight: FontWeight.w700,
                 color: colors.textPrimary,
               ),
@@ -605,7 +605,7 @@ class _StatCard extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textSecondary,
               ),
               textAlign: TextAlign.center,
@@ -666,7 +666,7 @@ class _DarkGroupTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -685,7 +685,7 @@ class _DarkGroupTile extends StatelessWidget {
                   '${group.frameType.toUpperCase()} - ${group.exposureTime}s',
                   style: TextStyle(
                     fontWeight: FontWeight.w600,
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     color: colors.textPrimary,
                   ),
                 ),
@@ -693,7 +693,7 @@ class _DarkGroupTile extends StatelessWidget {
                 Text(
                   'Gain ${group.gain} | ${group.binX}x${group.binY}',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -776,7 +776,7 @@ class _DarkEntryTile extends StatelessWidget {
                 Text(
                   isMaster ? 'MASTER: $fileName' : fileName,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: isMaster ? FontWeight.w600 : FontWeight.w400,
                     color: colors.textPrimary,
                   ),
@@ -788,7 +788,7 @@ class _DarkEntryTile extends StatelessWidget {
                   '${entry.binX}x${entry.binY}'
                   '${entry.temperature != null ? ' | ${entry.temperature!.toStringAsFixed(1)}\u00b0C' : ''}'
                   '${isMaster ? ' | ${entry.masterFrameCount} frames' : ''}',
-                  style: TextStyle(fontSize: 11, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                 ),
               ],
             ),

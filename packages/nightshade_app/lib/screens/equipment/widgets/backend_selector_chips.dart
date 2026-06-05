@@ -57,7 +57,7 @@ class BackendSelectorChips extends StatelessWidget {
         Text(
           'Driver:',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textSecondary,
           ),
         ),
@@ -173,7 +173,7 @@ class _BackendChipState extends State<_BackendChip> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
               color: backgroundColor,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: borderColor, width: 1),
             ),
             child: Row(
@@ -190,7 +190,7 @@ class _BackendChipState extends State<_BackendChip> {
                 Text(
                   widget.backend.shortLabel,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight:
                         widget.isSelected ? FontWeight.w600 : FontWeight.w500,
                     color: textColor,
@@ -250,12 +250,12 @@ class CompactBackendSelector extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         ),
         child: Text(
           selectedBackend.shortLabel,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             color: colors.textSecondary,
           ),
         ),
@@ -303,7 +303,7 @@ class CompactBackendSelector extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.border),
         ),
         child: Row(
@@ -312,7 +312,7 @@ class CompactBackendSelector extends StatelessWidget {
             Text(
               selectedBackend.shortLabel,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textSecondary,
               ),
             ),

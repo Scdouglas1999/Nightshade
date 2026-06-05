@@ -23,7 +23,7 @@ class _PsfFieldMapCard extends StatelessWidget {
               Text(
                 'PSF Field Map',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: NightshadeTypography.fontSize14,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -31,7 +31,7 @@ class _PsfFieldMapCard extends StatelessWidget {
               const Spacer(),
               Text(
                 '${psfTiles.length} tiles',
-                style: TextStyle(fontSize: 11, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
               ),
             ],
           ),
@@ -106,13 +106,13 @@ class _LegendDot extends StatelessWidget {
           height: 10,
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(2),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
           ),
         ),
         const SizedBox(width: 4),
         Text(
           label,
-          style: TextStyle(fontSize: 10, color: colors.textMuted),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
         ),
       ],
     );
@@ -220,7 +220,7 @@ class _PsfFieldMapPainter extends CustomPainter {
           final span = TextSpan(
             text: tile.medianHfr.toStringAsFixed(1),
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               fontWeight: FontWeight.w600,
               color: textColor,
             ),

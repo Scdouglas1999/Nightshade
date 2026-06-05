@@ -301,7 +301,7 @@ class _OptionalNumberInput extends StatelessWidget {
             keyboardType:
                 TextInputType.numberWithOptions(decimal: decimals > 0),
             style: TextStyle(
-              fontSize: isMobile ? 13 : 12,
+              fontSize: isMobile ? NightshadeTypography.fontSize13 : NightshadeTypography.fontSize12,
               color: colors.textPrimary,
             ),
             decoration: InputDecoration(
@@ -313,7 +313,7 @@ class _OptionalNumberInput extends StatelessWidget {
                 vertical: 8,
               ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               ),
             ),
             onChanged: (value) {
@@ -371,7 +371,7 @@ class _OptionalIntInput extends StatelessWidget {
             controller: controller,
             keyboardType: TextInputType.number,
             style: TextStyle(
-              fontSize: isMobile ? 13 : 12,
+              fontSize: isMobile ? NightshadeTypography.fontSize13 : NightshadeTypography.fontSize12,
               color: colors.textPrimary,
             ),
             decoration: InputDecoration(
@@ -383,7 +383,7 @@ class _OptionalIntInput extends StatelessWidget {
                 vertical: 8,
               ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               ),
             ),
             onChanged: (value) {

@@ -105,7 +105,7 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
                 : _isHovered
                     ? colors.surfaceAlt
                     : colors.background,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(
               color: widget.isSelected
                   ? colors.primary
@@ -167,7 +167,7 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
               Text(
                 widget.profile.name,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight:
                       widget.isSelected ? FontWeight.w600 : FontWeight.w500,
                   color: widget.isSelected
@@ -185,7 +185,7 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
                 child: Text(
                   _getDeviceCountText(),
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     fontWeight: FontWeight.w500,
                     color: _getCountTextColor(colors),
                   ),
@@ -220,7 +220,7 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
       case ProfileConnectionState.connected:
         return NightshadeDecorations.statusChip(
           colors.success,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           bordered: false,
         );
       case ProfileConnectionState.partiallyConnected:
@@ -228,19 +228,19 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
       case ProfileConnectionState.mismatch:
         return NightshadeDecorations.statusChip(
           colors.warning,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           bordered: false,
         );
       case ProfileConnectionState.error:
         return NightshadeDecorations.statusChip(
           colors.error,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           bordered: false,
         );
       case ProfileConnectionState.disconnected:
         return BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         );
     }
   }
@@ -295,7 +295,7 @@ class _AddProfileChipState extends State<AddProfileChip> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: _isHovered ? colors.surfaceAlt : colors.background,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(
               color: _isHovered
                   ? colors.primary.withValues(alpha: 0.5)
@@ -324,7 +324,7 @@ class _AddProfileChipState extends State<AddProfileChip> {
               Text(
                 'New Profile',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w500,
                   color: colors.textSecondary,
                 ),

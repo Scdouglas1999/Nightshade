@@ -270,7 +270,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
           padding: EdgeInsets.all(cardPad),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(color: borderColor, width: 1.5),
           ),
           child: Column(

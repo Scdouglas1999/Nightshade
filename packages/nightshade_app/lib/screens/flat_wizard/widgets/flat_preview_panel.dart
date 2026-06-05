@@ -84,11 +84,11 @@ class _ImagePreview extends StatelessWidget {
       margin: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(7),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusButton),
         child: Stack(
           children: [
             // Image or empty state
@@ -170,7 +170,7 @@ class _ImagePreview extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: colors.textMuted,
-                  fontSize: 14,
+                  fontSize: NightshadeTypography.fontSize14,
                 ),
               ),
               const SizedBox(height: 8),
@@ -179,7 +179,7 @@ class _ImagePreview extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: colors.textMuted.withValues(alpha: 0.7),
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                 ),
               ),
             ],
@@ -197,7 +197,7 @@ class _ImagePreview extends StatelessWidget {
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: colors.surface.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -209,7 +209,7 @@ class _ImagePreview extends StatelessWidget {
               Text(
                 'Histogram',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   fontWeight: FontWeight.w600,
                   color: colors.textMuted,
                 ),
@@ -217,7 +217,7 @@ class _ImagePreview extends StatelessWidget {
               Text(
                 'Mean: ${result.stats.mean.toStringAsFixed(0)} ADU',
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: NightshadeTypography.fontSize9,
                   color: colors.textSecondary,
                   fontFamily: 'monospace',
                 ),
@@ -238,7 +238,7 @@ class _ImagePreview extends StatelessWidget {
               Text(
                 '0',
                 style: TextStyle(
-                  fontSize: 8,
+                  fontSize: NightshadeTypography.fontSize8,
                   color: colors.textMuted,
                   fontFamily: 'monospace',
                 ),
@@ -246,7 +246,7 @@ class _ImagePreview extends StatelessWidget {
               Text(
                 '255',
                 style: TextStyle(
-                  fontSize: 8,
+                  fontSize: NightshadeTypography.fontSize8,
                   color: colors.textMuted,
                   fontFamily: 'monospace',
                 ),
@@ -277,19 +277,19 @@ class _HistogramChart extends StatelessWidget {
       return Container(
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
         ),
         child: Center(
           child: Text(
             'No data',
-            style: TextStyle(fontSize: 9, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
           ),
         ),
       );
     }
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       child: CustomPaint(
         painter: _HistogramPainter(
           histogram: histogram,
@@ -434,7 +434,7 @@ class _StatsBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: LayoutBuilder(
@@ -528,7 +528,7 @@ class _StatusIndicator extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: NightshadeTypography.fontSize13,
             fontWeight: FontWeight.w500,
             color: color,
           ),
@@ -598,7 +598,7 @@ class _ExposureCountdownState extends State<_ExposureCountdown> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: NightshadeDecorations.emphasisSurface(
         colors.primary,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         children: [
@@ -607,7 +607,7 @@ class _ExposureCountdownState extends State<_ExposureCountdown> {
           Text(
             'CAPTURING: ${remaining.toStringAsFixed(1)}s remaining',
             style: TextStyle(
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               fontWeight: FontWeight.w600,
               color: colors.primary,
             ),
@@ -657,7 +657,7 @@ class _VisualizationsSection extends ConsumerWidget {
               Text(
                 'Visualizations',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: colors.textSecondary,
                 ),
@@ -745,7 +745,7 @@ class _ToggleButton extends StatelessWidget {
           decoration: isActive
               ? NightshadeDecorations.tintedBadge(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 )
               : const BoxDecoration(
                   borderRadius: BorderRadius.all(Radius.circular(6)),
@@ -775,7 +775,7 @@ class _AduConvergenceGraph extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -784,7 +784,7 @@ class _AduConvergenceGraph extends StatelessWidget {
           Text(
             'ADU Convergence',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w600,
               color: colors.textSecondary,
             ),
@@ -794,7 +794,7 @@ class _AduConvergenceGraph extends StatelessWidget {
             child: Text(
               history.isEmpty ? 'No data' : '${history.length} measurements',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textMuted,
               ),
             ),
@@ -854,7 +854,7 @@ class _FilterCard extends StatelessWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(
           color: filter.status == FilterCalibrationStatus.capturing
               ? colors.primary
@@ -867,7 +867,7 @@ class _FilterCard extends StatelessWidget {
           Text(
             filter.filterName,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
             ),
@@ -878,7 +878,7 @@ class _FilterCard extends StatelessWidget {
                 ? '${filter.calibratedExposure!.toStringAsFixed(2)}s'
                 : 'Not calibrated',
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: colors.textSecondary,
             ),
           ),
@@ -891,7 +891,7 @@ class _FilterCard extends StatelessWidget {
           Text(
             '${filter.capturedCount}/$frameCount',
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: colors.textMuted,
             ),
           ),

@@ -384,11 +384,11 @@ class _CalStatusCard extends StatelessWidget {
         decoration: available
             ? NightshadeDecorations.emphasisSurface(
                 colors.success,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               )
             : BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(color: colors.border),
               ),
         child: Column(
@@ -412,7 +412,7 @@ class _CalStatusCard extends StatelessWidget {
                 Text(
                   label,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     fontWeight: FontWeight.w600,
                     color: available ? colors.success : colors.textSecondary,
                   ),
@@ -423,7 +423,7 @@ class _CalStatusCard extends StatelessWidget {
             Text(
               detail,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 color: colors.textMuted,
               ),
               textAlign: TextAlign.center,
@@ -459,7 +459,7 @@ class _FileValidationRow extends ConsumerWidget {
               child: Text(
                 'Path is validated on the imaging host when calibrating',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textSecondary,
                 ),
               ),
@@ -492,7 +492,7 @@ class _FileValidationRow extends ConsumerWidget {
               Text(
                 exists ? 'File found on disk' : 'File not found on disk',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: exists ? colors.success : colors.error,
                 ),
               ),

@@ -43,7 +43,7 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
           children: [
             Text(
               'Enter target position (0 - ${focuserState.maxPosition ?? 50000}):',
-              style: TextStyle(color: colors.textSecondary, fontSize: 13),
+              style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -134,7 +134,7 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
             Text(
               'Enter target angle (${minAngle.toStringAsFixed(0)} - '
               '${maxAngle.toStringAsFixed(0)} degrees):',
-              style: TextStyle(color: colors.textSecondary, fontSize: 13),
+              style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -590,7 +590,7 @@ extension _ConnectedDeviceDialogsAndSettings on _ConnectedDeviceCardState {
                 children: [
                   Text('Calibrator Brightness (0 - $maxBrightness):',
                       style:
-                          TextStyle(color: colors.textSecondary, fontSize: 13)),
+                          TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13)),
                   const SizedBox(height: 12),
                   TextField(
                     controller: brightnessController,

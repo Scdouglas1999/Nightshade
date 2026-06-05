@@ -93,12 +93,12 @@ class _HealthHeaderBar extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
         decoration: NightshadeDecorations.tintedBadge(
           colors.warning,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         ),
         child: Text(
           '$warningCount ${warningCount == 1 ? 'issue' : 'issues'}',
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             fontWeight: FontWeight.w600,
             color: colors.warning,
           ),
@@ -127,7 +127,7 @@ class _HealthHeaderBar extends StatelessWidget {
                       'System Health',
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         fontWeight: FontWeight.w600,
                         color: colors.textSecondary,
                         letterSpacing: 0.5,
@@ -185,7 +185,7 @@ class _ScoreBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: NightshadeDecorations.statusChip(
         badgeColor,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -202,7 +202,7 @@ class _ScoreBadge extends StatelessWidget {
           Text(
             '${score.round()} - $label',
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               fontWeight: FontWeight.w600,
               color: badgeColor,
             ),
@@ -259,7 +259,7 @@ class _HealthDetailContent extends StatelessWidget {
             Text(
               'DEVICE HEARTBEATS',
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 fontWeight: FontWeight.w600,
                 color: colors.textMuted,
                 letterSpacing: 0.8,
@@ -308,7 +308,7 @@ class _ScoreGaugeRow extends StatelessWidget {
         Text(
           '/100',
           style: TextStyle(
-            fontSize: 14,
+            fontSize: NightshadeTypography.fontSize14,
             color: colors.textMuted,
           ),
         ),
@@ -319,7 +319,7 @@ class _ScoreGaugeRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               ClipRRect(
-                borderRadius: BorderRadius.circular(3),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
                 child: LinearProgressIndicator(
                   value: score / 100.0,
                   minHeight: 6,
@@ -331,7 +331,7 @@ class _ScoreGaugeRow extends StatelessWidget {
               Text(
                 _scoreDescription(score),
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textSecondary,
                 ),
               ),
@@ -374,7 +374,7 @@ class _InsightCard extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: iconColor.withValues(alpha: 0.06),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: iconColor.withValues(alpha: 0.15)),
       ),
       child: Row(
@@ -389,7 +389,7 @@ class _InsightCard extends StatelessWidget {
                 Text(
                   insight.title,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -398,7 +398,7 @@ class _InsightCard extends StatelessWidget {
                 Text(
                   insight.message,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,
                     height: 1.4,
                   ),
@@ -445,7 +445,7 @@ class _DeviceHeartbeatChip extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: statusColor.withValues(alpha: 0.3)),
       ),
       child: Row(
@@ -466,7 +466,7 @@ class _DeviceHeartbeatChip extends ConsumerWidget {
               Text(
                 _resolveDeviceName(ref, snapshot.deviceId),
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -476,7 +476,7 @@ class _DeviceHeartbeatChip extends ConsumerWidget {
                     ? 'OK - ${_formatAge(age)} ago'
                     : 'Unhealthy - last seen ${_formatAge(age)} ago',
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: NightshadeTypography.fontSize9,
                   color: snapshot.isHealthy
                       ? colors.textMuted
                       : colors.error,
@@ -532,7 +532,7 @@ class _HealthErrorContent extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: colors.error.withValues(alpha: 0.06),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.error.withValues(alpha: 0.15)),
         ),
         child: Row(
@@ -543,7 +543,7 @@ class _HealthErrorContent extends StatelessWidget {
               child: Text(
                 'Failed to load health report: $error',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.error,
                 ),
               ),

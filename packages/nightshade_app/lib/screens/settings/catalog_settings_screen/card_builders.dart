@@ -26,7 +26,7 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(
           color: isInstalled
               ? colors.success.withValues(alpha: 0.3)
@@ -42,7 +42,7 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
                 padding: const EdgeInsets.all(12),
                 decoration: NightshadeDecorations.iconChip(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
                 child: Icon(icon, color: colors.primary, size: 24),
               ),
@@ -58,7 +58,7 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
                           style: TextStyle(
                             color: colors.textPrimary,
                             fontWeight: FontWeight.w600,
-                            fontSize: 16,
+                            fontSize: NightshadeTypography.fontSize16,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -70,13 +70,13 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
                             ),
                             decoration: BoxDecoration(
                               color: colors.success.withValues(alpha: 0.2),
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               'Installed',
                               style: TextStyle(
                                 color: colors.success,
-                                fontSize: 11,
+                                fontSize: NightshadeTypography.fontSize11,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -88,7 +88,7 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
                       description,
                       style: TextStyle(
                         color: colors.textSecondary,
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                       ),
                     ),
                   ],
@@ -106,7 +106,7 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
             'Source: $sourceUrl',
             style: TextStyle(
               color: colors.textSecondary.withValues(alpha: 0.7),
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontFamily: 'monospace',
             ),
           ),
@@ -178,7 +178,7 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
           label,
           style: TextStyle(
             color: colors.textSecondary,
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
           ),
         ),
         const SizedBox(height: 2),
@@ -186,7 +186,7 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: NightshadeDecorations.statusChip(
             colors.textPrimary,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             bordered: false,
           ),
           child: Text(
@@ -194,7 +194,7 @@ mixin _CatalogCardBuilders on ConsumerState<CatalogSettingsScreen> {
             style: TextStyle(
               color: colors.textPrimary,
               fontWeight: FontWeight.w500,
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
             ),
           ),
         ),

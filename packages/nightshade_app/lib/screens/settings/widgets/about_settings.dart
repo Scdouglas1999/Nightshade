@@ -51,7 +51,7 @@ class AboutSettings extends StatelessWidget {
               Text(
                 'Nightshade',
                 style: TextStyle(
-                  fontSize: isMobile ? 20 : 24,
+                  fontSize: isMobile ? NightshadeTypography.fontSize20 : NightshadeTypography.fontSize24,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                 ),
@@ -60,7 +60,7 @@ class AboutSettings extends StatelessWidget {
               Text(
                 'Version 2.2.0',
                 style: TextStyle(
-                  fontSize: isMobile ? 13 : 14,
+                  fontSize: isMobile ? NightshadeTypography.fontSize13 : NightshadeTypography.fontSize14,
                   color: colors.textSecondary,
                 ),
               ),
@@ -68,7 +68,7 @@ class AboutSettings extends StatelessWidget {
               Text(
                 'Advanced astrophotography suite',
                 style: TextStyle(
-                  fontSize: isMobile ? 12 : 13,
+                  fontSize: isMobile ? NightshadeTypography.fontSize12 : NightshadeTypography.fontSize13,
                   color: colors.textMuted,
                 ),
               ),
@@ -132,7 +132,7 @@ class AboutSettings extends StatelessWidget {
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: colors.surface,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(color: colors.border),
                 ),
                 child: Column(
@@ -140,7 +140,7 @@ class AboutSettings extends StatelessWidget {
                     Text(
                       'System Information',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: NightshadeTypography.fontSize14,
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
                       ),

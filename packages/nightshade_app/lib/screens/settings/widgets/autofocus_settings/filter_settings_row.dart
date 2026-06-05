@@ -91,7 +91,7 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
             child: Text(
               '${widget.position}',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: NightshadeColors.of(context).textSecondary,
                 fontFamily: 'monospace',
               ),
@@ -103,7 +103,7 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
             child: Text(
               widget.filterName,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: FontWeight.w500,
                 color: NightshadeColors.of(context).textPrimary,
               ),
@@ -247,7 +247,7 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
         height: 28,
         decoration: BoxDecoration(
           color: NightshadeColors.of(context).surfaceAlt,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
           border: Border.all(color: NightshadeColors.of(context).border),
         ),
         child: TextField(
@@ -257,7 +257,7 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
             FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
           ],
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: NightshadeColors.of(context).textPrimary,
           ),
           textAlign: TextAlign.right,
@@ -268,7 +268,7 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
             isDense: true,
             hintText: hint,
             hintStyle: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: NightshadeColors.of(context).textMuted,
             ),
           ),

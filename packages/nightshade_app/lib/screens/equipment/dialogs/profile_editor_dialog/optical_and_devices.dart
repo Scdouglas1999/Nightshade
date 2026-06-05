@@ -112,7 +112,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
               color: colors.surface,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
             child: Row(
@@ -158,7 +158,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
         Text(
           label,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w500,
             color: colors.textSecondary,
           ),

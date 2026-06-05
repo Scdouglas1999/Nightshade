@@ -172,7 +172,7 @@ class SettingRow extends StatelessWidget {
                 Text(
                   subtitle!,
                   style: NightshadeTypography.captionSm.copyWith(
-                    fontSize: isMobile ? 10 : 11,
+                    fontSize: isMobile ? NightshadeTypography.fontSize10 : NightshadeTypography.fontSize11,
                     color: colors.textMuted,
                   ),
                 ),
@@ -219,7 +219,7 @@ class SettingRow extends StatelessWidget {
                     Text(
                       subtitle!,
                       style: NightshadeTypography.captionSm
-                          .copyWith(fontSize: 10, color: colors.textMuted),
+                          .copyWith(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                     ),
                   ],
                 ],

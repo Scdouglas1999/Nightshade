@@ -294,7 +294,7 @@ class _AavsoObserverCodeRowState extends ConsumerState<_AavsoObserverCodeRow> {
           textCapitalization: TextCapitalization.characters,
           style: TextStyle(
             color: NightshadeColors.of(context).textPrimary,
-            fontSize: 13,
+            fontSize: NightshadeTypography.fontSize13,
           ),
           decoration: InputDecoration(
             isDense: true,
@@ -302,16 +302,16 @@ class _AavsoObserverCodeRowState extends ConsumerState<_AavsoObserverCodeRow> {
             hintText: 'e.g. XYZ',
             hintStyle: TextStyle(
               color: NightshadeColors.of(context).textMuted,
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
             ),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               borderSide: BorderSide(color: NightshadeColors.of(context).border),
             ),
             errorBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               borderSide: BorderSide(color: NightshadeColors.of(context).error),
             ),
           ),
@@ -386,7 +386,7 @@ class _MpcObservatoryCodeRowState
           textCapitalization: TextCapitalization.characters,
           style: TextStyle(
             color: NightshadeColors.of(context).textPrimary,
-            fontSize: 13,
+            fontSize: NightshadeTypography.fontSize13,
           ),
           decoration: InputDecoration(
             isDense: true,
@@ -394,12 +394,12 @@ class _MpcObservatoryCodeRowState
             hintText: 'e.g. G40',
             hintStyle: TextStyle(
               color: NightshadeColors.of(context).textMuted,
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
             ),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               borderSide: BorderSide(color: NightshadeColors.of(context).border),
             ),
           ),
@@ -469,14 +469,14 @@ class _ScienceReadNoiseRowState extends ConsumerState<_ScienceReadNoiseRow> {
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           style: TextStyle(
             color: NightshadeColors.of(context).textPrimary,
-            fontSize: 13,
+            fontSize: NightshadeTypography.fontSize13,
           ),
           decoration: InputDecoration(
             isDense: true,
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               borderSide: BorderSide(color: NightshadeColors.of(context).border),
             ),
           ),

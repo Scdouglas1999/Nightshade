@@ -95,13 +95,13 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
                 height: 28,
                 decoration: NightshadeDecorations.tintedBadge(
                   NightshadeColors.of(context).primary,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Center(
                   child: Text(
                     '${widget.position}',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       fontWeight: FontWeight.w600,
                       color: NightshadeColors.of(context).primary,
                     ),
@@ -112,7 +112,7 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
               Text(
                 widget.filterName,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: NightshadeTypography.fontSize14,
                   fontWeight: FontWeight.w600,
                   color: NightshadeColors.of(context).textPrimary,
                 ),
@@ -257,7 +257,7 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
           Text(
             label,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               fontWeight: FontWeight.w600,
               color: NightshadeColors.of(context).textSecondary,
             ),
@@ -278,7 +278,7 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
       height: 32,
       decoration: BoxDecoration(
         color: NightshadeColors.of(context).surfaceAlt,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
         border: Border.all(color: NightshadeColors.of(context).border),
       ),
       child: TextField(
@@ -288,7 +288,7 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
           FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
         ],
         style: TextStyle(
-          fontSize: 12,
+          fontSize: NightshadeTypography.fontSize12,
           color: NightshadeColors.of(context).textPrimary,
         ),
         textAlign: TextAlign.right,
@@ -299,7 +299,7 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
           isDense: true,
           hintText: hint,
           hintStyle: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             color: NightshadeColors.of(context).textMuted,
           ),
         ),

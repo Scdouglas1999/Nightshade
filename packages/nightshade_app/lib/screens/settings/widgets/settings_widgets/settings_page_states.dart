@@ -212,7 +212,7 @@ class SettingsErrorState extends StatelessWidget {
                   style: NightshadeTypography.bold(
                     isMobile
                         ? NightshadeTypography.bodyLg
-                        : NightshadeTypography.bodyLg.copyWith(fontSize: 18),
+                        : NightshadeTypography.bodyLg.copyWith(fontSize: NightshadeTypography.fontSize18),
                   ).copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: NightshadeTokens.spaceSm),

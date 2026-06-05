@@ -24,7 +24,7 @@ class ObservingListsSettings extends ConsumerWidget {
               Text(
                 'Observing Lists',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: NightshadeTypography.fontSize18,
                   fontWeight: FontWeight.bold,
                   color: colors.textPrimary,
                 ),
@@ -39,7 +39,7 @@ class ObservingListsSettings extends ConsumerWidget {
           const SizedBox(height: 8),
           Text(
             'Manage your curated target collections for observing sessions.',
-            style: TextStyle(fontSize: 13, color: colors.textSecondary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textSecondary),
           ),
           const SizedBox(height: 24),
 
@@ -83,7 +83,7 @@ class ObservingListsSettings extends ConsumerWidget {
       padding: const EdgeInsets.all(32),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Center(
@@ -94,7 +94,7 @@ class ObservingListsSettings extends ConsumerWidget {
             Text(
               'No observing lists yet',
               style: TextStyle(
-                fontSize: 16,
+                fontSize: NightshadeTypography.fontSize16,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -104,7 +104,7 @@ class ObservingListsSettings extends ConsumerWidget {
               'Create observing lists to organize your targets.\n'
               'You can add objects from the planetarium view.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
             ),
             const SizedBox(height: 16),
             FilledButton.icon(
@@ -189,7 +189,7 @@ class _ObservingListManagementCard extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -206,7 +206,7 @@ class _ObservingListManagementCard extends ConsumerWidget {
                     Text(
                       list.name,
                       style: TextStyle(
-                        fontSize: 15,
+                        fontSize: NightshadeTypography.fontSize15,
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
                       ),
@@ -218,7 +218,7 @@ class _ObservingListManagementCard extends ConsumerWidget {
                         child: Text(
                           list.description!,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: NightshadeTypography.fontSize12,
                             color: colors.textMuted,
                           ),
                         ),
@@ -229,7 +229,7 @@ class _ObservingListManagementCard extends ConsumerWidget {
               Text(
                 '$itemCount object${itemCount == 1 ? '' : 's'}',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textSecondary,
                 ),
               ),
@@ -371,11 +371,11 @@ class _ActionChip extends StatelessWidget {
         decoration: isDestructive
             ? NightshadeDecorations.emphasisSurface(
                 colors.error,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               )
             : NightshadeDecorations.iconChip(
                 colors.primary,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -385,7 +385,7 @@ class _ActionChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w500,
                 color: color,
               ),

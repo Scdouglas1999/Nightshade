@@ -194,7 +194,7 @@ class _FirstTimeOnboarding extends StatelessWidget {
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(color: colors.border),
               ),
               child: Column(
@@ -280,7 +280,7 @@ class _SetupStep extends StatelessWidget {
             child: Text(
               number,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 fontWeight: FontWeight.w600,
                 color: colors.primary,
               ),
@@ -292,7 +292,7 @@ class _SetupStep extends StatelessWidget {
           child: Text(
             text,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: NightshadeTypography.fontSize14,
               color: colors.textPrimary,
             ),
           ),
@@ -344,7 +344,7 @@ class _ProfileMismatchBanner extends ConsumerWidget {
               '${mismatches.length == 1 ? 'does' : 'do'} not match the '
               'assignments in the active profile "${activeProfile.name}".',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.warning,
                 fontWeight: FontWeight.w500,
               ),

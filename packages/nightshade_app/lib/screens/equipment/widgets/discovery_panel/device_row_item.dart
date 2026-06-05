@@ -182,7 +182,7 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
               child: Text(
                 profile.name,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textPrimary,
                 ),
               ),
@@ -191,7 +191,7 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
             Text(
               slotStatus,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
               ),
             ),
@@ -206,7 +206,7 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
         child: Text(
           'No profiles available',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             color: colors.textMuted,
             fontStyle: FontStyle.italic,
           ),
@@ -258,7 +258,7 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
             child: Text(
               widget.device.displayName,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textPrimary,
               ),
               overflow: TextOverflow.ellipsis,
@@ -272,12 +272,12 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: NightshadeDecorations.statusChip(
               _getDriverTypeColor(activeBackend, colors),
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Text(
               activeBackend.shortLabel.toLowerCase(),
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 color: _getDriverTypeColor(activeBackend, colors),
                 fontWeight: FontWeight.w500,
               ),
@@ -291,14 +291,14 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
             onSelected: _handleAssign,
             offset: const Offset(0, 30),
             shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
             color: colors.surface,
             itemBuilder: (context) => _buildAssignMenuItems(colors),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 border: Border.all(color: colors.border),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -306,7 +306,7 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
                   Text(
                     'Assign',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textSecondary,
                     ),
                   ),

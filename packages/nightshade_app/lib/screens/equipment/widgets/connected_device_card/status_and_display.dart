@@ -63,7 +63,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
           height: 40,
           decoration: NightshadeDecorations.iconChip(
             accentColor,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
           ),
           child: Icon(
             widget.type.icon,
@@ -82,7 +82,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
               Text(
                 widget.type.displayName,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w500,
                   color: colors.textMuted,
                   letterSpacing: 0.5,
@@ -91,7 +91,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
               Text(
                 deviceName,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: NightshadeTypography.fontSize14,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -339,7 +339,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: NightshadeDecorations.statusChip(
         color,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         bordered: false,
       ),
       child: Row(
@@ -369,7 +369,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
           Text(
             text,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               fontWeight: FontWeight.w500,
               color: color,
             ),
@@ -391,7 +391,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
               Text(
                 metric.value,
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: NightshadeTypography.fontSize18,
                   fontWeight: FontWeight.w600,
                   color: metric.valueColor ?? colors.textPrimary,
                   fontFamily: 'monospace',
@@ -401,7 +401,7 @@ extension _ConnectedDeviceStatusAndDisplay on _ConnectedDeviceCardState {
               Text(
                 metric.label,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textMuted,
                 ),
               ),

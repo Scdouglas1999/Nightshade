@@ -270,7 +270,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -279,7 +279,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
           // Header bar - always visible
           InkWell(
             onTap: _toggleExpanded,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: LayoutBuilder(
@@ -290,7 +290,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                   final summary = Text(
                     '$totalDevices device${totalDevices == 1 ? '' : 's'} found  \u2022  Last scan: $lastScanText',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textMuted,
                     ),
                     overflow: TextOverflow.ellipsis,
@@ -342,7 +342,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
 
                   final expandControl = InkWell(
                     onTap: _toggleExpanded,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                     child: Container(
                       padding: EdgeInsets.symmetric(
                         horizontal: compact ? 8 : 10,
@@ -350,7 +350,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                       ),
                       decoration: BoxDecoration(
                         color: colors.surfaceAlt,
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                         border: Border.all(color: colors.border),
                       ),
                       child: Row(
@@ -360,7 +360,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                             Text(
                               _isExpanded ? 'Collapse' : 'Expand',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: NightshadeTypography.fontSize11,
                                 fontWeight: FontWeight.w500,
                                 color: colors.textSecondary,
                               ),
@@ -396,7 +396,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                             Text(
                               'DISCOVERY',
                               style: TextStyle(
-                                fontSize: 12,
+                                fontSize: NightshadeTypography.fontSize12,
                                 fontWeight: FontWeight.w600,
                                 color: colors.textPrimary,
                                 letterSpacing: 0.5,
@@ -427,7 +427,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                       Text(
                         'DISCOVERY',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           fontWeight: FontWeight.w600,
                           color: colors.textPrimary,
                           letterSpacing: 0.5,
@@ -582,7 +582,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
             child: Text(
               'No ${title.toLowerCase()} found',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textMuted,
                 fontStyle: FontStyle.italic,
               ),
@@ -604,7 +604,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
     return Container(
       decoration: BoxDecoration(
         color: colors.surfaceAlt.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border.withValues(alpha: 0.5)),
       ),
       child: Column(
@@ -620,7 +620,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     fontWeight: FontWeight.w600,
                     color: colors.textMuted,
                     letterSpacing: 0.5,
@@ -630,7 +630,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                 Text(
                   '${devices.length} found',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     color: colors.textMuted,
                   ),
                 ),
@@ -659,7 +659,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
         padding: const EdgeInsets.all(12),
         decoration: NightshadeDecorations.emphasisSurface(
           colors.info,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         ),
         child: Row(
           children: [
@@ -669,7 +669,7 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
               child: Text(
                 'Configure INDI servers in Settings to discover remote devices.',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textSecondary,
                 ),
               ),

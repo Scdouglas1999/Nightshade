@@ -261,7 +261,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: colors.background,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -269,7 +269,7 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
             Text(
               'Additional Info',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w600,
                 color: colors.textMuted,
               ),

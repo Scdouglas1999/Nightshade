@@ -203,7 +203,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                         _PortRangeFormatter(),
                       ],
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         color: NightshadeColors.of(context).textPrimary,
                       ),
                       decoration: InputDecoration(
@@ -213,17 +213,17 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                           vertical: 8,
                         ),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                           borderSide: BorderSide(
                               color: NightshadeColors.of(context).border),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                           borderSide: BorderSide(
                               color: NightshadeColors.of(context).border),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                           borderSide: BorderSide(
                             color: NightshadeColors.of(context).primary,
                             width: 2,
@@ -335,7 +335,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
               padding: const EdgeInsets.all(14),
               decoration: NightshadeDecorations.iconChip(
                 NightshadeColors.of(context).primary,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                 borderAlpha: 0.2,
               ),
               child: Row(
@@ -351,7 +351,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                     child: Text(
                       l10n.text('remoteAccessInfoBody'),
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: NightshadeColors.of(context).textSecondary,
                         height: 1.5,
                       ),
@@ -369,7 +369,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: NightshadeColors.of(context).surface,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                     border:
                         Border.all(color: NightshadeColors.of(context).border),
                   ),
@@ -387,7 +387,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                     title: Text(
                       l10n.text('remoteAccessDetailsTitle'),
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         fontWeight: FontWeight.w600,
                         color: NightshadeColors.of(context).textPrimary,
                       ),
@@ -395,7 +395,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                     subtitle: Text(
                       l10n.text('remoteAccessDetailsBody'),
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: NightshadeColors.of(context).textMuted,
                       ),
                     ),

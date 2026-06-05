@@ -56,7 +56,7 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
       backgroundColor: c.surface,
       title: Text(
         widget.category.label,
-        style: TextStyle(color: c.textPrimary, fontSize: 16),
+        style: TextStyle(color: c.textPrimary, fontSize: NightshadeTypography.fontSize16),
       ),
       content: SizedBox(
         width: dialogMaxWidth(context, 480),
@@ -149,13 +149,13 @@ class _CategoryEditorDialogState extends State<_CategoryEditorDialog> {
               ),
               const SizedBox(height: 6),
               Text('Live preview:',
-                  style: TextStyle(color: c.textMuted, fontSize: 11)),
+                  style: TextStyle(color: c.textMuted, fontSize: NightshadeTypography.fontSize11)),
               const SizedBox(height: 4),
               Text(
                 _previewBody(),
                 style: TextStyle(
                     color: c.textPrimary,
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontStyle: FontStyle.italic),
               ),
             ],

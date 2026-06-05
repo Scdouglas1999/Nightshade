@@ -61,7 +61,7 @@ class _ConnectAllProgressStrip extends ConsumerWidget {
             child: Text(
               state.isSweeping ? 'Connecting…' : 'Connect All result',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w600,
                 color: colors.textSecondary,
               ),
@@ -101,7 +101,7 @@ class _ConnectAllProgressChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: color.withValues(alpha: 0.4)),
       ),
       child: Row(
@@ -112,7 +112,7 @@ class _ConnectAllProgressChip extends StatelessWidget {
           Text(
             event.deviceType,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textPrimary,
               fontWeight: FontWeight.w500,
             ),
@@ -133,7 +133,7 @@ class _ConnectAllProgressChip extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: color,
               fontWeight: FontWeight.w600,
             ),
@@ -240,7 +240,7 @@ class _ConnectionStatusSummary extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: NightshadeDecorations.statusChip(
         colors.success,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -257,7 +257,7 @@ class _ConnectionStatusSummary extends ConsumerWidget {
           Text(
             '$connectedCount connected',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w600,
               color: colors.success,
             ),
@@ -385,7 +385,7 @@ class _DeviceDashboard extends ConsumerWidget {
             Text(
               'Select a profile to view devices',
               style: TextStyle(
-                fontSize: 16,
+                fontSize: NightshadeTypography.fontSize16,
                 color: colors.textSecondary,
               ),
             ),
@@ -424,7 +424,7 @@ class _DeviceDashboard extends ConsumerWidget {
               Text(
                 'No devices connected',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: NightshadeTypography.fontSize16,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -433,7 +433,7 @@ class _DeviceDashboard extends ConsumerWidget {
               Text(
                 'Connect the equipment assigned to this profile.',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   color: colors.textSecondary,
                 ),
               ),
@@ -458,7 +458,7 @@ class _DeviceDashboard extends ConsumerWidget {
               Text(
                 'No devices assigned',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: NightshadeTypography.fontSize16,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -467,7 +467,7 @@ class _DeviceDashboard extends ConsumerWidget {
               Text(
                 'Add equipment to this profile to begin, or discover devices below.',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   color: colors.textSecondary,
                 ),
               ),
