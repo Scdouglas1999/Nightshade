@@ -51,6 +51,10 @@ scripts:
     run: dart run tools/production/placeholder_audit.dart --fail-on-new-highrisk --compare-highrisk-baseline docs/production-readiness/highrisk-baseline.txt
     description: Scan placeholder/stub markers and fail on new high-risk markers
 
+  audit:design-tokens:
+    run: dart run tools/production/design_tokens_audit.dart
+    description: Track design-system token adoption in app screens (hardcoded radii, inline TextStyle fontSize, raw Colors.*). Informational by default; pass --max-*=N or --strict to enforce.
+
   audit:public-release-gate:
     run: dart run tools/production/public_release_gate.dart
     description: Combine release evidence artifacts into one conservative ship/no-ship gate

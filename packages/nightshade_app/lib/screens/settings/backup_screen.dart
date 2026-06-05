@@ -217,58 +217,22 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
     final isRemoteMode = ref.watch(isRemoteModeProvider);
     final autoSaveStatus = ref.watch(autoSaveStatusProvider);
 
     return Scaffold(
       body: Column(
         children: [
-          Container(
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              border: Border(bottom: BorderSide(color: colors.border)),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: NightshadeDecorations.iconChip(
-                    colors.primary,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child:
-                      Icon(LucideIcons.save, color: colors.primary, size: 24),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Backup & Restore',
-                        style: TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        isRemoteMode
-                            ? 'Manage backups stored on the connected Nightshade host'
-                            : 'Manage your Nightshade data backups',
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
+          // Canonical screen chrome: title + subtitle route through the shared
+          // [ScreenHeader] (design-system typography + divider) instead of a
+          // hand-rolled icon-chip title row.
+          ScreenHeader(
+            icon: LucideIcons.save,
+            title: 'Backup & Restore',
+            subtitle: isRemoteMode
+                ? 'Manage backups stored on the connected Nightshade host'
+                : 'Manage your Nightshade data backups',
+            padding: const EdgeInsets.all(NightshadeTokens.spaceXl),
           ),
           Expanded(
             child: SingleChildScrollView(

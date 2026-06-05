@@ -23,79 +23,43 @@ class _WeatherHeader extends StatelessWidget {
       onPressed: isLoading ? null : onRefresh,
       icon: isLoading
           ? SizedBox(
-              width: 20,
-              height: 20,
+              width: NightshadeTokens.iconMd,
+              height: NightshadeTokens.iconMd,
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 valueColor: AlwaysStoppedAnimation(colors.primary),
               ),
             )
-          : const Icon(LucideIcons.refreshCw, size: 20),
+          : const Icon(LucideIcons.refreshCw, size: NightshadeTokens.iconMd),
       color: colors.textSecondary,
       tooltip: 'Refresh radar data',
     );
 
     final settingsButton = IconButton(
       onPressed: onSettingsTap,
-      icon: const Icon(LucideIcons.settings, size: 20),
+      icon: const Icon(LucideIcons.settings, size: NightshadeTokens.iconMd),
       color: colors.textSecondary,
       tooltip: 'Weather settings',
     );
 
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: isPhone ? 16 : 24, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(
-          bottom: BorderSide(color: colors.border),
+    // Canonical screen chrome: title, subtitle, and trailing actions route
+    // through the shared [ScreenHeader] (typography + divider from the design
+    // system) instead of a hand-rolled title row. The top safe-area inset is
+    // preserved by wrapping the header — the outer Scaffold only handles the
+    // bottom inset.
+    return SafeArea(
+      bottom: false,
+      child: ScreenHeader(
+        icon: LucideIcons.cloudRain,
+        title: 'Weather Radar',
+        subtitle: 'Live cloud tracking and safety monitoring',
+        padding: EdgeInsets.symmetric(
+          horizontal: isPhone ? NightshadeTokens.spaceLg : NightshadeTokens.space2xl,
+          vertical: NightshadeTokens.spaceMd,
         ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: Row(
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: NightshadeDecorations.tintedBadge(
-                colors.info,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                LucideIcons.cloudRain,
-                size: 20,
-                color: colors.info,
-              ),
-            ),
-            const SizedBox(width: 12),
-            // Title block flexes so it never pushes the action buttons off
-            // the edge on a narrow phone.
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Weather Radar',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: isPhone ? 18 : 20,
-                      fontWeight: FontWeight.w700,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  Text(
-                    'Live cloud tracking and safety monitoring',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
             refreshButton,
             settingsButton,
           ],
@@ -123,12 +87,16 @@ class _RadarControlsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(Responsive.isPhone(context) ? 12 : 16),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
+    // Static controls panel routed through the design-system [NightshadeCard]
+    // (subtle variant = surface background + token border) rather than a
+    // hand-rolled Container(BoxDecoration). The responsive inset is preserved
+    // via the card padding.
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      padding: EdgeInsets.all(
+        Responsive.isPhone(context)
+            ? NightshadeTokens.spaceMd
+            : NightshadeTokens.spaceLg,
       ),
       child: Column(
         children: [
