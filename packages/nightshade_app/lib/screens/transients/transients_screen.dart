@@ -61,7 +61,7 @@ class TransientsScreen extends ConsumerWidget {
             child: alertsAsync.when(
               data: (alerts) =>
                   _buildDataState(context, ref, colors, alerts, currentFilter),
-              loading: () => _buildLoadingState(colors),
+              loading: () => _buildLoadingState(),
               error: (error, stackTrace) =>
                   _buildErrorState(context, ref, colors, error),
             ),
@@ -140,15 +140,15 @@ class TransientsScreen extends ConsumerWidget {
     }
   }
 
-  Widget _buildLoadingState(NightshadeColors colors) {
+  Widget _buildLoadingState() {
     return ShimmerLoading(
       child: ListView.builder(
         padding: NightshadeTokens.screenPadding,
         itemCount: 5,
         itemBuilder: (context, index) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
-            child: _TransientCardSkeleton(colors: colors),
+          return const Padding(
+            padding: EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+            child: _TransientCardSkeleton(),
           );
         },
       ),
@@ -432,20 +432,15 @@ class _FilterChip extends StatelessWidget {
 
 /// Skeleton loading cards for transient items.
 class _TransientCardSkeleton extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const _TransientCardSkeleton({required this.colors});
+  const _TransientCardSkeleton();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: NightshadeTokens.borderRadiusLg,
-        border: Border.all(color: colors.border),
-      ),
+    return const NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusLg,
       padding: NightshadeTokens.cardPadding,
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(

@@ -13,13 +13,10 @@ class _WeatherSafetyCard extends ConsumerWidget {
     final status = safetyState.status;
     final snoozeUntil = safetyState.snoozeUntil;
 
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusInline8,
       padding: _weatherCardPadding(context),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: NightshadeTokens.borderRadiusInline8,
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -133,13 +130,10 @@ class _WeatherSettingsCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(weatherSettingsProvider);
 
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusInline8,
       padding: _weatherCardPadding(context),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: NightshadeTokens.borderRadiusInline8,
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

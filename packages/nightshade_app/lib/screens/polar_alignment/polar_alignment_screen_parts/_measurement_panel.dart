@@ -119,13 +119,10 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
               ),
             );
 
-        final progressPanel = Container(
+        final progressPanel = NightshadeCard(
+          variant: CardVariant.subtle,
+          borderRadius: NightshadeTokens.radiusInline8,
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: NightshadeTokens.borderRadiusInline8,
-            border: Border.all(color: colors.border),
-          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: stack ? MainAxisSize.min : MainAxisSize.max,
@@ -336,14 +333,11 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
               ),
             );
 
-        final directionPanel = Container(
+        final directionPanel = NightshadeCard(
               key: PolarAlignmentTutorialKeys.adjustment,
+              variant: CardVariant.subtle,
+              borderRadius: NightshadeTokens.radiusInline8,
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: NightshadeTokens.borderRadiusInline8,
-                border: Border.all(color: colors.border),
-              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: stack ? MainAxisSize.min : MainAxisSize.max,

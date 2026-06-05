@@ -67,13 +67,10 @@ class FramingControlsSection extends ConsumerWidget {
             colors: colors,
           ),
         ] else ...[
-          Container(
+          NightshadeCard(
+            variant: CardVariant.standard,
+            borderRadius: NightshadeTokens.radiusInline8,
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              borderRadius: NightshadeTokens.borderRadiusInline8,
-              border: Border.all(color: colors.border),
-            ),
             child: Row(
               children: [
                 Icon(NightshadeIcons.frame, size: 16, color: colors.textMuted),
@@ -216,14 +213,11 @@ class FramingCoordinatesPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final target = framingState.target;
 
-    return Container(
+    return NightshadeCard(
       key: FramingTutorialKeys.coordinates,
+      variant: CardVariant.standard,
+      borderRadius: NightshadeTokens.radiusLg,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: NightshadeTokens.borderRadiusLg,
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -318,13 +312,10 @@ class FramingAltitudePanel extends StatelessWidget {
     final target = framingState.target;
 
     if (target == null) {
-      return Container(
+      return NightshadeCard(
+        variant: CardVariant.standard,
+        borderRadius: NightshadeTokens.radiusLg,
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: NightshadeTokens.borderRadiusLg,
-          border: Border.all(color: colors.border),
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -350,13 +341,10 @@ class FramingAltitudePanel extends StatelessWidget {
       );
     }
 
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.standard,
+      borderRadius: NightshadeTokens.radiusLg,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: NightshadeTokens.borderRadiusLg,
-        border: Border.all(color: colors.border),
-      ),
       child: AltitudeChart(
         key: FramingTutorialKeys.altitudeChart,
         raHours: target.raHours,

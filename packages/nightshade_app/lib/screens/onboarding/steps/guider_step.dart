@@ -131,13 +131,10 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
         const SizedBox(height: 16),
 
         // PHD2 quick path
-        Container(
+        NightshadeCard(
+          variant: CardVariant.subtle,
+          borderRadius: NightshadeTokens.radiusLg,
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: NightshadeTokens.borderRadiusLg,
-            border: Border.all(color: colors.border),
-          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

@@ -107,13 +107,10 @@ class _OnboardingCaptureDirStepState
           ),
         ),
         const SizedBox(height: 16),
-        Container(
+        NightshadeCard(
+          variant: CardVariant.subtle,
+          borderRadius: NightshadeTokens.radiusLg,
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: NightshadeTokens.borderRadiusLg,
-            border: Border.all(color: colors.border),
-          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [

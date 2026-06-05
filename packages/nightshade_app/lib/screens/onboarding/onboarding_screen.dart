@@ -308,14 +308,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     _StepSidebar(currentStep: draft.currentStep),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: Container(
+                      child: NightshadeCard(
+                        backgroundColor: colors.background,
+                        borderRadius: NightshadeTokens.radiusLg,
                         padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: colors.background,
-                          borderRadius:
-                              BorderRadius.circular(NightshadeTokens.radiusLg),
-                          border: Border.all(color: colors.border),
-                        ),
                         child: _StepBody(
                           currentStep: draft.currentStep,
                           onFinishTo: _finishTo,
@@ -714,15 +710,13 @@ class _StepSidebar extends StatelessWidget {
     final theme = Theme.of(context);
     final currentIdx = currentStep.order;
 
-    return Container(
+    return SizedBox(
       width: 220,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        border: Border.all(color: colors.border),
-      ),
-      child: ListView(
+      child: NightshadeCard(
+        variant: CardVariant.subtle,
+        borderRadius: NightshadeTokens.radiusLg,
+        padding: const EdgeInsets.all(12),
+        child: ListView(
         children: OnboardingStep.values.map((step) {
           final idx = step.order;
           final isActive = step == currentStep;
@@ -786,6 +780,7 @@ class _StepSidebar extends StatelessWidget {
             ),
           );
         }).toList(),
+        ),
       ),
     );
   }

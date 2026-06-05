@@ -53,14 +53,12 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
         final cardWidth =
             parentMax.isFinite ? (parentMax * 0.92).clamp(280.0, 400.0) : 400.0;
 
-        return Container(
+        return SizedBox(
           width: cardWidth,
+          child: NightshadeCard(
+          variant: CardVariant.subtle,
+          borderRadius: NightshadeTokens.radiusInline8,
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: NightshadeTokens.borderRadiusInline8,
-            border: Border.all(color: colors.border),
-          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -228,6 +226,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                 ],
               ),
             ],
+          ),
           ),
         );
       },

@@ -391,13 +391,10 @@ mixin _GuidingMobileSections
           else
             Expanded(
               child: SingleChildScrollView(
-                child: Container(
+                child: NightshadeCard(
+                  variant: CardVariant.subtle,
+                  borderRadius: NightshadeTokens.radiusInline8,
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: NightshadeTokens.borderRadiusInline8,
-                    border: Border.all(color: colors.border),
-                  ),
                   child: Column(
                     children: [
                       Icon(

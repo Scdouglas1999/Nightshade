@@ -41,13 +41,10 @@ class _CloudCoverCard extends StatelessWidget {
     final label = _getCloudCoverLabel(percent);
     final icon = _getCloudCoverIcon(percent);
 
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusInline8,
       padding: _weatherCardPadding(context),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: NightshadeTokens.borderRadiusInline8,
-        border: Border.all(color: colors.border),
-      ),
       child: Row(
         children: [
           // Icon
@@ -157,13 +154,10 @@ class _HardwareSensorsCard extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusInline8,
       padding: _weatherCardPadding(context),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: NightshadeTokens.borderRadiusInline8,
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

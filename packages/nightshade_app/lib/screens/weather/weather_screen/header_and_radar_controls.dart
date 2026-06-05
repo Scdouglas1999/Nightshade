@@ -227,13 +227,10 @@ class _NoLocationContent extends StatelessWidget {
           constraints: BoxConstraints(
             maxWidth: dialogMaxWidth(context, 400),
           ),
-          child: Container(
+          child: NightshadeCard(
+            variant: CardVariant.subtle,
+            borderRadius: NightshadeTokens.radiusInline8,
             padding: const EdgeInsets.all(32),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: NightshadeTokens.borderRadiusInline8,
-            border: Border.all(color: colors.border),
-          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

@@ -390,12 +390,9 @@ mixin _GuidingDesktopSections
     final titleFontSize = isMobile ? 12.0 : 13.0;
     final contentPadding = isMobile ? 8.0 : 12.0;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: NightshadeTokens.borderRadiusInline8,
-        border: Border.all(color: colors.border),
-      ),
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusInline8,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -455,12 +452,9 @@ mixin _GuidingDesktopSections
     final iconPadding = isMobile ? 4.0 : 6.0;
     final titleFontSize = isMobile ? 12.0 : 13.0;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: NightshadeTokens.borderRadiusInline8,
-        border: Border.all(color: colors.border),
-      ),
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusInline8,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
