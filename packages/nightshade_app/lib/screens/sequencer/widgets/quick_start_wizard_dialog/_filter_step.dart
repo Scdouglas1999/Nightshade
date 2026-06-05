@@ -17,11 +17,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
         if (hasFilters) ...[
           Text(
             'Quick Presets',
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: NightshadeTypography.fontSize14,
-              fontWeight: FontWeight.w600,
-            ),
+            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -53,12 +49,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
                     children: [
                       Text(
                         preset.label,
-                        style: TextStyle(
-                          color:
-                              isSelected ? colors.primary : colors.textPrimary,
-                          fontSize: NightshadeTypography.fontSize12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: NightshadeTypography.h6.copyWith(color: isSelected ? colors.primary : colors.textPrimary),
                       ),
                       Text(
                         preset.description,
@@ -75,11 +66,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
 
         Text(
           hasFilters ? 'Filter Exposures' : 'Exposure Settings',
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: NightshadeTypography.fontSize14,
-            fontWeight: FontWeight.w600,
-          ),
+          style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 8),
 
@@ -124,11 +111,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
         // Loop settings
         Text(
           'Loop Settings',
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: NightshadeTypography.fontSize14,
-            fontWeight: FontWeight.w600,
-          ),
+          style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 8),
         Row(

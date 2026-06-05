@@ -205,11 +205,7 @@ extension _AutomationStep on _QuickStartWizardDialogState {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(title,
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontSize: NightshadeTypography.fontSize13,
-                      fontWeight: FontWeight.w500,
-                    )),
+                    style: NightshadeTypography.label.copyWith(color: colors.textPrimary)),
                 Text(subtitle,
                     style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11)),
               ],

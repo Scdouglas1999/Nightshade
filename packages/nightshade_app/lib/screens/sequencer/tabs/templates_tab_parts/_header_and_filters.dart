@@ -44,11 +44,7 @@ class _SnippetSummaryCard extends ConsumerWidget {
               children: [
                 Text(
                   'Reusable Snippets',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -450,13 +446,9 @@ class _ActionButtonState extends State<_ActionButton> {
               const SizedBox(width: 8),
               Text(
                 widget.label,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w500,
-                  color: widget.isPrimary
+                style: NightshadeTypography.labelSm.copyWith(color: widget.isPrimary
                       ? onPrimary
-                      : widget.colors.textSecondary,
-                ),
+                      : widget.colors.textSecondary),
               ),
             ],
           ),

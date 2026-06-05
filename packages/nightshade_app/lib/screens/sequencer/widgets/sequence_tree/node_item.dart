@@ -146,10 +146,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Name',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        fontWeight: FontWeight.w500,
-                        color: widget.colors.textSecondary)),
+                    style: NightshadeTypography.labelSm.copyWith(color: widget.colors.textSecondary)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: nameController,
@@ -180,10 +177,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                 ),
                 const SizedBox(height: 14),
                 Text('Description',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        fontWeight: FontWeight.w500,
-                        color: widget.colors.textSecondary)),
+                    style: NightshadeTypography.labelSm.copyWith(color: widget.colors.textSecondary)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: descController,
@@ -214,10 +208,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                 ),
                 const SizedBox(height: 14),
                 Text('Category',
-                    style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        fontWeight: FontWeight.w500,
-                        color: widget.colors.textSecondary)),
+                    style: NightshadeTypography.labelSm.copyWith(color: widget.colors.textSecondary)),
                 const SizedBox(height: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),

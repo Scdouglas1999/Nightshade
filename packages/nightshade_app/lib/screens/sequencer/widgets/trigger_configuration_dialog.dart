@@ -189,11 +189,11 @@ class ExposureTriggerConfig {
   IconData get conditionIcon {
     switch (condition) {
       case TriggerConditionType.guidingRms:
-        return Icons.track_changes;
+        return NightshadeIcons.target;
       case TriggerConditionType.hfr:
-        return Icons.center_focus_weak;
+        return NightshadeIcons.crosshair;
       case TriggerConditionType.drift:
-        return Icons.moving;
+        return NightshadeIcons.move;
     }
   }
 
@@ -269,7 +269,7 @@ class _TriggerConfigurationDialogState
     // Footer rely on its existing mainAxisAlignment.end (no-op with one child).
     return NightshadeDialog(
       title: 'Exposure Triggers',
-      icon: Icons.notifications_active,
+      icon: NightshadeIcons.notifications,
       width: 600,
       height: 500,
       scrollableBody: false,
@@ -280,7 +280,7 @@ class _TriggerConfigurationDialogState
             children: [
               NightshadeButton(
                 onPressed: _addTrigger,
-                icon: Icons.add,
+                icon: NightshadeIcons.add,
                 label: 'Add Trigger',
                 variant: ButtonVariant.outline,
               ),
@@ -306,7 +306,7 @@ class _TriggerConfigurationDialogState
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    Icons.notifications_off,
+                    NightshadeIcons.notificationsOff,
                     size: 64,
                     color: colors.textSecondary.withValues(alpha: 0.3),
                   ),
@@ -374,12 +374,12 @@ class _TriggerConfigurationDialogState
           mainAxisSize: MainAxisSize.min,
           children: [
             IconButton(
-              icon: const Icon(Icons.edit),
+              icon: const Icon(NightshadeIcons.edit),
               onPressed: () => _editTrigger(index),
               tooltip: 'Edit',
             ),
             IconButton(
-              icon: const Icon(Icons.delete),
+              icon: const Icon(NightshadeIcons.delete),
               color: colors.error,
               onPressed: () => _removeTrigger(index),
               tooltip: 'Delete',
@@ -493,7 +493,7 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
 
     return NightshadeDialog(
       title: 'Edit Trigger',
-      icon: Icons.edit,
+      icon: NightshadeIcons.edit,
       width: 440,
       actions: [
         NightshadeButton(

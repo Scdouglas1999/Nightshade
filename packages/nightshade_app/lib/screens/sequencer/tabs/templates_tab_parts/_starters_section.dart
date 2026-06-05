@@ -139,11 +139,7 @@ class _StarterCard extends ConsumerWidget {
                     children: [
                       Text(
                         sample.displayName,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize14,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textPrimary,
-                        ),
+                        style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -345,11 +341,7 @@ class _StartersError extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               'Failed to load starter sequences',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 6),
             Text(

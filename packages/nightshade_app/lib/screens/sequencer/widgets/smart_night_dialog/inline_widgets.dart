@@ -35,11 +35,7 @@ class _StepChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize11,
-          fontWeight: FontWeight.w500,
-          color: fg,
-        ),
+        style: NightshadeTypography.labelQuiet.copyWith(color: fg),
       ),
     );
   }
@@ -322,11 +318,7 @@ class _ProfileRow extends StatelessWidget {
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: NightshadeTypography.fontSize12,
-                fontWeight: FontWeight.w500,
-              ),
+              style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
             ),
           ),
         ],
@@ -539,11 +531,7 @@ class _TargetTile extends StatelessWidget {
               alignment: Alignment.center,
               child: Text(
                 '#$rank',
-                style: TextStyle(
-                  color: colors.textMuted,
-                  fontWeight: FontWeight.w600,
-                  fontSize: NightshadeTypography.fontSize11,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textMuted),
               ),
             ),
             const SizedBox(width: 4),
@@ -553,11 +541,7 @@ class _TargetTile extends StatelessWidget {
                 children: [
                   Text(
                     suggestion.targetName,
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: NightshadeTypography.fontSize13,
-                    ),
+                    style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -584,11 +568,7 @@ class _TargetTile extends StatelessWidget {
               ),
               child: Text(
                 '${suggestion.totalScore.toStringAsFixed(0)}/100',
-                style: TextStyle(
-                  color: colors.primary,
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.primary),
               ),
             ),
           ],
@@ -652,20 +632,12 @@ class _PlannedTargetCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   planned.suggestion.targetName,
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: NightshadeTypography.fontSize14,
-                  ),
+                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                 ),
               ),
               Text(
                 '${planned.suggestion.totalScore.toStringAsFixed(0)}/100',
-                style: TextStyle(
-                  color: colors.primary,
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.primary),
               ),
             ],
           ),
@@ -734,11 +706,7 @@ class _FilterRow extends StatelessWidget {
             alignment: Alignment.center,
             child: Text(
               plan.filterName,
-              style: TextStyle(
-                color: colors.primary,
-                fontSize: NightshadeTypography.fontSize11,
-                fontWeight: FontWeight.w600,
-              ),
+              style: NightshadeTypography.labelStrongSm.copyWith(color: colors.primary),
             ),
           ),
           const SizedBox(width: 12),
@@ -753,11 +721,7 @@ class _FilterRow extends StatelessWidget {
             child: Text(
               '${plan.count} × ${plan.durationSecs.toStringAsFixed(0)}s',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: NightshadeTypography.fontSize12,
-                fontWeight: FontWeight.w500,
-              ),
+              style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
             ),
           ),
           IconButton(
@@ -855,11 +819,7 @@ class _SummaryRow extends StatelessWidget {
           ),
           Text(
             value,
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w500,
-            ),
+            style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
           ),
         ],
       ),

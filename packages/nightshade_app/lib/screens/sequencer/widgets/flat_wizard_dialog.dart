@@ -173,7 +173,7 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
     // slot is intentionally empty.
     return NightshadeDialog(
       title: 'Flat Frame Wizard',
-      icon: Icons.wb_sunny,
+      icon: NightshadeIcons.sun,
       width: 700,
       height: 600,
       scrollableBody: false,
@@ -273,7 +273,7 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
                         ),
                       NightshadeButton(
                         onPressed: _isCalculating ? null : _calculateExposure,
-                        icon: Icons.calculate,
+                        icon: LucideIcons.calculator,
                         label: _isCalculating ? 'Calculating...' : 'Calculate',
                         variant: ButtonVariant.primary,
                         isLoading: _isCalculating,
@@ -289,7 +289,7 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
                     ),
                     child: Column(
                       children: [
-                        Icon(Icons.check_circle,
+                        Icon(NightshadeIcons.success,
                             color: colors.success, size: 48),
                         const SizedBox(height: 16),
                         Text(
@@ -395,17 +395,17 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
             ButtonSegment(
               value: FlatPanelLocation.dawnSky,
               label: Text('Dawn Sky'),
-              icon: Icon(Icons.wb_twilight),
+              icon: Icon(NightshadeIcons.sunset),
             ),
             ButtonSegment(
               value: FlatPanelLocation.duskSky,
               label: Text('Dusk Sky'),
-              icon: Icon(Icons.wb_sunny),
+              icon: Icon(NightshadeIcons.sun),
             ),
             ButtonSegment(
               value: FlatPanelLocation.flatPanel,
               label: Text('Flat Panel'),
-              icon: Icon(Icons.lightbulb),
+              icon: Icon(NightshadeIcons.idea),
             ),
           ],
           selected: {_panelLocation},

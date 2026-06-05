@@ -530,11 +530,7 @@ class _NotificationPreview extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             title.isEmpty ? '(no title)' : title,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
-              fontWeight: FontWeight.w600,
-              color: title.isEmpty ? colors.textMuted : colors.textPrimary,
-            ),
+            style: NightshadeTypography.labelStrong.copyWith(color: title.isEmpty ? colors.textMuted : colors.textPrimary),
           ),
           const SizedBox(height: 2),
           Text(

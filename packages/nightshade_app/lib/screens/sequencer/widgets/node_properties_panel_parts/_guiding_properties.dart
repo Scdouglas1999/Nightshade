@@ -20,11 +20,7 @@ class _StartGuidingProperties extends ConsumerWidget {
       children: [
         Text(
           'Guiding Settings',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(

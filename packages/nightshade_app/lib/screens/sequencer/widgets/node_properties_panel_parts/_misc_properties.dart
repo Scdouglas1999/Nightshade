@@ -16,11 +16,7 @@ class _ScriptProperties extends ConsumerWidget {
       children: [
         Text(
           'Script Settings',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(
@@ -187,11 +183,7 @@ class _DomeProperties extends ConsumerWidget {
       children: [
         Text(
           title,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(
@@ -290,11 +282,7 @@ class _UnknownNodeProperties extends StatelessWidget {
               children: [
                 Text(
                   'No property editor for $typeName',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.warning,
-                  ),
+                  style: NightshadeTypography.h6.copyWith(color: colors.warning),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -413,11 +401,7 @@ class _CalibratorOnProperties extends ConsumerWidget {
                     child: Text(
                       '${node.brightness}',
                       textAlign: TextAlign.right,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                     ),
                   ),
                 ],
@@ -499,11 +483,7 @@ class _CoverCalibratorScaffold extends StatelessWidget {
       children: [
         Text(
           title,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         ...children,

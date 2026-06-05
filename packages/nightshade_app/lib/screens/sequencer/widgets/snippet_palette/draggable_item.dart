@@ -85,11 +85,7 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                         Expanded(
                           child: Text(
                             widget.snippet.name,
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize14,
-                              fontWeight: FontWeight.w600,
-                              color: widget.colors.textPrimary,
-                            ),
+                            style: NightshadeTypography.h5.copyWith(color: widget.colors.textPrimary),
                           ),
                         ),
                         if (widget.snippet.isBuiltIn)
@@ -175,11 +171,7 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
               const SizedBox(width: 8),
               Text(
                 widget.snippet.name,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w500,
-                  color: widget.colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelSm.copyWith(color: widget.colors.textPrimary),
               ),
             ],
           ),
@@ -230,13 +222,9 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                           Expanded(
                             child: Text(
                               widget.snippet.name,
-                              style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize11,
-                                fontWeight: FontWeight.w500,
-                                color: _isHovered
+                              style: NightshadeTypography.labelQuiet.copyWith(color: _isHovered
                                     ? widget.colors.textPrimary
-                                    : widget.colors.textSecondary,
-                              ),
+                                    : widget.colors.textSecondary),
                             ),
                           ),
                           if (widget.snippet.isBuiltIn)

@@ -127,11 +127,7 @@ extension _ReviewStep on _QuickStartWizardDialogState {
                 children: [
                   Text(
                     'Estimated Duration',
-                    style: TextStyle(
-                      color: colors.primary,
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: NightshadeTypography.h6.copyWith(color: colors.primary),
                   ),
                   Text(
                     _formatDuration(totalSecs),
@@ -177,11 +173,7 @@ extension _ReviewStep on _QuickStartWizardDialogState {
               const SizedBox(width: 8),
               Text(
                 title,
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -287,11 +279,7 @@ extension _ReviewStep on _QuickStartWizardDialogState {
         children: [
           Text(
             'Sequence Tree Preview',
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w600,
-            ),
+            style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: 8),
           ...treeLines.map((line) {

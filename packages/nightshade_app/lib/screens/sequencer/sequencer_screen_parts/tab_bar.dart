@@ -73,11 +73,7 @@ class _SequencerTabBar extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   'Sequence Running',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.success,
-                  ),
+                  style: NightshadeTypography.h6.copyWith(color: colors.success),
                 ),
               ],
             ),

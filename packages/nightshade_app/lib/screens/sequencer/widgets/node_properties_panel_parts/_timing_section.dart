@@ -203,11 +203,7 @@ class _TimingSection extends ConsumerWidget {
                       _formatDurationNice(duration),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        fontWeight: FontWeight.w600,
-                        color: colors.primary,
-                      ),
+                      style: NightshadeTypography.h6.copyWith(color: colors.primary),
                     ),
                   ),
                 ],

@@ -149,11 +149,7 @@ class _StatusBadge extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w600,
-              color: badgeColor,
-            ),
+            style: NightshadeTypography.labelStrongSm.copyWith(color: badgeColor),
           ),
         ],
       ),

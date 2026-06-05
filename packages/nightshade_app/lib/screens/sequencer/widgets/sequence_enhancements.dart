@@ -279,11 +279,7 @@ class _TargetBreakdownChipState extends State<_TargetBreakdownChip> {
               children: [
                 Text(
                   'Target Breakdown',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w600,
-                    color: widget.colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.labelStrongSm.copyWith(color: widget.colors.textPrimary),
                 ),
                 const SizedBox(height: 8),
                 ...widget.targets.map((target) => _buildTargetRow(target)),
@@ -317,11 +313,7 @@ class _TargetBreakdownChipState extends State<_TargetBreakdownChip> {
           Expanded(
             child: Text(
               target.targetName,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: widget.colors.textPrimary,
-                fontWeight: FontWeight.w500,
-              ),
+              style: NightshadeTypography.labelQuiet.copyWith(color: widget.colors.textPrimary),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -432,7 +424,7 @@ class LoopIterationBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            Icons.refresh,
+            NightshadeIcons.refresh,
             size: 12,
             color: Color.lerp(colors.primary, colors.accent, progress),
           ),

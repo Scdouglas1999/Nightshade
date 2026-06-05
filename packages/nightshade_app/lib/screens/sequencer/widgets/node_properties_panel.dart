@@ -157,11 +157,7 @@ class NodePropertiesPanel extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     'Properties',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                   ),
                 ),
                 if (onCollapse != null)

@@ -266,11 +266,7 @@ class _MeridianFlipProgressDialogState
                       : _hasFailed
                           ? 'Meridian Flip Failed'
                           : 'Meridian Flip in Progress',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize16,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
                 ),
                 Text(
                   _isComplete
@@ -316,11 +312,7 @@ class _MeridianFlipProgressDialogState
               const SizedBox(width: 8),
               Text(
                 'Target: $_targetName',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -423,11 +415,7 @@ class _MeridianFlipProgressDialogState
               children: [
                 Text(
                   'Error',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.error,
-                  ),
+                  style: NightshadeTypography.h6.copyWith(color: colors.error),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -476,11 +464,7 @@ class _MeridianFlipProgressDialogState
           children: [
             Text(
               '$_progressPercent%',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                fontWeight: FontWeight.w600,
-                color: colors.textSecondary,
-              ),
+              style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
             ),
           ],
         ),
@@ -769,11 +753,7 @@ class _InfoChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             value,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
           ),
         ],
       ),

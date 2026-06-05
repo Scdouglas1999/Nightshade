@@ -143,11 +143,7 @@ Widget _buildMobileSheetContent(
                     Expanded(
                       child: Text(
                         'Templates',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
-                          fontWeight: FontWeight.w600,
-                          color: widget.colors.textPrimary,
-                        ),
+                        style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
                       ),
                     ),
                     Tooltip(

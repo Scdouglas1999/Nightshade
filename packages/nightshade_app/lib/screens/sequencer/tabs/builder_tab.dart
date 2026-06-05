@@ -73,10 +73,7 @@ class BuilderTab extends ConsumerWidget {
                   unselectedLabelColor: colors.textMuted,
                   indicatorColor: colors.primary,
                   dividerColor: colors.border,
-                  labelStyle: const TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  labelStyle: NightshadeTypography.h6,
                   unselectedLabelStyle: const TextStyle(fontSize: NightshadeTypography.fontSize12),
                   tabs: const [
                     Tab(text: 'Palette'),
@@ -119,11 +116,7 @@ class _InstructionPalette extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Text(
               'Instruction Palette',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
           ),
           Expanded(
@@ -247,11 +240,7 @@ class _BuilderWorkspace extends StatelessWidget {
         children: [
           Text(
             'Sequence Timeline',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize14,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 16),
           Expanded(
@@ -304,11 +293,7 @@ class _BuilderWorkspace extends StatelessWidget {
         children: [
           Text(
             'Instruction Properties',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize14,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 16),
           Center(
@@ -363,11 +348,7 @@ class _InstructionCategoryState extends State<_InstructionCategory> {
               const SizedBox(width: 8),
               Text(
                 widget.title,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
               ),
             ],
           ),
@@ -429,11 +410,7 @@ class _InstructionItemState extends State<_InstructionItem> {
                 const SizedBox(width: 8),
                 Text(
                   widget.instruction.name,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    color: onPrimary,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: NightshadeTypography.labelSm.copyWith(color: onPrimary),
                 ),
               ],
             ),

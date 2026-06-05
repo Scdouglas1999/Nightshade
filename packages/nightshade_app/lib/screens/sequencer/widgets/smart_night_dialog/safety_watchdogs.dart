@@ -102,11 +102,7 @@ class SmartNightSafetyWatchdogsSection extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           'Safety & Watchdogs',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-            fontSize: NightshadeTypography.fontSize13,
-          ),
+          style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 4),
         Text(
@@ -136,11 +132,7 @@ class SmartNightSafetyWatchdogsSection extends StatelessWidget {
                       children: [
                         TextSpan(
                           text: '${w.title} — ',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            fontWeight: FontWeight.w600,
-                            color: colors.textSecondary,
-                          ),
+                          style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
                         ),
                         TextSpan(
                           text: w.detail,

@@ -54,7 +54,7 @@ class _StarZoomPanel extends StatelessWidget {
             child: crop != null
                 ? _buildStarImage(crop)
                 : Center(
-                    child: Icon(Icons.star_border,
+                    child: Icon(NightshadeIcons.star,
                         size: 24, color: colors.textMuted),
                   ),
           ),
@@ -73,7 +73,7 @@ class _StarZoomPanel extends StatelessWidget {
               children: [
                 // Previous arrow
                 _buildNavButton(
-                  icon: Icons.chevron_left,
+                  icon: NightshadeIcons.chevronLeft,
                   onTap: starCrops.length > 1 ? onPrevious : null,
                 ),
                 // Counter
@@ -83,7 +83,7 @@ class _StarZoomPanel extends StatelessWidget {
                 ),
                 // Next arrow
                 _buildNavButton(
-                  icon: Icons.chevron_right,
+                  icon: NightshadeIcons.chevronRight,
                   onTap: starCrops.length > 1 ? onNext : null,
                 ),
                 // Refresh button
@@ -98,7 +98,7 @@ class _StarZoomPanel extends StatelessWidget {
                   )
                 else
                   _buildNavButton(
-                    icon: Icons.refresh,
+                    icon: NightshadeIcons.refresh,
                     onTap: onRefresh,
                     size: 12,
                   ),
@@ -134,7 +134,7 @@ class _StarZoomPanel extends StatelessWidget {
       if (pixels.isEmpty) {
         return Center(
             child:
-                Icon(Icons.error_outline, size: 24, color: colors.textMuted));
+                Icon(NightshadeIcons.error, size: 24, color: colors.textMuted));
       }
 
       // Build RGBA image from grayscale
@@ -158,7 +158,7 @@ class _StarZoomPanel extends StatelessWidget {
       );
     } catch (e) {
       return Center(
-          child: Icon(Icons.error_outline, size: 24, color: colors.textMuted));
+          child: Icon(NightshadeIcons.error, size: 24, color: colors.textMuted));
     }
   }
 

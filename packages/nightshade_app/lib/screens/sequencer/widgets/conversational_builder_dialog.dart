@@ -180,11 +180,7 @@ class _ConversationalBuilderDialogState
             const SizedBox(height: 16),
             Text(
               'No AI provider configured',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize16,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
@@ -450,11 +446,7 @@ class _ConversationalBuilderDialogState
         const SizedBox(width: 8),
         Text(
           headline,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize16,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(width: 12),
         if (result.totalUsage != null)
@@ -497,11 +489,7 @@ class _ConversationalBuilderDialogState
         children: [
           Text(
             sequence.name,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize14,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 4),
           if (sequence.description.isNotEmpty)
@@ -625,11 +613,7 @@ class _ConversationalBuilderDialogState
         ),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            color: colors.textPrimary,
-            fontWeight: FontWeight.w600,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
       ],
     );
@@ -683,11 +667,7 @@ class _ConversationalBuilderDialogState
               const SizedBox(width: 8),
               Text(
                 'Refine',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -770,11 +750,7 @@ class _ConversationalBuilderDialogState
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Text(
                 'Round ${i + 1}',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textMuted,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textMuted),
               ),
             ),
             Container(

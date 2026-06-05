@@ -9,6 +9,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -47,7 +48,7 @@ class _InactiveCard extends StatelessWidget {
         padding: const EdgeInsets.all(12.0),
         child: Row(
           children: [
-            Icon(Icons.cast_outlined,
+            Icon(LucideIcons.cast,
                 color: theme.colorScheme.onSurfaceVariant),
             const SizedBox(width: 10),
             Expanded(
@@ -158,7 +159,7 @@ class _ActiveCard extends StatelessWidget {
                 ),
                 IconButton(
                   tooltip: 'Copy URL',
-                  icon: const Icon(Icons.copy, size: 18),
+                  icon: const Icon(NightshadeIcons.copy, size: 18),
                   onPressed: () async {
                     await Clipboard.setData(ClipboardData(text: url));
                     if (context.mounted) {

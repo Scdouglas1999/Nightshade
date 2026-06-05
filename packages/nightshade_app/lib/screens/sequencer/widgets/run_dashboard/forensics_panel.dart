@@ -255,11 +255,7 @@ class _ForensicsRow extends StatelessWidget {
                     children: [
                       Text(
                         record.likelyCause.humanLabel,
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          fontWeight: FontWeight.w600,
-                          color: causeColor,
-                        ),
+                        style: NightshadeTypography.h6.copyWith(color: causeColor),
                       ),
                       const SizedBox(width: NightshadeTokens.spaceSm),
                       Text(

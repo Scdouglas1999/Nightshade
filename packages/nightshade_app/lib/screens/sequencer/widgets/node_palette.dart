@@ -680,11 +680,7 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
                   children: [
                     Text(
                       widget.item.name,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize14,
-                        fontWeight: FontWeight.w600,
-                        color: widget.colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.h5.copyWith(color: widget.colors.textPrimary),
                     ),
                     const SizedBox(height: 2),
                     Text(

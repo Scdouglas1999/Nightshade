@@ -41,11 +41,7 @@ class RunDashboardTargetHeader extends ConsumerWidget {
             const SizedBox(width: NightshadeTokens.spaceMd),
             Text(
               'No target configured',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize14,
-                fontWeight: FontWeight.w600,
-                color: colors.textSecondary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textSecondary),
             ),
           ],
         ),
@@ -364,11 +360,7 @@ class _TargetProgress extends ConsumerWidget {
             children: [
               Text(
                 '${stats.completedFrames}/${stats.totalFrames} frames',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
               ),
               const SizedBox(width: 6),
               Text(
@@ -389,11 +381,7 @@ class _TargetProgress extends ConsumerWidget {
               const Spacer(),
               Text(
                 '${(stats.fraction * 100).round()}%',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
               ),
             ],
           ),

@@ -194,11 +194,7 @@ class PostSessionStatsDialog extends StatelessWidget {
                               padding: const EdgeInsets.only(top: 8, bottom: 4),
                               child: Text(
                                 te.key,
-                                style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize13,
-                                  fontWeight: FontWeight.w600,
-                                  color: colors.textPrimary,
-                                ),
+                                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                               ),
                             ),
                             for (final fe in te.value.entries)
@@ -337,11 +333,7 @@ class _StatRow extends StatelessWidget {
           const Spacer(),
           Text(
             value,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
-              fontWeight: FontWeight.w500,
-              color: valueColor ?? colors.textPrimary,
-            ),
+            style: NightshadeTypography.label.copyWith(color: valueColor ?? colors.textPrimary),
           ),
         ],
       ),

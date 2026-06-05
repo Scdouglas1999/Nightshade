@@ -66,11 +66,7 @@ class _PreflightSectionState extends State<_PreflightSection> {
                   Expanded(
                     child: Text(
                       widget.title,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                     ),
                   ),
                   Container(
@@ -166,11 +162,7 @@ class _IssueRow extends StatelessWidget {
               children: [
                 Text(
                   issue.title,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(

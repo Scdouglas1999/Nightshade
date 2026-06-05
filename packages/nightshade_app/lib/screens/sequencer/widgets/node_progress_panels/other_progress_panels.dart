@@ -28,7 +28,7 @@ class _SlewProgressPanel extends StatelessWidget {
           Row(
             children: [
               Icon(
-                isCentering ? Icons.gps_fixed : Icons.navigation,
+                isCentering ? LucideIcons.locateFixed : LucideIcons.navigation,
                 size: 16,
                 color: colors.warning,
               ),
@@ -36,11 +36,7 @@ class _SlewProgressPanel extends StatelessWidget {
               Expanded(
                 child: Text(
                   isCentering ? 'Centering Target' : 'Slewing to Target',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
                 ),
               ),
               if (separation != null && isCentering)
@@ -87,16 +83,12 @@ class _FilterProgressPanel extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.filter_alt, size: 16, color: colors.accent),
+              Icon(NightshadeIcons.filter, size: 16, color: colors.accent),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   detail.isNotEmpty ? detail : 'Changing Filter',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
                 ),
               ),
             ],
@@ -145,7 +137,7 @@ class _DefaultProgressPanel extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(right: 6),
                       child: Icon(
-                        Icons.error_outline,
+                        NightshadeIcons.error,
                         size: 14,
                         color: colors.error,
                       ),

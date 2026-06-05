@@ -29,11 +29,7 @@ class _QuickTimeButton extends StatelessWidget {
           alignment: Alignment.center,
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w500,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.labelQuiet.copyWith(color: colors.textSecondary),
           ),
         ),
       ),
@@ -139,11 +135,7 @@ class _NodeTypeBadge extends StatelessWidget {
               children: [
                 Text(
                   node.nodeType,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                 ),
                 Text(
                   node.category.name.toUpperCase(),
@@ -564,13 +556,9 @@ class _DangerButtonState extends State<_DangerButton> {
               const SizedBox(width: 8),
               Text(
                 widget.label,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w500,
-                  color: _isHovered
+                style: NightshadeTypography.labelSm.copyWith(color: _isHovered
                       ? widget.colors.error
-                      : widget.colors.textSecondary,
-                ),
+                      : widget.colors.textSecondary),
               ),
             ],
           ),

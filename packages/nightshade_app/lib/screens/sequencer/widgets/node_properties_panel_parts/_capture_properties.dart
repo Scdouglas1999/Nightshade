@@ -19,11 +19,7 @@ class _DitherProperties extends ConsumerWidget {
       children: [
         Text(
           'Dither Settings',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(

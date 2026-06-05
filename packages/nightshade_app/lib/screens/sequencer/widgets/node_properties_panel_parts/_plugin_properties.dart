@@ -74,11 +74,7 @@ class _PluginInstructionPropertiesState
       children: [
         Text(
           'Plugin Settings',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         Container(
@@ -98,11 +94,7 @@ class _PluginInstructionPropertiesState
                   Expanded(
                     child: Text(
                       node.pluginName.isEmpty ? node.pluginId : node.pluginName,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
                     ),
                   ),
                 ],

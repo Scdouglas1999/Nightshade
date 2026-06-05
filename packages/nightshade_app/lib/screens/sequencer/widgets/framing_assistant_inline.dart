@@ -133,7 +133,7 @@ class _FramingAssistantDialogState
         ),
         NightshadeButton(
           onPressed: () => Navigator.of(context).pop(_rotation),
-          icon: Icons.check,
+          icon: NightshadeIcons.check,
           label: 'Apply rotation',
           variant: ButtonVariant.primary,
           size: ButtonSize.small,
@@ -312,11 +312,7 @@ class _RotationControls extends StatelessWidget {
               Icon(LucideIcons.rotateCw, size: 13, color: colors.textMuted),
               const SizedBox(width: 6),
               Text('Rotation',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  )),
+                  style: NightshadeTypography.h6.copyWith(color: colors.textPrimary)),
               const Spacer(),
               Text(
                 '${rotation.toStringAsFixed(0)}°',

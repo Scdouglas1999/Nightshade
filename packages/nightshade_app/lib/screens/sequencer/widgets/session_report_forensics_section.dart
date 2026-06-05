@@ -220,11 +220,7 @@ class _CauseSummaryRow extends StatelessWidget {
             Expanded(
               child: Text(
                 cause.humanLabel,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
               ),
             ),
             Text(

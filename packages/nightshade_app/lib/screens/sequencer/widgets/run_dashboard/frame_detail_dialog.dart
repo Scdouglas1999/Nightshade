@@ -349,11 +349,7 @@ class _PathFallback extends StatelessWidget {
           const SizedBox(height: NightshadeTokens.spaceMd),
           Text(
             'Preview unavailable',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w600,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
           ),
           if (subtitle != null) ...[
             const SizedBox(height: NightshadeTokens.spaceSm),

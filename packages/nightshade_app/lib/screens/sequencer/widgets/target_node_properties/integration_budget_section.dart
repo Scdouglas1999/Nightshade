@@ -142,11 +142,7 @@ class _BudgetEditor extends ConsumerWidget {
         const SizedBox(height: 8),
         Text(
           'Per-filter caps',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: FontWeight.w600,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: 4),
         ...budget.perFilter.entries.map(

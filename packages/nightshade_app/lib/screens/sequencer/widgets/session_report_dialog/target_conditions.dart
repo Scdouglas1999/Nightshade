@@ -243,11 +243,7 @@ class _TargetBlock extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: FontWeight.w600,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
         ),
       );
 

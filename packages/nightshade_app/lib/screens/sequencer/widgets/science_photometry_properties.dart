@@ -548,11 +548,7 @@ class _SciencePhotometryPropertiesState
                   child: Text(
                     'Negative cadence gap is impossible — the executor '
                     'will reject this node at validation.',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      color: colors.warning,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: NightshadeTypography.labelStrongSm.copyWith(color: colors.warning),
                   ),
                 ),
               ],

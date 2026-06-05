@@ -367,11 +367,7 @@ class _AdvancedPanel extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text('Advanced (numerical)',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize13,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textPrimary,
-                        )),
+                        style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary)),
                   ),
                   Icon(
                     expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,

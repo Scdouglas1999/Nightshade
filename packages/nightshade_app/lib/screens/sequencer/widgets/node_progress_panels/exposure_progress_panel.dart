@@ -41,15 +41,11 @@ class _ExposureProgressPanel extends StatelessWidget {
           // Header
           Row(
             children: [
-              Icon(Icons.camera, size: 16, color: colors.success),
+              Icon(NightshadeIcons.camera, size: 16, color: colors.success),
               const SizedBox(width: 8),
               Text(
                 'Exposure: ${node.filter ?? 'No Filter'}',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
               ),
               const Spacer(),
               Text(

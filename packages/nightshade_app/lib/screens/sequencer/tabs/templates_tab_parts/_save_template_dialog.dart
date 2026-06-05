@@ -149,11 +149,7 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
               // Name field
               Text(
                 'Template Name',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: widget.colors.textSecondary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: widget.colors.textSecondary),
               ),
               const SizedBox(height: 8),
               Container(
@@ -185,11 +181,7 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
               // Description field
               Text(
                 'Description',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: widget.colors.textSecondary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: widget.colors.textSecondary),
               ),
               const SizedBox(height: 8),
               Container(
@@ -338,11 +330,7 @@ class _TargetOptionState extends State<_TargetOption> {
                   children: [
                     Text(
                       widget.target.targetName,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        fontWeight: FontWeight.w600,
-                        color: widget.colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
                     ),
                     Text(
                       'RA: ${_formatRA(widget.target.raHours)} · Dec: ${_formatDec(widget.target.decDegrees)}',

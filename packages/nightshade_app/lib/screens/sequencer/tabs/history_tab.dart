@@ -212,11 +212,7 @@ class _RunCard extends ConsumerWidget {
                   children: [
                     Text(
                       run.sequenceName,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize14,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -390,11 +386,7 @@ class _RunCard extends ConsumerWidget {
                 ),
                 child: Text(
                   status[0].toUpperCase() + status.substring(1),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w600,
-                    color: statusColor,
-                  ),
+                  style: NightshadeTypography.labelStrongSm.copyWith(color: statusColor),
                 ),
               ),
             ],
@@ -564,11 +556,7 @@ class _CampaignBadge extends ConsumerWidget {
                 const SizedBox(width: 4),
                 Text(
                   '$total / ${rollup.sessionCount}',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w600,
-                    color: colors.primary,
-                  ),
+                  style: NightshadeTypography.labelStrongSm.copyWith(color: colors.primary),
                 ),
               ],
             ),

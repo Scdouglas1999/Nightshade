@@ -264,11 +264,7 @@ class _DropZone extends ConsumerWidget {
                       const SizedBox(width: 6),
                       Text(
                         'Insert here',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
-                          color: colors.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: NightshadeTypography.labelStrongSm.copyWith(color: colors.primary),
                       ),
                     ],
                   ),
@@ -279,7 +275,7 @@ class _DropZone extends ConsumerWidget {
                           color: colors.primary.withValues(alpha: 0.5)),
                       child: Center(
                         child: Icon(
-                          Icons.add_circle_outline,
+                          LucideIcons.plusCircle,
                           size: 12,
                           color: colors.primary.withValues(alpha: 0.5),
                         ),
@@ -496,10 +492,7 @@ class _NodeValidationWrapper extends StatelessWidget {
                   if (i > 0) const TextSpan(text: '\n'),
                   TextSpan(
                     text: validationIssues![i].title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: NightshadeTypography.fontSize12,
-                    ),
+                    style: NightshadeTypography.h6,
                   ),
                   TextSpan(
                     text: ': ${validationIssues![i].description}',

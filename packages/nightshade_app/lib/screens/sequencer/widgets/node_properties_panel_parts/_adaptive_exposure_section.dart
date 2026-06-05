@@ -227,11 +227,7 @@ class _AdaptiveExposureSectionState
       children: [
         Text(
           'Per-filter overrides',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: FontWeight.w600,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: 6),
         for (final filter in filterNames)

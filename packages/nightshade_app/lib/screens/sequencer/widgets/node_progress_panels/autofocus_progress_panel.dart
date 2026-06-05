@@ -255,14 +255,11 @@ class _AutofocusProgressPanelState
   Widget _buildHeader(int? currentPoint, int? totalPoints) {
     return Row(
       children: [
-        Icon(Icons.center_focus_strong, size: 16, color: widget.colors.primary),
+        Icon(NightshadeIcons.crosshair, size: 16, color: widget.colors.primary),
         const SizedBox(width: 8),
         Text(
           'Autofocus',
-          style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w600,
-              color: widget.colors.textPrimary),
+          style: NightshadeTypography.labelStrongSm.copyWith(color: widget.colors.textPrimary),
         ),
         const Spacer(),
         if (currentPoint != null && totalPoints != null)

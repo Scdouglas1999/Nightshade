@@ -167,11 +167,7 @@ class _Header extends StatelessWidget {
         const Spacer(),
         Text(
           filter == null ? target : '$target Â· $filter',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
         ),
       ],
     );
@@ -224,11 +220,7 @@ class _SummaryRow extends StatelessWidget {
             ),
             child: Text(
               '$cadenceBreaks cadence break${cadenceBreaks == 1 ? '' : 's'}',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                fontWeight: FontWeight.w600,
-                color: colors.warning,
-              ),
+              style: NightshadeTypography.labelStrongSm.copyWith(color: colors.warning),
             ),
           ),
       ],

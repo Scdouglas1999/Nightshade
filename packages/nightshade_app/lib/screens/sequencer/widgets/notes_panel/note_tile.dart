@@ -51,11 +51,7 @@ class _NoteTile extends StatelessWidget {
                 Expanded(
                   child: Text(
                     dateFormat.format(note.createdAt),
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textSecondary,
-                    ),
+                    style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
                   ),
                 ),
               if (note.sequenceRunId != null)

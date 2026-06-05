@@ -141,11 +141,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
               // Name field
               Text(
                 'Sequence Name',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: widget.colors.textSecondary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: widget.colors.textSecondary),
               ),
               const SizedBox(height: 8),
               Container(
@@ -175,11 +171,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
               // Description field
               Text(
                 'Description (optional)',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: widget.colors.textSecondary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: widget.colors.textSecondary),
               ),
               const SizedBox(height: 8),
               Container(

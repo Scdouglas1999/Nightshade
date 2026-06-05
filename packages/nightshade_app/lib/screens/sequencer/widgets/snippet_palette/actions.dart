@@ -170,11 +170,7 @@ void _showCreateSnippetDialog() {
   Widget _buildDialogLabel(String text) {
     return Text(
       text,
-      style: TextStyle(
-        fontSize: NightshadeTypography.fontSize12,
-        fontWeight: FontWeight.w500,
-        color: widget.colors.textSecondary,
-      ),
+      style: NightshadeTypography.labelSm.copyWith(color: widget.colors.textSecondary),
     );
   }
 

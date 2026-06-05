@@ -167,11 +167,7 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
               const SizedBox(width: 6),
               Text(
                 '${filtered.length} of ${all.length} decisions',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  color: colors.textMuted,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textMuted),
               ),
             ],
           ),
@@ -272,11 +268,7 @@ class _ReplayDebugScreenState extends ConsumerState<ReplayDebugScreen> {
             children: [
               Text(
                 'Time range: $startLabel — $endLabel',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: colors.textMuted,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textMuted),
               ),
               if (range.start > 0 || range.end < 1)
                 TextButton(
@@ -520,11 +512,7 @@ class _DecisionTileState extends State<_DecisionTile> {
                 Expanded(
                   child: Text(
                     widget.decision.summary,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize13,
-                      color: c.textPrimary,
-                      fontWeight: FontWeight.w500,
-                    ),
+                    style: NightshadeTypography.label.copyWith(color: c.textPrimary),
                   ),
                 ),
                 IconButton(

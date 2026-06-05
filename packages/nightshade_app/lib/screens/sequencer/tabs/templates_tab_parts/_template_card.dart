@@ -300,11 +300,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                               const SizedBox(width: 6),
                               Text(
                                 'Use',
-                                style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize11,
-                                  fontWeight: FontWeight.w600,
-                                  color: onPrimary,
-                                ),
+                                style: NightshadeTypography.labelStrongSm.copyWith(color: onPrimary),
                               ),
                             ],
                           ),

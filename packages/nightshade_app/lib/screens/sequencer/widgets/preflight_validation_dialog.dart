@@ -295,11 +295,7 @@ class _PreFlightValidationDialogState
               children: [
                 Text(
                   'Pre-Flight Validation',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize16,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
                 ),
                 Text(
                   'Checking sequence before execution',
@@ -643,15 +639,11 @@ class _PreFlightValidationDialogState
                       : hasWarnings
                           ? 'Ready with Warnings'
                           : 'All Checks Passed',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    fontWeight: FontWeight.w600,
-                    color: hasErrors
+                  style: NightshadeTypography.h5.copyWith(color: hasErrors
                         ? colors.error
                         : hasWarnings
                             ? colors.warning
-                            : colors.success,
-                  ),
+                            : colors.success),
                 ),
                 Text(
                   hasErrors
@@ -747,11 +739,7 @@ class _PreFlightValidationDialogState
                   children: [
                     Text(
                       issue.title,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                     ),
                     const SizedBox(width: 8),
                     Container(
@@ -837,11 +825,7 @@ class _PreFlightValidationDialogState
               children: [
                 Text(
                   'Sequence has changed since last successful run',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -887,11 +871,7 @@ class _PreFlightValidationDialogState
           const SizedBox(height: 12),
           Text(
             'Looking Good!',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize14,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 4),
           Text(

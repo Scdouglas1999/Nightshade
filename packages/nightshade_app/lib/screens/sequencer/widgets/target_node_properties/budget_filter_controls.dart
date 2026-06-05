@@ -26,11 +26,7 @@ class _FilterRow extends StatelessWidget {
             width: 48,
             child: Text(
               filterName,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
             ),
           ),
           const SizedBox(width: 8),

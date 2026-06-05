@@ -517,11 +517,7 @@ class _InsertNodePicker extends ConsumerWidget {
                     const SizedBox(width: 8),
                     Text(
                       'Insert node',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize14,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                     ),
                   ],
                 ),
@@ -592,11 +588,7 @@ class _InsertNodePicker extends ConsumerWidget {
                                     children: [
                                       Text(
                                         item.name,
-                                        style: TextStyle(
-                                          fontSize: NightshadeTypography.fontSize13,
-                                          fontWeight: FontWeight.w500,
-                                          color: colors.textPrimary,
-                                        ),
+                                        style: NightshadeTypography.label.copyWith(color: colors.textPrimary),
                                       ),
                                       Text(
                                         item.description,

@@ -400,11 +400,7 @@ class _Header extends StatelessWidget {
           Expanded(
             child: Text(
               'Target Queue',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
             ),
           ),
           Container(
@@ -416,11 +412,7 @@ class _Header extends StatelessWidget {
             ),
             child: Text(
               '$queueLength',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
+              style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
             ),
           ),
           if (onCollapse != null) ...[
@@ -585,11 +577,7 @@ class _EmptyState extends ConsumerWidget {
             Text(
               'Your target queue is empty.',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w600,
-              ),
+              style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
             ),
             const SizedBox(height: 6),
             Text(
@@ -904,11 +892,7 @@ class _Stat extends StatelessWidget {
         const SizedBox(height: 1),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            color: highlight ? colors.primary : colors.textPrimary,
-            fontWeight: FontWeight.w600,
-          ),
+          style: NightshadeTypography.labelStrongSm.copyWith(color: highlight ? colors.primary : colors.textPrimary),
         ),
       ],
     );

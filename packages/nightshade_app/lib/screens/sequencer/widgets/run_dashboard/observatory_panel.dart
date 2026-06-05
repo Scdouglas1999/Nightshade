@@ -238,11 +238,7 @@ class _ObservatoryBlock extends StatelessWidget {
             Expanded(
               child: Text(
                 name,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
                 overflow: TextOverflow.ellipsis,
               ),
             ),

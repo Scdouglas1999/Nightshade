@@ -402,11 +402,7 @@ class _SourceRow extends StatelessWidget {
         const Spacer(),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
         ),
       ],
     );

@@ -73,18 +73,14 @@ class _CoolingProgressPanel extends StatelessWidget {
           Row(
             children: [
               Icon(
-                isWarming ? Icons.thermostat : Icons.ac_unit,
+                isWarming ? NightshadeIcons.temperature : NightshadeIcons.frost,
                 size: 16,
                 color: isWarming ? colors.warning : colors.info,
               ),
               const SizedBox(width: 8),
               Text(
                 isWarming ? 'Warming Camera' : 'Cooling Camera',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -103,7 +99,7 @@ class _CoolingProgressPanel extends StatelessWidget {
               const SizedBox(width: 16),
               // Arrow
               Icon(
-                Icons.arrow_forward,
+                NightshadeIcons.arrowRight,
                 size: 16,
                 color: colors.textMuted,
               ),
@@ -213,11 +209,7 @@ class _PowerGauge extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               '${power.toStringAsFixed(0)}%',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
             ),
           ],
         ),

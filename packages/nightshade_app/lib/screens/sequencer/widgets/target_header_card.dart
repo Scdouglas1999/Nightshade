@@ -216,11 +216,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               children: [
                 Text(
                   node.displayName,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    fontWeight: FontWeight.w600,
-                    color: widget.colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h5.copyWith(color: widget.colors.textPrimary),
                 ),
                 if (node.mosaicPanel != null)
                   Text(
@@ -531,13 +527,9 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                 children: [
                   Text(
                     statusLabel,
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize11,
-                      fontWeight: FontWeight.w600,
-                      color: widget.nodeStatus == NodeStatus.running
+                    style: NightshadeTypography.labelStrongSm.copyWith(color: widget.nodeStatus == NodeStatus.running
                           ? widget.colors.info
-                          : widget.colors.textMuted,
-                    ),
+                          : widget.colors.textMuted),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -582,11 +574,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               const SizedBox(width: 8),
               Text(
                 '${stats.completedFrames}/${stats.totalFrames} done',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
-                  color: widget.colors.textSecondary,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: widget.colors.textSecondary),
               ),
               const SizedBox(width: 6),
               Text('•', style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: widget.colors.textMuted)),
@@ -599,11 +587,7 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
               const Spacer(),
               Text(
                 '${(stats.fraction * 100).round()}%',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
-                  color: widget.colors.textSecondary,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: widget.colors.textSecondary),
               ),
             ],
           ),
@@ -719,11 +703,7 @@ class _CoordinateChip extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: FontWeight.w500,
-            color: colors.textMuted,
-          ),
+          style: NightshadeTypography.labelQuiet.copyWith(color: colors.textMuted),
         ),
         const SizedBox(width: 4),
         Text(

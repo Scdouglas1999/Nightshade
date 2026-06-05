@@ -31,11 +31,7 @@ class _StatChip extends StatelessWidget {
           const SizedBox(height: 2),
           Text(
             value,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
           ),
         ],
       ),

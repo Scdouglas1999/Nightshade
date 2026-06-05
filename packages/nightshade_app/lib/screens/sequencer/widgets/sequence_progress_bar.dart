@@ -158,11 +158,7 @@ class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                                 (isPaused
                                     ? 'Paused — no active node'
                                     : 'Starting...'),
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize13,
-                              fontWeight: FontWeight.w600,
-                              color: widget.colors.textPrimary,
-                            ),
+                            style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),

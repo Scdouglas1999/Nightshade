@@ -249,10 +249,7 @@ class ImportSequenceFlow {
                 const SizedBox(height: 12),
                 if (errors.isNotEmpty) ...[
                   Text('Errors',
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          fontWeight: FontWeight.w600,
-                          color: colors.error)),
+                      style: NightshadeTypography.h6.copyWith(color: colors.error)),
                   const SizedBox(height: 4),
                   for (final issue in errors)
                     Padding(
@@ -261,10 +258,7 @@ class ImportSequenceFlow {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text('- ${issue.title}',
-                              style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize12,
-                                  color: colors.textPrimary,
-                                  fontWeight: FontWeight.w500)),
+                              style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary)),
                           Padding(
                             padding: const EdgeInsets.only(left: 12),
                             child: Text(issue.description,
@@ -287,10 +281,7 @@ class ImportSequenceFlow {
                 if (warnings.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Text('Warnings',
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          fontWeight: FontWeight.w600,
-                          color: colors.warning)),
+                      style: NightshadeTypography.h6.copyWith(color: colors.warning)),
                   const SizedBox(height: 4),
                   for (final issue in warnings)
                     Padding(
@@ -303,10 +294,7 @@ class ImportSequenceFlow {
                 if (infos.isNotEmpty) ...[
                   const SizedBox(height: 12),
                   Text('Info',
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          fontWeight: FontWeight.w600,
-                          color: colors.info)),
+                      style: NightshadeTypography.h6.copyWith(color: colors.info)),
                   const SizedBox(height: 4),
                   for (final issue in infos)
                     Padding(

@@ -508,11 +508,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
           const SizedBox(height: 18),
           Text(
             'Autofocus cadence',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize14,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 8),
           _AfCadenceSelector(
@@ -656,11 +652,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
             const SizedBox(height: 12),
             Text(
               'Warnings',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-                fontSize: NightshadeTypography.fontSize13,
-              ),
+              style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 6),
             for (final w in plan.warnings)
@@ -726,11 +718,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
                     const SizedBox(width: 10),
                     Text(
                       'Plan ready',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize16,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
                     ),
                   ],
                 ),

@@ -126,11 +126,7 @@ class _PlayButtonState extends State<_PlayButton> {
               const SizedBox(width: 8),
               Text(
                 widget.label,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w600,
-                  color: onPrimary,
-                ),
+                style: NightshadeTypography.labelStrong.copyWith(color: onPrimary),
               ),
             ],
           ),
@@ -186,11 +182,7 @@ class _PauseButtonState extends State<_PauseButton> {
               const SizedBox(width: 8),
               Text(
                 'Pause',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  fontWeight: FontWeight.w600,
-                  color: widget.colors.warning,
-                ),
+                style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.warning),
               ),
             ],
           ),

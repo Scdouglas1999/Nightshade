@@ -170,11 +170,7 @@ class _Header extends StatelessWidget {
               children: [
                 Text(
                   'Import Sequence — ${result.sourceFormat.displayName}',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize16,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -198,10 +194,7 @@ class _Header extends StatelessWidget {
                       size: 12, color: colors.warning),
                   const SizedBox(width: 4),
                   Text('Force import',
-                      style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize11,
-                          fontWeight: FontWeight.w600,
-                          color: colors.warning)),
+                      style: NightshadeTypography.labelStrongSm.copyWith(color: colors.warning)),
                 ],
               ),
             ),
@@ -222,10 +215,7 @@ class _NameField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Sequence name',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted,
-                fontWeight: FontWeight.w600)),
+            style: NightshadeTypography.h6.copyWith(color: colors.textMuted)),
         const SizedBox(height: 6),
         TextField(
           controller: controller,
@@ -303,10 +293,7 @@ class _Pill extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(label,
-              style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  color: color,
-                  fontWeight: FontWeight.w600)),
+              style: NightshadeTypography.labelStrongSm.copyWith(color: color)),
           const SizedBox(width: 6),
           Text(value,
               style: TextStyle(
@@ -344,10 +331,7 @@ class _MappingTable extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Mapping',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted,
-                fontWeight: FontWeight.w600)),
+            style: NightshadeTypography.h6.copyWith(color: colors.textMuted)),
         const SizedBox(height: 6),
         Container(
           decoration: BoxDecoration(
@@ -405,10 +389,7 @@ class _DroppedSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Dropped (${dropped.length})',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted,
-                fontWeight: FontWeight.w600)),
+            style: NightshadeTypography.h6.copyWith(color: colors.textMuted)),
         const SizedBox(height: 6),
         for (final d in dropped)
           Padding(
@@ -494,10 +475,7 @@ class _DestinationPicker extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('After import',
-            style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted,
-                fontWeight: FontWeight.w600)),
+            style: NightshadeTypography.h6.copyWith(color: colors.textMuted)),
         const SizedBox(height: 6),
         RadioListTile<ImportDestination>(
           dense: true,

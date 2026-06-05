@@ -16,11 +16,7 @@ class _LoopProperties extends ConsumerWidget {
       children: [
         Text(
           'Loop Settings',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(
@@ -282,11 +278,7 @@ class _DelayProperties extends ConsumerWidget {
       children: [
         Text(
           'Delay Settings',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(
@@ -324,11 +316,7 @@ class _WaitTimeProperties extends ConsumerWidget {
       children: [
         Text(
           'Wait Settings',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(
@@ -449,11 +437,7 @@ class _ConditionalProperties extends ConsumerWidget {
       children: [
         Text(
           'Condition Settings',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(
@@ -671,11 +655,7 @@ class _ParallelProperties extends ConsumerWidget {
       children: [
         Text(
           'Parallel Execution',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(
@@ -734,11 +714,7 @@ class _RecoveryProperties extends ConsumerWidget {
       children: [
         Text(
           'Recovery Settings',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(

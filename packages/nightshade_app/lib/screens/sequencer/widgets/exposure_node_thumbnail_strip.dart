@@ -505,11 +505,7 @@ class _FullFrameDialog extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       t.fileName,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize13,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -595,10 +591,7 @@ class _FrameMetadata extends StatelessWidget {
                   style:
                       TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted)),
               Text(value,
-                  style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize12,
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w600)),
+                  style: NightshadeTypography.h6.copyWith(color: colors.textPrimary)),
             ],
           ),
         );

@@ -152,11 +152,7 @@ class RunDashboardCloudMotionPanel extends ConsumerWidget {
         ),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            color: highlight ?? colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: highlight ?? colors.textPrimary),
         ),
       ],
     );

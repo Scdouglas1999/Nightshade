@@ -462,11 +462,7 @@ class TargetPreviewTooltip extends ConsumerWidget {
                                 children: [
                                   Text(
                                     'Transit: ${_formatTime(data.transitTime)}',
-                                    style: TextStyle(
-                                      fontSize: NightshadeTypography.fontSize11,
-                                      fontWeight: FontWeight.w600,
-                                      color: colors.textPrimary,
-                                    ),
+                                    style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
                                   ),
                                   Text(
                                     'Max altitude: ${data.transitAltitude.toStringAsFixed(1)}°',

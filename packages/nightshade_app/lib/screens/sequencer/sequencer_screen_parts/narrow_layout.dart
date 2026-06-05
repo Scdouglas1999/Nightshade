@@ -319,11 +319,7 @@ class _RailDraggableState extends ConsumerState<_RailDraggable> {
               const SizedBox(width: 6),
               Text(
                 widget.item.name,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w500,
-                  color: widget.colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelSm.copyWith(color: widget.colors.textPrimary),
               ),
             ],
           ),

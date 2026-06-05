@@ -40,11 +40,7 @@ class BatchOperationsToolbar extends ConsumerWidget {
             ),
             child: Text(
               '$count selected',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                fontWeight: FontWeight.w600,
-                color: colors.primary,
-              ),
+              style: NightshadeTypography.h6.copyWith(color: colors.primary),
             ),
           ),
 
@@ -228,13 +224,9 @@ class _ToolbarButton extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w500,
-                    color: isEnabled
+                  style: NightshadeTypography.labelQuiet.copyWith(color: isEnabled
                         ? effectiveColor
-                        : colors.textMuted.withValues(alpha: 0.4),
-                  ),
+                        : colors.textMuted.withValues(alpha: 0.4)),
                 ),
               ],
             ),

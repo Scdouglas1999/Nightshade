@@ -430,11 +430,7 @@ class _DiffNodeRow extends StatelessWidget {
               Expanded(
                 child: Text(
                   entry.label,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize13,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),

@@ -239,11 +239,7 @@ class _AdaptiveExposureInline extends StatelessWidget {
             const Spacer(),
             Text(
               event.reason.label,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                fontWeight: FontWeight.w600,
-                color: tone,
-              ),
+              style: NightshadeTypography.labelStrongSm.copyWith(color: tone),
             ),
           ],
         ),
