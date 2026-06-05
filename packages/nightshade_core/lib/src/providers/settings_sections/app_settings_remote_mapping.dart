@@ -110,6 +110,56 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       smartNightSubExposureCeilingSecs:
           remote.smartNightSubExposureCeilingSecs,
       smartNightTargetSnr: remote.smartNightTargetSnr,
+      // Full remote-settings parity 2026-06-05 — remaining unattended-night
+      // knobs (equipment defaults / web-server / PHD2 / notifications /
+      // session-lifecycle + campaign-rollup / detailed autofocus sweep / misc
+      // FITS+imaging config) now round-trip through the wire model.
+      coolingBehavior: remote.coolingBehavior,
+      defaultGain: remote.defaultGain,
+      defaultOffset: remote.defaultOffset,
+      webServerEnabled: remote.webServerEnabled,
+      webServerPort: remote.webServerPort,
+      phd2Path: remote.phd2Path,
+      phd2Host: remote.phd2Host,
+      phd2Port: remote.phd2Port,
+      notificationsEnabled: remote.notificationsEnabled,
+      notifyOnSequenceComplete: remote.notifyOnSequenceComplete,
+      notifyOnError: remote.notifyOnError,
+      notifyOnMeridianFlip: remote.notifyOnMeridianFlip,
+      soundEnabled: remote.soundEnabled,
+      audibleAlertsOnCritical: remote.audibleAlertsOnCritical,
+      criticalAlertSound: remote.criticalAlertSound,
+      pushCriticalAlerts: remote.pushCriticalAlerts,
+      smartNightAutoPromptEnabled: remote.smartNightAutoPromptEnabled,
+      promptForNotesAfterRun: remote.promptForNotesAfterRun,
+      sessionHandoffAutoPrompt: remote.sessionHandoffAutoPrompt,
+      campaignRollupSurfaceTargetsTab: remote.campaignRollupSurfaceTargetsTab,
+      campaignRollupGroupingMode: remote.campaignRollupGroupingMode,
+      afMethod: remote.afMethod,
+      afCurveFitting: remote.afCurveFitting,
+      afStepSize: remote.afStepSize,
+      afExposureTime: remote.afExposureTime,
+      afInitialOffsetSteps: remote.afInitialOffsetSteps,
+      afNumberOfAttempts: remote.afNumberOfAttempts,
+      afUseBrightestNStars: remote.afUseBrightestNStars,
+      afOuterCropRatio: remote.afOuterCropRatio,
+      afInnerCropRatio: remote.afInnerCropRatio,
+      afBinning: remote.afBinning,
+      afRSquaredThreshold: remote.afRSquaredThreshold,
+      afFocuserSettleTimeMs: remote.afFocuserSettleTimeMs,
+      afExposuresPerPoint: remote.afExposuresPerPoint,
+      afBacklashCompMethod: remote.afBacklashCompMethod,
+      afBacklashIn: remote.afBacklashIn,
+      afBacklashOut: remote.afBacklashOut,
+      afAutofocusFilterName: remote.afAutofocusFilterName,
+      afFilterSettingsJson: remote.afFilterSettingsJson,
+      useFilterFocusOffsets: remote.useFilterFocusOffsets,
+      astrometryPath: remote.astrometryPath,
+      observerName: remote.observerName,
+      imageFormat: remote.imageFormat,
+      bitDepth: remote.bitDepth,
+      timezone: remote.timezone,
+      useSystemTime: remote.useSystemTime,
     );
   }
 
@@ -232,6 +282,56 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       smartNightSubExposureCeilingSecs:
           settings.smartNightSubExposureCeilingSecs,
       smartNightTargetSnr: settings.smartNightTargetSnr,
+      // Full remote-settings parity 2026-06-05 — push the remaining live
+      // unattended-night knobs to the host so a remote save doesn't silently
+      // drop them.
+      coolingBehavior: settings.coolingBehavior,
+      defaultGain: settings.defaultGain,
+      defaultOffset: settings.defaultOffset,
+      webServerEnabled: settings.webServerEnabled,
+      webServerPort: settings.webServerPort,
+      phd2Path: settings.phd2Path,
+      phd2Host: settings.phd2Host,
+      phd2Port: settings.phd2Port,
+      notificationsEnabled: settings.notificationsEnabled,
+      notifyOnSequenceComplete: settings.notifyOnSequenceComplete,
+      notifyOnError: settings.notifyOnError,
+      notifyOnMeridianFlip: settings.notifyOnMeridianFlip,
+      soundEnabled: settings.soundEnabled,
+      audibleAlertsOnCritical: settings.audibleAlertsOnCritical,
+      criticalAlertSound: settings.criticalAlertSound,
+      pushCriticalAlerts: settings.pushCriticalAlerts,
+      smartNightAutoPromptEnabled: settings.smartNightAutoPromptEnabled,
+      promptForNotesAfterRun: settings.promptForNotesAfterRun,
+      sessionHandoffAutoPrompt: settings.sessionHandoffAutoPrompt,
+      campaignRollupSurfaceTargetsTab:
+          settings.campaignRollupSurfaceTargetsTab,
+      campaignRollupGroupingMode: settings.campaignRollupGroupingMode,
+      afMethod: settings.afMethod,
+      afCurveFitting: settings.afCurveFitting,
+      afStepSize: settings.afStepSize,
+      afExposureTime: settings.afExposureTime,
+      afInitialOffsetSteps: settings.afInitialOffsetSteps,
+      afNumberOfAttempts: settings.afNumberOfAttempts,
+      afUseBrightestNStars: settings.afUseBrightestNStars,
+      afOuterCropRatio: settings.afOuterCropRatio,
+      afInnerCropRatio: settings.afInnerCropRatio,
+      afBinning: settings.afBinning,
+      afRSquaredThreshold: settings.afRSquaredThreshold,
+      afFocuserSettleTimeMs: settings.afFocuserSettleTimeMs,
+      afExposuresPerPoint: settings.afExposuresPerPoint,
+      afBacklashCompMethod: settings.afBacklashCompMethod,
+      afBacklashIn: settings.afBacklashIn,
+      afBacklashOut: settings.afBacklashOut,
+      afAutofocusFilterName: settings.afAutofocusFilterName,
+      afFilterSettingsJson: settings.afFilterSettingsJson,
+      useFilterFocusOffsets: settings.useFilterFocusOffsets,
+      astrometryPath: settings.astrometryPath,
+      observerName: settings.observerName,
+      imageFormat: settings.imageFormat,
+      bitDepth: settings.bitDepth,
+      timezone: settings.timezone,
+      useSystemTime: settings.useSystemTime,
     );
   }
 
@@ -601,6 +701,173 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
         return value is num
             ? current.copyWith(smartNightTargetSnr: value.toDouble())
             : null;
+      // Full remote-settings parity 2026-06-05 — keys mirror
+      // models.AppSettings.toJson() (camelCase). Remaining unattended-night
+      // knobs pushed live from the host via the settings.changed event.
+      case 'coolingBehavior':
+        return value is String
+            ? current.copyWith(coolingBehavior: value)
+            : null;
+      case 'defaultGain':
+        return value is num
+            ? current.copyWith(defaultGain: value.toInt())
+            : null;
+      case 'defaultOffset':
+        return value is num
+            ? current.copyWith(defaultOffset: value.toInt())
+            : null;
+      case 'webServerEnabled':
+        return value is bool
+            ? current.copyWith(webServerEnabled: value)
+            : null;
+      case 'webServerPort':
+        return value is num
+            ? current.copyWith(webServerPort: value.toInt())
+            : null;
+      case 'phd2Path':
+        return value is String ? current.copyWith(phd2Path: value) : null;
+      case 'phd2Host':
+        return value is String ? current.copyWith(phd2Host: value) : null;
+      case 'phd2Port':
+        return value is num
+            ? current.copyWith(phd2Port: value.toInt())
+            : null;
+      case 'notificationsEnabled':
+        return value is bool
+            ? current.copyWith(notificationsEnabled: value)
+            : null;
+      case 'notifyOnSequenceComplete':
+        return value is bool
+            ? current.copyWith(notifyOnSequenceComplete: value)
+            : null;
+      case 'notifyOnError':
+        return value is bool ? current.copyWith(notifyOnError: value) : null;
+      case 'notifyOnMeridianFlip':
+        return value is bool
+            ? current.copyWith(notifyOnMeridianFlip: value)
+            : null;
+      case 'soundEnabled':
+        return value is bool ? current.copyWith(soundEnabled: value) : null;
+      case 'audibleAlertsOnCritical':
+        return value is bool
+            ? current.copyWith(audibleAlertsOnCritical: value)
+            : null;
+      case 'criticalAlertSound':
+        return value is String
+            ? current.copyWith(criticalAlertSound: value)
+            : null;
+      case 'pushCriticalAlerts':
+        return value is bool
+            ? current.copyWith(pushCriticalAlerts: value)
+            : null;
+      case 'smartNightAutoPromptEnabled':
+        return value is bool
+            ? current.copyWith(smartNightAutoPromptEnabled: value)
+            : null;
+      case 'promptForNotesAfterRun':
+        return value is bool
+            ? current.copyWith(promptForNotesAfterRun: value)
+            : null;
+      case 'sessionHandoffAutoPrompt':
+        return value is bool
+            ? current.copyWith(sessionHandoffAutoPrompt: value)
+            : null;
+      case 'campaignRollupSurfaceTargetsTab':
+        return value is bool
+            ? current.copyWith(campaignRollupSurfaceTargetsTab: value)
+            : null;
+      case 'campaignRollupGroupingMode':
+        return value is String
+            ? current.copyWith(campaignRollupGroupingMode: value)
+            : null;
+      case 'afMethod':
+        return value is String ? current.copyWith(afMethod: value) : null;
+      case 'afCurveFitting':
+        return value is String
+            ? current.copyWith(afCurveFitting: value)
+            : null;
+      case 'afStepSize':
+        return value is num
+            ? current.copyWith(afStepSize: value.toInt())
+            : null;
+      case 'afExposureTime':
+        return value is num
+            ? current.copyWith(afExposureTime: value.toDouble())
+            : null;
+      case 'afInitialOffsetSteps':
+        return value is num
+            ? current.copyWith(afInitialOffsetSteps: value.toInt())
+            : null;
+      case 'afNumberOfAttempts':
+        return value is num
+            ? current.copyWith(afNumberOfAttempts: value.toInt())
+            : null;
+      case 'afUseBrightestNStars':
+        return value is num
+            ? current.copyWith(afUseBrightestNStars: value.toInt())
+            : null;
+      case 'afOuterCropRatio':
+        return value is num
+            ? current.copyWith(afOuterCropRatio: value.toDouble())
+            : null;
+      case 'afInnerCropRatio':
+        return value is num
+            ? current.copyWith(afInnerCropRatio: value.toDouble())
+            : null;
+      case 'afBinning':
+        return value is num
+            ? current.copyWith(afBinning: value.toInt())
+            : null;
+      case 'afRSquaredThreshold':
+        return value is num
+            ? current.copyWith(afRSquaredThreshold: value.toDouble())
+            : null;
+      case 'afFocuserSettleTimeMs':
+        return value is num
+            ? current.copyWith(afFocuserSettleTimeMs: value.toInt())
+            : null;
+      case 'afExposuresPerPoint':
+        return value is num
+            ? current.copyWith(afExposuresPerPoint: value.toInt())
+            : null;
+      case 'afBacklashCompMethod':
+        return value is String
+            ? current.copyWith(afBacklashCompMethod: value)
+            : null;
+      case 'afBacklashIn':
+        return value is num
+            ? current.copyWith(afBacklashIn: value.toInt())
+            : null;
+      case 'afBacklashOut':
+        return value is num
+            ? current.copyWith(afBacklashOut: value.toInt())
+            : null;
+      case 'afAutofocusFilterName':
+        return value is String
+            ? current.copyWith(afAutofocusFilterName: value)
+            : null;
+      case 'afFilterSettingsJson':
+        return value is String
+            ? current.copyWith(afFilterSettingsJson: value)
+            : null;
+      case 'useFilterFocusOffsets':
+        return value is bool
+            ? current.copyWith(useFilterFocusOffsets: value)
+            : null;
+      case 'astrometryPath':
+        return value is String
+            ? current.copyWith(astrometryPath: value)
+            : null;
+      case 'observerName':
+        return value is String ? current.copyWith(observerName: value) : null;
+      case 'imageFormat':
+        return value is String ? current.copyWith(imageFormat: value) : null;
+      case 'bitDepth':
+        return value is String ? current.copyWith(bitDepth: value) : null;
+      case 'timezone':
+        return value is String ? current.copyWith(timezone: value) : null;
+      case 'useSystemTime':
+        return value is bool ? current.copyWith(useSystemTime: value) : null;
       default:
         // Forward-compat: a newer host may emit settings this build
         // does not yet have a copyWith for. The persisted snapshot

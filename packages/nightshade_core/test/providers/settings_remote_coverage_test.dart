@@ -109,17 +109,154 @@ void main() {
 
     await container.read(appSettingsProvider.future);
 
-    // default_gain is NOT carried by models.AppSettings, so saving it over a
-    // network backend would silently vanish. The guard must throw. (Long-tail
-    // equipment-default settings like this remain deferred; the fail-loud
-    // guard keeps them honest until carried.)
+    // sidebar_collapsed is a desktop-shell UI/window pref that is NOT carried
+    // by models.AppSettings (genuinely host-local, not an imaging knob), so a
+    // remote save of it would silently vanish on the host. The guard must
+    // throw. (This is part of the true residual deny-set: window/shell UI
+    // prefs, host-filesystem infra paths, the horizon-mask JSON blob, and the
+    // adaptive-swap scheduler-seed cluster.)
     await expectLater(
-      container.read(appSettingsProvider.notifier).setDefaultGain(120),
+      container.read(appSettingsProvider.notifier).setSidebarCollapsed(true),
       throwsA(isA<UnsupportedError>()),
     );
 
     expect(h.writes, isEmpty,
         reason: 'a non-remotable key must never reach the host');
+  });
+
+  // Full remote-settings parity 2026-06-05 — the remaining setter-reachable
+  // unattended-night knobs (equipment defaults / web-server / PHD2 connection /
+  // notification toggles / session-lifecycle + campaign-rollup / detailed
+  // autofocus sweep) are now carried by models.AppSettings, so a remote save
+  // round-trips instead of failing loud.
+  test('equipment defaults (gain/offset/cooling) round-trip', () async {
+    final h = buildBackend(const models.AppSettings());
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    await container.read(appSettingsProvider.future);
+    await container.read(appSettingsProvider.notifier).setDefaultGain(120);
+    await container.read(appSettingsProvider.notifier).setDefaultOffset(64);
+    await container
+        .read(appSettingsProvider.notifier)
+        .setCoolingBehavior('Manual');
+
+    expect(h.writes.last.defaultGain, 120);
+    expect(h.writes.last.defaultOffset, 64);
+    expect(h.writes.last.coolingBehavior, 'Manual');
+  });
+
+  test('web-server enable + port round-trip', () async {
+    final h = buildBackend(const models.AppSettings());
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    await container.read(appSettingsProvider.future);
+    await container
+        .read(appSettingsProvider.notifier)
+        .setWebServerEnabled(true);
+    await container.read(appSettingsProvider.notifier).setWebServerPort(9090);
+
+    expect(h.writes.last.webServerEnabled, isTrue);
+    expect(h.writes.last.webServerPort, 9090);
+  });
+
+  test('PHD2 connection (host/port/path) round-trips', () async {
+    final h = buildBackend(const models.AppSettings());
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    await container.read(appSettingsProvider.future);
+    await container.read(appSettingsProvider.notifier).setPhd2Host('10.0.0.5');
+    await container.read(appSettingsProvider.notifier).setPhd2Port(4401);
+    await container
+        .read(appSettingsProvider.notifier)
+        .setPhd2Path(r'C:\PHD2\phd2.exe');
+
+    expect(h.writes.last.phd2Host, '10.0.0.5');
+    expect(h.writes.last.phd2Port, 4401);
+    expect(h.writes.last.phd2Path, r'C:\PHD2\phd2.exe');
+  });
+
+  test('notification toggles round-trip', () async {
+    final h = buildBackend(const models.AppSettings());
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    await container.read(appSettingsProvider.future);
+    await container
+        .read(appSettingsProvider.notifier)
+        .setNotificationsEnabled(false);
+    await container.read(appSettingsProvider.notifier).setNotifyOnError(false);
+
+    expect(h.writes.last.notificationsEnabled, isFalse);
+    expect(h.writes.last.notifyOnError, isFalse);
+  });
+
+  test('detailed autofocus sweep params round-trip', () async {
+    final h = buildBackend(const models.AppSettings());
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    await container.read(appSettingsProvider.future);
+    await container.read(appSettingsProvider.notifier).setAfStepSize(75);
+    await container.read(appSettingsProvider.notifier).setAfExposureTime(6.5);
+    await container
+        .read(appSettingsProvider.notifier)
+        .setAfCurveFitting('Parabolic');
+
+    expect(h.writes.last.afStepSize, 75);
+    expect(h.writes.last.afExposureTime, 6.5);
+    expect(h.writes.last.afCurveFitting, 'Parabolic');
+  });
+
+  test('session-lifecycle + campaign-rollup prefs round-trip', () async {
+    final h = buildBackend(const models.AppSettings());
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    await container.read(appSettingsProvider.future);
+    await container
+        .read(appSettingsProvider.notifier)
+        .setSessionHandoffAutoPrompt(false);
+    await container
+        .read(appSettingsProvider.notifier)
+        .setCampaignRollupGroupingMode('by_target_id');
+
+    expect(h.writes.last.sessionHandoffAutoPrompt, isFalse);
+    expect(h.writes.last.campaignRollupGroupingMode, 'by_target_id');
+  });
+
+  test('inbound settings.changed for defaultGain is applied in-place',
+      () async {
+    final h = buildBackend(const models.AppSettings(defaultGain: 100));
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    final initial = await container.read(appSettingsProvider.future);
+    expect(initial.defaultGain, 100);
+
+    h.events.add(NightshadeEvent(
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+      severity: EventSeverity.info,
+      category: EventCategory.system,
+      eventType: settingsChangedEventType,
+      data: const {
+        'key': 'defaultGain',
+        'value': 200,
+      },
+    ));
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    final after = container.read(appSettingsProvider).valueOrNull;
+    expect(after!.defaultGain, 200);
   });
 
   // Full-night audit 2026-06-04 follow-up (long tail) — the remaining

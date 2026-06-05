@@ -477,7 +477,160 @@ mixin _$AppSettings {
 
   /// Target SNR the planner sizes sub-exposures toward.
   /// DB key `smart_night_target_snr`.
-  double get smartNightTargetSnr => throw _privateConstructorUsedError;
+  double get smartNightTargetSnr =>
+      throw _privateConstructorUsedError; // -------------------------------------------------------------------
+// Full remote-settings parity 2026-06-05 — the remaining setter-reachable
+// knobs that `_applySettingsMap` already maps into AppSettingsState but
+// which had NO wire field, so a phone/remote save of them was rejected by
+// the `_assertKeysRemotable` fail-loud guard. Carrying them here completes
+// the unattended-night knob set so a phone can edit the whole config.
+// The defaults mirror AppSettingsState's constructor defaults so the wire
+// model never injects a different value than local state.
+// -------------------------------------------------------------------
+// Equipment defaults (camera).
+  /// Cooling behaviour: 'On Connect' / 'Manual' / 'Never'. DB `cooling_behavior`.
+  String get coolingBehavior => throw _privateConstructorUsedError;
+
+  /// Default camera gain. DB `default_gain`.
+  int get defaultGain => throw _privateConstructorUsedError;
+
+  /// Default camera offset. DB `default_offset`.
+  int get defaultOffset =>
+      throw _privateConstructorUsedError; // Remote access / web server.
+  /// Headless web server enabled. DB `web_server_enabled`.
+  bool get webServerEnabled => throw _privateConstructorUsedError;
+
+  /// Headless web server port. DB `web_server_port`.
+  int get webServerPort =>
+      throw _privateConstructorUsedError; // PHD2 connection.
+  /// PHD2 executable path. DB `phd2_path`.
+  String get phd2Path => throw _privateConstructorUsedError;
+
+  /// PHD2 host. DB `phd2_host`.
+  String get phd2Host => throw _privateConstructorUsedError;
+
+  /// PHD2 port. DB `phd2_port`.
+  int get phd2Port =>
+      throw _privateConstructorUsedError; // Notification toggles.
+  /// Master notifications switch. DB `notifications_enabled`.
+  bool get notificationsEnabled => throw _privateConstructorUsedError;
+
+  /// Notify when a sequence completes. DB `notify_on_sequence_complete`.
+  bool get notifyOnSequenceComplete => throw _privateConstructorUsedError;
+
+  /// Notify on error. DB `notify_on_error`.
+  bool get notifyOnError => throw _privateConstructorUsedError;
+
+  /// Notify on meridian flip. DB `notify_on_meridian_flip`.
+  bool get notifyOnMeridianFlip => throw _privateConstructorUsedError;
+
+  /// In-app notification sound. DB `sound_enabled`.
+  bool get soundEnabled => throw _privateConstructorUsedError;
+
+  /// Ring the platform alert on critical-severity events. DB
+  /// `audible_alerts_on_critical`.
+  bool get audibleAlertsOnCritical => throw _privateConstructorUsedError;
+
+  /// Which sound for critical alerts ('systemBell' / 'none'). DB
+  /// `critical_alert_sound`.
+  String get criticalAlertSound => throw _privateConstructorUsedError;
+
+  /// Forward critical alerts to paired phones as push. DB `push_critical_alerts`.
+  bool get pushCriticalAlerts =>
+      throw _privateConstructorUsedError; // Session-lifecycle + campaign-rollup prefs.
+  /// Show the Smart-Night auto-prompt when equipment is ready. DB
+  /// `smart_night.auto_prompt_enabled`.
+  bool get smartNightAutoPromptEnabled => throw _privateConstructorUsedError;
+
+  /// Prompt for notes after a run. DB `notes.prompt_after_run`.
+  bool get promptForNotesAfterRun => throw _privateConstructorUsedError;
+
+  /// Auto-open the multi-night carry-over banner. DB
+  /// `session.handoff_auto_prompt`.
+  bool get sessionHandoffAutoPrompt => throw _privateConstructorUsedError;
+
+  /// Surface the campaign-rollup column on the Targets tab. DB
+  /// `campaign_rollup.surface_targets_tab`.
+  bool get campaignRollupSurfaceTargetsTab =>
+      throw _privateConstructorUsedError;
+
+  /// Campaign-rollup grouping mode. DB `campaign_rollup.grouping_mode`.
+  String get campaignRollupGroupingMode =>
+      throw _privateConstructorUsedError; // Autofocus detailed sweep params.
+  /// AF method. DB `af_method`.
+  String get afMethod => throw _privateConstructorUsedError;
+
+  /// AF curve fitting. DB `af_curve_fitting`.
+  String get afCurveFitting => throw _privateConstructorUsedError;
+
+  /// AF step size between measurement points. DB `af_step_size`.
+  int get afStepSize => throw _privateConstructorUsedError;
+
+  /// AF exposure time (seconds). DB `af_exposure_time`.
+  double get afExposureTime => throw _privateConstructorUsedError;
+
+  /// AF initial offset steps out from center. DB `af_initial_offset_steps`.
+  int get afInitialOffsetSteps => throw _privateConstructorUsedError;
+
+  /// AF retry count on failure. DB `af_number_of_attempts`.
+  int get afNumberOfAttempts => throw _privateConstructorUsedError;
+
+  /// AF brightest-N stars (0 = all). DB `af_use_brightest_n_stars`.
+  int get afUseBrightestNStars => throw _privateConstructorUsedError;
+
+  /// AF outer crop ratio. DB `af_outer_crop_ratio`.
+  double get afOuterCropRatio => throw _privateConstructorUsedError;
+
+  /// AF inner crop ratio. DB `af_inner_crop_ratio`.
+  double get afInnerCropRatio => throw _privateConstructorUsedError;
+
+  /// AF binning. DB `af_binning`.
+  int get afBinning => throw _privateConstructorUsedError;
+
+  /// AF R² fit-quality threshold. DB `af_r_squared_threshold`.
+  double get afRSquaredThreshold => throw _privateConstructorUsedError;
+
+  /// AF focuser settle time (ms). DB `af_focuser_settle_time_ms`.
+  int get afFocuserSettleTimeMs => throw _privateConstructorUsedError;
+
+  /// AF exposures per measurement point. DB `af_exposures_per_point`.
+  int get afExposuresPerPoint => throw _privateConstructorUsedError;
+
+  /// AF backlash compensation method. DB `af_backlash_comp_method`.
+  String get afBacklashCompMethod => throw _privateConstructorUsedError;
+
+  /// AF backlash-in steps. DB `af_backlash_in`.
+  int get afBacklashIn => throw _privateConstructorUsedError;
+
+  /// AF backlash-out steps. DB `af_backlash_out`.
+  int get afBacklashOut => throw _privateConstructorUsedError;
+
+  /// Designated AF filter (empty = current). DB `af_autofocus_filter_name`.
+  String get afAutofocusFilterName => throw _privateConstructorUsedError;
+
+  /// Per-filter AF config JSON map. DB `af_filter_settings`.
+  String get afFilterSettingsJson => throw _privateConstructorUsedError;
+
+  /// Apply focus offsets on filter change. DB `use_filter_focus_offsets`.
+  bool get useFilterFocusOffsets =>
+      throw _privateConstructorUsedError; // Misc imaging / FITS / plate-solve config relevant to an unattended night.
+  /// Astrometry.net solver path. DB `astrometry_path`.
+  String get astrometryPath => throw _privateConstructorUsedError;
+
+  /// FITS OBSERVER keyword. DB `observer_name`.
+  String get observerName => throw _privateConstructorUsedError;
+
+  /// Image format ('FITS' / 'XISF' / 'TIFF'). DB `image_format`.
+  String get imageFormat => throw _privateConstructorUsedError;
+
+  /// Bit depth ('16-bit' / '32-bit'). DB `bit_depth`.
+  String get bitDepth => throw _privateConstructorUsedError;
+
+  /// Observing timezone. DB `timezone`.
+  String get timezone => throw _privateConstructorUsedError;
+
+  /// Use system time vs a fixed observing time. DB `use_system_time`.
+  bool get useSystemTime => throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -581,7 +734,53 @@ abstract class $AppSettingsCopyWith<$Res> {
       int smartNightPolarAlignmentStaleAfterDays,
       double smartNightSubExposureFloorSecs,
       double smartNightSubExposureCeilingSecs,
-      double smartNightTargetSnr});
+      double smartNightTargetSnr,
+      String coolingBehavior,
+      int defaultGain,
+      int defaultOffset,
+      bool webServerEnabled,
+      int webServerPort,
+      String phd2Path,
+      String phd2Host,
+      int phd2Port,
+      bool notificationsEnabled,
+      bool notifyOnSequenceComplete,
+      bool notifyOnError,
+      bool notifyOnMeridianFlip,
+      bool soundEnabled,
+      bool audibleAlertsOnCritical,
+      String criticalAlertSound,
+      bool pushCriticalAlerts,
+      bool smartNightAutoPromptEnabled,
+      bool promptForNotesAfterRun,
+      bool sessionHandoffAutoPrompt,
+      bool campaignRollupSurfaceTargetsTab,
+      String campaignRollupGroupingMode,
+      String afMethod,
+      String afCurveFitting,
+      int afStepSize,
+      double afExposureTime,
+      int afInitialOffsetSteps,
+      int afNumberOfAttempts,
+      int afUseBrightestNStars,
+      double afOuterCropRatio,
+      double afInnerCropRatio,
+      int afBinning,
+      double afRSquaredThreshold,
+      int afFocuserSettleTimeMs,
+      int afExposuresPerPoint,
+      String afBacklashCompMethod,
+      int afBacklashIn,
+      int afBacklashOut,
+      String afAutofocusFilterName,
+      String afFilterSettingsJson,
+      bool useFilterFocusOffsets,
+      String astrometryPath,
+      String observerName,
+      String imageFormat,
+      String bitDepth,
+      String timezone,
+      bool useSystemTime});
 
   $ObserverLocationCopyWith<$Res>? get location;
 }
@@ -689,6 +888,52 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
     Object? smartNightSubExposureFloorSecs = null,
     Object? smartNightSubExposureCeilingSecs = null,
     Object? smartNightTargetSnr = null,
+    Object? coolingBehavior = null,
+    Object? defaultGain = null,
+    Object? defaultOffset = null,
+    Object? webServerEnabled = null,
+    Object? webServerPort = null,
+    Object? phd2Path = null,
+    Object? phd2Host = null,
+    Object? phd2Port = null,
+    Object? notificationsEnabled = null,
+    Object? notifyOnSequenceComplete = null,
+    Object? notifyOnError = null,
+    Object? notifyOnMeridianFlip = null,
+    Object? soundEnabled = null,
+    Object? audibleAlertsOnCritical = null,
+    Object? criticalAlertSound = null,
+    Object? pushCriticalAlerts = null,
+    Object? smartNightAutoPromptEnabled = null,
+    Object? promptForNotesAfterRun = null,
+    Object? sessionHandoffAutoPrompt = null,
+    Object? campaignRollupSurfaceTargetsTab = null,
+    Object? campaignRollupGroupingMode = null,
+    Object? afMethod = null,
+    Object? afCurveFitting = null,
+    Object? afStepSize = null,
+    Object? afExposureTime = null,
+    Object? afInitialOffsetSteps = null,
+    Object? afNumberOfAttempts = null,
+    Object? afUseBrightestNStars = null,
+    Object? afOuterCropRatio = null,
+    Object? afInnerCropRatio = null,
+    Object? afBinning = null,
+    Object? afRSquaredThreshold = null,
+    Object? afFocuserSettleTimeMs = null,
+    Object? afExposuresPerPoint = null,
+    Object? afBacklashCompMethod = null,
+    Object? afBacklashIn = null,
+    Object? afBacklashOut = null,
+    Object? afAutofocusFilterName = null,
+    Object? afFilterSettingsJson = null,
+    Object? useFilterFocusOffsets = null,
+    Object? astrometryPath = null,
+    Object? observerName = null,
+    Object? imageFormat = null,
+    Object? bitDepth = null,
+    Object? timezone = null,
+    Object? useSystemTime = null,
   }) {
     return _then(_value.copyWith(
       location: freezed == location
@@ -1058,6 +1303,190 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
           ? _value.smartNightTargetSnr
           : smartNightTargetSnr // ignore: cast_nullable_to_non_nullable
               as double,
+      coolingBehavior: null == coolingBehavior
+          ? _value.coolingBehavior
+          : coolingBehavior // ignore: cast_nullable_to_non_nullable
+              as String,
+      defaultGain: null == defaultGain
+          ? _value.defaultGain
+          : defaultGain // ignore: cast_nullable_to_non_nullable
+              as int,
+      defaultOffset: null == defaultOffset
+          ? _value.defaultOffset
+          : defaultOffset // ignore: cast_nullable_to_non_nullable
+              as int,
+      webServerEnabled: null == webServerEnabled
+          ? _value.webServerEnabled
+          : webServerEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      webServerPort: null == webServerPort
+          ? _value.webServerPort
+          : webServerPort // ignore: cast_nullable_to_non_nullable
+              as int,
+      phd2Path: null == phd2Path
+          ? _value.phd2Path
+          : phd2Path // ignore: cast_nullable_to_non_nullable
+              as String,
+      phd2Host: null == phd2Host
+          ? _value.phd2Host
+          : phd2Host // ignore: cast_nullable_to_non_nullable
+              as String,
+      phd2Port: null == phd2Port
+          ? _value.phd2Port
+          : phd2Port // ignore: cast_nullable_to_non_nullable
+              as int,
+      notificationsEnabled: null == notificationsEnabled
+          ? _value.notificationsEnabled
+          : notificationsEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      notifyOnSequenceComplete: null == notifyOnSequenceComplete
+          ? _value.notifyOnSequenceComplete
+          : notifyOnSequenceComplete // ignore: cast_nullable_to_non_nullable
+              as bool,
+      notifyOnError: null == notifyOnError
+          ? _value.notifyOnError
+          : notifyOnError // ignore: cast_nullable_to_non_nullable
+              as bool,
+      notifyOnMeridianFlip: null == notifyOnMeridianFlip
+          ? _value.notifyOnMeridianFlip
+          : notifyOnMeridianFlip // ignore: cast_nullable_to_non_nullable
+              as bool,
+      soundEnabled: null == soundEnabled
+          ? _value.soundEnabled
+          : soundEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      audibleAlertsOnCritical: null == audibleAlertsOnCritical
+          ? _value.audibleAlertsOnCritical
+          : audibleAlertsOnCritical // ignore: cast_nullable_to_non_nullable
+              as bool,
+      criticalAlertSound: null == criticalAlertSound
+          ? _value.criticalAlertSound
+          : criticalAlertSound // ignore: cast_nullable_to_non_nullable
+              as String,
+      pushCriticalAlerts: null == pushCriticalAlerts
+          ? _value.pushCriticalAlerts
+          : pushCriticalAlerts // ignore: cast_nullable_to_non_nullable
+              as bool,
+      smartNightAutoPromptEnabled: null == smartNightAutoPromptEnabled
+          ? _value.smartNightAutoPromptEnabled
+          : smartNightAutoPromptEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      promptForNotesAfterRun: null == promptForNotesAfterRun
+          ? _value.promptForNotesAfterRun
+          : promptForNotesAfterRun // ignore: cast_nullable_to_non_nullable
+              as bool,
+      sessionHandoffAutoPrompt: null == sessionHandoffAutoPrompt
+          ? _value.sessionHandoffAutoPrompt
+          : sessionHandoffAutoPrompt // ignore: cast_nullable_to_non_nullable
+              as bool,
+      campaignRollupSurfaceTargetsTab: null == campaignRollupSurfaceTargetsTab
+          ? _value.campaignRollupSurfaceTargetsTab
+          : campaignRollupSurfaceTargetsTab // ignore: cast_nullable_to_non_nullable
+              as bool,
+      campaignRollupGroupingMode: null == campaignRollupGroupingMode
+          ? _value.campaignRollupGroupingMode
+          : campaignRollupGroupingMode // ignore: cast_nullable_to_non_nullable
+              as String,
+      afMethod: null == afMethod
+          ? _value.afMethod
+          : afMethod // ignore: cast_nullable_to_non_nullable
+              as String,
+      afCurveFitting: null == afCurveFitting
+          ? _value.afCurveFitting
+          : afCurveFitting // ignore: cast_nullable_to_non_nullable
+              as String,
+      afStepSize: null == afStepSize
+          ? _value.afStepSize
+          : afStepSize // ignore: cast_nullable_to_non_nullable
+              as int,
+      afExposureTime: null == afExposureTime
+          ? _value.afExposureTime
+          : afExposureTime // ignore: cast_nullable_to_non_nullable
+              as double,
+      afInitialOffsetSteps: null == afInitialOffsetSteps
+          ? _value.afInitialOffsetSteps
+          : afInitialOffsetSteps // ignore: cast_nullable_to_non_nullable
+              as int,
+      afNumberOfAttempts: null == afNumberOfAttempts
+          ? _value.afNumberOfAttempts
+          : afNumberOfAttempts // ignore: cast_nullable_to_non_nullable
+              as int,
+      afUseBrightestNStars: null == afUseBrightestNStars
+          ? _value.afUseBrightestNStars
+          : afUseBrightestNStars // ignore: cast_nullable_to_non_nullable
+              as int,
+      afOuterCropRatio: null == afOuterCropRatio
+          ? _value.afOuterCropRatio
+          : afOuterCropRatio // ignore: cast_nullable_to_non_nullable
+              as double,
+      afInnerCropRatio: null == afInnerCropRatio
+          ? _value.afInnerCropRatio
+          : afInnerCropRatio // ignore: cast_nullable_to_non_nullable
+              as double,
+      afBinning: null == afBinning
+          ? _value.afBinning
+          : afBinning // ignore: cast_nullable_to_non_nullable
+              as int,
+      afRSquaredThreshold: null == afRSquaredThreshold
+          ? _value.afRSquaredThreshold
+          : afRSquaredThreshold // ignore: cast_nullable_to_non_nullable
+              as double,
+      afFocuserSettleTimeMs: null == afFocuserSettleTimeMs
+          ? _value.afFocuserSettleTimeMs
+          : afFocuserSettleTimeMs // ignore: cast_nullable_to_non_nullable
+              as int,
+      afExposuresPerPoint: null == afExposuresPerPoint
+          ? _value.afExposuresPerPoint
+          : afExposuresPerPoint // ignore: cast_nullable_to_non_nullable
+              as int,
+      afBacklashCompMethod: null == afBacklashCompMethod
+          ? _value.afBacklashCompMethod
+          : afBacklashCompMethod // ignore: cast_nullable_to_non_nullable
+              as String,
+      afBacklashIn: null == afBacklashIn
+          ? _value.afBacklashIn
+          : afBacklashIn // ignore: cast_nullable_to_non_nullable
+              as int,
+      afBacklashOut: null == afBacklashOut
+          ? _value.afBacklashOut
+          : afBacklashOut // ignore: cast_nullable_to_non_nullable
+              as int,
+      afAutofocusFilterName: null == afAutofocusFilterName
+          ? _value.afAutofocusFilterName
+          : afAutofocusFilterName // ignore: cast_nullable_to_non_nullable
+              as String,
+      afFilterSettingsJson: null == afFilterSettingsJson
+          ? _value.afFilterSettingsJson
+          : afFilterSettingsJson // ignore: cast_nullable_to_non_nullable
+              as String,
+      useFilterFocusOffsets: null == useFilterFocusOffsets
+          ? _value.useFilterFocusOffsets
+          : useFilterFocusOffsets // ignore: cast_nullable_to_non_nullable
+              as bool,
+      astrometryPath: null == astrometryPath
+          ? _value.astrometryPath
+          : astrometryPath // ignore: cast_nullable_to_non_nullable
+              as String,
+      observerName: null == observerName
+          ? _value.observerName
+          : observerName // ignore: cast_nullable_to_non_nullable
+              as String,
+      imageFormat: null == imageFormat
+          ? _value.imageFormat
+          : imageFormat // ignore: cast_nullable_to_non_nullable
+              as String,
+      bitDepth: null == bitDepth
+          ? _value.bitDepth
+          : bitDepth // ignore: cast_nullable_to_non_nullable
+              as String,
+      timezone: null == timezone
+          ? _value.timezone
+          : timezone // ignore: cast_nullable_to_non_nullable
+              as String,
+      useSystemTime: null == useSystemTime
+          ? _value.useSystemTime
+          : useSystemTime // ignore: cast_nullable_to_non_nullable
+              as bool,
     ) as $Val);
   }
 
@@ -1172,7 +1601,53 @@ abstract class _$$AppSettingsImplCopyWith<$Res>
       int smartNightPolarAlignmentStaleAfterDays,
       double smartNightSubExposureFloorSecs,
       double smartNightSubExposureCeilingSecs,
-      double smartNightTargetSnr});
+      double smartNightTargetSnr,
+      String coolingBehavior,
+      int defaultGain,
+      int defaultOffset,
+      bool webServerEnabled,
+      int webServerPort,
+      String phd2Path,
+      String phd2Host,
+      int phd2Port,
+      bool notificationsEnabled,
+      bool notifyOnSequenceComplete,
+      bool notifyOnError,
+      bool notifyOnMeridianFlip,
+      bool soundEnabled,
+      bool audibleAlertsOnCritical,
+      String criticalAlertSound,
+      bool pushCriticalAlerts,
+      bool smartNightAutoPromptEnabled,
+      bool promptForNotesAfterRun,
+      bool sessionHandoffAutoPrompt,
+      bool campaignRollupSurfaceTargetsTab,
+      String campaignRollupGroupingMode,
+      String afMethod,
+      String afCurveFitting,
+      int afStepSize,
+      double afExposureTime,
+      int afInitialOffsetSteps,
+      int afNumberOfAttempts,
+      int afUseBrightestNStars,
+      double afOuterCropRatio,
+      double afInnerCropRatio,
+      int afBinning,
+      double afRSquaredThreshold,
+      int afFocuserSettleTimeMs,
+      int afExposuresPerPoint,
+      String afBacklashCompMethod,
+      int afBacklashIn,
+      int afBacklashOut,
+      String afAutofocusFilterName,
+      String afFilterSettingsJson,
+      bool useFilterFocusOffsets,
+      String astrometryPath,
+      String observerName,
+      String imageFormat,
+      String bitDepth,
+      String timezone,
+      bool useSystemTime});
 
   @override
   $ObserverLocationCopyWith<$Res>? get location;
@@ -1279,6 +1754,52 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
     Object? smartNightSubExposureFloorSecs = null,
     Object? smartNightSubExposureCeilingSecs = null,
     Object? smartNightTargetSnr = null,
+    Object? coolingBehavior = null,
+    Object? defaultGain = null,
+    Object? defaultOffset = null,
+    Object? webServerEnabled = null,
+    Object? webServerPort = null,
+    Object? phd2Path = null,
+    Object? phd2Host = null,
+    Object? phd2Port = null,
+    Object? notificationsEnabled = null,
+    Object? notifyOnSequenceComplete = null,
+    Object? notifyOnError = null,
+    Object? notifyOnMeridianFlip = null,
+    Object? soundEnabled = null,
+    Object? audibleAlertsOnCritical = null,
+    Object? criticalAlertSound = null,
+    Object? pushCriticalAlerts = null,
+    Object? smartNightAutoPromptEnabled = null,
+    Object? promptForNotesAfterRun = null,
+    Object? sessionHandoffAutoPrompt = null,
+    Object? campaignRollupSurfaceTargetsTab = null,
+    Object? campaignRollupGroupingMode = null,
+    Object? afMethod = null,
+    Object? afCurveFitting = null,
+    Object? afStepSize = null,
+    Object? afExposureTime = null,
+    Object? afInitialOffsetSteps = null,
+    Object? afNumberOfAttempts = null,
+    Object? afUseBrightestNStars = null,
+    Object? afOuterCropRatio = null,
+    Object? afInnerCropRatio = null,
+    Object? afBinning = null,
+    Object? afRSquaredThreshold = null,
+    Object? afFocuserSettleTimeMs = null,
+    Object? afExposuresPerPoint = null,
+    Object? afBacklashCompMethod = null,
+    Object? afBacklashIn = null,
+    Object? afBacklashOut = null,
+    Object? afAutofocusFilterName = null,
+    Object? afFilterSettingsJson = null,
+    Object? useFilterFocusOffsets = null,
+    Object? astrometryPath = null,
+    Object? observerName = null,
+    Object? imageFormat = null,
+    Object? bitDepth = null,
+    Object? timezone = null,
+    Object? useSystemTime = null,
   }) {
     return _then(_$AppSettingsImpl(
       location: freezed == location
@@ -1648,6 +2169,190 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
           ? _value.smartNightTargetSnr
           : smartNightTargetSnr // ignore: cast_nullable_to_non_nullable
               as double,
+      coolingBehavior: null == coolingBehavior
+          ? _value.coolingBehavior
+          : coolingBehavior // ignore: cast_nullable_to_non_nullable
+              as String,
+      defaultGain: null == defaultGain
+          ? _value.defaultGain
+          : defaultGain // ignore: cast_nullable_to_non_nullable
+              as int,
+      defaultOffset: null == defaultOffset
+          ? _value.defaultOffset
+          : defaultOffset // ignore: cast_nullable_to_non_nullable
+              as int,
+      webServerEnabled: null == webServerEnabled
+          ? _value.webServerEnabled
+          : webServerEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      webServerPort: null == webServerPort
+          ? _value.webServerPort
+          : webServerPort // ignore: cast_nullable_to_non_nullable
+              as int,
+      phd2Path: null == phd2Path
+          ? _value.phd2Path
+          : phd2Path // ignore: cast_nullable_to_non_nullable
+              as String,
+      phd2Host: null == phd2Host
+          ? _value.phd2Host
+          : phd2Host // ignore: cast_nullable_to_non_nullable
+              as String,
+      phd2Port: null == phd2Port
+          ? _value.phd2Port
+          : phd2Port // ignore: cast_nullable_to_non_nullable
+              as int,
+      notificationsEnabled: null == notificationsEnabled
+          ? _value.notificationsEnabled
+          : notificationsEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      notifyOnSequenceComplete: null == notifyOnSequenceComplete
+          ? _value.notifyOnSequenceComplete
+          : notifyOnSequenceComplete // ignore: cast_nullable_to_non_nullable
+              as bool,
+      notifyOnError: null == notifyOnError
+          ? _value.notifyOnError
+          : notifyOnError // ignore: cast_nullable_to_non_nullable
+              as bool,
+      notifyOnMeridianFlip: null == notifyOnMeridianFlip
+          ? _value.notifyOnMeridianFlip
+          : notifyOnMeridianFlip // ignore: cast_nullable_to_non_nullable
+              as bool,
+      soundEnabled: null == soundEnabled
+          ? _value.soundEnabled
+          : soundEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      audibleAlertsOnCritical: null == audibleAlertsOnCritical
+          ? _value.audibleAlertsOnCritical
+          : audibleAlertsOnCritical // ignore: cast_nullable_to_non_nullable
+              as bool,
+      criticalAlertSound: null == criticalAlertSound
+          ? _value.criticalAlertSound
+          : criticalAlertSound // ignore: cast_nullable_to_non_nullable
+              as String,
+      pushCriticalAlerts: null == pushCriticalAlerts
+          ? _value.pushCriticalAlerts
+          : pushCriticalAlerts // ignore: cast_nullable_to_non_nullable
+              as bool,
+      smartNightAutoPromptEnabled: null == smartNightAutoPromptEnabled
+          ? _value.smartNightAutoPromptEnabled
+          : smartNightAutoPromptEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      promptForNotesAfterRun: null == promptForNotesAfterRun
+          ? _value.promptForNotesAfterRun
+          : promptForNotesAfterRun // ignore: cast_nullable_to_non_nullable
+              as bool,
+      sessionHandoffAutoPrompt: null == sessionHandoffAutoPrompt
+          ? _value.sessionHandoffAutoPrompt
+          : sessionHandoffAutoPrompt // ignore: cast_nullable_to_non_nullable
+              as bool,
+      campaignRollupSurfaceTargetsTab: null == campaignRollupSurfaceTargetsTab
+          ? _value.campaignRollupSurfaceTargetsTab
+          : campaignRollupSurfaceTargetsTab // ignore: cast_nullable_to_non_nullable
+              as bool,
+      campaignRollupGroupingMode: null == campaignRollupGroupingMode
+          ? _value.campaignRollupGroupingMode
+          : campaignRollupGroupingMode // ignore: cast_nullable_to_non_nullable
+              as String,
+      afMethod: null == afMethod
+          ? _value.afMethod
+          : afMethod // ignore: cast_nullable_to_non_nullable
+              as String,
+      afCurveFitting: null == afCurveFitting
+          ? _value.afCurveFitting
+          : afCurveFitting // ignore: cast_nullable_to_non_nullable
+              as String,
+      afStepSize: null == afStepSize
+          ? _value.afStepSize
+          : afStepSize // ignore: cast_nullable_to_non_nullable
+              as int,
+      afExposureTime: null == afExposureTime
+          ? _value.afExposureTime
+          : afExposureTime // ignore: cast_nullable_to_non_nullable
+              as double,
+      afInitialOffsetSteps: null == afInitialOffsetSteps
+          ? _value.afInitialOffsetSteps
+          : afInitialOffsetSteps // ignore: cast_nullable_to_non_nullable
+              as int,
+      afNumberOfAttempts: null == afNumberOfAttempts
+          ? _value.afNumberOfAttempts
+          : afNumberOfAttempts // ignore: cast_nullable_to_non_nullable
+              as int,
+      afUseBrightestNStars: null == afUseBrightestNStars
+          ? _value.afUseBrightestNStars
+          : afUseBrightestNStars // ignore: cast_nullable_to_non_nullable
+              as int,
+      afOuterCropRatio: null == afOuterCropRatio
+          ? _value.afOuterCropRatio
+          : afOuterCropRatio // ignore: cast_nullable_to_non_nullable
+              as double,
+      afInnerCropRatio: null == afInnerCropRatio
+          ? _value.afInnerCropRatio
+          : afInnerCropRatio // ignore: cast_nullable_to_non_nullable
+              as double,
+      afBinning: null == afBinning
+          ? _value.afBinning
+          : afBinning // ignore: cast_nullable_to_non_nullable
+              as int,
+      afRSquaredThreshold: null == afRSquaredThreshold
+          ? _value.afRSquaredThreshold
+          : afRSquaredThreshold // ignore: cast_nullable_to_non_nullable
+              as double,
+      afFocuserSettleTimeMs: null == afFocuserSettleTimeMs
+          ? _value.afFocuserSettleTimeMs
+          : afFocuserSettleTimeMs // ignore: cast_nullable_to_non_nullable
+              as int,
+      afExposuresPerPoint: null == afExposuresPerPoint
+          ? _value.afExposuresPerPoint
+          : afExposuresPerPoint // ignore: cast_nullable_to_non_nullable
+              as int,
+      afBacklashCompMethod: null == afBacklashCompMethod
+          ? _value.afBacklashCompMethod
+          : afBacklashCompMethod // ignore: cast_nullable_to_non_nullable
+              as String,
+      afBacklashIn: null == afBacklashIn
+          ? _value.afBacklashIn
+          : afBacklashIn // ignore: cast_nullable_to_non_nullable
+              as int,
+      afBacklashOut: null == afBacklashOut
+          ? _value.afBacklashOut
+          : afBacklashOut // ignore: cast_nullable_to_non_nullable
+              as int,
+      afAutofocusFilterName: null == afAutofocusFilterName
+          ? _value.afAutofocusFilterName
+          : afAutofocusFilterName // ignore: cast_nullable_to_non_nullable
+              as String,
+      afFilterSettingsJson: null == afFilterSettingsJson
+          ? _value.afFilterSettingsJson
+          : afFilterSettingsJson // ignore: cast_nullable_to_non_nullable
+              as String,
+      useFilterFocusOffsets: null == useFilterFocusOffsets
+          ? _value.useFilterFocusOffsets
+          : useFilterFocusOffsets // ignore: cast_nullable_to_non_nullable
+              as bool,
+      astrometryPath: null == astrometryPath
+          ? _value.astrometryPath
+          : astrometryPath // ignore: cast_nullable_to_non_nullable
+              as String,
+      observerName: null == observerName
+          ? _value.observerName
+          : observerName // ignore: cast_nullable_to_non_nullable
+              as String,
+      imageFormat: null == imageFormat
+          ? _value.imageFormat
+          : imageFormat // ignore: cast_nullable_to_non_nullable
+              as String,
+      bitDepth: null == bitDepth
+          ? _value.bitDepth
+          : bitDepth // ignore: cast_nullable_to_non_nullable
+              as String,
+      timezone: null == timezone
+          ? _value.timezone
+          : timezone // ignore: cast_nullable_to_non_nullable
+              as String,
+      useSystemTime: null == useSystemTime
+          ? _value.useSystemTime
+          : useSystemTime // ignore: cast_nullable_to_non_nullable
+              as bool,
     ));
   }
 }
@@ -1748,7 +2453,53 @@ class _$AppSettingsImpl implements _AppSettings {
       this.smartNightPolarAlignmentStaleAfterDays = 7,
       this.smartNightSubExposureFloorSecs = 30.0,
       this.smartNightSubExposureCeilingSecs = 300.0,
-      this.smartNightTargetSnr = 30.0})
+      this.smartNightTargetSnr = 30.0,
+      this.coolingBehavior = 'On Connect',
+      this.defaultGain = 100,
+      this.defaultOffset = 50,
+      this.webServerEnabled = false,
+      this.webServerPort = 8080,
+      this.phd2Path = '',
+      this.phd2Host = 'localhost',
+      this.phd2Port = 4400,
+      this.notificationsEnabled = true,
+      this.notifyOnSequenceComplete = true,
+      this.notifyOnError = true,
+      this.notifyOnMeridianFlip = false,
+      this.soundEnabled = true,
+      this.audibleAlertsOnCritical = false,
+      this.criticalAlertSound = 'systemBell',
+      this.pushCriticalAlerts = true,
+      this.smartNightAutoPromptEnabled = true,
+      this.promptForNotesAfterRun = true,
+      this.sessionHandoffAutoPrompt = true,
+      this.campaignRollupSurfaceTargetsTab = true,
+      this.campaignRollupGroupingMode = 'by_target_name',
+      this.afMethod = 'Star HFR',
+      this.afCurveFitting = 'Hyperbolic',
+      this.afStepSize = 50,
+      this.afExposureTime = 4.0,
+      this.afInitialOffsetSteps = 4,
+      this.afNumberOfAttempts = 1,
+      this.afUseBrightestNStars = 0,
+      this.afOuterCropRatio = 1.0,
+      this.afInnerCropRatio = 0.0,
+      this.afBinning = 1,
+      this.afRSquaredThreshold = 0.7,
+      this.afFocuserSettleTimeMs = 500,
+      this.afExposuresPerPoint = 1,
+      this.afBacklashCompMethod = 'Overshoot',
+      this.afBacklashIn = 350,
+      this.afBacklashOut = 0,
+      this.afAutofocusFilterName = '',
+      this.afFilterSettingsJson = '{}',
+      this.useFilterFocusOffsets = true,
+      this.astrometryPath = '',
+      this.observerName = '',
+      this.imageFormat = 'FITS',
+      this.bitDepth = '16-bit',
+      this.timezone = 'UTC',
+      this.useSystemTime = true})
       : _adaptiveExposurePerFilterEnabled = adaptiveExposurePerFilterEnabled,
         _adaptiveExposurePerFilterMinSecs = adaptiveExposurePerFilterMinSecs,
         _adaptiveExposurePerFilterMaxSecs = adaptiveExposurePerFilterMaxSecs;
@@ -2221,10 +2972,254 @@ class _$AppSettingsImpl implements _AppSettings {
   @override
   @JsonKey()
   final double smartNightTargetSnr;
+// -------------------------------------------------------------------
+// Full remote-settings parity 2026-06-05 — the remaining setter-reachable
+// knobs that `_applySettingsMap` already maps into AppSettingsState but
+// which had NO wire field, so a phone/remote save of them was rejected by
+// the `_assertKeysRemotable` fail-loud guard. Carrying them here completes
+// the unattended-night knob set so a phone can edit the whole config.
+// The defaults mirror AppSettingsState's constructor defaults so the wire
+// model never injects a different value than local state.
+// -------------------------------------------------------------------
+// Equipment defaults (camera).
+  /// Cooling behaviour: 'On Connect' / 'Manual' / 'Never'. DB `cooling_behavior`.
+  @override
+  @JsonKey()
+  final String coolingBehavior;
+
+  /// Default camera gain. DB `default_gain`.
+  @override
+  @JsonKey()
+  final int defaultGain;
+
+  /// Default camera offset. DB `default_offset`.
+  @override
+  @JsonKey()
+  final int defaultOffset;
+// Remote access / web server.
+  /// Headless web server enabled. DB `web_server_enabled`.
+  @override
+  @JsonKey()
+  final bool webServerEnabled;
+
+  /// Headless web server port. DB `web_server_port`.
+  @override
+  @JsonKey()
+  final int webServerPort;
+// PHD2 connection.
+  /// PHD2 executable path. DB `phd2_path`.
+  @override
+  @JsonKey()
+  final String phd2Path;
+
+  /// PHD2 host. DB `phd2_host`.
+  @override
+  @JsonKey()
+  final String phd2Host;
+
+  /// PHD2 port. DB `phd2_port`.
+  @override
+  @JsonKey()
+  final int phd2Port;
+// Notification toggles.
+  /// Master notifications switch. DB `notifications_enabled`.
+  @override
+  @JsonKey()
+  final bool notificationsEnabled;
+
+  /// Notify when a sequence completes. DB `notify_on_sequence_complete`.
+  @override
+  @JsonKey()
+  final bool notifyOnSequenceComplete;
+
+  /// Notify on error. DB `notify_on_error`.
+  @override
+  @JsonKey()
+  final bool notifyOnError;
+
+  /// Notify on meridian flip. DB `notify_on_meridian_flip`.
+  @override
+  @JsonKey()
+  final bool notifyOnMeridianFlip;
+
+  /// In-app notification sound. DB `sound_enabled`.
+  @override
+  @JsonKey()
+  final bool soundEnabled;
+
+  /// Ring the platform alert on critical-severity events. DB
+  /// `audible_alerts_on_critical`.
+  @override
+  @JsonKey()
+  final bool audibleAlertsOnCritical;
+
+  /// Which sound for critical alerts ('systemBell' / 'none'). DB
+  /// `critical_alert_sound`.
+  @override
+  @JsonKey()
+  final String criticalAlertSound;
+
+  /// Forward critical alerts to paired phones as push. DB `push_critical_alerts`.
+  @override
+  @JsonKey()
+  final bool pushCriticalAlerts;
+// Session-lifecycle + campaign-rollup prefs.
+  /// Show the Smart-Night auto-prompt when equipment is ready. DB
+  /// `smart_night.auto_prompt_enabled`.
+  @override
+  @JsonKey()
+  final bool smartNightAutoPromptEnabled;
+
+  /// Prompt for notes after a run. DB `notes.prompt_after_run`.
+  @override
+  @JsonKey()
+  final bool promptForNotesAfterRun;
+
+  /// Auto-open the multi-night carry-over banner. DB
+  /// `session.handoff_auto_prompt`.
+  @override
+  @JsonKey()
+  final bool sessionHandoffAutoPrompt;
+
+  /// Surface the campaign-rollup column on the Targets tab. DB
+  /// `campaign_rollup.surface_targets_tab`.
+  @override
+  @JsonKey()
+  final bool campaignRollupSurfaceTargetsTab;
+
+  /// Campaign-rollup grouping mode. DB `campaign_rollup.grouping_mode`.
+  @override
+  @JsonKey()
+  final String campaignRollupGroupingMode;
+// Autofocus detailed sweep params.
+  /// AF method. DB `af_method`.
+  @override
+  @JsonKey()
+  final String afMethod;
+
+  /// AF curve fitting. DB `af_curve_fitting`.
+  @override
+  @JsonKey()
+  final String afCurveFitting;
+
+  /// AF step size between measurement points. DB `af_step_size`.
+  @override
+  @JsonKey()
+  final int afStepSize;
+
+  /// AF exposure time (seconds). DB `af_exposure_time`.
+  @override
+  @JsonKey()
+  final double afExposureTime;
+
+  /// AF initial offset steps out from center. DB `af_initial_offset_steps`.
+  @override
+  @JsonKey()
+  final int afInitialOffsetSteps;
+
+  /// AF retry count on failure. DB `af_number_of_attempts`.
+  @override
+  @JsonKey()
+  final int afNumberOfAttempts;
+
+  /// AF brightest-N stars (0 = all). DB `af_use_brightest_n_stars`.
+  @override
+  @JsonKey()
+  final int afUseBrightestNStars;
+
+  /// AF outer crop ratio. DB `af_outer_crop_ratio`.
+  @override
+  @JsonKey()
+  final double afOuterCropRatio;
+
+  /// AF inner crop ratio. DB `af_inner_crop_ratio`.
+  @override
+  @JsonKey()
+  final double afInnerCropRatio;
+
+  /// AF binning. DB `af_binning`.
+  @override
+  @JsonKey()
+  final int afBinning;
+
+  /// AF R² fit-quality threshold. DB `af_r_squared_threshold`.
+  @override
+  @JsonKey()
+  final double afRSquaredThreshold;
+
+  /// AF focuser settle time (ms). DB `af_focuser_settle_time_ms`.
+  @override
+  @JsonKey()
+  final int afFocuserSettleTimeMs;
+
+  /// AF exposures per measurement point. DB `af_exposures_per_point`.
+  @override
+  @JsonKey()
+  final int afExposuresPerPoint;
+
+  /// AF backlash compensation method. DB `af_backlash_comp_method`.
+  @override
+  @JsonKey()
+  final String afBacklashCompMethod;
+
+  /// AF backlash-in steps. DB `af_backlash_in`.
+  @override
+  @JsonKey()
+  final int afBacklashIn;
+
+  /// AF backlash-out steps. DB `af_backlash_out`.
+  @override
+  @JsonKey()
+  final int afBacklashOut;
+
+  /// Designated AF filter (empty = current). DB `af_autofocus_filter_name`.
+  @override
+  @JsonKey()
+  final String afAutofocusFilterName;
+
+  /// Per-filter AF config JSON map. DB `af_filter_settings`.
+  @override
+  @JsonKey()
+  final String afFilterSettingsJson;
+
+  /// Apply focus offsets on filter change. DB `use_filter_focus_offsets`.
+  @override
+  @JsonKey()
+  final bool useFilterFocusOffsets;
+// Misc imaging / FITS / plate-solve config relevant to an unattended night.
+  /// Astrometry.net solver path. DB `astrometry_path`.
+  @override
+  @JsonKey()
+  final String astrometryPath;
+
+  /// FITS OBSERVER keyword. DB `observer_name`.
+  @override
+  @JsonKey()
+  final String observerName;
+
+  /// Image format ('FITS' / 'XISF' / 'TIFF'). DB `image_format`.
+  @override
+  @JsonKey()
+  final String imageFormat;
+
+  /// Bit depth ('16-bit' / '32-bit'). DB `bit_depth`.
+  @override
+  @JsonKey()
+  final String bitDepth;
+
+  /// Observing timezone. DB `timezone`.
+  @override
+  @JsonKey()
+  final String timezone;
+
+  /// Use system time vs a fixed observing time. DB `use_system_time`.
+  @override
+  @JsonKey()
+  final bool useSystemTime;
 
   @override
   String toString() {
-    return 'AppSettings(location: $location, theme: $theme, language: $language, autoConnect: $autoConnect, latitude: $latitude, longitude: $longitude, elevation: $elevation, fileNamingPattern: $fileNamingPattern, meridianFlipMinutes: $meridianFlipMinutes, autoFocusEveryMinutes: $autoFocusEveryMinutes, ditherEveryFrames: $ditherEveryFrames, plateSolveTimeout: $plateSolveTimeout, plateSolveSearchRadius: $plateSolveSearchRadius, discordWebhook: $discordWebhook, pushoverKey: $pushoverKey, pushoverUser: $pushoverUser, astapPath: $astapPath, autoDiscoverOnLaunch: $autoDiscoverOnLaunch, accentColor: $accentColor, fontSize: $fontSize, uiScale: $uiScale, indiServerHost: $indiServerHost, indiServerPort: $indiServerPort, indiAutoConnect: $indiAutoConnect, alpacaServerHost: $alpacaServerHost, alpacaServerPort: $alpacaServerPort, alpacaAutoDiscover: $alpacaAutoDiscover, useNativeExecution: $useNativeExecution, useSimulationMode: $useSimulationMode, imageOutputPath: $imageOutputPath, observer: $observer, telescope: $telescope, instrument: $instrument, updateCheckEnabled: $updateCheckEnabled, updateServerUrl: $updateServerUrl, updateChannel: $updateChannel, updateCheckIntervalHours: $updateCheckIntervalHours, skippedUpdateVersion: $skippedUpdateVersion, safetyFailMode: $safetyFailMode, enableImageGrading: $enableImageGrading, imageGradingHfrThresholdPx: $imageGradingHfrThresholdPx, imageGradingHfrBaselinePercent: $imageGradingHfrBaselinePercent, imageGradingEccentricityThreshold: $imageGradingEccentricityThreshold, imageGradingStarCountMin: $imageGradingStarCountMin, imageGradingMaxConsecutiveRejects: $imageGradingMaxConsecutiveRejects, imageGradingRejectFolderPath: $imageGradingRejectFolderPath, adaptiveExposureEnabled: $adaptiveExposureEnabled, adaptiveExposureTargetSnr: $adaptiveExposureTargetSnr, adaptiveExposureReferenceMag: $adaptiveExposureReferenceMag, adaptiveExposureMinSecs: $adaptiveExposureMinSecs, adaptiveExposureMaxSecs: $adaptiveExposureMaxSecs, adaptiveExposurePerFilterEnabled: $adaptiveExposurePerFilterEnabled, adaptiveExposurePerFilterMinSecs: $adaptiveExposurePerFilterMinSecs, adaptiveExposurePerFilterMaxSecs: $adaptiveExposurePerFilterMaxSecs, parkOnUnsafeWeather: $parkOnUnsafeWeather, autoFocusOnFilterChange: $autoFocusOnFilterChange, afDisableGuidingDuringAf: $afDisableGuidingDuringAf, ditherEnabled: $ditherEnabled, ditherScale: $ditherScale, recoveryDefaultRetryIntervalMins: $recoveryDefaultRetryIntervalMins, recoveryDefaultMaxDurationMins: $recoveryDefaultMaxDurationMins, recoveryStopTrackingDuringRecovery: $recoveryStopTrackingDuringRecovery, recoveryAbortOnMeridian: $recoveryAbortOnMeridian, recoveryAudibleAlertWhenEntered: $recoveryAudibleAlertWhenEntered, parkBeforeDawn: $parkBeforeDawn, enableMeridianFlip: $enableMeridianFlip, tempCompensation: $tempCompensation, tempCoefficient: $tempCoefficient, backlashCompensation: $backlashCompensation, settleThreshold: $settleThreshold, settleTimeout: $settleTimeout, plateSolver: $plateSolver, blindSolve: $blindSolve, bortleClass: $bortleClass, effectiveHorizonDeg: $effectiveHorizonDeg, preflightStrictness: $preflightStrictness, polarAlignmentMaxAgeDays: $polarAlignmentMaxAgeDays, opticalTrainDriftThreshold: $opticalTrainDriftThreshold, darkLibraryMinCoverage: $darkLibraryMinCoverage, smartNightMaxSessionHours: $smartNightMaxSessionHours, smartNightDefaultAfCadenceFrames: $smartNightDefaultAfCadenceFrames, smartNightDefaultIntegrationBudgetMinsPerTarget: $smartNightDefaultIntegrationBudgetMinsPerTarget, smartNightIncludeFlatsAtEnd: $smartNightIncludeFlatsAtEnd, smartNightUseSchedulerForMultiTarget: $smartNightUseSchedulerForMultiTarget, smartNightSchedulerTargetThreshold: $smartNightSchedulerTargetThreshold, smartNightDefaultStrategy: $smartNightDefaultStrategy, smartNightPolarAlignmentStaleAfterDays: $smartNightPolarAlignmentStaleAfterDays, smartNightSubExposureFloorSecs: $smartNightSubExposureFloorSecs, smartNightSubExposureCeilingSecs: $smartNightSubExposureCeilingSecs, smartNightTargetSnr: $smartNightTargetSnr)';
+    return 'AppSettings(location: $location, theme: $theme, language: $language, autoConnect: $autoConnect, latitude: $latitude, longitude: $longitude, elevation: $elevation, fileNamingPattern: $fileNamingPattern, meridianFlipMinutes: $meridianFlipMinutes, autoFocusEveryMinutes: $autoFocusEveryMinutes, ditherEveryFrames: $ditherEveryFrames, plateSolveTimeout: $plateSolveTimeout, plateSolveSearchRadius: $plateSolveSearchRadius, discordWebhook: $discordWebhook, pushoverKey: $pushoverKey, pushoverUser: $pushoverUser, astapPath: $astapPath, autoDiscoverOnLaunch: $autoDiscoverOnLaunch, accentColor: $accentColor, fontSize: $fontSize, uiScale: $uiScale, indiServerHost: $indiServerHost, indiServerPort: $indiServerPort, indiAutoConnect: $indiAutoConnect, alpacaServerHost: $alpacaServerHost, alpacaServerPort: $alpacaServerPort, alpacaAutoDiscover: $alpacaAutoDiscover, useNativeExecution: $useNativeExecution, useSimulationMode: $useSimulationMode, imageOutputPath: $imageOutputPath, observer: $observer, telescope: $telescope, instrument: $instrument, updateCheckEnabled: $updateCheckEnabled, updateServerUrl: $updateServerUrl, updateChannel: $updateChannel, updateCheckIntervalHours: $updateCheckIntervalHours, skippedUpdateVersion: $skippedUpdateVersion, safetyFailMode: $safetyFailMode, enableImageGrading: $enableImageGrading, imageGradingHfrThresholdPx: $imageGradingHfrThresholdPx, imageGradingHfrBaselinePercent: $imageGradingHfrBaselinePercent, imageGradingEccentricityThreshold: $imageGradingEccentricityThreshold, imageGradingStarCountMin: $imageGradingStarCountMin, imageGradingMaxConsecutiveRejects: $imageGradingMaxConsecutiveRejects, imageGradingRejectFolderPath: $imageGradingRejectFolderPath, adaptiveExposureEnabled: $adaptiveExposureEnabled, adaptiveExposureTargetSnr: $adaptiveExposureTargetSnr, adaptiveExposureReferenceMag: $adaptiveExposureReferenceMag, adaptiveExposureMinSecs: $adaptiveExposureMinSecs, adaptiveExposureMaxSecs: $adaptiveExposureMaxSecs, adaptiveExposurePerFilterEnabled: $adaptiveExposurePerFilterEnabled, adaptiveExposurePerFilterMinSecs: $adaptiveExposurePerFilterMinSecs, adaptiveExposurePerFilterMaxSecs: $adaptiveExposurePerFilterMaxSecs, parkOnUnsafeWeather: $parkOnUnsafeWeather, autoFocusOnFilterChange: $autoFocusOnFilterChange, afDisableGuidingDuringAf: $afDisableGuidingDuringAf, ditherEnabled: $ditherEnabled, ditherScale: $ditherScale, recoveryDefaultRetryIntervalMins: $recoveryDefaultRetryIntervalMins, recoveryDefaultMaxDurationMins: $recoveryDefaultMaxDurationMins, recoveryStopTrackingDuringRecovery: $recoveryStopTrackingDuringRecovery, recoveryAbortOnMeridian: $recoveryAbortOnMeridian, recoveryAudibleAlertWhenEntered: $recoveryAudibleAlertWhenEntered, parkBeforeDawn: $parkBeforeDawn, enableMeridianFlip: $enableMeridianFlip, tempCompensation: $tempCompensation, tempCoefficient: $tempCoefficient, backlashCompensation: $backlashCompensation, settleThreshold: $settleThreshold, settleTimeout: $settleTimeout, plateSolver: $plateSolver, blindSolve: $blindSolve, bortleClass: $bortleClass, effectiveHorizonDeg: $effectiveHorizonDeg, preflightStrictness: $preflightStrictness, polarAlignmentMaxAgeDays: $polarAlignmentMaxAgeDays, opticalTrainDriftThreshold: $opticalTrainDriftThreshold, darkLibraryMinCoverage: $darkLibraryMinCoverage, smartNightMaxSessionHours: $smartNightMaxSessionHours, smartNightDefaultAfCadenceFrames: $smartNightDefaultAfCadenceFrames, smartNightDefaultIntegrationBudgetMinsPerTarget: $smartNightDefaultIntegrationBudgetMinsPerTarget, smartNightIncludeFlatsAtEnd: $smartNightIncludeFlatsAtEnd, smartNightUseSchedulerForMultiTarget: $smartNightUseSchedulerForMultiTarget, smartNightSchedulerTargetThreshold: $smartNightSchedulerTargetThreshold, smartNightDefaultStrategy: $smartNightDefaultStrategy, smartNightPolarAlignmentStaleAfterDays: $smartNightPolarAlignmentStaleAfterDays, smartNightSubExposureFloorSecs: $smartNightSubExposureFloorSecs, smartNightSubExposureCeilingSecs: $smartNightSubExposureCeilingSecs, smartNightTargetSnr: $smartNightTargetSnr, coolingBehavior: $coolingBehavior, defaultGain: $defaultGain, defaultOffset: $defaultOffset, webServerEnabled: $webServerEnabled, webServerPort: $webServerPort, phd2Path: $phd2Path, phd2Host: $phd2Host, phd2Port: $phd2Port, notificationsEnabled: $notificationsEnabled, notifyOnSequenceComplete: $notifyOnSequenceComplete, notifyOnError: $notifyOnError, notifyOnMeridianFlip: $notifyOnMeridianFlip, soundEnabled: $soundEnabled, audibleAlertsOnCritical: $audibleAlertsOnCritical, criticalAlertSound: $criticalAlertSound, pushCriticalAlerts: $pushCriticalAlerts, smartNightAutoPromptEnabled: $smartNightAutoPromptEnabled, promptForNotesAfterRun: $promptForNotesAfterRun, sessionHandoffAutoPrompt: $sessionHandoffAutoPrompt, campaignRollupSurfaceTargetsTab: $campaignRollupSurfaceTargetsTab, campaignRollupGroupingMode: $campaignRollupGroupingMode, afMethod: $afMethod, afCurveFitting: $afCurveFitting, afStepSize: $afStepSize, afExposureTime: $afExposureTime, afInitialOffsetSteps: $afInitialOffsetSteps, afNumberOfAttempts: $afNumberOfAttempts, afUseBrightestNStars: $afUseBrightestNStars, afOuterCropRatio: $afOuterCropRatio, afInnerCropRatio: $afInnerCropRatio, afBinning: $afBinning, afRSquaredThreshold: $afRSquaredThreshold, afFocuserSettleTimeMs: $afFocuserSettleTimeMs, afExposuresPerPoint: $afExposuresPerPoint, afBacklashCompMethod: $afBacklashCompMethod, afBacklashIn: $afBacklashIn, afBacklashOut: $afBacklashOut, afAutofocusFilterName: $afAutofocusFilterName, afFilterSettingsJson: $afFilterSettingsJson, useFilterFocusOffsets: $useFilterFocusOffsets, astrometryPath: $astrometryPath, observerName: $observerName, imageFormat: $imageFormat, bitDepth: $bitDepth, timezone: $timezone, useSystemTime: $useSystemTime)';
   }
 
   @override
@@ -2364,7 +3359,53 @@ class _$AppSettingsImpl implements _AppSettings {
             (identical(other.smartNightPolarAlignmentStaleAfterDays, smartNightPolarAlignmentStaleAfterDays) || other.smartNightPolarAlignmentStaleAfterDays == smartNightPolarAlignmentStaleAfterDays) &&
             (identical(other.smartNightSubExposureFloorSecs, smartNightSubExposureFloorSecs) || other.smartNightSubExposureFloorSecs == smartNightSubExposureFloorSecs) &&
             (identical(other.smartNightSubExposureCeilingSecs, smartNightSubExposureCeilingSecs) || other.smartNightSubExposureCeilingSecs == smartNightSubExposureCeilingSecs) &&
-            (identical(other.smartNightTargetSnr, smartNightTargetSnr) || other.smartNightTargetSnr == smartNightTargetSnr));
+            (identical(other.smartNightTargetSnr, smartNightTargetSnr) || other.smartNightTargetSnr == smartNightTargetSnr) &&
+            (identical(other.coolingBehavior, coolingBehavior) || other.coolingBehavior == coolingBehavior) &&
+            (identical(other.defaultGain, defaultGain) || other.defaultGain == defaultGain) &&
+            (identical(other.defaultOffset, defaultOffset) || other.defaultOffset == defaultOffset) &&
+            (identical(other.webServerEnabled, webServerEnabled) || other.webServerEnabled == webServerEnabled) &&
+            (identical(other.webServerPort, webServerPort) || other.webServerPort == webServerPort) &&
+            (identical(other.phd2Path, phd2Path) || other.phd2Path == phd2Path) &&
+            (identical(other.phd2Host, phd2Host) || other.phd2Host == phd2Host) &&
+            (identical(other.phd2Port, phd2Port) || other.phd2Port == phd2Port) &&
+            (identical(other.notificationsEnabled, notificationsEnabled) || other.notificationsEnabled == notificationsEnabled) &&
+            (identical(other.notifyOnSequenceComplete, notifyOnSequenceComplete) || other.notifyOnSequenceComplete == notifyOnSequenceComplete) &&
+            (identical(other.notifyOnError, notifyOnError) || other.notifyOnError == notifyOnError) &&
+            (identical(other.notifyOnMeridianFlip, notifyOnMeridianFlip) || other.notifyOnMeridianFlip == notifyOnMeridianFlip) &&
+            (identical(other.soundEnabled, soundEnabled) || other.soundEnabled == soundEnabled) &&
+            (identical(other.audibleAlertsOnCritical, audibleAlertsOnCritical) || other.audibleAlertsOnCritical == audibleAlertsOnCritical) &&
+            (identical(other.criticalAlertSound, criticalAlertSound) || other.criticalAlertSound == criticalAlertSound) &&
+            (identical(other.pushCriticalAlerts, pushCriticalAlerts) || other.pushCriticalAlerts == pushCriticalAlerts) &&
+            (identical(other.smartNightAutoPromptEnabled, smartNightAutoPromptEnabled) || other.smartNightAutoPromptEnabled == smartNightAutoPromptEnabled) &&
+            (identical(other.promptForNotesAfterRun, promptForNotesAfterRun) || other.promptForNotesAfterRun == promptForNotesAfterRun) &&
+            (identical(other.sessionHandoffAutoPrompt, sessionHandoffAutoPrompt) || other.sessionHandoffAutoPrompt == sessionHandoffAutoPrompt) &&
+            (identical(other.campaignRollupSurfaceTargetsTab, campaignRollupSurfaceTargetsTab) || other.campaignRollupSurfaceTargetsTab == campaignRollupSurfaceTargetsTab) &&
+            (identical(other.campaignRollupGroupingMode, campaignRollupGroupingMode) || other.campaignRollupGroupingMode == campaignRollupGroupingMode) &&
+            (identical(other.afMethod, afMethod) || other.afMethod == afMethod) &&
+            (identical(other.afCurveFitting, afCurveFitting) || other.afCurveFitting == afCurveFitting) &&
+            (identical(other.afStepSize, afStepSize) || other.afStepSize == afStepSize) &&
+            (identical(other.afExposureTime, afExposureTime) || other.afExposureTime == afExposureTime) &&
+            (identical(other.afInitialOffsetSteps, afInitialOffsetSteps) || other.afInitialOffsetSteps == afInitialOffsetSteps) &&
+            (identical(other.afNumberOfAttempts, afNumberOfAttempts) || other.afNumberOfAttempts == afNumberOfAttempts) &&
+            (identical(other.afUseBrightestNStars, afUseBrightestNStars) || other.afUseBrightestNStars == afUseBrightestNStars) &&
+            (identical(other.afOuterCropRatio, afOuterCropRatio) || other.afOuterCropRatio == afOuterCropRatio) &&
+            (identical(other.afInnerCropRatio, afInnerCropRatio) || other.afInnerCropRatio == afInnerCropRatio) &&
+            (identical(other.afBinning, afBinning) || other.afBinning == afBinning) &&
+            (identical(other.afRSquaredThreshold, afRSquaredThreshold) || other.afRSquaredThreshold == afRSquaredThreshold) &&
+            (identical(other.afFocuserSettleTimeMs, afFocuserSettleTimeMs) || other.afFocuserSettleTimeMs == afFocuserSettleTimeMs) &&
+            (identical(other.afExposuresPerPoint, afExposuresPerPoint) || other.afExposuresPerPoint == afExposuresPerPoint) &&
+            (identical(other.afBacklashCompMethod, afBacklashCompMethod) || other.afBacklashCompMethod == afBacklashCompMethod) &&
+            (identical(other.afBacklashIn, afBacklashIn) || other.afBacklashIn == afBacklashIn) &&
+            (identical(other.afBacklashOut, afBacklashOut) || other.afBacklashOut == afBacklashOut) &&
+            (identical(other.afAutofocusFilterName, afAutofocusFilterName) || other.afAutofocusFilterName == afAutofocusFilterName) &&
+            (identical(other.afFilterSettingsJson, afFilterSettingsJson) || other.afFilterSettingsJson == afFilterSettingsJson) &&
+            (identical(other.useFilterFocusOffsets, useFilterFocusOffsets) || other.useFilterFocusOffsets == useFilterFocusOffsets) &&
+            (identical(other.astrometryPath, astrometryPath) || other.astrometryPath == astrometryPath) &&
+            (identical(other.observerName, observerName) || other.observerName == observerName) &&
+            (identical(other.imageFormat, imageFormat) || other.imageFormat == imageFormat) &&
+            (identical(other.bitDepth, bitDepth) || other.bitDepth == bitDepth) &&
+            (identical(other.timezone, timezone) || other.timezone == timezone) &&
+            (identical(other.useSystemTime, useSystemTime) || other.useSystemTime == useSystemTime));
   }
 
   @JsonKey(ignore: true)
@@ -2460,7 +3501,53 @@ class _$AppSettingsImpl implements _AppSettings {
         smartNightPolarAlignmentStaleAfterDays,
         smartNightSubExposureFloorSecs,
         smartNightSubExposureCeilingSecs,
-        smartNightTargetSnr
+        smartNightTargetSnr,
+        coolingBehavior,
+        defaultGain,
+        defaultOffset,
+        webServerEnabled,
+        webServerPort,
+        phd2Path,
+        phd2Host,
+        phd2Port,
+        notificationsEnabled,
+        notifyOnSequenceComplete,
+        notifyOnError,
+        notifyOnMeridianFlip,
+        soundEnabled,
+        audibleAlertsOnCritical,
+        criticalAlertSound,
+        pushCriticalAlerts,
+        smartNightAutoPromptEnabled,
+        promptForNotesAfterRun,
+        sessionHandoffAutoPrompt,
+        campaignRollupSurfaceTargetsTab,
+        campaignRollupGroupingMode,
+        afMethod,
+        afCurveFitting,
+        afStepSize,
+        afExposureTime,
+        afInitialOffsetSteps,
+        afNumberOfAttempts,
+        afUseBrightestNStars,
+        afOuterCropRatio,
+        afInnerCropRatio,
+        afBinning,
+        afRSquaredThreshold,
+        afFocuserSettleTimeMs,
+        afExposuresPerPoint,
+        afBacklashCompMethod,
+        afBacklashIn,
+        afBacklashOut,
+        afAutofocusFilterName,
+        afFilterSettingsJson,
+        useFilterFocusOffsets,
+        astrometryPath,
+        observerName,
+        imageFormat,
+        bitDepth,
+        timezone,
+        useSystemTime
       ]);
 
   @JsonKey(ignore: true)
@@ -2568,7 +3655,53 @@ abstract class _AppSettings implements AppSettings {
       final int smartNightPolarAlignmentStaleAfterDays,
       final double smartNightSubExposureFloorSecs,
       final double smartNightSubExposureCeilingSecs,
-      final double smartNightTargetSnr}) = _$AppSettingsImpl;
+      final double smartNightTargetSnr,
+      final String coolingBehavior,
+      final int defaultGain,
+      final int defaultOffset,
+      final bool webServerEnabled,
+      final int webServerPort,
+      final String phd2Path,
+      final String phd2Host,
+      final int phd2Port,
+      final bool notificationsEnabled,
+      final bool notifyOnSequenceComplete,
+      final bool notifyOnError,
+      final bool notifyOnMeridianFlip,
+      final bool soundEnabled,
+      final bool audibleAlertsOnCritical,
+      final String criticalAlertSound,
+      final bool pushCriticalAlerts,
+      final bool smartNightAutoPromptEnabled,
+      final bool promptForNotesAfterRun,
+      final bool sessionHandoffAutoPrompt,
+      final bool campaignRollupSurfaceTargetsTab,
+      final String campaignRollupGroupingMode,
+      final String afMethod,
+      final String afCurveFitting,
+      final int afStepSize,
+      final double afExposureTime,
+      final int afInitialOffsetSteps,
+      final int afNumberOfAttempts,
+      final int afUseBrightestNStars,
+      final double afOuterCropRatio,
+      final double afInnerCropRatio,
+      final int afBinning,
+      final double afRSquaredThreshold,
+      final int afFocuserSettleTimeMs,
+      final int afExposuresPerPoint,
+      final String afBacklashCompMethod,
+      final int afBacklashIn,
+      final int afBacklashOut,
+      final String afAutofocusFilterName,
+      final String afFilterSettingsJson,
+      final bool useFilterFocusOffsets,
+      final String astrometryPath,
+      final String observerName,
+      final String imageFormat,
+      final String bitDepth,
+      final String timezone,
+      final bool useSystemTime}) = _$AppSettingsImpl;
 
   factory _AppSettings.fromJson(Map<String, dynamic> json) =
       _$AppSettingsImpl.fromJson;
@@ -2910,6 +4043,197 @@ abstract class _AppSettings implements AppSettings {
   /// Target SNR the planner sizes sub-exposures toward.
   /// DB key `smart_night_target_snr`.
   double get smartNightTargetSnr;
+  @override // -------------------------------------------------------------------
+// Full remote-settings parity 2026-06-05 — the remaining setter-reachable
+// knobs that `_applySettingsMap` already maps into AppSettingsState but
+// which had NO wire field, so a phone/remote save of them was rejected by
+// the `_assertKeysRemotable` fail-loud guard. Carrying them here completes
+// the unattended-night knob set so a phone can edit the whole config.
+// The defaults mirror AppSettingsState's constructor defaults so the wire
+// model never injects a different value than local state.
+// -------------------------------------------------------------------
+// Equipment defaults (camera).
+  /// Cooling behaviour: 'On Connect' / 'Manual' / 'Never'. DB `cooling_behavior`.
+  String get coolingBehavior;
+  @override
+
+  /// Default camera gain. DB `default_gain`.
+  int get defaultGain;
+  @override
+
+  /// Default camera offset. DB `default_offset`.
+  int get defaultOffset;
+  @override // Remote access / web server.
+  /// Headless web server enabled. DB `web_server_enabled`.
+  bool get webServerEnabled;
+  @override
+
+  /// Headless web server port. DB `web_server_port`.
+  int get webServerPort;
+  @override // PHD2 connection.
+  /// PHD2 executable path. DB `phd2_path`.
+  String get phd2Path;
+  @override
+
+  /// PHD2 host. DB `phd2_host`.
+  String get phd2Host;
+  @override
+
+  /// PHD2 port. DB `phd2_port`.
+  int get phd2Port;
+  @override // Notification toggles.
+  /// Master notifications switch. DB `notifications_enabled`.
+  bool get notificationsEnabled;
+  @override
+
+  /// Notify when a sequence completes. DB `notify_on_sequence_complete`.
+  bool get notifyOnSequenceComplete;
+  @override
+
+  /// Notify on error. DB `notify_on_error`.
+  bool get notifyOnError;
+  @override
+
+  /// Notify on meridian flip. DB `notify_on_meridian_flip`.
+  bool get notifyOnMeridianFlip;
+  @override
+
+  /// In-app notification sound. DB `sound_enabled`.
+  bool get soundEnabled;
+  @override
+
+  /// Ring the platform alert on critical-severity events. DB
+  /// `audible_alerts_on_critical`.
+  bool get audibleAlertsOnCritical;
+  @override
+
+  /// Which sound for critical alerts ('systemBell' / 'none'). DB
+  /// `critical_alert_sound`.
+  String get criticalAlertSound;
+  @override
+
+  /// Forward critical alerts to paired phones as push. DB `push_critical_alerts`.
+  bool get pushCriticalAlerts;
+  @override // Session-lifecycle + campaign-rollup prefs.
+  /// Show the Smart-Night auto-prompt when equipment is ready. DB
+  /// `smart_night.auto_prompt_enabled`.
+  bool get smartNightAutoPromptEnabled;
+  @override
+
+  /// Prompt for notes after a run. DB `notes.prompt_after_run`.
+  bool get promptForNotesAfterRun;
+  @override
+
+  /// Auto-open the multi-night carry-over banner. DB
+  /// `session.handoff_auto_prompt`.
+  bool get sessionHandoffAutoPrompt;
+  @override
+
+  /// Surface the campaign-rollup column on the Targets tab. DB
+  /// `campaign_rollup.surface_targets_tab`.
+  bool get campaignRollupSurfaceTargetsTab;
+  @override
+
+  /// Campaign-rollup grouping mode. DB `campaign_rollup.grouping_mode`.
+  String get campaignRollupGroupingMode;
+  @override // Autofocus detailed sweep params.
+  /// AF method. DB `af_method`.
+  String get afMethod;
+  @override
+
+  /// AF curve fitting. DB `af_curve_fitting`.
+  String get afCurveFitting;
+  @override
+
+  /// AF step size between measurement points. DB `af_step_size`.
+  int get afStepSize;
+  @override
+
+  /// AF exposure time (seconds). DB `af_exposure_time`.
+  double get afExposureTime;
+  @override
+
+  /// AF initial offset steps out from center. DB `af_initial_offset_steps`.
+  int get afInitialOffsetSteps;
+  @override
+
+  /// AF retry count on failure. DB `af_number_of_attempts`.
+  int get afNumberOfAttempts;
+  @override
+
+  /// AF brightest-N stars (0 = all). DB `af_use_brightest_n_stars`.
+  int get afUseBrightestNStars;
+  @override
+
+  /// AF outer crop ratio. DB `af_outer_crop_ratio`.
+  double get afOuterCropRatio;
+  @override
+
+  /// AF inner crop ratio. DB `af_inner_crop_ratio`.
+  double get afInnerCropRatio;
+  @override
+
+  /// AF binning. DB `af_binning`.
+  int get afBinning;
+  @override
+
+  /// AF R² fit-quality threshold. DB `af_r_squared_threshold`.
+  double get afRSquaredThreshold;
+  @override
+
+  /// AF focuser settle time (ms). DB `af_focuser_settle_time_ms`.
+  int get afFocuserSettleTimeMs;
+  @override
+
+  /// AF exposures per measurement point. DB `af_exposures_per_point`.
+  int get afExposuresPerPoint;
+  @override
+
+  /// AF backlash compensation method. DB `af_backlash_comp_method`.
+  String get afBacklashCompMethod;
+  @override
+
+  /// AF backlash-in steps. DB `af_backlash_in`.
+  int get afBacklashIn;
+  @override
+
+  /// AF backlash-out steps. DB `af_backlash_out`.
+  int get afBacklashOut;
+  @override
+
+  /// Designated AF filter (empty = current). DB `af_autofocus_filter_name`.
+  String get afAutofocusFilterName;
+  @override
+
+  /// Per-filter AF config JSON map. DB `af_filter_settings`.
+  String get afFilterSettingsJson;
+  @override
+
+  /// Apply focus offsets on filter change. DB `use_filter_focus_offsets`.
+  bool get useFilterFocusOffsets;
+  @override // Misc imaging / FITS / plate-solve config relevant to an unattended night.
+  /// Astrometry.net solver path. DB `astrometry_path`.
+  String get astrometryPath;
+  @override
+
+  /// FITS OBSERVER keyword. DB `observer_name`.
+  String get observerName;
+  @override
+
+  /// Image format ('FITS' / 'XISF' / 'TIFF'). DB `image_format`.
+  String get imageFormat;
+  @override
+
+  /// Bit depth ('16-bit' / '32-bit'). DB `bit_depth`.
+  String get bitDepth;
+  @override
+
+  /// Observing timezone. DB `timezone`.
+  String get timezone;
+  @override
+
+  /// Use system time vs a fixed observing time. DB `use_system_time`.
+  bool get useSystemTime;
   @override
   @JsonKey(ignore: true)
   _$$AppSettingsImplCopyWith<_$AppSettingsImpl> get copyWith =>

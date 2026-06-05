@@ -6,8 +6,32 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
   /// mapped in `_toRemoteSettings` / `_fromRemoteSettings`. Anything NOT in
   /// here is dropped on the floor by a remote save, so we refuse to write it
   /// rather than letting a phone silently fail to persist an
-  /// unattended-night knob (autofocus, dither toggle, weather-safety,
-  /// recovery, smart-night, adaptive-swap, pre-flight, calibration, …).
+  /// unattended-night knob.
+  ///
+  /// As of the 2026-06-05 full-parity pass, every setter-reachable
+  /// *user-config* setting is remotable. The fail-loud guard now fires only
+  /// for the TRUE residual — settings that are genuinely non-remotable by
+  /// nature, NOT merely un-wired:
+  ///   * Desktop-shell / window UI prefs that are host-machine-local and
+  ///     meaningless to drive from a phone: `start_minimized`,
+  ///     `sidebar_collapsed`, `auto_save_sequences`, `confirm_before_closing`.
+  ///   * Host-filesystem infra paths whose remote edit is unsafe / restart-
+  ///     affecting: `database_path`, `logs_path`, `sequences_path`.
+  ///     (`image_output_path` / `astap_path` / `astrometry_path` ARE remoted —
+  ///     they're per-run imaging config, not infra.)
+  ///   * The full 8-point horizon-mask blob `horizon_profile_json` — a larger
+  ///     JSON sub-model; the scalar `effective_horizon_deg` floor (used by the
+  ///     scheduler / dashboard / planetarium) IS remoted. Remoting the full
+  ///     mask wants its own typed wire field — tracked separately.
+  ///   * The Wave-8 adaptive-swap scheduler-SEED defaults
+  ///     (`adaptive_swap.enabled_by_default`, `adaptive_swap.default_threshold`,
+  ///     `adaptive_swap.default_hysteresis_secs`, `adaptive_swap.score_weights`)
+  ///     — these pre-fill a new TargetSchedulerNode and form a distinct
+  ///     map/JSON cluster that `_applySettingsMap` does not even map; tracked
+  ///     separately.
+  /// NOTE: weather threshold *values* live in a separate `WeatherSettings`
+  /// model with its own endpoint — remoting them is a distinct out-of-scope
+  /// item, not part of this allow-set.
   ///
   /// IMPORTANT: keep this in lock-step with `_toRemoteSettings`. A key added
   /// to the wire model must be added here, or remote saves of it will throw.
@@ -117,6 +141,62 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     'smart_night_sub_exposure_floor_secs',
     'smart_night_sub_exposure_ceiling_secs',
     'smart_night_target_snr',
+    // Full remote-settings parity 2026-06-05 — the remaining setter-reachable
+    // unattended-night knobs now carried by models.AppSettings. Previously
+    // these threw via the fail-loud guard on a remote save; now they round-trip.
+    // Equipment defaults (camera).
+    'cooling_behavior',
+    'default_gain',
+    'default_offset',
+    // Remote access / web server.
+    'web_server_enabled',
+    'web_server_port',
+    // PHD2 connection.
+    'phd2_path',
+    'phd2_host',
+    'phd2_port',
+    // Notification toggles.
+    'notifications_enabled',
+    'notify_on_sequence_complete',
+    'notify_on_error',
+    'notify_on_meridian_flip',
+    'sound_enabled',
+    'audible_alerts_on_critical',
+    'critical_alert_sound',
+    'push_critical_alerts',
+    // Session-lifecycle + campaign-rollup prefs.
+    'smart_night.auto_prompt_enabled',
+    'notes.prompt_after_run',
+    'session.handoff_auto_prompt',
+    'campaign_rollup.surface_targets_tab',
+    'campaign_rollup.grouping_mode',
+    // Autofocus detailed sweep params.
+    'af_method',
+    'af_curve_fitting',
+    'af_step_size',
+    'af_exposure_time',
+    'af_initial_offset_steps',
+    'af_number_of_attempts',
+    'af_use_brightest_n_stars',
+    'af_outer_crop_ratio',
+    'af_inner_crop_ratio',
+    'af_binning',
+    'af_r_squared_threshold',
+    'af_focuser_settle_time_ms',
+    'af_exposures_per_point',
+    'af_backlash_comp_method',
+    'af_backlash_in',
+    'af_backlash_out',
+    'af_autofocus_filter_name',
+    'af_filter_settings',
+    'use_filter_focus_offsets',
+    // Misc FITS / imaging / plate-solve config.
+    'astrometry_path',
+    'observer_name',
+    'image_format',
+    'bit_depth',
+    'timezone',
+    'use_system_time',
   };
 
   /// FAIL-LOUD guard for the remote-write path. Throws an [UnsupportedError]

@@ -260,6 +260,119 @@ class AppSettings with _$AppSettings {
     /// Target SNR the planner sizes sub-exposures toward.
     /// DB key `smart_night_target_snr`.
     @Default(30.0) double smartNightTargetSnr,
+    // -------------------------------------------------------------------
+    // Full remote-settings parity 2026-06-05 — the remaining setter-reachable
+    // knobs that `_applySettingsMap` already maps into AppSettingsState but
+    // which had NO wire field, so a phone/remote save of them was rejected by
+    // the `_assertKeysRemotable` fail-loud guard. Carrying them here completes
+    // the unattended-night knob set so a phone can edit the whole config.
+    // The defaults mirror AppSettingsState's constructor defaults so the wire
+    // model never injects a different value than local state.
+    // -------------------------------------------------------------------
+    // Equipment defaults (camera).
+    /// Cooling behaviour: 'On Connect' / 'Manual' / 'Never'. DB `cooling_behavior`.
+    @Default('On Connect') String coolingBehavior,
+    /// Default camera gain. DB `default_gain`.
+    @Default(100) int defaultGain,
+    /// Default camera offset. DB `default_offset`.
+    @Default(50) int defaultOffset,
+    // Remote access / web server.
+    /// Headless web server enabled. DB `web_server_enabled`.
+    @Default(false) bool webServerEnabled,
+    /// Headless web server port. DB `web_server_port`.
+    @Default(8080) int webServerPort,
+    // PHD2 connection.
+    /// PHD2 executable path. DB `phd2_path`.
+    @Default('') String phd2Path,
+    /// PHD2 host. DB `phd2_host`.
+    @Default('localhost') String phd2Host,
+    /// PHD2 port. DB `phd2_port`.
+    @Default(4400) int phd2Port,
+    // Notification toggles.
+    /// Master notifications switch. DB `notifications_enabled`.
+    @Default(true) bool notificationsEnabled,
+    /// Notify when a sequence completes. DB `notify_on_sequence_complete`.
+    @Default(true) bool notifyOnSequenceComplete,
+    /// Notify on error. DB `notify_on_error`.
+    @Default(true) bool notifyOnError,
+    /// Notify on meridian flip. DB `notify_on_meridian_flip`.
+    @Default(false) bool notifyOnMeridianFlip,
+    /// In-app notification sound. DB `sound_enabled`.
+    @Default(true) bool soundEnabled,
+    /// Ring the platform alert on critical-severity events. DB
+    /// `audible_alerts_on_critical`.
+    @Default(false) bool audibleAlertsOnCritical,
+    /// Which sound for critical alerts ('systemBell' / 'none'). DB
+    /// `critical_alert_sound`.
+    @Default('systemBell') String criticalAlertSound,
+    /// Forward critical alerts to paired phones as push. DB `push_critical_alerts`.
+    @Default(true) bool pushCriticalAlerts,
+    // Session-lifecycle + campaign-rollup prefs.
+    /// Show the Smart-Night auto-prompt when equipment is ready. DB
+    /// `smart_night.auto_prompt_enabled`.
+    @Default(true) bool smartNightAutoPromptEnabled,
+    /// Prompt for notes after a run. DB `notes.prompt_after_run`.
+    @Default(true) bool promptForNotesAfterRun,
+    /// Auto-open the multi-night carry-over banner. DB
+    /// `session.handoff_auto_prompt`.
+    @Default(true) bool sessionHandoffAutoPrompt,
+    /// Surface the campaign-rollup column on the Targets tab. DB
+    /// `campaign_rollup.surface_targets_tab`.
+    @Default(true) bool campaignRollupSurfaceTargetsTab,
+    /// Campaign-rollup grouping mode. DB `campaign_rollup.grouping_mode`.
+    @Default('by_target_name') String campaignRollupGroupingMode,
+    // Autofocus detailed sweep params.
+    /// AF method. DB `af_method`.
+    @Default('Star HFR') String afMethod,
+    /// AF curve fitting. DB `af_curve_fitting`.
+    @Default('Hyperbolic') String afCurveFitting,
+    /// AF step size between measurement points. DB `af_step_size`.
+    @Default(50) int afStepSize,
+    /// AF exposure time (seconds). DB `af_exposure_time`.
+    @Default(4.0) double afExposureTime,
+    /// AF initial offset steps out from center. DB `af_initial_offset_steps`.
+    @Default(4) int afInitialOffsetSteps,
+    /// AF retry count on failure. DB `af_number_of_attempts`.
+    @Default(1) int afNumberOfAttempts,
+    /// AF brightest-N stars (0 = all). DB `af_use_brightest_n_stars`.
+    @Default(0) int afUseBrightestNStars,
+    /// AF outer crop ratio. DB `af_outer_crop_ratio`.
+    @Default(1.0) double afOuterCropRatio,
+    /// AF inner crop ratio. DB `af_inner_crop_ratio`.
+    @Default(0.0) double afInnerCropRatio,
+    /// AF binning. DB `af_binning`.
+    @Default(1) int afBinning,
+    /// AF R² fit-quality threshold. DB `af_r_squared_threshold`.
+    @Default(0.7) double afRSquaredThreshold,
+    /// AF focuser settle time (ms). DB `af_focuser_settle_time_ms`.
+    @Default(500) int afFocuserSettleTimeMs,
+    /// AF exposures per measurement point. DB `af_exposures_per_point`.
+    @Default(1) int afExposuresPerPoint,
+    /// AF backlash compensation method. DB `af_backlash_comp_method`.
+    @Default('Overshoot') String afBacklashCompMethod,
+    /// AF backlash-in steps. DB `af_backlash_in`.
+    @Default(350) int afBacklashIn,
+    /// AF backlash-out steps. DB `af_backlash_out`.
+    @Default(0) int afBacklashOut,
+    /// Designated AF filter (empty = current). DB `af_autofocus_filter_name`.
+    @Default('') String afAutofocusFilterName,
+    /// Per-filter AF config JSON map. DB `af_filter_settings`.
+    @Default('{}') String afFilterSettingsJson,
+    /// Apply focus offsets on filter change. DB `use_filter_focus_offsets`.
+    @Default(true) bool useFilterFocusOffsets,
+    // Misc imaging / FITS / plate-solve config relevant to an unattended night.
+    /// Astrometry.net solver path. DB `astrometry_path`.
+    @Default('') String astrometryPath,
+    /// FITS OBSERVER keyword. DB `observer_name`.
+    @Default('') String observerName,
+    /// Image format ('FITS' / 'XISF' / 'TIFF'). DB `image_format`.
+    @Default('FITS') String imageFormat,
+    /// Bit depth ('16-bit' / '32-bit'). DB `bit_depth`.
+    @Default('16-bit') String bitDepth,
+    /// Observing timezone. DB `timezone`.
+    @Default('UTC') String timezone,
+    /// Use system time vs a fixed observing time. DB `use_system_time`.
+    @Default(true) bool useSystemTime,
   }) = _AppSettings;
 
   factory AppSettings.fromJson(Map<String, dynamic> json) =>
