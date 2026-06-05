@@ -910,8 +910,64 @@ pub struct StarDetectionResult {
     pub median_hfr: f64,
     pub median_fwhm: f64,
     pub median_snr: f64,
+    /// Per-frame median eccentricity across the brightest, most reliable
+    /// detected stars (0.0 = perfectly round, →1.0 = trailed/elongated).
+    ///
+    /// `None` (not `0.0`) when the metric cannot be honestly measured —
+    /// either no stars were detected or too few survived the reliability
+    /// filter to form a stable median. The grading gate treats `None` as
+    /// "unknown, do not reject"; fabricating `0.0` would silently let
+    /// trailed frames pass a configured eccentricity gate, so we never do.
+    pub median_eccentricity: Option<f64>,
     pub background: f64,
     pub noise: f64,
+}
+
+/// Minimum number of reliable stars required to report a stable per-frame
+/// eccentricity. Below this the median is too noisy to gate on, so we
+/// report `None` (honest absence) rather than a fabricated value.
+const MIN_STARS_FOR_FRAME_ECCENTRICITY: usize = 5;
+
+/// Aggregate a per-frame eccentricity from individually-measured stars.
+///
+/// Selection rationale (mirrors the HFR aggregation): we rank stars by flux
+/// (brightest first — these have the best-sampled shape moments), keep the
+/// reliable ones (positive flux, finite eccentricity, plausible HFR so hot
+/// pixels and cosmic rays are excluded), cap at the brightest 50 to bound
+/// cost, then take the median. The median is robust to a handful of
+/// blended/saturated outliers that would skew a mean.
+///
+/// Returns `None` (fail-closed) when fewer than
+/// [`MIN_STARS_FOR_FRAME_ECCENTRICITY`] reliable stars are available — a
+/// single round star must not be reported as "the frame is round".
+pub fn frame_eccentricity(stars: &[DetectedStar]) -> Option<f64> {
+    let mut reliable: Vec<&DetectedStar> = stars
+        .iter()
+        .filter(|s| {
+            s.flux > 0.0
+                && s.eccentricity.is_finite()
+                && (0.0..=1.0).contains(&s.eccentricity)
+                // Reject hot pixels / cosmic rays whose "shape" is meaningless:
+                // a real star has measurable spread (HFR > 0.5 px).
+                && s.hfr > 0.5
+        })
+        .collect();
+
+    if reliable.len() < MIN_STARS_FOR_FRAME_ECCENTRICITY {
+        return None;
+    }
+
+    // Brightest first — best-sampled moments dominate the estimate.
+    reliable.sort_by(|a, b| b.flux.total_cmp(&a.flux));
+    let take = reliable.len().min(50);
+
+    let mut eccs: Vec<f64> = reliable
+        .iter()
+        .take(take)
+        .map(|s| s.eccentricity)
+        .collect();
+    eccs.sort_by(f64::total_cmp);
+    Some(eccs[eccs.len() / 2])
 }
 
 /// Run full star detection with summary statistics
@@ -991,12 +1047,15 @@ pub fn detect_stars_with_stats(
         (0.0, 0.0, 0.0)
     };
 
+    let median_eccentricity = frame_eccentricity(&stars);
+
     StarDetectionResult {
         stars,
         star_count,
         median_hfr,
         median_fwhm,
         median_snr,
+        median_eccentricity,
         background,
         noise,
     }
@@ -1291,6 +1350,177 @@ mod tests {
             expected_fwhm,
             fwhm_err * 100.0
         );
+    }
+
+    /// Render an elliptical 2-D Gaussian with independent σx, σy.
+    ///
+    /// A round star uses σx == σy → eccentricity ≈ 0. An axis-aligned
+    /// elongated/trailed star uses σx ≫ σy → high eccentricity. The
+    /// analytic eccentricity of a Gaussian with semi-axes proportional to
+    /// (σ_major, σ_minor) is sqrt(1 − (σ_minor/σ_major)²) because the
+    /// second central moments are σ² along each axis, so the moment-matrix
+    /// eigenvalues are σx² and σy² and ecc = sqrt(1 − λ_min/λ_max).
+    fn render_elliptical_gaussian_u16(
+        width: u32,
+        height: u32,
+        cx: f64,
+        cy: f64,
+        sigma_x: f64,
+        sigma_y: f64,
+    ) -> ImageData {
+        const BACKGROUND: f64 = 1000.0;
+        const PEAK: f64 = 30000.0;
+        let mut data = vec![BACKGROUND as u16; (width * height) as usize];
+        let two_sx_sq = 2.0 * sigma_x * sigma_x;
+        let two_sy_sq = 2.0 * sigma_y * sigma_y;
+        for y in 0..height {
+            for x in 0..width {
+                let dx = x as f64 - cx;
+                let dy = y as f64 - cy;
+                let v = BACKGROUND
+                    + PEAK * (-(dx * dx) / two_sx_sq - (dy * dy) / two_sy_sq).exp();
+                data[(y * width + x) as usize] = v.clamp(0.0, 65535.0) as u16;
+            }
+        }
+        ImageData::from_u16(width, height, 1, &data)
+    }
+
+    fn detect_for_shape(image: &ImageData) -> Vec<DetectedStar> {
+        let config = StarDetectionConfig {
+            min_area: 5,
+            min_hfr: 0.5,
+            min_snr: 1.0,
+            max_sharpness: 1.0,
+            // Don't let the detector's own ecc filter cull the trailed star
+            // we are trying to measure — we assert the measured value here.
+            max_eccentricity: 1.0,
+            hfr_radius: 20,
+            ..Default::default()
+        };
+        detect_stars(image, &config)
+    }
+
+    #[test]
+    fn round_star_has_near_zero_eccentricity() {
+        let image = render_elliptical_gaussian_u16(64, 64, 32.0, 32.0, 2.5, 2.5);
+        let stars = detect_for_shape(&image);
+        assert!(!stars.is_empty(), "expected detection on round Gaussian");
+        let star = &stars[0];
+        assert!(
+            star.eccentricity < 0.20,
+            "round star eccentricity should be ~0, got {:.4}",
+            star.eccentricity
+        );
+    }
+
+    #[test]
+    fn elongated_star_has_high_eccentricity_matching_axis_ratio() {
+        // σx = 5, σy = 2 → analytic ecc = sqrt(1 − (2/5)²) = sqrt(0.84) ≈ 0.917.
+        let sigma_major = 5.0_f64;
+        let sigma_minor = 2.0_f64;
+        let image = render_elliptical_gaussian_u16(80, 80, 40.0, 40.0, sigma_major, sigma_minor);
+        let stars = detect_for_shape(&image);
+        assert!(!stars.is_empty(), "expected detection on elongated Gaussian");
+        let star = &stars[0];
+
+        let expected = (1.0 - (sigma_minor / sigma_major).powi(2)).sqrt();
+        let err = (star.eccentricity - expected).abs();
+        assert!(
+            star.eccentricity > 0.7,
+            "trailed star must read as highly eccentric, got {:.4}",
+            star.eccentricity
+        );
+        // The discrete aperture + background subtraction bias the measured
+        // moments slightly low; 0.08 absolute tolerance against the analytic
+        // axis-ratio eccentricity confirms the eigenvalue derivation.
+        assert!(
+            err < 0.08,
+            "measured ecc {:.4} should match analytic {:.4} (err {:.4})",
+            star.eccentricity,
+            expected,
+            err
+        );
+    }
+
+    #[test]
+    fn frame_eccentricity_is_none_below_min_reliable_stars() {
+        // Four reliable stars is below MIN_STARS_FOR_FRAME_ECCENTRICITY (5):
+        // an honest "unknown", never a fabricated 0.0.
+        let stars: Vec<DetectedStar> = (0..4)
+            .map(|i| DetectedStar {
+                x: i as f64,
+                y: 0.0,
+                flux: 1000.0,
+                hfr: 2.0,
+                fwhm: 4.0,
+                peak: 5000.0,
+                background: 100.0,
+                snr: 50.0,
+                eccentricity: 0.1,
+                sharpness: 0.3,
+            })
+            .collect();
+        assert_eq!(frame_eccentricity(&stars), None);
+        assert_eq!(frame_eccentricity(&[]), None);
+    }
+
+    #[test]
+    fn frame_eccentricity_takes_median_of_reliable_stars() {
+        // Five round stars (ecc 0.1) plus one trailed outlier (ecc 0.9):
+        // the median is robust → 0.1, not pulled toward the outlier.
+        let mut stars: Vec<DetectedStar> = (0..5)
+            .map(|i| DetectedStar {
+                x: i as f64,
+                y: 0.0,
+                flux: 1000.0 + i as f64,
+                hfr: 2.0,
+                fwhm: 4.0,
+                peak: 5000.0,
+                background: 100.0,
+                snr: 50.0,
+                eccentricity: 0.1,
+                sharpness: 0.3,
+            })
+            .collect();
+        stars.push(DetectedStar {
+            x: 99.0,
+            y: 0.0,
+            flux: 2000.0,
+            hfr: 2.0,
+            fwhm: 4.0,
+            peak: 9000.0,
+            background: 100.0,
+            snr: 80.0,
+            eccentricity: 0.9,
+            sharpness: 0.3,
+        });
+        let ecc = frame_eccentricity(&stars).expect("six reliable stars → Some");
+        assert!(
+            (ecc - 0.1).abs() < 1e-9,
+            "median should reject the single trailed outlier, got {}",
+            ecc
+        );
+    }
+
+    #[test]
+    fn frame_eccentricity_rejects_hot_pixels_by_hfr_floor() {
+        // Five "hot pixels": positive flux but sub-0.5px HFR. They must not
+        // count toward the reliable-star floor, so the result is None.
+        let stars: Vec<DetectedStar> = (0..5)
+            .map(|i| DetectedStar {
+                x: i as f64,
+                y: 0.0,
+                flux: 1000.0,
+                hfr: 0.3,
+                fwhm: 0.6,
+                peak: 5000.0,
+                background: 100.0,
+                snr: 50.0,
+                eccentricity: 0.05,
+                sharpness: 0.99,
+            })
+            .collect();
+        assert_eq!(frame_eccentricity(&stars), None);
     }
 
     #[test]
