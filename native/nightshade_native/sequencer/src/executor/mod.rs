@@ -1200,7 +1200,9 @@ pub(crate) fn alt_az_to_ra_dec(
 /// if the lock never re-establishes — the recovery driver then escalates per
 /// the configured retry policy rather than silently resuming exposures on an
 /// unguided mount.
-async fn recover_guide_star(device_ops: &SharedDeviceOps) -> crate::recovery::AttemptOutcome {
+pub(crate) async fn recover_guide_star(
+    device_ops: &SharedDeviceOps,
+) -> crate::recovery::AttemptOutcome {
     use crate::recovery::AttemptOutcome;
 
     // Re-acquisition settle parameters. These mirror the conservative defaults
@@ -1269,7 +1271,7 @@ async fn recover_guide_star(device_ops: &SharedDeviceOps) -> crate::recovery::At
     }
 }
 
-async fn run_recovery_attempt(
+pub(crate) async fn run_recovery_attempt(
     cause: &crate::recovery::RecoveryCause,
     device_ops: &SharedDeviceOps,
     mount_id: Option<&str>,
@@ -3607,14 +3609,27 @@ impl SequenceExecutor {
                             if !aborted_by_user {
                                 recovery_driver_gave_up.store(true, Ordering::Relaxed);
 
-                                if let Some(mount_id) = &recovery_driver_mount_id {
-                                    let park = crate::device_ops::try_park_with_retry(
-                                        &recovery_driver_device_ops,
-                                        mount_id,
-                                        2,
-                                        2.0,
-                                    )
-                                    .await;
+                                // Single source of truth for the park → close
+                                // cover → close dome safe-state sweep
+                                // (`device_ops::park_and_close_safe_state`).
+                                // The give-up path historically used 2 park
+                                // retries with a 2s delay; pass those through so
+                                // this consolidation changes no behaviour. Each
+                                // call site still emits its own operator-facing
+                                // wording from the returned outcome.
+                                let outcome = crate::device_ops::park_and_close_safe_state(
+                                    &recovery_driver_device_ops,
+                                    recovery_driver_mount_id.as_deref(),
+                                    recovery_driver_cover_id.as_deref(),
+                                    recovery_driver_dome_id.as_deref(),
+                                    2,
+                                    2.0,
+                                )
+                                .await;
+
+                                if let (Some(mount_id), Some(park)) =
+                                    (&recovery_driver_mount_id, &outcome.park)
+                                {
                                     if park.success {
                                         tracing::info!(
                                             "[RECOVERY] Parked mount '{}' on give-up ({} attempt(s))",
@@ -3625,7 +3640,9 @@ impl SequenceExecutor {
                                         let msg = format!(
                                             "Recovery exhausted and the mount could not be parked ({}): {} — mount may be UNSAFE.",
                                             mount_id,
-                                            park.last_error.unwrap_or_else(|| "unknown".to_string())
+                                            park.last_error
+                                                .clone()
+                                                .unwrap_or_else(|| "unknown".to_string())
                                         );
                                         tracing::error!("[RECOVERY] {}", msg);
                                         let _ = recovery_driver_event_tx
@@ -3633,35 +3650,27 @@ impl SequenceExecutor {
                                     }
                                 }
 
-                                // Close the flat-panel cover, then the dome
-                                // shutter, so the optics are protected and the
-                                // scope isn't left exposed under an open roof.
-                                if let Some(cover_id) = &recovery_driver_cover_id {
-                                    if let Err(e) = recovery_driver_device_ops
-                                        .cover_calibrator_close_cover(cover_id)
-                                        .await
-                                    {
-                                        let msg = format!(
-                                            "Recovery give-up: failed to close cover '{}': {}",
-                                            cover_id, e
-                                        );
-                                        tracing::error!("[RECOVERY] {}", msg);
-                                        let _ = recovery_driver_event_tx
-                                            .send(ExecutorEvent::Error { message: msg });
-                                    }
+                                if let (Some(cover_id), Some(e)) =
+                                    (&recovery_driver_cover_id, &outcome.cover_close_error)
+                                {
+                                    let msg = format!(
+                                        "Recovery give-up: failed to close cover '{}': {}",
+                                        cover_id, e
+                                    );
+                                    tracing::error!("[RECOVERY] {}", msg);
+                                    let _ = recovery_driver_event_tx
+                                        .send(ExecutorEvent::Error { message: msg });
                                 }
-                                if let Some(dome_id) = &recovery_driver_dome_id {
-                                    if let Err(e) =
-                                        recovery_driver_device_ops.dome_close(dome_id).await
-                                    {
-                                        let msg = format!(
-                                            "Recovery give-up: failed to close dome '{}': {} — scope may be exposed.",
-                                            dome_id, e
-                                        );
-                                        tracing::error!("[RECOVERY] {}", msg);
-                                        let _ = recovery_driver_event_tx
-                                            .send(ExecutorEvent::Error { message: msg });
-                                    }
+                                if let (Some(dome_id), Some(e)) =
+                                    (&recovery_driver_dome_id, &outcome.dome_close_error)
+                                {
+                                    let msg = format!(
+                                        "Recovery give-up: failed to close dome '{}': {} — scope may be exposed.",
+                                        dome_id, e
+                                    );
+                                    tracing::error!("[RECOVERY] {}", msg);
+                                    let _ = recovery_driver_event_tx
+                                        .send(ExecutorEvent::Error { message: msg });
                                 }
                             }
 
@@ -4473,19 +4482,51 @@ impl SequenceExecutor {
                                     // exactly; the helper exposes them as
                                     // parameters so a future config change can
                                     // tune them without touching the call sites.
-                                    if let Some(mount_id) = &trigger_action_context.mount_id {
+                                    // Single source of truth for the park →
+                                    // close cover → close dome safe-state sweep
+                                    // (`device_ops::park_and_close_safe_state`).
+                                    // ParkAndAbort historically used 1 park retry
+                                    // with a 2s delay; pass those through so this
+                                    // consolidation changes no behaviour. The
+                                    // returned outcome drives the same
+                                    // operator-facing error events as before.
+                                    if trigger_action_context.mount_id.is_some() {
                                         tracing::warn!(
                                             "ParkAndAbort: parking mount '{}' (max_retries=1, retry_delay=2s)",
-                                            mount_id
+                                            trigger_action_context.mount_id.as_deref().unwrap_or("?")
                                         );
-                                        let park_outcome = crate::device_ops::try_park_with_retry(
-                                            &device_ops_for_triggers,
-                                            mount_id,
-                                            1,
-                                            2.0,
-                                        )
-                                        .await;
-                                        if !park_outcome.success {
+                                    } else {
+                                        tracing::warn!(
+                                            "ParkAndAbort: no mount configured, cannot park"
+                                        );
+                                    }
+                                    if let Some(cover_id) =
+                                        &trigger_action_context.cover_calibrator_id
+                                    {
+                                        tracing::warn!(
+                                            "ParkAndAbort: closing cover '{}'",
+                                            cover_id
+                                        );
+                                    }
+                                    if let Some(dome_id) = &trigger_action_context.dome_id {
+                                        tracing::warn!(
+                                            "ParkAndAbort: closing dome shutter '{}'",
+                                            dome_id
+                                        );
+                                    }
+
+                                    let safe_state = crate::device_ops::park_and_close_safe_state(
+                                        &device_ops_for_triggers,
+                                        trigger_action_context.mount_id.as_deref(),
+                                        trigger_action_context.cover_calibrator_id.as_deref(),
+                                        trigger_action_context.dome_id.as_deref(),
+                                        1,
+                                        2.0,
+                                    )
+                                    .await;
+
+                                    match &safe_state.park {
+                                        Some(park_outcome) if !park_outcome.success => {
                                             // Surface the park-specific failure
                                             // in the event stream so the UI can
                                             // distinguish "couldn't park, mount
@@ -4498,64 +4539,41 @@ impl SequenceExecutor {
                                                     park_outcome.attempts_made,
                                                     park_outcome
                                                         .last_error
+                                                        .clone()
                                                         .unwrap_or_else(|| "unknown error".to_string()),
                                                 ),
                                             });
                                         }
-                                    } else {
-                                        tracing::warn!(
-                                            "ParkAndAbort: no mount configured, cannot park"
-                                        );
-                                        let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                            message: "ParkAndAbort fired but no mount is configured; the rig cannot be parked automatically.".to_string(),
-                                        });
+                                        None => {
+                                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                                message: "ParkAndAbort fired but no mount is configured; the rig cannot be parked automatically.".to_string(),
+                                            });
+                                        }
+                                        _ => {}
                                     }
 
-                                    // Safe-state the observatory: close the
-                                    // flat-panel cover first (protect the optics),
-                                    // then the dome shutter. ParkAndAbort exists to
-                                    // put the rig in a SAFE state — parking the
-                                    // mount while leaving the shutter open exposes
-                                    // the scope to the exact condition (rain/cloud/
-                                    // dawn) that fired the trigger. This mirrors the
-                                    // recovery give-up safe-state path; the absence
-                                    // of these two closes here was a P0 oversight.
-                                    if let Some(cover_id) =
-                                        &trigger_action_context.cover_calibrator_id
-                                    {
-                                        tracing::warn!(
-                                            "ParkAndAbort: closing cover '{}'",
-                                            cover_id
-                                        );
-                                        if let Err(e) = device_ops_for_triggers
-                                            .cover_calibrator_close_cover(cover_id)
-                                            .await
-                                        {
-                                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                                message: format!(
-                                                    "ParkAndAbort: failed to close cover '{}': {}. \
-                                                     Optics may be left exposed — manual intervention required.",
-                                                    cover_id, e
-                                                ),
-                                            });
-                                        }
+                                    if let (Some(cover_id), Some(e)) = (
+                                        &trigger_action_context.cover_calibrator_id,
+                                        &safe_state.cover_close_error,
+                                    ) {
+                                        let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                            message: format!(
+                                                "ParkAndAbort: failed to close cover '{}': {}. \
+                                                 Optics may be left exposed — manual intervention required.",
+                                                cover_id, e
+                                            ),
+                                        });
                                     }
-                                    if let Some(dome_id) = &trigger_action_context.dome_id {
-                                        tracing::warn!(
-                                            "ParkAndAbort: closing dome shutter '{}'",
-                                            dome_id
-                                        );
-                                        if let Err(e) =
-                                            device_ops_for_triggers.dome_close(dome_id).await
-                                        {
-                                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                                message: format!(
-                                                    "ParkAndAbort: failed to close dome '{}': {} — \
-                                                     scope may be exposed under an open roof. Manual intervention required.",
-                                                    dome_id, e
-                                                ),
-                                            });
-                                        }
+                                    if let (Some(dome_id), Some(e)) =
+                                        (&trigger_action_context.dome_id, &safe_state.dome_close_error)
+                                    {
+                                        let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                            message: format!(
+                                                "ParkAndAbort: failed to close dome '{}': {} — \
+                                                 scope may be exposed under an open roof. Manual intervention required.",
+                                                dome_id, e
+                                            ),
+                                        });
                                     }
 
                                     fired_triggers.push((trigger_id, action));
@@ -5659,6 +5677,9 @@ static EXECUTOR: std::sync::OnceLock<Arc<RwLock<SequenceExecutor>>> = std::sync:
 pub fn get_executor() -> &'static Arc<RwLock<SequenceExecutor>> {
     EXECUTOR.get_or_init(|| Arc::new(RwLock::new(SequenceExecutor::new())))
 }
+
+#[cfg(test)]
+mod scenario_sim_tests;
 
 #[cfg(test)]
 mod tests {
