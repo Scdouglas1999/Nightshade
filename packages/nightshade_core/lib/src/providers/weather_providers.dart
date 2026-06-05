@@ -380,15 +380,22 @@ final fetchWeatherProvider = FutureProvider.autoDispose<void>((ref) async {
   );
 });
 
-/// Provider that performs cloud motion analysis on current radar frames
+/// Provider that performs cloud motion analysis on current radar frames,
+/// surfacing *why* a prediction is unavailable.
 ///
-/// Call ref.read(analyzeCloudMotionProvider) to trigger motion analysis.
-/// Returns CloudMotion result or null if insufficient data. Auto-disposes.
-final analyzeCloudMotionProvider =
-    FutureProvider.autoDispose<CloudMotion?>((ref) async {
+/// Returns a [CloudMotionResult] carrying either a real [CloudMotion] or an
+/// explicit [CloudMotionUnavailableReason]. When the observer location or
+/// radar frames are missing, the result is
+/// [CloudMotionUnavailableReason.insufficientFrames] (there is nothing to
+/// analyze) so the UI can say so honestly rather than silently hiding the
+/// prediction. Auto-disposes.
+final analyzeCloudMotionDetailedProvider =
+    FutureProvider.autoDispose<CloudMotionResult>((ref) async {
   final observerLocation = ref.watch(appObserverLocationProvider);
   if (observerLocation == null) {
-    return null;
+    return const CloudMotionResult.unavailable(
+      CloudMotionUnavailableReason.insufficientFrames,
+    );
   }
 
   final latitude = observerLocation.latitude;
@@ -396,22 +403,41 @@ final analyzeCloudMotionProvider =
 
   // Skip analysis if location not set
   if (latitude == 0.0 && longitude == 0.0) {
-    return null;
+    return const CloudMotionResult.unavailable(
+      CloudMotionUnavailableReason.insufficientFrames,
+    );
   }
 
   final radarService = ref.read(weatherRadarServiceProvider);
   final frames = radarService.getCachedFrames();
 
   if (frames == null || frames.isEmpty) {
-    return null;
+    return const CloudMotionResult.unavailable(
+      CloudMotionUnavailableReason.insufficientFrames,
+    );
   }
 
   final analyzer = ref.read(cloudMotionAnalyzerProvider);
-  return analyzer.analyzeMotion(
+  return analyzer.analyzeMotionDetailed(
     frames: frames,
     userLatitude: latitude,
     userLongitude: longitude,
   );
+});
+
+/// Provider that performs cloud motion analysis on current radar frames
+///
+/// Call ref.read(analyzeCloudMotionProvider) to trigger motion analysis.
+/// Returns CloudMotion result or null if insufficient data. Auto-disposes.
+///
+/// Thin wrapper over [analyzeCloudMotionDetailedProvider] preserving the
+/// existing `CloudMotion?` contract. Callers that need the unavailable reason
+/// (to tell the operator why prediction is off) should watch the detailed
+/// provider instead.
+final analyzeCloudMotionProvider =
+    FutureProvider.autoDispose<CloudMotion?>((ref) async {
+  final result = await ref.watch(analyzeCloudMotionDetailedProvider.future);
+  return result.motion;
 });
 
 /// Provider that evaluates weather conditions and generates alerts
