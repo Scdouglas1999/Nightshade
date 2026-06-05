@@ -514,13 +514,9 @@ class PanelSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: NightshadeTokens.spaceMd),
-        Container(
+        NightshadeCard(
           padding: const EdgeInsets.all(NightshadeTokens.panelSectionPadding),
-          decoration: BoxDecoration(
-            color: colors.surfaceAlt,
-            borderRadius: NightshadeTokens.borderRadiusButton,
-            border: Border.all(color: colors.border),
-          ),
+          borderRadius: NightshadeTokens.radiusButton,
           child: child,
         ),
       ],

@@ -174,13 +174,9 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
     final angle = _rotatorState.position;
     final mechanicalAngle = _rotatorState.mechanicalPosition;
 
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        border: Border.all(color: colors.border),
-      ),
+      borderRadius: NightshadeTokens.radiusLg,
       child: Column(
         children: [
           // Visual angle indicator

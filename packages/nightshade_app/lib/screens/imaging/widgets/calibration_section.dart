@@ -434,13 +434,9 @@ class _StatusLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return NightshadeCard(
+      backgroundColor: colors.background,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: colors.background,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        border: Border.all(color: colors.border),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

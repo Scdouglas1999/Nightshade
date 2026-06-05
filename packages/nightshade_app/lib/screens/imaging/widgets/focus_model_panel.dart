@@ -151,13 +151,8 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
     int totalPoints,
   ) {
     if (model == null) {
-      return Container(
+      return NightshadeCard(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-          border: Border.all(color: colors.border),
-        ),
         child: Row(
           children: [
             Icon(NightshadeIcons.info, size: 14, color: colors.textMuted),
@@ -291,12 +286,8 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
   ) {
     final currentTemp = focuserState.temperature;
     if (currentTemp == null) {
-      return Container(
+      return NightshadeCard(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        ),
         child: Row(
           children: [
             Icon(NightshadeIcons.temperature, size: 14, color: colors.textMuted),
@@ -316,12 +307,8 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
     );
 
     if (prediction == null) {
-      return Container(
+      return NightshadeCard(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        ),
         child: Row(
           children: [
             Icon(NightshadeIcons.temperature, size: 14, color: colors.textMuted),

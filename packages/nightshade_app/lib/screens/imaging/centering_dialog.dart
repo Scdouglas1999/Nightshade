@@ -341,15 +341,9 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
 
   Widget _buildCoordinatesCompact(
       CenteringStatus status, NightshadeColors colors, ThemeData theme) {
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(
-          color: colors.border,
-        ),
-      ),
+      borderRadius: NightshadeTokens.radiusInline8,
       child: Column(
         children: [
           Row(
@@ -405,15 +399,9 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   }
 
   Widget _buildExposureSettings(NightshadeColors colors, ThemeData theme) {
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(
-          color: colors.border,
-        ),
-      ),
+      borderRadius: NightshadeTokens.radiusInline8,
       child: Row(
         children: [
           Icon(NightshadeIcons.camera, size: 16, color: colors.textSecondary),

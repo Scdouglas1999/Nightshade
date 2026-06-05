@@ -349,13 +349,10 @@ class CapturePanel extends ConsumerWidget {
               style: TextStyle(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
-            Container(
+            NightshadeCard(
+              variant: CardVariant.subtle,
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-                border: Border.all(color: colors.border),
-              ),
+              borderRadius: NightshadeTokens.radiusInline8,
               child: Column(
                 children: [
                   Row(

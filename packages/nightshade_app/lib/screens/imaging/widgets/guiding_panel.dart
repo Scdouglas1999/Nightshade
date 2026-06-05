@@ -322,13 +322,9 @@ class _BuiltinGuiderConfigSection extends ConsumerWidget {
         if (isExpanded) ...[
           const SizedBox(height: 12),
           configAsync.when(
-            loading: () => Container(
+            loading: () => NightshadeCard(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-                border: Border.all(color: colors.border),
-              ),
+              borderRadius: NightshadeTokens.radiusLg,
               child: Center(
                 child: SizedBox(
                   width: 16,
@@ -532,13 +528,9 @@ class _BuiltinGuiderConfigFormState
             '${pulseBounds.max.toStringAsFixed(0)} ms'
         : null;
 
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: widget.colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        border: Border.all(color: widget.colors.border),
-      ),
+      borderRadius: NightshadeTokens.radiusLg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
