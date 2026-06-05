@@ -321,12 +321,9 @@ class _LogViewerState extends ConsumerState<LogViewer>
           ),
           // Log entries list
           Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(isMobile ? 10 : 12),
-                border: Border.all(color: colors.border),
-              ),
+            child: NightshadeCard(
+              variant: CardVariant.subtle,
+              borderRadius: isMobile ? 10 : 12,
               child: _filteredLogs.isEmpty
                   ? Center(
                       child: Text(

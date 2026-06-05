@@ -181,15 +181,11 @@ class SettingsErrorState extends StatelessWidget {
         ),
         child: Padding(
           padding: EdgeInsets.all(horizontalPadding),
-          child: Container(
+          child: NightshadeCard(
+            variant: CardVariant.subtle,
             padding: EdgeInsets.all(isMobile
                 ? NightshadeTokens.spaceXl
                 : NightshadeTokens.space2xl),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: NightshadeTokens.borderRadiusMd,
-              border: Border.all(color: colors.border),
-            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

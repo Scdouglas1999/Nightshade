@@ -582,13 +582,10 @@ class _StatCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     return Expanded(
-      child: Container(
+      child: NightshadeCard(
+        variant: CardVariant.standard,
+        borderRadius: NightshadeTokens.radiusInline8,
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          border: Border.all(color: colors.border),
-        ),
         child: Column(
           children: [
             Icon(icon, size: 20, color: colors.primary),
@@ -661,16 +658,14 @@ class _DarkGroupTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final isD = group.frameType == 'dark';
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
-      child: Row(
-        children: [
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      child: NightshadeCard(
+        variant: CardVariant.standard,
+        borderRadius: NightshadeTokens.radiusInline8,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: Row(
+          children: [
           Icon(
             isD ? LucideIcons.moon : LucideIcons.zap,
             size: 18,
@@ -712,6 +707,7 @@ class _DarkGroupTile extends StatelessWidget {
             constraints: const BoxConstraints(),
           ),
         ],
+        ),
       ),
     );
   }

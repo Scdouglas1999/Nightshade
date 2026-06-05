@@ -267,12 +267,9 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
       lastScanTime ?? discoveryCompletedAt,
     );
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusInline8,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [

@@ -26,12 +26,9 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusInline8,
       child: Column(
         children: [
           // Header (always visible, clickable to toggle)

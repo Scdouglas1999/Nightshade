@@ -190,13 +190,10 @@ class _FirstTimeOnboarding extends StatelessWidget {
             const SizedBox(height: 40),
 
             // Setup steps
-            Container(
+            NightshadeCard(
+              variant: CardVariant.standard,
+              borderRadius: NightshadeTokens.radiusInline8,
               padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-                border: Border.all(color: colors.border),
-              ),
               child: Column(
                 children: [
                   _SetupStep(

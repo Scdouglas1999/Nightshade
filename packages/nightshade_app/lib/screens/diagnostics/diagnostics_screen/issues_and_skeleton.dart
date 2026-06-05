@@ -114,15 +114,14 @@ class _DiagCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
+      child: NightshadeCard(
+        variant: CardVariant.subtle,
+        borderRadius: NightshadeTokens.radiusInline8,
+        padding: const EdgeInsets.all(16),
+        child: child,
       ),
-      child: child,
     );
   }
 }

@@ -395,21 +395,19 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
     final canApplyOffset = rec.defaultOffset != null &&
         rec.defaultOffset.toString() != _offsetController.text;
 
-    return Container(
-      margin: const EdgeInsets.only(top: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                hasAny ? LucideIcons.info : LucideIcons.alertCircle,
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: NightshadeCard(
+        variant: CardVariant.standard,
+        borderRadius: NightshadeTokens.radiusInline8,
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  hasAny ? LucideIcons.info : LucideIcons.alertCircle,
                 size: 14,
                 color: hasAny ? colors.primary : colors.textMuted,
               ),
@@ -454,7 +452,8 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
               ],
             ),
           ],
-        ],
+          ],
+        ),
       ),
     );
   }

@@ -128,13 +128,10 @@ class AboutSettings extends StatelessWidget {
                       ],
                     ),
               const SizedBox(height: 48),
-              Container(
+              NightshadeCard(
+                variant: CardVariant.subtle,
+                borderRadius: NightshadeTokens.radiusInline8,
                 padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-                  border: Border.all(color: colors.border),
-                ),
                 child: Column(
                   children: [
                     Text(

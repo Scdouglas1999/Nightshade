@@ -588,31 +588,30 @@ class _SampleScatter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return Container(
+    return SizedBox(
       height: 140,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
-        border: Border.all(color: colors.border),
+      child: NightshadeCard(
+        variant: CardVariant.subtle,
+        borderRadius: NightshadeTokens.radiusInline4,
+        padding: const EdgeInsets.all(8),
+        child: samples.isEmpty
+            ? Center(
+                child: Text(
+                  'No samples',
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                ),
+              )
+            : CustomPaint(
+                size: Size.infinite,
+                painter: _ScatterPainter(
+                  samples: samples,
+                  model: model,
+                  pointColor: colors.accent,
+                  lineColor: colors.primary,
+                  gridColor: colors.border,
+                ),
+              ),
       ),
-      child: samples.isEmpty
-          ? Center(
-              child: Text(
-                'No samples',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
-              ),
-            )
-          : CustomPaint(
-              size: Size.infinite,
-              painter: _ScatterPainter(
-                samples: samples,
-                model: model,
-                pointColor: colors.accent,
-                lineColor: colors.primary,
-                gridColor: colors.border,
-              ),
-            ),
     );
   }
 }

@@ -80,16 +80,14 @@ class _ImagePreview extends StatelessWidget {
     // depending on how setLastImage was called. We handle both for robustness.
     final CapturedImageResult? imageResult = _extractImageResult();
 
-    return Container(
-      margin: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusButton),
-        child: Stack(
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: NightshadeCard(
+        variant: CardVariant.standard,
+        borderRadius: NightshadeTokens.radiusInline8,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusButton),
+          child: Stack(
           children: [
             // Image or empty state
             Positioned.fill(
@@ -106,6 +104,7 @@ class _ImagePreview extends StatelessWidget {
                 child: _buildHistogramOverlay(imageResult, colors),
               ),
           ],
+        ),
         ),
       ),
     );
@@ -429,16 +428,14 @@ class _StatsBar extends StatelessWidget {
       ),
     ];
 
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: NightshadeCard(
+        variant: CardVariant.subtle,
+        borderRadius: NightshadeTokens.radiusInline8,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
           // Keep stats + status on one line only when there is comfortable
           // room; otherwise stack the status under the wrapped stats.
           final inline = constraints.maxWidth >= 460;
@@ -466,6 +463,7 @@ class _StatsBar extends StatelessWidget {
             ],
           );
         },
+        ),
       ),
     );
   }
@@ -758,33 +756,32 @@ class _AduConvergenceGraph extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
-    return Container(
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'ADU Convergence',
-            style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
-          ),
-          const Spacer(),
-          Center(
-            child: Text(
-              history.isEmpty ? 'No data' : '${history.length} measurements',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                color: colors.textMuted,
+    return Padding(
+      padding: const EdgeInsets.only(right: 8),
+      child: NightshadeCard(
+        variant: CardVariant.subtle,
+        borderRadius: NightshadeTokens.radiusInline8,
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'ADU Convergence',
+              style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
+            ),
+            const Spacer(),
+            Center(
+              child: Text(
+                history.isEmpty ? 'No data' : '${history.length} measurements',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textMuted,
+                ),
               ),
             ),
-          ),
-          const Spacer(),
-        ],
+            const Spacer(),
+          ],
+        ),
       ),
     );
   }

@@ -423,13 +423,10 @@ class _NoSolverQuickStart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusLg,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -528,13 +525,10 @@ class _QuickStartStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final card = Container(
+    final card = NightshadeCard(
+      variant: CardVariant.standard,
+      borderRadius: NightshadeTokens.radiusInline8,
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

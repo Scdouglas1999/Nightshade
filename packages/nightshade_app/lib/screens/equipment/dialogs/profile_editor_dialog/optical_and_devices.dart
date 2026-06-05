@@ -108,13 +108,10 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
           const SizedBox(height: 16),
 
           // Computed values
-          Container(
+          NightshadeCard(
+            variant: CardVariant.subtle,
+            borderRadius: NightshadeTokens.radiusInline8,
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-              border: Border.all(color: colors.border),
-            ),
             child: Row(
               children: [
                 _ComputedValue(

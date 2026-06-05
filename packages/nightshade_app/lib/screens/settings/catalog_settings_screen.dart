@@ -372,12 +372,10 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
 
   Widget _buildDownloadSection(BuildContext context) {
     final colors = context.nightshadeColors;
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusInline8,
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

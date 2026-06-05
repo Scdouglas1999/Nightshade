@@ -79,13 +79,10 @@ class ObservingListsSettings extends ConsumerWidget {
 
   Widget _buildEmptyState(
       BuildContext context, WidgetRef ref, NightshadeColors colors) {
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.standard,
+      borderRadius: NightshadeTokens.radiusInline8,
       padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
       child: Center(
         child: Column(
           children: [
@@ -180,17 +177,15 @@ class _ObservingListManagementCard extends ConsumerWidget {
     final itemsAsync = ref.watch(observingListItemsProvider(list.id));
     final itemCount = itemsAsync.valueOrNull?.length ?? 0;
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: NightshadeCard(
+        variant: CardVariant.standard,
+        borderRadius: NightshadeTokens.radiusInline8,
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           Row(
             children: [
               Icon(LucideIcons.list, size: 18, color: colors.primary),
@@ -259,6 +254,7 @@ class _ObservingListManagementCard extends ConsumerWidget {
             ],
           ),
         ],
+        ),
       ),
     );
   }

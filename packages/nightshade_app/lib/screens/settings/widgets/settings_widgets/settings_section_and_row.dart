@@ -30,13 +30,9 @@ class SettingsSection extends StatelessWidget {
         SizedBox(
             height:
                 isMobile ? NightshadeTokens.spaceMd : NightshadeTokens.spaceLg),
-        Container(
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(
-                isMobile ? 10 : NightshadeTokens.radiusLg),
-            border: Border.all(color: colors.border),
-          ),
+        NightshadeCard(
+          variant: CardVariant.subtle,
+          borderRadius: isMobile ? 10 : NightshadeTokens.radiusLg,
           child: Column(
             children: children,
           ),

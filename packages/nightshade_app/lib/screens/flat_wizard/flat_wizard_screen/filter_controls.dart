@@ -31,13 +31,10 @@ class _FilterSelector extends ConsumerWidget {
         ? state.filterSettings[state.currentFilterIndex]
         : null;
 
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.standard,
+      borderRadius: NightshadeTokens.radiusInline8,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
       child: Row(
         children: [
           Icon(LucideIcons.filter, size: 18, color: colors.textSecondary),
@@ -82,12 +79,9 @@ class _FilterChecklist extends ConsumerWidget {
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
+    return NightshadeCard(
+      variant: CardVariant.standard,
+      borderRadius: NightshadeTokens.radiusInline8,
       child: Column(
         children: [
           for (int i = 0; i < state.filterSettings.length; i++)
