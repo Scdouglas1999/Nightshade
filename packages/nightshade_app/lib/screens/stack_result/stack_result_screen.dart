@@ -196,6 +196,13 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
           trailing: _buildActions(context, colors, result, rgba),
         ),
         Expanded(
+          // [Responsive.isMobile] is device-class aware: on a mobile OS it keys
+          // off the SHORTEST side, so a landscape phone or foldable cover screen
+          // (e.g. the Galaxy Z Fold 6 cover at 905x369 — wide long edge, short
+          // 369 edge) resolves to the scrollable mobile layout instead of the
+          // desktop viewer+320px split, whose fixed side panel would crowd the
+          // viewer at that height. On desktop the live window width still drives
+          // the split as before.
           child: Responsive.isMobile(context)
               ? _buildMobileLayout(context, colors, result, rgba, mono)
               : _buildDesktopLayout(context, colors, result, rgba, mono),
