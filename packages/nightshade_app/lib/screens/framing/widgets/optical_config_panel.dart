@@ -44,7 +44,7 @@ class OpticalConfigPanel extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  Icon(LucideIcons.aperture, size: 14, color: colors.textMuted),
+                  Icon(NightshadeIcons.aperture, size: 14, color: colors.textMuted),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -64,7 +64,7 @@ class OpticalConfigPanel extends ConsumerWidget {
                       padding: EdgeInsets.zero,
                       iconSize: 14,
                       tooltip: 'Hide optical config panel',
-                      icon: Icon(LucideIcons.x, size: 14, color: colors.textMuted),
+                      icon: Icon(NightshadeIcons.close, size: 14, color: colors.textMuted),
                       onPressed: () {
                         ref
                             .read(framingProvider.notifier)
@@ -104,7 +104,7 @@ class OpticalConfigPanel extends ConsumerWidget {
     return Column(
       children: [
         Icon(
-          LucideIcons.alertTriangle,
+          NightshadeIcons.warning,
           size: 32,
           color: colors.warning,
         ),
@@ -113,11 +113,7 @@ class OpticalConfigPanel extends ConsumerWidget {
           activeProfile == null
               ? 'No equipment profile'
               : 'No optical configuration',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize14,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 8),
         Text(
@@ -133,7 +129,7 @@ class OpticalConfigPanel extends ConsumerWidget {
         const SizedBox(height: 16),
         NightshadeButton(
           label: 'Configure in Equipment',
-          icon: LucideIcons.settings2,
+          icon: NightshadeIcons.settings2,
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
           onPressed: () => context.go('/equipment'),
@@ -162,11 +158,7 @@ class OpticalConfigPanel extends ConsumerWidget {
               Expanded(
                 child: Text(
                   config.telescopeName!,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -196,11 +188,7 @@ class OpticalConfigPanel extends ConsumerWidget {
               Expanded(
                 child: Text(
                   config.cameraName!,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -336,7 +324,7 @@ class _ProfileSwitcher extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(LucideIcons.chevronDown,
+                Icon(NightshadeIcons.chevronDown,
                     size: 14, color: colors.textMuted),
               ],
             ),
@@ -348,7 +336,7 @@ class _ProfileSwitcher extends ConsumerWidget {
               child: Row(
                 children: [
                   if (isSelected)
-                    Icon(LucideIcons.check, size: 14, color: colors.success)
+                    Icon(NightshadeIcons.check, size: 14, color: colors.success)
                   else
                     const SizedBox(width: 14),
                   const SizedBox(width: 8),

@@ -234,7 +234,7 @@ Future<bool?> _confirmDiscard(
     context: context,
     builder: (ctx) => NightshadeDialog(
       title: 'Discard unsaved changes?',
-      icon: LucideIcons.alertTriangle,
+      icon: NightshadeIcons.warning,
       width: 440,
       actions: [
         NightshadeButton(
@@ -295,7 +295,7 @@ class _DestinationPickerDialogState extends State<_DestinationPickerDialog> {
           onPressed: () =>
               Navigator.of(context).pop(widget.destinations[_selected]),
           label: 'Add target',
-          icon: LucideIcons.plus,
+          icon: NightshadeIcons.add,
           size: ButtonSize.small,
         ),
       ],
@@ -341,8 +341,8 @@ class _DestinationTile extends StatelessWidget {
     final icon = destination.isNew
         ? LucideIcons.filePlus
         : destination.isCurrent
-            ? LucideIcons.pencil
-            : LucideIcons.folderOpen;
+            ? NightshadeIcons.edit
+            : NightshadeIcons.folderOpen;
     return Padding(
       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
       child: InkWell(
@@ -364,7 +364,7 @@ class _DestinationTile extends StatelessWidget {
               Icon(
                 selected
                     ? LucideIcons.checkCircle2
-                    : LucideIcons.circle,
+                    : NightshadeIcons.circle,
                 size: NightshadeTokens.iconSm,
                 color: selected ? colors.primary : colors.textMuted,
               ),

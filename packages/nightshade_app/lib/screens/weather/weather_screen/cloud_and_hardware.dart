@@ -28,9 +28,9 @@ class _CloudCoverCard extends StatelessWidget {
   }
 
   IconData _getCloudCoverIcon(double percent) {
-    if (percent <= 20) return LucideIcons.sun;
-    if (percent <= 50) return LucideIcons.cloudSun;
-    if (percent <= 80) return LucideIcons.cloud;
+    if (percent <= 20) return NightshadeIcons.sun;
+    if (percent <= 50) return NightshadeIcons.weather;
+    if (percent <= 80) return NightshadeIcons.cloud;
     return LucideIcons.cloudFog;
   }
 
@@ -124,11 +124,7 @@ class _CloudCoverCard extends StatelessWidget {
                 ),
                 Text(
                   cloudCoverPercent != null ? '${percent.toInt()}' : '--',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                 ),
               ],
             ),
@@ -181,7 +177,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
                   borderRadius: NightshadeTokens.borderRadiusInline8,
                 ),
                 child: Icon(
-                  LucideIcons.cpu,
+                  NightshadeIcons.cpu,
                   size: 16,
                   color: colors.primary,
                 ),
@@ -193,11 +189,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
                   children: [
                     Text(
                       'Hardware Sensors',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize14,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                     ),
                     Text(
                       'Live readings from connected devices',
@@ -218,8 +210,8 @@ class _HardwareSensorsCard extends ConsumerWidget {
             _SensorRow(
               colors: colors,
               icon: safetyState.isSafe
-                  ? LucideIcons.shieldCheck
-                  : LucideIcons.shieldAlert,
+                  ? NightshadeIcons.shieldOk
+                  : NightshadeIcons.shieldAlert,
               label: 'Safety Monitor',
               value: safetyState.isSafe ? 'SAFE' : 'UNSAFE',
               valueColor: safetyState.isSafe ? colors.success : colors.error,
@@ -233,7 +225,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
             if (weatherState.temperature != null)
               _SensorRow(
                 colors: colors,
-                icon: LucideIcons.thermometer,
+                icon: NightshadeIcons.temperature,
                 label: 'Temperature',
                 value: '${weatherState.temperature!.toStringAsFixed(1)}°C',
               ),
@@ -241,7 +233,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
               const SizedBox(height: 8),
               _SensorRow(
                 colors: colors,
-                icon: LucideIcons.droplets,
+                icon: NightshadeIcons.humidity,
                 label: 'Humidity',
                 value: '${weatherState.humidity!.toStringAsFixed(0)}%',
                 valueColor: weatherState.humidity! > 80 ? colors.warning : null,
@@ -260,7 +252,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
               const SizedBox(height: 8),
               _SensorRow(
                 colors: colors,
-                icon: LucideIcons.wind,
+                icon: NightshadeIcons.wind,
                 label: 'Wind Speed',
                 value: '${weatherState.windSpeed!.toStringAsFixed(1)} m/s',
                 valueColor:
@@ -271,7 +263,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
               const SizedBox(height: 8),
               _SensorRow(
                 colors: colors,
-                icon: LucideIcons.cloud,
+                icon: NightshadeIcons.cloud,
                 label: 'Cloud Cover',
                 value: '${weatherState.cloudCover!.toStringAsFixed(0)}%',
                 valueColor:
@@ -282,7 +274,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
               const SizedBox(height: 8),
               _SensorRow(
                 colors: colors,
-                icon: LucideIcons.sparkles,
+                icon: NightshadeIcons.sparkle,
                 label: 'Sky Quality',
                 value:
                     '${weatherState.skyQuality!.toStringAsFixed(2)} mag/arcsec²',
@@ -293,7 +285,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
               const SizedBox(height: 8),
               _SensorRow(
                 colors: colors,
-                icon: LucideIcons.cloudRain,
+                icon: NightshadeIcons.rain,
                 label: 'Rain',
                 value: '${weatherState.rainRate!.toStringAsFixed(1)} mm/hr',
                 valueColor: colors.error,
@@ -374,11 +366,7 @@ class _SensorRow extends StatelessWidget {
         ),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize13,
-            fontWeight: FontWeight.w600,
-            color: valueColor ?? colors.textPrimary,
-          ),
+          style: NightshadeTypography.labelStrong.copyWith(color: valueColor ?? colors.textPrimary),
         ),
       ],
     );

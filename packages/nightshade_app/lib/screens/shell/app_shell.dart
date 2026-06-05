@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -205,7 +204,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             ),
             title: Row(
               children: [
-                Icon(LucideIcons.alertTriangle,
+                Icon(NightshadeIcons.warning,
                     size: 22, color: colors.warning),
                 const SizedBox(width: 12),
                 Text(
@@ -286,21 +285,13 @@ class _AppShellState extends ConsumerState<AppShell> {
           width: 80,
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textMuted,
-              fontWeight: FontWeight.w500,
-            ),
+            style: NightshadeTypography.labelSm.copyWith(color: colors.textMuted),
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              color: colors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
+            style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
           ),
         ),
       ],
@@ -447,11 +438,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     child: Text(
                       l10n.text('disconnectedBanner'),
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onError,
-                        fontSize: NightshadeTypography.fontSize11,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: NightshadeTypography.labelQuiet.copyWith(color: Theme.of(context).colorScheme.onError),
                     ),
                   ),
 

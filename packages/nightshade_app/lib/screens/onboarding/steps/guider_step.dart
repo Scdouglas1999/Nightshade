@@ -143,7 +143,7 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
             children: [
               Row(
                 children: [
-                  Icon(LucideIcons.crosshair,
+                  Icon(NightshadeIcons.crosshair,
                       color: colors.primary, size: 18),
                   const SizedBox(width: 8),
                   Text(
@@ -205,7 +205,7 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
                   ),
                   const SizedBox(width: 8),
                   NightshadeButton(
-                    icon: LucideIcons.zap,
+                    icon: NightshadeIcons.bolt,
                     label: _testing ? 'Testing…' : 'Test',
                     variant: ButtonVariant.outline,
                     size: ButtonSize.small,
@@ -220,7 +220,7 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
                     Icon(
                       _lastResult == true
                           ? LucideIcons.checkCircle2
-                          : LucideIcons.alertTriangle,
+                          : NightshadeIcons.warning,
                       size: 16,
                       color: _lastResult == true
                           ? colors.success
@@ -275,7 +275,7 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
             title: 'Native guiders',
             subtitle:
                 'Cameras that publish a guider interface — usually only relevant for OAGs with dedicated drivers.',
-            icon: LucideIcons.eye,
+            icon: NightshadeIcons.visible,
             deviceType: DeviceType.guider,
             selectedDeviceId: draft.guiderId,
             selectedDeviceName: draft.guiderName,

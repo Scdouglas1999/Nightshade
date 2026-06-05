@@ -49,7 +49,7 @@ class _WebDashboardButtonState extends ConsumerState<_WebDashboardButton> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  LucideIcons.globe,
+                  NightshadeIcons.globe,
                   size: 12,
                   color: webState.isRunning && webState.dashboardAvailable
                       ? widget.colors.primary

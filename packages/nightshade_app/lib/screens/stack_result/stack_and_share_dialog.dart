@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -217,7 +216,7 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
 
     return NightshadeDialog(
       title: 'Stack & Share',
-      icon: LucideIcons.layers,
+      icon: NightshadeIcons.layers,
       width: 600,
       // Block the close button while a run is active so we never tear the
       // dialog down mid-pipeline.
@@ -230,7 +229,7 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
         ),
         NightshadeButton(
           label: running ? 'Stacking…' : 'Start',
-          icon: LucideIcons.play,
+          icon: NightshadeIcons.play,
           isLoading: running,
           onPressed: running ? null : _start,
         ),
@@ -271,7 +270,7 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
           label: 'Stop live stacking',
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
-          icon: LucideIcons.stopCircle,
+          icon: NightshadeIcons.stopCircle,
           onPressed: _stopLiveStacking,
         ),
       );
@@ -470,7 +469,7 @@ class _SelectionSummary extends StatelessWidget {
               children: [
                 for (final e in filterEntries)
                   StatusPill(
-                    icon: LucideIcons.filter,
+                    icon: NightshadeIcons.filter,
                     label: e.key,
                     value: '${e.value}',
                     status: StatusPillStatus.active,
@@ -642,7 +641,7 @@ class _OverrideDisclosure extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(
-              expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight,
+              expanded ? NightshadeIcons.chevronDown : NightshadeIcons.chevronRight,
               size: NightshadeTokens.iconSm,
               color: tint,
             ),

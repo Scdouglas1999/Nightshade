@@ -226,7 +226,7 @@ class _OnboardingCameraDefaultsStepState
           Row(
             children: [
               NightshadeButton(
-                icon: LucideIcons.camera,
+                icon: NightshadeIcons.camera,
                 label: 'Choose from camera library',
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,

@@ -103,11 +103,7 @@ class _StatusPillButtonState extends State<_StatusPillButton> {
                         child: Text(
                           widget.value,
                           overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize11,
-                            fontWeight: FontWeight.w600,
-                            color: widget.colors.textPrimary,
-                          ),
+                          style: NightshadeTypography.labelStrongSm.copyWith(color: widget.colors.textPrimary),
                         ),
                       ),
                       const SizedBox(width: 6),

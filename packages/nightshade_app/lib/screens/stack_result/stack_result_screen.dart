@@ -160,7 +160,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
 
   Widget _buildNotFound(BuildContext context, Object error) {
     return EmptyState(
-      icon: LucideIcons.imageOff,
+      icon: NightshadeIcons.imageOff,
       title: 'Result not found',
       body: 'No stacked result exists for id ${widget.resultId}. It may have '
           'been deleted.\n\n$error',
@@ -192,7 +192,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
         ScreenHeader(
           title: result.targetName ?? 'Stacked Result',
           subtitle: subtitle,
-          icon: LucideIcons.image,
+          icon: NightshadeIcons.image,
           trailing: _buildActions(context, colors, result, rgba),
         ),
         Expanded(
@@ -225,7 +225,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     // both orientations. Wider layouts keep the inline button row.
     if (Responsive.isPhone(context)) {
       return PopupMenuButton<_StackResultAction>(
-        icon: Icon(LucideIcons.share2, color: colors.textPrimary),
+        icon: Icon(NightshadeIcons.share, color: colors.textPrimary),
         tooltip: 'Export / share',
         enabled: !_exporting,
         onSelected: (action) {
@@ -255,7 +255,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
             value: _StackResultAction.jpeg,
             enabled: canExport,
             child: const _ActionMenuRow(
-              icon: LucideIcons.image,
+              icon: NightshadeIcons.image,
               label: 'Export JPEG',
             ),
           ),
@@ -263,14 +263,14 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
             value: _StackResultAction.shareCard,
             enabled: canExport,
             child: const _ActionMenuRow(
-              icon: LucideIcons.share2,
+              icon: NightshadeIcons.share,
               label: 'Share Card',
             ),
           ),
           const PopupMenuItem(
             value: _StackResultAction.astroBin,
             child: _ActionMenuRow(
-              icon: LucideIcons.fileText,
+              icon: NightshadeIcons.file,
               label: 'AstroBin',
             ),
           ),
@@ -294,7 +294,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
         ),
         NightshadeButton(
           label: 'Export JPEG',
-          icon: LucideIcons.image,
+          icon: NightshadeIcons.image,
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
           onPressed: canExport
@@ -303,7 +303,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
         ),
         NightshadeButton(
           label: 'Share Card',
-          icon: LucideIcons.share2,
+          icon: NightshadeIcons.share,
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
           onPressed: canExport
@@ -312,7 +312,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
         ),
         NightshadeButton(
           label: 'AstroBin',
-          icon: LucideIcons.fileText,
+          icon: NightshadeIcons.file,
           size: ButtonSize.small,
           onPressed: !_exporting ? () => _exportAstroBin(result) : null,
         ),
@@ -391,7 +391,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
       // No pixels in memory and no on-disk export to re-load: tell the user the
       // master is no longer resident rather than rendering a black canvas.
       return EmptyState(
-        icon: LucideIcons.imageOff,
+        icon: NightshadeIcons.imageOff,
         title: 'Image not available',
         body: result.exportedImagePath != null
             ? 'This stacked master was exported to '
@@ -460,7 +460,7 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
         Row(
           children: [
             StatusPill(
-              icon: LucideIcons.layers,
+              icon: NightshadeIcons.layers,
               label: 'Attempted',
               value: '${result.framesAttempted}',
               status: StatusPillStatus.inactive,

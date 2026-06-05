@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'device_picker_step.dart';
 
@@ -20,7 +20,7 @@ class OnboardingCameraStep extends ConsumerWidget {
       title: 'Pick your camera',
       subtitle:
           'Cameras discovered through the drivers you selected appear here. The brand is reported by the driver itself.',
-      icon: LucideIcons.camera,
+      icon: NightshadeIcons.camera,
       deviceType: DeviceType.camera,
       selectedDeviceId: draft.cameraId,
       selectedDeviceName: draft.cameraName,

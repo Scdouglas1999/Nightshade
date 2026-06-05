@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -30,11 +29,7 @@ class FramingTargetInfoOverlay extends StatelessWidget {
         children: [
           Text(
             target.name,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize13,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
           ),
           if (target.catalogId != null && target.catalogId != target.name)
             Text(
@@ -121,11 +116,7 @@ class FramingEquipmentWarningCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.warning,
-                  ),
+                  style: NightshadeTypography.h6.copyWith(color: colors.warning),
                 ),
               ),
             ],
@@ -155,14 +146,10 @@ class FramingEquipmentWarningCard extends StatelessWidget {
                   children: [
                     Text(
                       actionLabel!,
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize11,
-                        fontWeight: FontWeight.w500,
-                        color: colors.warning,
-                      ),
+                      style: NightshadeTypography.labelQuiet.copyWith(color: colors.warning),
                     ),
                     const SizedBox(width: 4),
-                    Icon(LucideIcons.arrowRight,
+                    Icon(NightshadeIcons.arrowRight,
                         size: 12, color: colors.warning),
                   ],
                 ),

@@ -32,7 +32,7 @@ class _WeatherSafetyCard extends ConsumerWidget {
                   borderRadius: NightshadeTokens.borderRadiusInline8,
                 ),
                 child: Icon(
-                  isSafe ? LucideIcons.shieldCheck : LucideIcons.shieldAlert,
+                  isSafe ? NightshadeIcons.shieldOk : NightshadeIcons.shieldAlert,
                   size: 16,
                   color: isSafe ? colors.success : colors.error,
                 ),
@@ -44,11 +44,7 @@ class _WeatherSafetyCard extends ConsumerWidget {
                   children: [
                     Text(
                       'Safety Status',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize14,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                     ),
                     Text(
                       _getStatusText(status, snoozeUntil),
@@ -68,7 +64,7 @@ class _WeatherSafetyCard extends ConsumerWidget {
             if (status == WeatherSafetyStatus.snoozed)
               NightshadeButton(
                 label: 'Cancel Snooze',
-                icon: LucideIcons.bellOff,
+                icon: NightshadeIcons.notificationsOff,
                 variant: ButtonVariant.outline,
                 onPressed: () {
                   ref.read(weatherSafetyProvider.notifier).cancelSnooze();
@@ -156,7 +152,7 @@ class _WeatherSettingsCard extends ConsumerWidget {
                   borderRadius: NightshadeTokens.borderRadiusInline8,
                 ),
                 child: Icon(
-                  LucideIcons.sliders,
+                  NightshadeIcons.sliders,
                   size: 16,
                   color: colors.primary,
                 ),
@@ -167,11 +163,7 @@ class _WeatherSettingsCard extends ConsumerWidget {
                   'Current Settings',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                 ),
               ),
             ],
@@ -265,11 +257,7 @@ class _SettingRow extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.end,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                fontWeight: FontWeight.w500,
-                color: valueColor ?? colors.textPrimary,
-              ),
+              style: NightshadeTypography.labelSm.copyWith(color: valueColor ?? colors.textPrimary),
             ),
           ),
         ],

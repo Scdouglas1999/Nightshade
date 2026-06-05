@@ -45,19 +45,19 @@ class TutorialStepWidget extends StatelessWidget {
   IconData _resolveIcon(String iconName) {
     switch (iconName) {
       case 'sparkles':
-        return LucideIcons.sparkles;
+        return NightshadeIcons.sparkle;
       case 'plug':
-        return LucideIcons.plug;
+        return NightshadeIcons.connected;
       case 'compass':
-        return LucideIcons.compass;
+        return NightshadeIcons.compass;
       case 'snowflake':
-        return LucideIcons.snowflake;
+        return NightshadeIcons.frost;
       case 'crop':
         return LucideIcons.crop;
       case 'crosshair':
-        return LucideIcons.crosshair;
+        return NightshadeIcons.crosshair;
       case 'play':
-        return LucideIcons.play;
+        return NightshadeIcons.play;
       default:
         throw ArgumentError(
           'TutorialStepWidget: unknown icon name "$iconName". '
@@ -141,7 +141,7 @@ class TutorialStepWidget extends StatelessWidget {
         if (step.hasDeepLink)
           NightshadeButton(
             label: 'Show me on the ${_routeLabel(step.deepLinkRoute)} screen',
-            icon: LucideIcons.externalLink,
+            icon: NightshadeIcons.externalLink,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
             onPressed: onShowMe,

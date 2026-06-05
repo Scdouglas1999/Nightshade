@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -198,7 +197,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
           secondary: [
             AdaptivePanel(
               title: 'Framing Controls',
-              icon: LucideIcons.sliders,
+              icon: NightshadeIcons.sliders,
               child: DecoratedBox(
                 decoration: BoxDecoration(
                   color: colors.surface,
@@ -286,7 +285,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
                       borderRadius: NightshadeTokens.borderRadiusInline8,
                     ),
                     child: Icon(
-                      LucideIcons.aperture,
+                      NightshadeIcons.aperture,
                       size: 16,
                       color: colors.textMuted,
                     ),

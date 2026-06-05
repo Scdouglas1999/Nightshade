@@ -26,11 +26,7 @@ class FramingControlsSection extends ConsumerWidget {
       children: [
         Text(
           'Frame',
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
 
@@ -80,7 +76,7 @@ class FramingControlsSection extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                Icon(LucideIcons.frame, size: 16, color: colors.textMuted),
+                Icon(NightshadeIcons.frame, size: 16, color: colors.textMuted),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -236,16 +232,12 @@ class FramingCoordinatesPanel extends StatelessWidget {
             children: [
               Text(
                 'Coordinates',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
               ),
               if (target != null)
                 IconButton(
                   icon:
-                      Icon(LucideIcons.copy, size: 12, color: colors.textMuted),
+                      Icon(NightshadeIcons.copy, size: 12, color: colors.textMuted),
                   tooltip: 'Copy coordinates',
                   onPressed: () {
                     Clipboard.setData(ClipboardData(
@@ -293,7 +285,7 @@ class FramingCoordinatesPanel extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8),
               child: Row(
                 children: [
-                  Icon(LucideIcons.alertTriangle,
+                  Icon(NightshadeIcons.warning,
                       size: 12, color: colors.warning),
                   const SizedBox(width: 6),
                   Text(
@@ -342,11 +334,7 @@ class FramingAltitudePanel extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   'Altitude',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
                 ),
               ],
             ),

@@ -106,11 +106,7 @@ mixin _GuidingDesktopSections
                 if (!isMobile)
                   Text(
                     isConnected ? 'PHD2 Connected' : 'PHD2 Disconnected',
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w500,
-                      fontSize: NightshadeTypography.fontSize13,
-                    ),
+                    style: NightshadeTypography.label.copyWith(color: colors.textPrimary),
                   ),
                 SizedBox(width: isMobile ? 8 : 20),
                 // State indicator pill — flexible so a long label (e.g.
@@ -205,7 +201,7 @@ mixin _GuidingDesktopSections
             NightshadeButton(
               key: GuidingTutorialKeys.connectBtn,
               label: isMobile ? '' : 'Connect',
-              icon: LucideIcons.plug,
+              icon: NightshadeIcons.connected,
               size: ButtonSize.small,
               onPressed: () => connectPhd2(ref, context: context),
             )
@@ -225,7 +221,7 @@ mixin _GuidingDesktopSections
               borderRadius: NightshadeTokens.borderRadiusInline8,
             ),
             child: IconButton(
-              icon: Icon(LucideIcons.settings,
+              icon: Icon(NightshadeIcons.settings,
                   color: colors.textSecondary, size: 18),
               onPressed: () => _showConnectionDialog(),
               tooltip: 'Connection Settings',
@@ -290,10 +286,10 @@ mixin _GuidingDesktopSections
           _buildGlassCard(
             colors,
             title: 'Guide Star',
-            icon: LucideIcons.star,
+            icon: NightshadeIcons.star,
             trailing: isConnected
                 ? IconButton(
-                    icon: Icon(LucideIcons.refreshCw,
+                    icon: Icon(NightshadeIcons.refresh,
                         size: 14, color: colors.textSecondary),
                     onPressed: () =>
                         ref.read(starImageProvider.notifier).refresh(),
@@ -333,7 +329,7 @@ mixin _GuidingDesktopSections
           _buildGlassCard(
             colors,
             title: 'Target Display',
-            icon: LucideIcons.target,
+            icon: NightshadeIcons.target,
             child: AspectRatio(
               aspectRatio: 1,
               child: GuideTargetDisplay(
@@ -357,7 +353,7 @@ mixin _GuidingDesktopSections
           _buildGlassCard(
             colors,
             title: 'Star Statistics',
-            icon: LucideIcons.activity,
+            icon: NightshadeIcons.activity,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -487,7 +483,7 @@ mixin _GuidingDesktopSections
                     color: colors.primary.withValues(alpha: 0.15),
                     borderRadius: NightshadeTokens.borderRadiusMd,
                   ),
-                  child: Icon(LucideIcons.lineChart,
+                  child: Icon(NightshadeIcons.chart,
                       size: iconSize, color: colors.primary),
                 ),
                 const SizedBox(width: 8),
@@ -629,7 +625,7 @@ mixin _GuidingDesktopSections
         NightshadeButton(
           key: GuidingTutorialKeys.brainBtn,
           label: _showBrainPanel ? 'Hide Brain Settings' : 'Brain Settings',
-          icon: LucideIcons.brain,
+          icon: NightshadeIcons.brain,
           variant: ButtonVariant.outline,
           onPressed: () => setState(() => _showBrainPanel = !_showBrainPanel),
         ),
@@ -692,16 +688,12 @@ mixin _GuidingDesktopSections
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(LucideIcons.alertTriangle, color: colors.error, size: 28),
+              Icon(NightshadeIcons.warning, color: colors.error, size: 28),
               const SizedBox(height: 10),
               Text(
                 'Failed to load brain settings',
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w600,
-                  fontSize: NightshadeTypography.fontSize13,
-                ),
+                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
               ),
               const SizedBox(height: 6),
               // Surface the real error so the user can act on it instead of
@@ -715,7 +707,7 @@ mixin _GuidingDesktopSections
               const SizedBox(height: 14),
               NightshadeButton(
                 label: 'Retry',
-                icon: LucideIcons.refreshCw,
+                icon: NightshadeIcons.refresh,
                 size: ButtonSize.small,
                 variant: ButtonVariant.outline,
                 onPressed: () =>

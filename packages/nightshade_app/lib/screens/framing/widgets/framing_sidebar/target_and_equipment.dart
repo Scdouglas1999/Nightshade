@@ -30,17 +30,17 @@ class FramingTargetSearch extends ConsumerWidget {
   IconData _iconForType(TargetType? type) {
     switch (type) {
       case TargetType.galaxy:
-        return LucideIcons.circle;
+        return NightshadeIcons.circle;
       case TargetType.nebula:
-        return LucideIcons.cloud;
+        return NightshadeIcons.cloud;
       case TargetType.cluster:
-        return LucideIcons.sparkles;
+        return NightshadeIcons.sparkle;
       case TargetType.star:
-        return LucideIcons.star;
+        return NightshadeIcons.star;
       case TargetType.planet:
-        return LucideIcons.globe;
+        return NightshadeIcons.globe;
       default:
-        return LucideIcons.target;
+        return NightshadeIcons.target;
     }
   }
 
@@ -56,11 +56,7 @@ class FramingTargetSearch extends ConsumerWidget {
         children: [
           Text(
             'Target',
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 8),
           TextField(
@@ -72,7 +68,7 @@ class FramingTargetSearch extends ConsumerWidget {
               hintText: 'Search by name (M42, NGC7000, Orion)',
               hintStyle: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
               prefixIcon:
-                  Icon(LucideIcons.search, size: 14, color: colors.textMuted),
+                  Icon(NightshadeIcons.search, size: 14, color: colors.textMuted),
               suffixIcon: searchState.isSearching
                   ? const SizedBox(
                       width: 14,
@@ -81,7 +77,7 @@ class FramingTargetSearch extends ConsumerWidget {
                     )
                   : searchController.text.isNotEmpty
                       ? IconButton(
-                          icon: Icon(LucideIcons.x,
+                          icon: Icon(NightshadeIcons.close,
                               size: 14, color: colors.textMuted),
                           onPressed: () {
                             searchController.clear();
@@ -152,11 +148,7 @@ class FramingTargetSearch extends ConsumerWidget {
                               children: [
                                 Text(
                                   target.name,
-                                  style: TextStyle(
-                                    fontSize: NightshadeTypography.fontSize11,
-                                    fontWeight: FontWeight.w500,
-                                    color: colors.textPrimary,
-                                  ),
+                                  style: NightshadeTypography.labelQuiet.copyWith(color: colors.textPrimary),
                                 ),
                                 if (target.catalogId != null &&
                                     target.catalogId != target.name)
@@ -235,7 +227,7 @@ class FramingTargetSearch extends ConsumerWidget {
               ),
               const SizedBox(width: 8),
               FramingSmallIconButton(
-                icon: LucideIcons.arrowRight,
+                icon: NightshadeIcons.arrowRight,
                 tooltip: 'Go to coordinates',
                 colors: colors,
                 onTap: onGoToManualCoordinates,
@@ -271,11 +263,7 @@ class FramingEquipmentSection extends StatelessWidget {
           children: [
             Text(
               'Equipment',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
             ),
             // Flexible so a long profile name ellipsizes instead of pushing
             // the status badge off a narrow phone-landscape controls panel.
@@ -286,7 +274,7 @@ class FramingEquipmentSection extends StatelessWidget {
                     return Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(LucideIcons.checkCircle,
+                        Icon(NightshadeIcons.success,
                             size: 12, color: colors.success),
                         const SizedBox(width: 4),
                         Flexible(
@@ -346,7 +334,7 @@ class FramingEquipmentSection extends StatelessWidget {
               case EquipmentStatus.noProfile:
                 return FramingEquipmentWarningCard(
                   colors: colors,
-                  icon: LucideIcons.settings,
+                  icon: NightshadeIcons.settings,
                   title: 'No Equipment Profile',
                   message:
                       'Create and activate an equipment profile in Settings → Equipment to enable framing preview.',
@@ -359,7 +347,7 @@ class FramingEquipmentSection extends StatelessWidget {
               case EquipmentStatus.noFocalLength:
                 return FramingEquipmentWarningCard(
                   colors: colors,
-                  icon: LucideIcons.focus,
+                  icon: NightshadeIcons.focuser,
                   title: 'Optical Specs Missing',
                   message:
                       'Set the focal length in profile "${result.profileName}" to enable FOV preview.',
@@ -372,7 +360,7 @@ class FramingEquipmentSection extends StatelessWidget {
               case EquipmentStatus.noCameraSpecs:
                 return FramingEquipmentWarningCard(
                   colors: colors,
-                  icon: LucideIcons.camera,
+                  icon: NightshadeIcons.camera,
                   title: 'Camera Not Configured',
                   message:
                       'Connect a camera or configure camera specs to enable accurate FOV preview.',
@@ -407,7 +395,7 @@ class FramingEquipmentSection extends StatelessWidget {
                         ),
                         child: Row(
                           children: [
-                            Icon(LucideIcons.info,
+                            Icon(NightshadeIcons.info,
                                 size: 12, color: colors.warning),
                             const SizedBox(width: 6),
                             Expanded(
@@ -431,7 +419,7 @@ class FramingEquipmentSection extends StatelessWidget {
           ),
           error: (e, _) => FramingEquipmentWarningCard(
             colors: colors,
-            icon: LucideIcons.alertTriangle,
+            icon: NightshadeIcons.warning,
             title: 'Error Loading Equipment',
             message: e.toString(),
             actionLabel: null,

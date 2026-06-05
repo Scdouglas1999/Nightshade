@@ -35,11 +35,7 @@ class _StatusChip extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w500,
-              color: isConnected ? colors.success : colors.error,
-            ),
+            style: NightshadeTypography.labelQuiet.copyWith(color: isConnected ? colors.success : colors.error),
           ),
         ],
       ),
@@ -79,7 +75,7 @@ class _SettingRow extends StatelessWidget {
               message: tooltip,
               waitDuration: const Duration(milliseconds: 500),
               child: Icon(
-                LucideIcons.helpCircle,
+                NightshadeIcons.help,
                 size: 12,
                 color: colors.textMuted.withValues(alpha: 0.6),
               ),
@@ -105,7 +101,7 @@ class _TipItem extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         children: [
-          Icon(LucideIcons.check, size: 12, color: colors.success),
+          Icon(NightshadeIcons.check, size: 12, color: colors.success),
           const SizedBox(width: 8),
           Text(
             text,

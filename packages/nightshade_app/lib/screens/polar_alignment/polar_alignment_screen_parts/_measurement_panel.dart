@@ -81,7 +81,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                             Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(LucideIcons.checkCircle,
+                                Icon(NightshadeIcons.success,
                                     size: 12, color: colors.success),
                                 const SizedBox(width: 6),
                                 Text(
@@ -132,11 +132,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
             children: [
               Text(
                 'Progress',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
               ),
               const SizedBox(height: 16),
               _MeasurementProgressItem(
@@ -354,11 +350,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                 children: [
                   Text(
                     'Adjust Mount',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize14,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 20),
 
@@ -504,7 +496,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                     child: Row(
                       children: [
                         Icon(
-                          LucideIcons.target,
+                          NightshadeIcons.target,
                           size: 14,
                           color: error != null &&
                                   error.totalError <

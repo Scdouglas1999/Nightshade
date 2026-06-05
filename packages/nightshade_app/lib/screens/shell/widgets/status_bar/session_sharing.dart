@@ -47,7 +47,7 @@ class _ShareSessionButtonState extends ConsumerState<_ShareSessionButton> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  LucideIcons.share2,
+                  NightshadeIcons.share,
                   size: 12,
                   color: hasViewers
                       ? widget.colors.success
@@ -122,7 +122,7 @@ class _ShareSessionDialog extends ConsumerWidget {
       ),
       title: Row(
         children: [
-          Icon(LucideIcons.share2, size: 20, color: colors.primary),
+          Icon(NightshadeIcons.share, size: 20, color: colors.primary),
           const SizedBox(width: 10),
           Text(
             'Remote Access',
@@ -222,7 +222,7 @@ class _ShareSessionDialog extends ConsumerWidget {
                 child: Row(
                   children: [
                     Icon(
-                      LucideIcons.alertTriangle,
+                      NightshadeIcons.warning,
                       size: 14,
                       color: colors.error,
                     ),
@@ -280,16 +280,12 @@ class _UrlCard extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize11,
-              fontWeight: FontWeight.w600,
-              color: colors.textMuted,
-            ),
+            style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textMuted),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              Icon(LucideIcons.link, size: 14, color: colors.textMuted),
+              Icon(NightshadeIcons.link, size: 14, color: colors.textMuted),
               const SizedBox(width: 8),
               Expanded(
                 child: SelectableText(
@@ -329,18 +325,14 @@ class _UrlCard extends StatelessWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        LucideIcons.copy,
+                        NightshadeIcons.copy,
                         size: 12,
                         color: colors.primary,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         'Copy',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize12,
-                          fontWeight: FontWeight.w500,
-                          color: colors.primary,
-                        ),
+                        style: NightshadeTypography.labelSm.copyWith(color: colors.primary),
                       ),
                     ],
                   ),

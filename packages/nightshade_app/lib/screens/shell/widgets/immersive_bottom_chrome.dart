@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Wraps the phone shell's bottom chrome (status bar + bottom navigation) with
@@ -57,7 +56,7 @@ class ImmersiveBottomChrome extends StatelessWidget {
                 ),
                 const SizedBox(width: 6),
                 Icon(
-                  visible ? LucideIcons.chevronDown : LucideIcons.chevronUp,
+                  visible ? NightshadeIcons.chevronDown : NightshadeIcons.chevronUp,
                   size: 13,
                   color: colors.textMuted.withValues(alpha: 0.8),
                 ),

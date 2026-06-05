@@ -10,7 +10,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
       mainAxisSize: MainAxisSize.min,
       children: [
         Icon(
-          LucideIcons.checkCircle,
+          NightshadeIcons.success,
           size: 64,
           color: colors.success,
         ),
@@ -71,11 +71,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                   const SizedBox(width: 8),
                   Text(
                     'Alignment Summary',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize14,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                   ),
                 ],
               ),
@@ -132,7 +128,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
                     child: Icon(
-                      LucideIcons.arrowRight,
+                      NightshadeIcons.arrowRight,
                       size: 20,
                       color: colors.textMuted,
                     ),

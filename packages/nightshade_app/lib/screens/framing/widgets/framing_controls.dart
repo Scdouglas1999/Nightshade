@@ -400,16 +400,12 @@ class FramingEquipmentFovOverlayControls extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(LucideIcons.frame, size: 14, color: colors.info),
+              Icon(NightshadeIcons.frame, size: 14, color: colors.info),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Equipment FOV Overlay',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w600,
-                    color: colors.info,
-                  ),
+                  style: NightshadeTypography.labelStrongSm.copyWith(color: colors.info),
                 ),
               ),
               NightshadeSwitch(
@@ -505,7 +501,7 @@ class FramingMosaicSpinner extends StatelessWidget {
           child: Row(
             children: [
               _SpinnerButton(
-                icon: LucideIcons.minus,
+                icon: NightshadeIcons.remove,
                 onTap: value > min ? () => onChanged(value - 1) : null,
                 colors: colors,
               ),
@@ -513,15 +509,11 @@ class FramingMosaicSpinner extends StatelessWidget {
                 child: Text(
                   '$value',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize14,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                 ),
               ),
               _SpinnerButton(
-                icon: LucideIcons.plus,
+                icon: NightshadeIcons.add,
                 onTap: value < max ? () => onChanged(value + 1) : null,
                 colors: colors,
               ),
@@ -852,7 +844,7 @@ class _FramingExportMosaicButtonState
                 )
               else
                 Icon(
-                  LucideIcons.download,
+                  NightshadeIcons.download,
                   size: 14,
                   color: onPrimary,
                 ),
@@ -861,11 +853,7 @@ class _FramingExportMosaicButtonState
                 _isExporting
                     ? 'Exporting...'
                     : 'Export ${widget.panels.length} Panels to Targets',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
-                  color: onPrimary,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: onPrimary),
               ),
             ],
           ),

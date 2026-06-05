@@ -30,14 +30,14 @@ class _WeatherHeader extends StatelessWidget {
                 valueColor: AlwaysStoppedAnimation(colors.primary),
               ),
             )
-          : const Icon(LucideIcons.refreshCw, size: NightshadeTokens.iconMd),
+          : const Icon(NightshadeIcons.refresh, size: NightshadeTokens.iconMd),
       color: colors.textSecondary,
       tooltip: 'Refresh radar data',
     );
 
     final settingsButton = IconButton(
       onPressed: onSettingsTap,
-      icon: const Icon(LucideIcons.settings, size: NightshadeTokens.iconMd),
+      icon: const Icon(NightshadeIcons.settings, size: NightshadeTokens.iconMd),
       color: colors.textSecondary,
       tooltip: 'Weather settings',
     );
@@ -50,7 +50,7 @@ class _WeatherHeader extends StatelessWidget {
     return SafeArea(
       bottom: false,
       child: ScreenHeader(
-        icon: LucideIcons.cloudRain,
+        icon: NightshadeIcons.rain,
         title: 'Weather Radar',
         subtitle: 'Live cloud tracking and safety monitoring',
         padding: EdgeInsets.symmetric(
@@ -103,7 +103,7 @@ class _RadarControlsRow extends StatelessWidget {
           // Opacity slider
           _SliderRow(
             colors: colors,
-            icon: LucideIcons.layers,
+            icon: NightshadeIcons.layers,
             label: 'Opacity',
             value: opacity,
             min: 0.0,
@@ -201,11 +201,7 @@ class _SliderRow extends StatelessWidget {
           width: 50,
           child: Text(
             displayValue,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w500,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
             textAlign: TextAlign.end,
           ),
         ),
@@ -248,7 +244,7 @@ class _NoLocationContent extends StatelessWidget {
                   shape: BoxShape.circle,
                 ),
                 child: Icon(
-                  LucideIcons.mapPin,
+                  NightshadeIcons.location,
                   size: 48,
                   color: colors.warning,
                 ),
@@ -275,7 +271,7 @@ class _NoLocationContent extends StatelessWidget {
               const SizedBox(height: 24),
               NightshadeButton(
                 label: 'Open Weather Settings',
-                icon: LucideIcons.cloudSun,
+                icon: NightshadeIcons.weather,
                 variant: ButtonVariant.primary,
                 onPressed: () => context.go('/settings?section=weather-safety'),
               ),

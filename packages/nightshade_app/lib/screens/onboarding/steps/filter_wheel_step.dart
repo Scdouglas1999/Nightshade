@@ -2,7 +2,6 @@ import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -186,7 +185,7 @@ class _OnboardingFilterWheelStepState
             title: 'Pick your filter wheel (optional)',
             subtitle:
                 'Tell us what each slot holds so flats, autofocus, and offsets work per filter.',
-            icon: LucideIcons.disc,
+            icon: NightshadeIcons.filterWheel,
             deviceType: DeviceType.filterWheel,
             selectedDeviceId: draft.filterWheelId,
             selectedDeviceName: draft.filterWheelName,
@@ -238,7 +237,7 @@ class _OnboardingFilterWheelStepState
                 const SizedBox(width: 8),
               ],
               NightshadeButton(
-                icon: LucideIcons.plus,
+                icon: NightshadeIcons.add,
                 label: 'Add slot',
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
@@ -295,7 +294,7 @@ class _OnboardingFilterWheelStepState
                         ? () => _removeSlot(i)
                         : null,
                     icon: Icon(
-                      LucideIcons.trash2,
+                      NightshadeIcons.delete,
                       size: 16,
                       color: _controllers.length > 1
                           ? colors.error

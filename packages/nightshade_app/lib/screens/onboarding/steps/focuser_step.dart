@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'device_picker_step.dart';
 
@@ -19,7 +19,7 @@ class OnboardingFocuserStep extends ConsumerWidget {
       title: 'Pick your focuser (optional)',
       subtitle:
           'An electronic focuser unlocks autofocus runs. If you focus manually, skip this step.',
-      icon: LucideIcons.focus,
+      icon: NightshadeIcons.focuser,
       deviceType: DeviceType.focuser,
       selectedDeviceId: draft.focuserId,
       selectedDeviceName: draft.focuserName,

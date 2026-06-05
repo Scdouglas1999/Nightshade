@@ -41,7 +41,7 @@ class _MeasurementProgressItem extends StatelessWidget {
           ),
           child: Center(
             child: isComplete
-                ? Icon(LucideIcons.check, size: 12, color: colors.background)
+                ? Icon(NightshadeIcons.check, size: 12, color: colors.background)
                 : isActive
                     ? SizedBox(
                         width: 10,
@@ -66,7 +66,7 @@ class _MeasurementProgressItem extends StatelessWidget {
         ),
         if (isComplete) ...[
           const Spacer(),
-          Icon(LucideIcons.checkCircle, size: 14, color: colors.success),
+          Icon(NightshadeIcons.success, size: 14, color: colors.success),
         ],
       ],
     );
@@ -110,7 +110,7 @@ class _ProgressStep extends StatelessWidget {
           ),
           child: Center(
             child: isComplete
-                ? Icon(LucideIcons.check, size: 16, color: color)
+                ? Icon(NightshadeIcons.check, size: 16, color: color)
                 : Text(
                     number.toString(),
                     style: TextStyle(

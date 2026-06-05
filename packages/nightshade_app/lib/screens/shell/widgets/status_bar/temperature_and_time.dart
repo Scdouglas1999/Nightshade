@@ -106,7 +106,7 @@ class _TimeDisplay extends ConsumerWidget {
     return Row(
       children: [
         Icon(
-          LucideIcons.clock,
+          NightshadeIcons.clock,
           size: 12,
           color: colors.textMuted,
         ),

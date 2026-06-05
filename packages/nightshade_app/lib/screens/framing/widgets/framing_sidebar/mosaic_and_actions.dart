@@ -32,11 +32,7 @@ class FramingMosaicSection extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Mosaic',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
               ),
             ),
             NightshadeSwitch(
@@ -56,7 +52,7 @@ class FramingMosaicSection extends ConsumerWidget {
             ),
             child: Row(
               children: [
-                Icon(LucideIcons.info, size: 14, color: colors.textMuted),
+                Icon(NightshadeIcons.info, size: 14, color: colors.textMuted),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
@@ -163,16 +159,12 @@ class FramingMosaicSection extends ConsumerWidget {
               children: [
                 Row(
                   children: [
-                    Icon(LucideIcons.layoutGrid,
+                    Icon(NightshadeIcons.layoutGrid,
                         size: 14, color: colors.primary),
                     const SizedBox(width: 8),
                     Text(
                       '${config.totalPanels} Panels',
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
                     ),
                   ],
                 ),
@@ -376,7 +368,7 @@ class FramingActionsPanel extends ConsumerWidget {
             const SizedBox(width: NightshadeTokens.spaceSm),
             Expanded(
               child: NightshadeButton(
-                icon: LucideIcons.download,
+                icon: NightshadeIcons.download,
                 label: 'Cache Image',
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
@@ -389,7 +381,7 @@ class FramingActionsPanel extends ConsumerWidget {
         SizedBox(
           width: double.infinity,
           child: NightshadeButton(
-            icon: LucideIcons.refreshCw,
+            icon: NightshadeIcons.refresh,
             label: 'Reload',
             variant: ButtonVariant.outline,
             size: ButtonSize.small,

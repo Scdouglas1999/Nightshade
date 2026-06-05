@@ -39,17 +39,17 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
       magnitudeText = 'Micro adjustments';
       adjustmentHint = 'Barely touch the knobs';
       magnitudeColor = colors.success;
-      magnitudeIcon = LucideIcons.checkCircle;
+      magnitudeIcon = NightshadeIcons.success;
     } else if (totalArcsec < 30) {
       magnitudeText = '1/8 turn';
       adjustmentHint = 'Very small movements';
       magnitudeColor = colors.success;
-      magnitudeIcon = LucideIcons.arrowRight;
+      magnitudeIcon = NightshadeIcons.arrowRight;
     } else if (totalArcsec < 60) {
       magnitudeText = '1/4 turn';
       adjustmentHint = 'Small, careful movements';
       magnitudeColor = colors.info;
-      magnitudeIcon = LucideIcons.arrowRight;
+      magnitudeIcon = NightshadeIcons.arrowRight;
     } else if (totalArcsec < 120) {
       magnitudeText = '1/2 turn';
       adjustmentHint = 'Medium adjustments';
@@ -59,7 +59,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
       magnitudeText = 'Large adjustments';
       adjustmentHint = 'Significant correction needed';
       magnitudeColor = colors.error;
-      magnitudeIcon = LucideIcons.alertTriangle;
+      magnitudeIcon = NightshadeIcons.warning;
     }
 
     // Direction indicators
@@ -83,11 +83,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
               const SizedBox(width: 8),
               Text(
                 magnitudeText,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: magnitudeColor,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: magnitudeColor),
               ),
             ],
           ),
@@ -108,8 +104,8 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                 children: [
                   Icon(
                     error.azimuthError > 0
-                        ? LucideIcons.arrowRight
-                        : LucideIcons.arrowLeft,
+                        ? NightshadeIcons.arrowRight
+                        : NightshadeIcons.arrowLeft,
                     size: 12,
                     color: _getErrorMagnitudeColor(colors, azMagnitude),
                   ),
@@ -130,8 +126,8 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
               children: [
                 Icon(
                   error.altitudeError > 0
-                      ? LucideIcons.arrowDown
-                      : LucideIcons.arrowUp,
+                      ? NightshadeIcons.arrowDown
+                      : NightshadeIcons.arrowUp,
                   size: 12,
                   color: _getErrorMagnitudeColor(colors, altMagnitude),
                 ),
@@ -180,15 +176,11 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
         children: [
           Row(
             children: [
-              Icon(LucideIcons.history, size: 14, color: colors.textMuted),
+              Icon(NightshadeIcons.history, size: 14, color: colors.textMuted),
               const SizedBox(width: 8),
               Text(
                 'Alignment History',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -232,8 +224,8 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                       children: [
                         Icon(
                           entry.autoCompleted
-                              ? LucideIcons.target
-                              : LucideIcons.check,
+                              ? NightshadeIcons.target
+                              : NightshadeIcons.check,
                           size: 14,
                           color: entry.finalTotalError < 60
                               ? colors.success
@@ -254,11 +246,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                               const SizedBox(height: 2),
                               Text(
                                 'Final: ${entry.finalTotalError.toStringAsFixed(0)}"',
-                                style: TextStyle(
-                                  fontSize: NightshadeTypography.fontSize11,
-                                  fontWeight: FontWeight.w500,
-                                  color: colors.textPrimary,
-                                ),
+                                style: NightshadeTypography.labelQuiet.copyWith(color: colors.textPrimary),
                               ),
                             ],
                           ),

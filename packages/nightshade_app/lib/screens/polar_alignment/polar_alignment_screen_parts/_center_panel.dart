@@ -153,7 +153,7 @@ extension _CenterPanel on _PolarAlignmentScreenState {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            isAllSky ? LucideIcons.globe : LucideIcons.compass,
+            isAllSky ? NightshadeIcons.globe : NightshadeIcons.compass,
             size: 64,
             color: colors.primary.withValues(alpha: 0.5),
           ),

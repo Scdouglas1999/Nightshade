@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/gestures.dart' show PointerScrollEvent;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 // FramingPlateScale is the C1 single-source-of-truth astrometric scale shared by
@@ -435,7 +434,7 @@ class _FramingCanvasState extends State<FramingCanvas> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(LucideIcons.eye,
+                        Icon(NightshadeIcons.visible,
                             size: NightshadeTokens.iconXs,
                             color: widget.colors.info),
                         const SizedBox(width: NightshadeTokens.spaceSm),
@@ -554,14 +553,14 @@ class _CanvasControls extends StatelessWidget {
                 ref.read(framingProvider.notifier).setSurveySource(source),
           ),
           _ControlChip(
-            icon: LucideIcons.grid,
+            icon: NightshadeIcons.grid,
             label: 'Grid',
             isActive: framingState.showGrid,
             colors: colors,
             onTap: () => ref.read(framingProvider.notifier).toggleGrid(),
           ),
           _ControlChip(
-            icon: LucideIcons.tag,
+            icon: NightshadeIcons.tag,
             label: 'Labels',
             isActive: framingState.showLabels,
             colors: colors,
@@ -575,7 +574,7 @@ class _CanvasControls extends StatelessWidget {
           // capability gate to mount/unmount the streamed tile mosaic.
           if (hipsSurveyIsTileCapable(framingState.surveySource))
             _ControlChip(
-              icon: LucideIcons.sparkles,
+              icon: NightshadeIcons.sparkle,
               label: 'HiPS Tiles',
               isActive: ref.watch(hipsFramingEnabledProvider),
               colors: colors,
@@ -682,7 +681,7 @@ class _SurveySourceSelector extends StatelessWidget {
         children: [
           const SizedBox(width: NightshadeTokens.spaceMd),
           Icon(
-            LucideIcons.layers,
+            NightshadeIcons.layers,
             size: NightshadeTokens.iconXs,
             color: colors.textSecondary,
           ),
@@ -809,7 +808,7 @@ class _ZoomControls extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _ZoomButton(icon: LucideIcons.plus, colors: colors, onTap: onZoomIn),
+          _ZoomButton(icon: NightshadeIcons.add, colors: colors, onTap: onZoomIn),
           const SizedBox(height: NightshadeTokens.spaceXs),
           Padding(
             padding:
@@ -824,12 +823,12 @@ class _ZoomControls extends StatelessWidget {
           ),
           const SizedBox(height: NightshadeTokens.spaceXs),
           _ZoomButton(
-              icon: LucideIcons.minus, colors: colors, onTap: onZoomOut),
+              icon: NightshadeIcons.remove, colors: colors, onTap: onZoomOut),
           const SizedBox(height: NightshadeTokens.spaceXs),
           Container(height: 1, width: 20, color: colors.border),
           const SizedBox(height: NightshadeTokens.spaceXs),
           _ZoomButton(
-              icon: LucideIcons.maximize2, colors: colors, onTap: onReset),
+              icon: NightshadeIcons.expand, colors: colors, onTap: onReset),
         ],
       ),
     );

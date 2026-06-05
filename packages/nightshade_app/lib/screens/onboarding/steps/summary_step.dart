@@ -117,34 +117,34 @@ class _OnboardingSummaryStepState
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _summaryRow(theme, colors, LucideIcons.camera, 'Camera',
+              _summaryRow(theme, colors, NightshadeIcons.camera, 'Camera',
                   draft.cameraName),
-              _summaryRow(theme, colors, LucideIcons.compass, 'Mount',
+              _summaryRow(theme, colors, NightshadeIcons.compass, 'Mount',
                   draft.mountName),
-              _summaryRow(theme, colors, LucideIcons.focus, 'Focuser',
+              _summaryRow(theme, colors, NightshadeIcons.focuser, 'Focuser',
                   draft.focuserName ?? '— not set —'),
-              _summaryRow(theme, colors, LucideIcons.disc, 'Filter wheel',
+              _summaryRow(theme, colors, NightshadeIcons.filterWheel, 'Filter wheel',
                   draft.filterWheelName ?? '— not set —'),
               if (draft.filterNames.isNotEmpty)
-                _summaryRow(theme, colors, LucideIcons.list, 'Filters',
+                _summaryRow(theme, colors, NightshadeIcons.list, 'Filters',
                     draft.filterNames.join(', ')),
-              _summaryRow(theme, colors, LucideIcons.crosshair, 'Guider',
+              _summaryRow(theme, colors, NightshadeIcons.crosshair, 'Guider',
                   draft.guiderName ?? '— not set —'),
               const Divider(height: 20),
               _summaryRow(theme, colors, LucideIcons.ruler, 'Focal length',
                   draft.focalLengthMm != null
                       ? '${draft.focalLengthMm!.toStringAsFixed(1)} mm × ${draft.reducerFactor.toStringAsFixed(2)}'
                       : null),
-              _summaryRow(theme, colors, LucideIcons.aperture, 'Aperture',
+              _summaryRow(theme, colors, NightshadeIcons.aperture, 'Aperture',
                   draft.apertureMm != null
                       ? '${draft.apertureMm!.toStringAsFixed(1)} mm'
                       : null),
-              _summaryRow(theme, colors, LucideIcons.move, 'Image scale',
+              _summaryRow(theme, colors, NightshadeIcons.move, 'Image scale',
                   imageScale != null
                       ? '${imageScale.toStringAsFixed(2)} arcsec/px'
                       : null),
               const Divider(height: 20),
-              _summaryRow(theme, colors, LucideIcons.folder,
+              _summaryRow(theme, colors, NightshadeIcons.folder,
                   'Capture folder', draft.captureDirectory),
             ],
           ),
@@ -158,7 +158,7 @@ class _OnboardingSummaryStepState
           ),
           child: Row(
             children: [
-              Icon(LucideIcons.info, color: colors.primary, size: 16),
+              Icon(NightshadeIcons.info, color: colors.primary, size: 16),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

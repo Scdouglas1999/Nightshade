@@ -164,11 +164,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                 'Altitude',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
               ),
             ),
             const Spacer(),
@@ -178,7 +174,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
               child: Row(
                 children: [
                   Icon(
-                    _showAirmass ? LucideIcons.checkSquare : LucideIcons.square,
+                    _showAirmass ? LucideIcons.checkSquare : NightshadeIcons.stop,
                     size: 12,
                     color: colors.textMuted,
                   ),
@@ -281,7 +277,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.mapPin, size: 24, color: colors.textMuted),
+            Icon(NightshadeIcons.location, size: 24, color: colors.textMuted),
             const SizedBox(height: 8),
             Text(
               'Set location in Settings',
@@ -515,7 +511,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
         colors,
         'Rise',
         timeFormat.format(_visibility!.riseTime!),
-        LucideIcons.sunrise,
+        NightshadeIcons.sunrise,
       ));
     }
 
@@ -524,7 +520,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
         colors,
         'Transit',
         timeFormat.format(_visibility!.transitTime!),
-        LucideIcons.arrowUp,
+        NightshadeIcons.arrowUp,
       ));
     }
 
@@ -533,7 +529,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
         colors,
         'Set',
         timeFormat.format(_visibility!.setTime!),
-        LucideIcons.sunset,
+        NightshadeIcons.sunset,
       ));
     }
 
@@ -542,7 +538,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
         colors,
         'Max Alt',
         '${_visibility!.transitAltitude!.toStringAsFixed(1)}°',
-        LucideIcons.chevronUp,
+        NightshadeIcons.chevronUp,
       ));
     }
 

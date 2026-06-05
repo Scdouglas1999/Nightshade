@@ -34,7 +34,7 @@ class OnboardingWelcomeStep extends ConsumerWidget {
                 borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               ),
               child:
-                  Icon(LucideIcons.sparkles, color: colors.primary, size: 28),
+                  Icon(NightshadeIcons.sparkle, color: colors.primary, size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -79,13 +79,13 @@ class OnboardingWelcomeStep extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              _bullet(theme, colors, LucideIcons.plug,
+              _bullet(theme, colors, NightshadeIcons.connected,
                   'Which device drivers to scan (ASCOM / INDI / Alpaca / Native)'),
-              _bullet(theme, colors, LucideIcons.camera,
+              _bullet(theme, colors, NightshadeIcons.camera,
                   'Picking your camera, mount, focuser, filter wheel, and guider'),
               _bullet(theme, colors, LucideIcons.ruler,
                   'Optical train details: focal length, aperture, reducer'),
-              _bullet(theme, colors, LucideIcons.folder,
+              _bullet(theme, colors, NightshadeIcons.folder,
                   'Where Nightshade will save captured images'),
             ],
           ),
@@ -105,7 +105,7 @@ class OnboardingWelcomeStep extends ConsumerWidget {
               ),
               child: Row(
                 children: [
-                  Icon(LucideIcons.info, color: colors.warning, size: 18),
+                  Icon(NightshadeIcons.info, color: colors.warning, size: 18),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
