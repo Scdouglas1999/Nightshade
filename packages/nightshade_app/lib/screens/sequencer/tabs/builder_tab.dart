@@ -244,12 +244,9 @@ class _BuilderWorkspace extends StatelessWidget {
           ),
           const SizedBox(height: 16),
           Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-                border: Border.all(color: colors.border),
-              ),
+            child: NightshadeCard(
+              variant: CardVariant.subtle,
+              borderRadius: NightshadeTokens.radiusInline8,
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,

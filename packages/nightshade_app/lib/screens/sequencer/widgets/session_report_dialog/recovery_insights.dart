@@ -13,25 +13,25 @@ class _StatChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.subtle,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        border: Border.all(color: colors.border),
-      ),
+      borderRadius: NightshadeTokens.radiusMd,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: colors.textMuted),
           ),
           const SizedBox(height: 2),
           Text(
             value,
-            style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+            style: NightshadeTypography.labelStrong
+                .copyWith(color: colors.textPrimary),
           ),
         ],
       ),
@@ -305,7 +305,8 @@ class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: NightshadeDecorations.statusChip(
                   confColor,
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                   bordered: false,
                 ),
                 child: Text(
@@ -385,14 +386,18 @@ class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
                 onPressed: () => _onDismiss(sticky: false),
                 child: Text(
                   'Dismiss',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: c.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: c.textMuted),
                 ),
               ),
               TextButton(
                 onPressed: () => _onDismiss(sticky: true),
                 child: Text(
                   "Don't suggest again",
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: c.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: c.textMuted),
                 ),
               ),
             ],

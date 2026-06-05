@@ -46,7 +46,8 @@ class _GuideStatsBlock extends StatelessWidget {
     if (gs.isEmpty) {
       return Text(
         'No guide data recorded for this session.',
-        style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
+        style: TextStyle(
+            fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
       );
     }
     final unguidedPct = (gs.percentUnguidedFrames * 100).toStringAsFixed(1);
@@ -144,13 +145,9 @@ class _TargetBlock extends StatelessWidget {
         allReasons[entry.key] = (allReasons[entry.key] ?? 0) + entry.value;
       }
     }
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
+      borderRadius: NightshadeTokens.radiusInline8,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -167,7 +164,9 @@ class _TargetBlock extends StatelessWidget {
               const SizedBox(width: 12),
               Text(
                 '${target.framesAccepted}/${target.framesAttempted} frames | ${_formatDuration(target.totalIntegrationSecs)}',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textMuted),
               ),
             ],
           ),
@@ -225,7 +224,9 @@ class _TargetBlock extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Rejections: ${_rejectionSummary(allReasons)}',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textMuted),
             ),
           ],
         ],
@@ -243,7 +244,8 @@ class _TargetBlock extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         child: Text(
           label,
-          style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
+          style: NightshadeTypography.labelStrongSm
+              .copyWith(color: colors.textSecondary),
         ),
       );
 

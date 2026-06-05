@@ -50,13 +50,10 @@ class EquipmentStatusWidget extends ConsumerWidget {
     final hasGuider = devices.any((d) => d.deviceType == DeviceType.guider);
 
     if (expanded) {
-      return Container(
+      return NightshadeCard(
+        variant: CardVariant.subtle,
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colors.surface,
-          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-          border: Border.all(color: colors.border),
-        ),
+        borderRadius: NightshadeTokens.radiusInline8,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [

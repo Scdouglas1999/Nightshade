@@ -211,7 +211,9 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
                   '${widget.carryOvers.length} target'
                   '${widget.carryOvers.length == 1 ? '' : 's'} '
                   'have unfinished integration in a recent session.',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize12,
+                      color: colors.textMuted),
                 ),
               ],
             ),
@@ -234,13 +236,9 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
     final totalBudgetSecs = widget.carryOvers
         .where((c) => c.budgetSecs != null)
         .fold<double>(0.0, (sum, c) => sum + c.budgetSecs!);
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
+      borderRadius: NightshadeTokens.radiusInline8,
       child: Row(
         children: [
           Expanded(
@@ -249,7 +247,9 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
               children: [
                 Text(
                   'Carry-over total',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textMuted),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -269,7 +269,9 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
               children: [
                 Text(
                   'Most recent night',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textMuted),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -290,7 +292,9 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
                 children: [
                   Text(
                     'Budget remaining',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -324,19 +328,18 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
           ),
           child: Text(
             '${e.key}: ${_formatHours(e.value)}',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: colors.textSecondary),
           ),
         ),
       );
     }).toList();
 
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.subtle,
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
+      borderRadius: NightshadeTokens.radiusInline8,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -357,7 +360,9 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
               if (co.previousSessionStartedAt != null)
                 Text(
                   _formatDate(co.previousSessionStartedAt!),
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textMuted),
                 ),
             ],
           ),
@@ -368,14 +373,18 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
             'recent session '
             '(${co.previousAcceptedFrames} accepted frames). '
             'Campaign total: ${_formatHours(co.campaignIntegrationSecs)}.',
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textSecondary),
           ),
           if (co.budgetSecs != null) ...[
             const SizedBox(height: 4),
             Text(
               'Budget ${_formatHours(co.budgetSecs!)}; '
               '${_formatHours(co.remainingSecs ?? 0)} remaining.',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textMuted),
             ),
           ],
           if (filterChips.isNotEmpty) ...[

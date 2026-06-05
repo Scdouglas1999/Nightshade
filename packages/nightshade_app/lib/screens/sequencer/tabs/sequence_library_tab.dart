@@ -104,16 +104,12 @@ class SequenceLibraryTab extends ConsumerWidget {
                         : 'Save your sequences to access them later',
                     action: hasSearch
                         ? null
-                        : Container(
+                        : NightshadeCard(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 10,
                             ),
-                            decoration: BoxDecoration(
-                              color: colors.surfaceAlt,
-                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-                              border: Border.all(color: colors.border),
-                            ),
+                            borderRadius: NightshadeTokens.radiusInline8,
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [

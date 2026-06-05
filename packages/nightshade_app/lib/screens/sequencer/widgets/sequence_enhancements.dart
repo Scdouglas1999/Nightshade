@@ -78,7 +78,8 @@ class EstimatedCompletionWidget extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: NightshadeDecorations.statusChip(
                 colors.success,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Text(
                 'RUNNING',
@@ -265,25 +266,25 @@ class _TargetBreakdownChipState extends State<_TargetBreakdownChip> {
         onExit: (_) => _overlayController.hide(),
         child: Material(
           color: Colors.transparent,
-          child: Container(
+          child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 280),
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: widget.colors.surface,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-              border: Border.all(color: widget.colors.border),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Target Breakdown',
-                  style: NightshadeTypography.labelStrongSm.copyWith(color: widget.colors.textPrimary),
-                ),
-                const SizedBox(height: 8),
-                ...widget.targets.map((target) => _buildTargetRow(target)),
-              ],
+            child: NightshadeCard(
+              variant: CardVariant.subtle,
+              padding: const EdgeInsets.all(12),
+              borderRadius: NightshadeTokens.radiusInline8,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Target Breakdown',
+                    style: NightshadeTypography.labelStrongSm
+                        .copyWith(color: widget.colors.textPrimary),
+                  ),
+                  const SizedBox(height: 8),
+                  ...widget.targets.map((target) => _buildTargetRow(target)),
+                ],
+              ),
             ),
           ),
         ),
@@ -313,7 +314,8 @@ class _TargetBreakdownChipState extends State<_TargetBreakdownChip> {
           Expanded(
             child: Text(
               target.targetName,
-              style: NightshadeTypography.labelQuiet.copyWith(color: widget.colors.textPrimary),
+              style: NightshadeTypography.labelQuiet
+                  .copyWith(color: widget.colors.textPrimary),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -485,7 +487,8 @@ class NodeProgressIndicator extends StatelessWidget {
             Positioned.fill(
               child: Container(
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(
                     color: colors.success,
                     width: 2,

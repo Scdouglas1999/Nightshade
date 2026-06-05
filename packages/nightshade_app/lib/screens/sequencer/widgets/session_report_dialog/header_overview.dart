@@ -40,12 +40,16 @@ class _Header extends StatelessWidget {
                 ),
                 Text(
                   '${report.sessionName} - ${report.status}',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize13,
+                      color: colors.textMuted),
                 ),
                 if (report.endTime != null)
                   Text(
                     '${dateFormat.format(report.startTime)} - ${dateFormat.format(report.endTime!)}',
-                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted),
                   ),
               ],
             ),
@@ -144,31 +148,31 @@ class _OverviewTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: 200,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            label,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize16,
-              fontWeight: FontWeight.w700,
-              color: valueColor ?? colors.textPrimary,
+      child: NightshadeCard(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        borderRadius: NightshadeTokens.radiusInline8,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize11,
+                  color: colors.textMuted),
             ),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize16,
+                fontWeight: FontWeight.w700,
+                color: valueColor ?? colors.textPrimary,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

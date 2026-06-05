@@ -119,13 +119,9 @@ class _SimpleInstructionInfo extends StatelessWidget {
       icon = LucideIcons.settings;
     }
 
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        border: Border.all(color: colors.border),
-      ),
+      borderRadius: NightshadeTokens.radiusLg,
       child: Column(
         children: [
           Icon(icon, size: 32, color: colors.primary),
@@ -220,13 +216,9 @@ class _DomeProperties extends ConsumerWidget {
           ),
         ),
         const SizedBox(height: 16),
-        Container(
+        NightshadeCard(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-            border: Border.all(color: colors.border),
-          ),
+          borderRadius: NightshadeTokens.radiusLg,
           child: Column(
             children: [
               Icon(icon, size: 32, color: colors.primary),
@@ -282,13 +274,16 @@ class _UnknownNodeProperties extends StatelessWidget {
               children: [
                 Text(
                   'No property editor for $typeName',
-                  style: NightshadeTypography.h6.copyWith(color: colors.warning),
+                  style:
+                      NightshadeTypography.h6.copyWith(color: colors.warning),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'This node will still run with its current values, but you cannot edit them here. '
                   'Save and re-load to keep its state; report this if you expected an editor.',
-                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textSecondary),
                 ),
               ],
             ),
@@ -401,14 +396,17 @@ class _CalibratorOnProperties extends ConsumerWidget {
                     child: Text(
                       '${node.brightness}',
                       textAlign: TextAlign.right,
-                      style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+                      style: NightshadeTypography.labelStrong
+                          .copyWith(color: colors.textPrimary),
                     ),
                   ),
                 ],
               ),
               Text(
                 '0 = off, 255 = maximum brightness',
-                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textMuted),
               ),
             ],
           ),
@@ -488,13 +486,9 @@ class _CoverCalibratorScaffold extends StatelessWidget {
         const SizedBox(height: 12),
         ...children,
         const SizedBox(height: 16),
-        Container(
+        NightshadeCard(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-            border: Border.all(color: colors.border),
-          ),
+          borderRadius: NightshadeTokens.radiusLg,
           child: Column(
             children: [
               Icon(icon, size: 32, color: colors.primary),
@@ -556,13 +550,9 @@ class _InstructionSetInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        border: Border.all(color: colors.border),
-      ),
+      borderRadius: NightshadeTokens.radiusLg,
       child: Column(
         children: [
           Icon(LucideIcons.listTree, size: 32, color: colors.accent),
