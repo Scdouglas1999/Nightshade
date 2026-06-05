@@ -260,13 +260,8 @@ class ImagingHistorySection extends ConsumerWidget {
   }
 
   Widget _buildNoDataSection() {
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
       child: Row(
         children: [
           Container(
@@ -306,13 +301,8 @@ class ImagingHistorySection extends ConsumerWidget {
       integrationStr = '${totalMinutes}m';
     }
 
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

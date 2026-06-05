@@ -281,13 +281,8 @@ class TonightTab extends ConsumerWidget {
           bestTargets.when(
             data: (targets) {
               if (targets.isEmpty) {
-                return Container(
+                return NightshadeCard(
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-                    border: Border.all(color: colors.border),
-                  ),
                   child: Column(
                     children: [
                       Icon(LucideIcons.cloudOff,
@@ -472,13 +467,8 @@ class _SatellitePassesSectionState
               ),
             )
           else if (upcomingPasses.isEmpty)
-            Container(
+            NightshadeCard(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: widget.colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-                border: Border.all(color: widget.colors.border),
-              ),
               child: Column(
                 children: [
                   Icon(LucideIcons.satellite,
@@ -510,13 +500,8 @@ class _SatellitePassesSectionState
                 )),
         ] else if (_isExpanded && !showSatellites) ...[
           const SizedBox(height: 8),
-          Container(
+          NightshadeCard(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: widget.colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
-              border: Border.all(color: widget.colors.border),
-            ),
             child: Text(
               'Enable satellite tracking to see pass predictions.',
               style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.textMuted),
