@@ -37,8 +37,8 @@ class FilterSidebar extends ConsumerWidget {
       decoration: BoxDecoration(
         color: colors.surfaceOverlay.withValues(alpha: 0.95),
         borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(8),
-          bottomLeft: Radius.circular(8),
+          topLeft: Radius.circular(NightshadeTokens.radiusInline8),
+          bottomLeft: Radius.circular(NightshadeTokens.radiusInline8),
         ),
       ),
       child: isExpanded

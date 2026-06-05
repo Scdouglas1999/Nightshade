@@ -60,7 +60,7 @@ class _ListsTabState extends ConsumerState<ListsTab> {
             Text(
               'No observing lists',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: NightshadeTypography.fontSize14,
                 fontWeight: FontWeight.w600,
                 color: widget.colors.textPrimary,
               ),
@@ -69,7 +69,7 @@ class _ListsTabState extends ConsumerState<ListsTab> {
             Text(
               'Create a list to organize your targets for tonight\'s session.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: widget.colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.textMuted),
             ),
             const SizedBox(height: 16),
             _CreateListButton(colors: widget.colors),
@@ -90,7 +90,7 @@ class _ListsTabState extends ConsumerState<ListsTab> {
               Text(
                 'Observing Lists',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w600,
                   color: widget.colors.textPrimary,
                 ),
@@ -154,7 +154,7 @@ class _ListsTabState extends ConsumerState<ListsTab> {
                     Text(
                       activeList.name,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         fontWeight: FontWeight.w600,
                         color: widget.colors.textPrimary,
                       ),
@@ -165,7 +165,7 @@ class _ListsTabState extends ConsumerState<ListsTab> {
                       Text(
                         activeList.description!,
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: NightshadeTypography.fontSize10,
                           color: widget.colors.textMuted,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -199,7 +199,7 @@ class _ListsTabState extends ConsumerState<ListsTab> {
                         Text(
                           'List is empty',
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: NightshadeTypography.fontSize13,
                             color: widget.colors.textMuted,
                           ),
                         ),
@@ -208,7 +208,7 @@ class _ListsTabState extends ConsumerState<ListsTab> {
                           'Click objects on the sky and use\n"Add to List" to populate it.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: NightshadeTypography.fontSize11,
                             color: widget.colors.textMuted,
                           ),
                         ),
@@ -280,7 +280,7 @@ class _CreateListButton extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: colors.primary.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
         ),
         child: Row(
@@ -291,7 +291,7 @@ class _CreateListButton extends ConsumerWidget {
             Text(
               'Create List',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: FontWeight.w600,
                 color: colors.primary,
               ),
@@ -403,7 +403,7 @@ class _ObservingListCard extends ConsumerWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.border),
         ),
         child: Row(
@@ -412,7 +412,7 @@ class _ObservingListCard extends ConsumerWidget {
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: colors.primary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Icon(LucideIcons.list, size: 16, color: colors.primary),
             ),
@@ -424,7 +424,7 @@ class _ObservingListCard extends ConsumerWidget {
                   Text(
                     list.name,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                     ),
@@ -434,7 +434,7 @@ class _ObservingListCard extends ConsumerWidget {
                   Text(
                     '$itemCount object${itemCount == 1 ? '' : 's'}',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textMuted,
                     ),
                   ),
@@ -484,7 +484,7 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
             color: _isHovered
                 ? widget.colors.surfaceAlt
                 : widget.colors.background,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(
               color: _isHovered
                   ? widget.colors.primary.withValues(alpha: 0.5)
@@ -502,7 +502,7 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
                         Text(
                           widget.item.objectName,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: NightshadeTypography.fontSize12,
                             fontWeight: FontWeight.w600,
                             color: widget.colors.textPrimary,
                           ),
@@ -515,12 +515,12 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
                             decoration: BoxDecoration(
                               color:
                                   widget.colors.primary.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(3),
+                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
                             ),
                             child: Text(
                               widget.item.catalogId!,
                               style: TextStyle(
-                                fontSize: 9,
+                                fontSize: NightshadeTypography.fontSize9,
                                 fontWeight: FontWeight.w600,
                                 color: widget.colors.primary,
                               ),
@@ -534,7 +534,7 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
                       Text(
                         widget.item.objectType!,
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: NightshadeTypography.fontSize10,
                           color: widget.colors.textMuted,
                         ),
                       ),
@@ -546,7 +546,7 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
                 Text(
                   'mag ${widget.item.magnitude!.toStringAsFixed(1)}',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     color: widget.colors.textMuted,
                   ),
                 ),
@@ -558,7 +558,7 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
                       color: widget.colors.error.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     ),
                     child: Icon(LucideIcons.x,
                         size: 12, color: widget.colors.error),
@@ -594,7 +594,7 @@ class _ExportToSequenceButton extends ConsumerWidget {
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: colors.primary.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           ),
           child: Icon(LucideIcons.listPlus, size: 14, color: colors.primary),
         ),

@@ -37,7 +37,12 @@ class _NightVisionFilter extends StatelessWidget {
   }
 }
 
-/// Help overlay showing all keyboard shortcuts
+/// Help overlay showing all keyboard shortcuts.
+///
+/// Rendered over the planetarium sky canvas inside [_NightVisionFilter], so its
+/// colors are a deliberate fixed dark HUD palette (absolute white/black + the
+/// `0xFF1E1E2E`/`0xFF00E676` cosmetic accents) rather than theme-relative
+/// semantics: night-vision red adaptation is applied by the enclosing filter.
 class _KeyboardShortcutsOverlay extends StatelessWidget {
   final VoidCallback onDismiss;
 
@@ -52,6 +57,8 @@ class _KeyboardShortcutsOverlay extends StatelessWidget {
     return GestureDetector(
       onTap: onDismiss,
       child: Container(
+        // absolute: dim scrim over the planetarium sky canvas (night-vision
+        // red conversion is applied by the enclosing _NightVisionFilter)
         color: Colors.black.withValues(alpha: 0.7),
         child: Center(
           child: GestureDetector(
@@ -65,7 +72,8 @@ class _KeyboardShortcutsOverlay extends StatelessWidget {
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
                 color: const Color(0xFF1E1E2E),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
+                // absolute: fixed HUD palette (see class doc)
                 border: Border.all(color: Colors.white24),
                 boxShadow: const [
                   BoxShadow(
@@ -85,7 +93,7 @@ class _KeyboardShortcutsOverlay extends StatelessWidget {
                       const Text(
                         'Keyboard Shortcuts',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: NightshadeTypography.fontSize18,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),
@@ -128,7 +136,7 @@ class _KeyboardShortcutsOverlay extends StatelessWidget {
                     child: Text(
                       'Press Escape or ? to close',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: Colors.white.withValues(alpha: 0.4),
                       ),
                     ),
@@ -143,6 +151,10 @@ class _KeyboardShortcutsOverlay extends StatelessWidget {
   }
 }
 
+/// Row of the keyboard-shortcuts overlay. Shares the absolute HUD palette of
+/// [_KeyboardShortcutsOverlay] (white-on-dark over the sky canvas, red-adapted
+/// by the enclosing [_NightVisionFilter]); colors here are intentionally not
+/// theme-relative.
 class _ShortcutSection extends StatelessWidget {
   final String title;
   final List<(String, String)> shortcuts;
@@ -157,7 +169,7 @@ class _ShortcutSection extends StatelessWidget {
         Text(
           title,
           style: const TextStyle(
-            fontSize: 13,
+            fontSize: NightshadeTypography.fontSize13,
             fontWeight: FontWeight.w600,
             color: Color(0xFF00E676),
           ),
@@ -174,14 +186,14 @@ class _ShortcutSection extends StatelessWidget {
                           horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                         border: Border.all(
                             color: Colors.white.withValues(alpha: 0.15)),
                       ),
                       child: Text(
                         s.$1,
                         style: const TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           fontWeight: FontWeight.w500,
                           color: Colors.white70,
                           fontFamily: 'monospace',
@@ -193,7 +205,7 @@ class _ShortcutSection extends StatelessWidget {
                   Text(
                     s.$2,
                     style: const TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       color: Colors.white60,
                     ),
                   ),

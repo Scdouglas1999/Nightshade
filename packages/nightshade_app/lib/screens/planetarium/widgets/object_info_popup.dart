@@ -10,6 +10,13 @@ import 'package:nightshade_core/nightshade_core.dart';
 import '../../../widgets/slew_dropdown_button.dart';
 import '../../../widgets/tutorial_keys/planetarium_keys.dart';
 import '../planetarium_screen.dart';
+
+// NOTE (design tokens): the `Colors.white*` text/icons and `Colors.black*`
+// scrim/shadow in this floating object popup are canvas-absolute HUD colors
+// drawn over the planetarium sky. The planetarium is wrapped in
+// `_NightVisionFilter` (luminance→red conversion for dark adaptation), so these
+// are intentionally NOT mapped to the theme-relative semantic palette. Themed
+// chrome (icon tint, magnitude chip) already uses `widget.colors.*`.
 import 'observation_log_dialog.dart';
 
 part 'object_info_popup/supporting_widgets.dart';
@@ -167,7 +174,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
               constraints: BoxConstraints(maxHeight: layout.height),
               decoration: BoxDecoration(
                 color: widget.colors.surfaceOverlay.withValues(alpha: 0.95),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(
                   color: widget.colors.border,
                   width: 1,
@@ -181,7 +188,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
                 ],
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 child: BackdropFilter(
                   filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                   child: Column(
@@ -243,7 +250,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
 
     if (obj is Star) {
       icon = LucideIcons.star;
-      iconColor = Colors.amber;
+      iconColor = widget.colors.warning;
     } else if (obj is DeepSkyObject) {
       final dso = obj;
       if (dso.type.isGalaxy) {
@@ -272,7 +279,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: iconColor.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Icon(icon, size: 20, color: iconColor),
           ),
@@ -284,7 +291,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
                 Text(
                   obj is DeepSkyObject ? getDsoDisplayInfo(obj).$1 : obj.name,
                   style: const TextStyle(
-                    fontSize: 16,
+                    fontSize: NightshadeTypography.fontSize16,
                     fontWeight: FontWeight.bold,
                     color: Colors.white,
                   ),
@@ -298,14 +305,14 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
                           horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: widget.colors.primary.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                       ),
                       child: Text(
                         obj is DeepSkyObject
                             ? getDsoDisplayInfo(obj).$2
                             : obj.id,
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: NightshadeTypography.fontSize10,
                           fontWeight: FontWeight.w600,
                           color: widget.colors.primary,
                         ),
@@ -316,7 +323,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
                       Text(
                         'mag ${obj.magnitude!.toStringAsFixed(1)}',
                         style: const TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: Colors.white60,
                         ),
                       ),
@@ -336,7 +343,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
                   padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                   ),
                   child: const Icon(LucideIcons.fileDown,
                       size: 14, color: Colors.white60),
@@ -352,7 +359,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
               padding: const EdgeInsets.all(6),
               decoration: BoxDecoration(
                 color: Colors.white.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               ),
               child: const Icon(LucideIcons.x, size: 14, color: Colors.white60),
             ),
@@ -416,7 +423,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
         const Text(
           'Coordinates',
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             fontWeight: FontWeight.w600,
             color: Colors.white38,
             letterSpacing: 0.5,
@@ -473,7 +480,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
         const Text(
           'Current Position',
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             fontWeight: FontWeight.w600,
             color: Colors.white38,
             letterSpacing: 0.5,
@@ -486,7 +493,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
                 color: altColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 border: Border.all(color: altColor.withValues(alpha: 0.3)),
               ),
               child: Row(
@@ -501,7 +508,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
                   Text(
                     '${alt.toStringAsFixed(1)}\u00b0',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       fontWeight: FontWeight.w600,
                       color: altColor,
                       fontFeatures: const [ui.FontFeature.tabularFigures()],
@@ -514,7 +521,7 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
             Text(
               'Az ${az.toStringAsFixed(1)}\u00b0',
               style: const TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: Colors.white60,
                 fontFeatures: [ui.FontFeature.tabularFigures()],
               ),
@@ -524,12 +531,12 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: altColor.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
               child: Text(
                 statusText,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   fontWeight: FontWeight.w500,
                   color: altColor,
                 ),

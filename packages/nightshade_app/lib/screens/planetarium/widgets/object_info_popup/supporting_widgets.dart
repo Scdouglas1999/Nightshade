@@ -1,5 +1,10 @@
 part of '../object_info_popup.dart';
 
+// NOTE (design tokens): the `Colors.white*` literals below are canvas-absolute
+// HUD colors for the object popup drawn over the planetarium sky (red-adapted by
+// the enclosing `_NightVisionFilter`), intentionally not theme-relative — see
+// the note in the parent library file.
+
 /// Slew popup menu button for planetarium object popup
 class SlewPopupMenuButton extends StatefulWidget {
   final NightshadeColors colors;
@@ -42,7 +47,7 @@ class _SlewPopupMenuButtonState extends State<SlewPopupMenuButton> {
             break;
         }
       },
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       color: widget.colors.surface,
       itemBuilder: (context) => [
         PopupMenuItem<SlewMode>(
@@ -92,7 +97,7 @@ class _SlewPopupMenuButtonState extends State<SlewPopupMenuButton> {
             color: _isHovered
                 ? widget.colors.primary.withValues(alpha: 0.92)
                 : widget.colors.primary,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(
               color: widget.colors.primary.withValues(alpha: 0.85),
             ),
@@ -112,7 +117,7 @@ class _SlewPopupMenuButtonState extends State<SlewPopupMenuButton> {
                 Text(
                   'Slew',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w600,
                     color: onPrimary,
                   ),
@@ -150,7 +155,7 @@ class PopupInfoChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -158,7 +163,7 @@ class PopupInfoChip extends StatelessWidget {
           Text(
             label,
             style: const TextStyle(
-              fontSize: 9,
+              fontSize: NightshadeTypography.fontSize9,
               color: Colors.white38,
             ),
           ),
@@ -166,7 +171,7 @@ class PopupInfoChip extends StatelessWidget {
           Text(
             value,
             style: const TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w500,
               color: Colors.white70,
             ),
@@ -196,7 +201,7 @@ class PopupCoordRow extends StatelessWidget {
         Text(
           '$label: ',
           style: const TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: Colors.white38,
           ),
         ),
@@ -204,7 +209,7 @@ class PopupCoordRow extends StatelessWidget {
           child: Text(
             value,
             style: const TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w500,
               color: Colors.white70,
               fontFeatures: [ui.FontFeature.tabularFigures()],
@@ -260,7 +265,7 @@ class _PopupActionButtonState extends State<PopupActionButton> {
                 : _isHovered
                     ? widget.colors.surfaceHover
                     : widget.colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(
               color: widget.isPrimary
                   ? widget.colors.primary.withValues(alpha: 0.85)
@@ -287,7 +292,7 @@ class _PopupActionButtonState extends State<PopupActionButton> {
                   overflow: TextOverflow.ellipsis,
                   softWrap: false,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w500,
                     color: widget.isPrimary
                         ? onPrimary

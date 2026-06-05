@@ -9,7 +9,7 @@ class CompassCalibrationDialog extends StatelessWidget {
     final colors = NightshadeColors.of(context);
     return AlertDialog(
       backgroundColor: colors.surfaceOverlay,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       title: Row(
         children: [
           Icon(LucideIcons.compass, color: colors.info, size: 24),
@@ -18,7 +18,7 @@ class CompassCalibrationDialog extends StatelessWidget {
             child: Text(
               'Compass Calibration',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: NightshadeTypography.fontSize18,
                 fontWeight: FontWeight.bold,
                 color: colors.textPrimary,
               ),
@@ -38,7 +38,7 @@ class CompassCalibrationDialog extends StatelessWidget {
             Text(
               'For accurate sky aiming, calibrate your compass by moving your device in a figure-8 pattern several times.',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: NightshadeTypography.fontSize14,
                 height: 1.4,
                 color: colors.textPrimary,
               ),
@@ -53,7 +53,7 @@ class CompassCalibrationDialog extends StatelessWidget {
                   Text(
                     'Tips for best results:',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       fontWeight: FontWeight.w600,
                       color: colors.info,
                     ),
@@ -75,7 +75,7 @@ class CompassCalibrationDialog extends StatelessWidget {
             Text(
               'Accuracy of a few degrees is typical for phone compasses. This mode is best for quick sky orientation, not precision pointing.',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
                 height: 1.3,
               ),
@@ -119,7 +119,7 @@ class _CalibrationTip extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(fontSize: 12, height: 1.3),
+              style: const TextStyle(fontSize: NightshadeTypography.fontSize12, height: 1.3),
             ),
           ),
         ],

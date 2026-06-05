@@ -178,7 +178,7 @@ class OverlayChip extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: colors.surfaceOverlay.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border.withValues(alpha: 0.6)),
       ),
       child: Row(
@@ -191,7 +191,9 @@ class OverlayChip extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: compact ? 10 : 11,
+              fontSize: compact
+                  ? NightshadeTypography.fontSize10
+                  : NightshadeTypography.fontSize11,
               color: colors.textSecondary,
               fontFeatures: const [ui.FontFeature.tabularFigures()],
             ),
@@ -248,7 +250,7 @@ class _OverlayToggleState extends State<OverlayToggle> {
                   : _isHovered
                       ? colors.surfaceOverlay.withValues(alpha: 0.5)
                       : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               border: widget.isActive
                   ? Border.all(color: colors.primary.withValues(alpha: 0.4))
                   : null,
@@ -287,7 +289,7 @@ class TimeControlButton extends StatelessWidget {
         padding: EdgeInsets.all(compact ? 4 : 6),
         decoration: BoxDecoration(
           color: colors.primary.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         ),
         child: Icon(icon, size: compact ? 12 : 14, color: colors.primary),
       ),

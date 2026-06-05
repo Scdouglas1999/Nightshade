@@ -47,7 +47,7 @@ class CatalogTab extends ConsumerWidget {
               height: 64,
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
             ),
           ),

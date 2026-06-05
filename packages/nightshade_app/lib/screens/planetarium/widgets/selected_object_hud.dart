@@ -33,10 +33,11 @@ class SelectedObjectHud extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: colors.surface.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
+            // absolute: structural drop-shadow (black-with-alpha), not a theme color
             color: Colors.black.withValues(alpha: 0.3),
             blurRadius: 10,
             offset: const Offset(0, 4),
@@ -59,14 +60,14 @@ class SelectedObjectHud extends ConsumerWidget {
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
                       color: colors.primary.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                       border: Border.all(
                           color: colors.primary.withValues(alpha: 0.3)),
                     ),
                     child: Text(
                       catalogTag,
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: NightshadeTypography.fontSize10,
                         fontWeight: FontWeight.bold,
                         color: colors.primary,
                       ),
@@ -79,7 +80,7 @@ class SelectedObjectHud extends ConsumerWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: NightshadeTypography.fontSize14,
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
                       ),
@@ -91,7 +92,7 @@ class SelectedObjectHud extends ConsumerWidget {
               Text(
                 typeName.toUpperCase(),
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   color: colors.textMuted,
                   letterSpacing: 0.5,
                 ),

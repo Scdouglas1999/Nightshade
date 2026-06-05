@@ -241,8 +241,8 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                       backgroundColor: colors.primary,
                       onPressed: () =>
                           _showObjectInfoBottomSheet(context, colors),
-                      child: const Icon(LucideIcons.info,
-                          size: 24, color: Colors.white),
+                      child: Icon(LucideIcons.info,
+                          size: 24, color: colors.onPrimary),
                     ),
                 ],
               ),
@@ -399,7 +399,7 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                               return DecoratedBox(
                                 decoration: BoxDecoration(
                                   color: colors.surface.withValues(alpha: 0.8),
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                                   border: Border.all(color: colors.border),
                                 ),
                                 child: Padding(
@@ -408,7 +408,7 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                                   child: DefaultTextStyle(
                                     style: TextStyle(
                                       color: colors.textPrimary,
-                                      fontSize: 12,
+                                      fontSize: NightshadeTypography.fontSize12,
                                       fontWeight: FontWeight.w600,
                                     ),
                                     child: Column(
@@ -424,7 +424,7 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                                           'UI ${buildMs.toStringAsFixed(1)}ms  GPU ${rasterMs.toStringAsFixed(1)}ms',
                                           style: TextStyle(
                                             color: colors.textSecondary,
-                                            fontSize: 11,
+                                            fontSize: NightshadeTypography.fontSize11,
                                             fontWeight: FontWeight.w500,
                                           ),
                                         ),

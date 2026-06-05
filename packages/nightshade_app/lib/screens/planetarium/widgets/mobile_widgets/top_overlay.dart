@@ -1,5 +1,11 @@
 part of '../mobile_widgets.dart';
 
+// NOTE (design tokens): the `Colors.white*` literals in this file are
+// canvas-absolute HUD colors for the mobile planetarium top overlay drawn over
+// the sky. The planetarium is wrapped in `_NightVisionFilter` (luminance→red
+// conversion for dark adaptation), so they are intentionally NOT mapped to the
+// theme-relative semantic palette.
+
 /// Compact top overlay for mobile screens
 /// Adapts layout for very narrow screens (below 360px)
 class MobileTopOverlay extends ConsumerWidget {
@@ -26,12 +32,12 @@ class MobileTopOverlay extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: colors.surfaceOverlay.withValues(alpha: 0.85),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
                 child: Text(
                   DateFormat('HH:mm').format(time.time),
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,
                     fontFeatures: const [ui.FontFeature.tabularFigures()],
                   ),
@@ -49,12 +55,12 @@ class MobileTopOverlay extends ConsumerWidget {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: colors.surfaceOverlay.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   ),
                   child: Text(
                     'LST ${_formatHours(lst)}',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textSecondary,
                       fontFeatures: const [ui.FontFeature.tabularFigures()],
                     ),
@@ -124,7 +130,7 @@ class MobileToggleButton extends StatelessWidget {
               color: isActive
                   ? Colors.white.withValues(alpha: 0.2)
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             ),
             child: Icon(
               icon,

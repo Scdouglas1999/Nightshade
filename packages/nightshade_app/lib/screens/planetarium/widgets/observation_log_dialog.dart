@@ -106,7 +106,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
           const Expanded(
             child: Text(
               'Log Observation',
-              style: TextStyle(fontSize: 18),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize18),
             ),
           ),
         ],
@@ -158,7 +158,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
               Text(
                 'Rating',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: colors.textSecondary,
                 ),
@@ -177,7 +177,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
                             : LucideIcons.star,
                         size: 28,
                         color: starNum <= _rating
-                            ? Colors.amber
+                            ? colors.warning
                             : colors.textSecondary.withValues(alpha: 0.3),
                       ),
                     ),
@@ -191,7 +191,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
               Text(
                 'Seeing',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: colors.textSecondary,
                 ),
@@ -210,7 +210,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
               Text(
                 'Transparency',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: colors.textSecondary,
                 ),
@@ -229,7 +229,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
               Text(
                 'Notes',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: colors.textSecondary,
                 ),
@@ -244,20 +244,20 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
                   filled: true,
                   fillColor: colors.background,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.primary),
                   ),
                   contentPadding: const EdgeInsets.all(12),
                 ),
-                style: TextStyle(color: colors.textPrimary, fontSize: 14),
+                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize14),
               ),
             ],
           ),
@@ -306,7 +306,7 @@ class _InfoRow extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
             ),
           ),
@@ -315,7 +315,7 @@ class _InfoRow extends StatelessWidget {
           child: Text(
             value,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               fontWeight: FontWeight.w500,
               color: colors.textPrimary,
             ),
@@ -353,7 +353,7 @@ class _ConditionSelector extends StatelessWidget {
               color: isSelected
                   ? colors.primary.withValues(alpha: 0.2)
                   : colors.background,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               border: Border.all(
                 color: isSelected
                     ? colors.primary
@@ -363,7 +363,7 @@ class _ConditionSelector extends StatelessWidget {
             child: Text(
               option[0].toUpperCase() + option.substring(1),
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                 color: isSelected ? colors.primary : colors.textSecondary,
               ),

@@ -1,5 +1,11 @@
 part of '../mobile_widgets.dart';
 
+// NOTE (design tokens): the `Colors.white*` / `Colors.black*` literals in this
+// file are canvas-absolute HUD colors for the mobile planetarium view/slew
+// controls drawn over the sky. The planetarium is wrapped in
+// `_NightVisionFilter` (luminance→red conversion for dark adaptation), so they
+// are intentionally NOT mapped to the theme-relative semantic palette.
+
 class MobileViewControls extends ConsumerWidget {
   final NightshadeColors colors;
   final bool showFOV;
@@ -21,7 +27,7 @@ class MobileViewControls extends ConsumerWidget {
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -35,7 +41,7 @@ class MobileViewControls extends ConsumerWidget {
             child: Text(
               viewState.fieldOfView.toStringAsFixed(0),
               style: const TextStyle(
-                fontSize: 9,
+                fontSize: NightshadeTypography.fontSize9,
                 color: Colors.white70,
                 fontFeatures: [ui.FontFeature.tabularFigures()],
               ),
@@ -102,7 +108,7 @@ class MobileViewControls extends ConsumerWidget {
                             decoration: isEnabled
                                 ? NightshadeDecorations.selectedSurface(
                                     colors.info,
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                                   )
                                 : null,
                             child: Stack(
@@ -157,7 +163,7 @@ class MobileViewControls extends ConsumerWidget {
                               decoration: mountSyncActive
                                   ? NightshadeDecorations.selectedSurface(
                                       colors.warning,
-                                      borderRadius: BorderRadius.circular(4),
+                                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                                     )
                                   : null,
                               child: Icon(
@@ -257,7 +263,7 @@ class MobileSlewControls extends ConsumerWidget {
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: slewMode ? Border.all(color: colors.warning, width: 2) : null,
       ),
       child: Column(
@@ -322,7 +328,7 @@ class MobileControlButton extends StatelessWidget {
             decoration: BoxDecoration(
               color:
                   isActive ? color.withValues(alpha: 0.2) : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Icon(
               icon,

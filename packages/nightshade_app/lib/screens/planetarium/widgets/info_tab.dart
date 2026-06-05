@@ -40,7 +40,7 @@ class InfoTab extends ConsumerWidget {
             const SizedBox(height: 8),
             Text(
               'Click on the sky to select',
-              style: TextStyle(fontSize: 12, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
             ),
           ],
         ),
@@ -154,7 +154,7 @@ class InfoTab extends ConsumerWidget {
           Text(
             'Selected Coordinates',
             style: TextStyle(
-              fontSize: 18,
+              fontSize: NightshadeTypography.fontSize18,
               fontWeight: FontWeight.bold,
               color: colors.textPrimary,
             ),
@@ -247,7 +247,7 @@ class ImagingHistorySection extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         child: Text(
           'Failed to load imaging history: $error',
-          style: TextStyle(color: colors.error, fontSize: 12),
+          style: TextStyle(color: colors.error, fontSize: NightshadeTypography.fontSize12),
         ),
       ),
       data: (history) {
@@ -264,7 +264,7 @@ class ImagingHistorySection extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -273,7 +273,7 @@ class ImagingHistorySection extends ConsumerWidget {
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: colors.textMuted.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             ),
             child: Icon(LucideIcons.camera, size: 14, color: colors.textMuted),
           ),
@@ -282,7 +282,7 @@ class ImagingHistorySection extends ConsumerWidget {
             child: Text(
               'No imaging data',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textMuted,
               ),
             ),
@@ -310,7 +310,7 @@ class ImagingHistorySection extends ConsumerWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -323,7 +323,7 @@ class ImagingHistorySection extends ConsumerWidget {
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: colors.primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child:
                     Icon(LucideIcons.camera, size: 14, color: colors.primary),
@@ -332,7 +332,7 @@ class ImagingHistorySection extends ConsumerWidget {
               Text(
                 'Imaging History',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -374,7 +374,7 @@ class ImagingHistorySection extends ConsumerWidget {
                 Text(
                   'Last imaged: ${DateFormat('MMM d, yyyy').format(history.lastImaged!.toLocal())}',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -388,7 +388,7 @@ class ImagingHistorySection extends ConsumerWidget {
             Text(
               'Per-Filter Breakdown',
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 fontWeight: FontWeight.w600,
                 color: colors.textMuted,
                 letterSpacing: 0.5,
@@ -420,7 +420,7 @@ class ImagingHistorySection extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: colors.primary.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(
             color: colors.primary.withValues(alpha: 0.15),
           ),
@@ -437,14 +437,14 @@ class ImagingHistorySection extends ConsumerWidget {
                   Text(
                     label,
                     style: TextStyle(
-                      fontSize: 9,
+                      fontSize: NightshadeTypography.fontSize9,
                       color: colors.textMuted,
                     ),
                   ),
                   Text(
                     value,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                       fontFeatures: const [ui.FontFeature.tabularFigures()],
@@ -481,14 +481,14 @@ class ImagingHistorySection extends ConsumerWidget {
             Text(
               'Completion',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textSecondary,
               ),
             ),
             Text(
               '$pct% of ${goalHours.toStringAsFixed(1)}h goal',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w500,
                 color: barColor,
                 fontFeatures: const [ui.FontFeature.tabularFigures()],
@@ -498,7 +498,7 @@ class ImagingHistorySection extends ConsumerWidget {
         ),
         const SizedBox(height: 4),
         ClipRRect(
-          borderRadius: BorderRadius.circular(3),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
           child: SizedBox(
             height: 6,
             child: LinearProgressIndicator(
@@ -535,7 +535,7 @@ class ImagingHistorySection extends ConsumerWidget {
             height: 8,
             decoration: BoxDecoration(
               color: _filterColor(filterName),
-              borderRadius: BorderRadius.circular(2),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
             ),
           ),
           const SizedBox(width: 8),
@@ -543,7 +543,7 @@ class ImagingHistorySection extends ConsumerWidget {
             child: Text(
               filterName,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textPrimary,
               ),
             ),
@@ -551,7 +551,7 @@ class ImagingHistorySection extends ConsumerWidget {
           Text(
             '$frameCount subs',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textSecondary,
               fontFeatures: const [ui.FontFeature.tabularFigures()],
             ),
@@ -563,7 +563,7 @@ class ImagingHistorySection extends ConsumerWidget {
               integStr,
               textAlign: TextAlign.right,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w500,
                 color: colors.textPrimary,
                 fontFeatures: const [ui.FontFeature.tabularFigures()],

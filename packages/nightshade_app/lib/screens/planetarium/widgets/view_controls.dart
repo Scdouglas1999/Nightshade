@@ -9,6 +9,20 @@ import '../../../services/finder_chart_service.dart';
 import '../../../utils/coordinate_format_utils.dart';
 import '../../../widgets/tutorial_keys/planetarium_keys.dart';
 
+// NOTE (design tokens): every `Colors.white*` / `Colors.black*` and the
+// `0xFF00E676` accent in this file are canvas-absolute HUD colors drawn over the
+// planetarium sky. The whole planetarium is wrapped in `_NightVisionFilter`,
+// which applies the luminance→red conversion for night-vision dark adaptation,
+// so these are intentionally NOT mapped to the theme-relative semantic palette.
+
+/// Floating zoom/overlay control cluster drawn over the planetarium sky canvas.
+///
+/// Its translucent-black panel and white text/dividers are a deliberate fixed
+/// HUD palette (canvas-absolute, not theme-relative): the whole planetarium is
+/// wrapped in `_NightVisionFilter`, which applies the luminance→red conversion
+/// for night-vision mode. Mapping these to semantic theme colors would both
+/// double-up with that filter and break the over-sky contrast, so the
+/// `Colors.white*` / `Colors.black*` literals here are intentionally kept.
 class ViewControls extends ConsumerWidget {
   final NightshadeColors colors;
   final bool showFOV;
@@ -29,7 +43,7 @@ class ViewControls extends ConsumerWidget {
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -44,7 +58,7 @@ class ViewControls extends ConsumerWidget {
             child: Text(
               CoordinateFormatUtils.formatFOVCompact(viewState.fieldOfView),
               style: const TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 color: Colors.white70,
                 fontFeatures: [ui.FontFeature.tabularFigures()],
               ),
@@ -352,7 +366,7 @@ class _ExportChartButtonState extends ConsumerState<ExportChartButton> {
       ),
       tooltip: 'Export finder chart',
       color: widget.colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       offset: const Offset(-160, 0),
       onSelected: (printMode) => _exportChart(printMode: printMode),
       itemBuilder: (context) => [
@@ -373,7 +387,7 @@ class _ExportChartButtonState extends ConsumerState<ExportChartButton> {
                   Text(
                     'Dark sky background',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: widget.colors.textSecondary,
                     ),
                   ),
@@ -399,7 +413,7 @@ class _ExportChartButtonState extends ConsumerState<ExportChartButton> {
                   Text(
                     'White background, black stars',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: widget.colors.textSecondary,
                     ),
                   ),
@@ -448,7 +462,7 @@ class QualitySettingsButton extends ConsumerWidget {
       ),
       tooltip: 'Render quality',
       color: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       offset: const Offset(-120, 0),
       onSelected: (tier) {
         ref.read(renderQualityProvider.notifier).setQuality(tier);
@@ -518,7 +532,7 @@ class QualitySettingsButton extends ConsumerWidget {
               Text(
                 subtitle,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textSecondary,
                 ),
               ),
@@ -549,7 +563,7 @@ class ProjectionSelectorButton extends ConsumerWidget {
       ),
       tooltip: 'Projection: ${_projectionName(currentProjection)}',
       color: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       offset: const Offset(-140, 0),
       onSelected: (projection) {
         ref.read(skyViewStateProvider.notifier).setProjection(projection);
@@ -581,7 +595,7 @@ class ProjectionSelectorButton extends ConsumerWidget {
                   Text(
                     _projectionDescription(projection),
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textSecondary,
                     ),
                   ),
@@ -666,7 +680,7 @@ class _ViewControlButtonState extends State<ViewControlButton> {
                 : (_isHovered
                     ? Colors.white.withValues(alpha: 0.1)
                     : Colors.transparent),
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             border: widget.isActive
                 ? Border.all(color: const Color(0xFF00E676), width: 1)
                 : null,

@@ -532,7 +532,7 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
         maxHeight: MediaQuery.sizeOf(context).height * 0.7,
       ),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(NightshadeTokens.radiusInline8)),
       ),
       builder: (context) => Consumer(
         builder: (context, ref, _) {
@@ -548,13 +548,13 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
                     height: 4,
                     decoration: BoxDecoration(
                       color: colors.textMuted,
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
                     ),
                   ),
                   const SizedBox(height: 16),
                   const Text(
                     'Filters',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 16),
                   SwitchListTile(
@@ -697,7 +697,7 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
         builder: (context, scrollController) => Container(
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(NightshadeTokens.radiusInline8)),
             border: Border.all(color: colors.border),
           ),
           child: Column(
@@ -708,8 +708,8 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
                   width: 40,
                   height: 4,
                   decoration: BoxDecoration(
-                    color: Colors.white38,
-                    borderRadius: BorderRadius.circular(2),
+                    color: colors.border,
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
                   ),
                 ),
               ),
@@ -764,7 +764,7 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
         builder: (context, scrollController) => Container(
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(NightshadeTokens.radiusInline8)),
             border: Border.all(color: colors.border),
           ),
           child: SafeArea(
@@ -778,7 +778,7 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
                     height: 4,
                     decoration: BoxDecoration(
                       color: colors.textMuted,
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
                     ),
                   ),
                 ),
@@ -840,7 +840,7 @@ extension _PlanetariumScreenActions on _PlanetariumScreenState {
         builder: (context, scrollController) => Container(
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(NightshadeTokens.radiusInline8)),
             border: Border.all(color: colors.border),
           ),
           child: MobileSearchSheet(

@@ -59,7 +59,7 @@ class BottomInfoBar extends ConsumerWidget {
               valueColor: bortle <= 3
                   ? colors.success
                   : bortle <= 5
-                      ? Colors.amber
+                      ? colors.warning
                       : colors.error,
             ),
           ],
@@ -96,6 +96,7 @@ class BottomInfoBar extends ConsumerWidget {
               begin: Alignment.bottomCenter,
               end: Alignment.topCenter,
               colors: [
+                // absolute: bottom scrim over the planetarium sky canvas
                 Colors.black.withValues(alpha: 0.8),
                 Colors.transparent,
               ],
@@ -138,7 +139,10 @@ class InfoItem extends StatelessWidget {
         Text(
           '${compact ? label.split(' ').first : label}:',
           style: TextStyle(
-            fontSize: compact ? 10 : 11,
+            fontSize: compact
+                ? NightshadeTypography.fontSize10
+                : NightshadeTypography.fontSize11,
+            // absolute: HUD label over the planetarium sky canvas
             color: Colors.white.withValues(alpha: 0.5),
           ),
         ),
@@ -146,8 +150,11 @@ class InfoItem extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            fontSize: compact ? 11 : 12,
+            fontSize: compact
+                ? NightshadeTypography.fontSize11
+                : NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w500,
+            // absolute: HUD value over the planetarium sky canvas
             color: valueColor ?? Colors.white70,
             fontFeatures: const [ui.FontFeature.tabularFigures()],
           ),

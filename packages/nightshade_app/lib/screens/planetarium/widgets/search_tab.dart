@@ -28,12 +28,12 @@ class SearchResultsTab extends ConsumerWidget {
             const SizedBox(height: 8),
             Text(
               'Try "M42", "Andromeda Galaxy", or "Sirius"',
-              style: TextStyle(fontSize: 12, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
             ),
             const SizedBox(height: 4),
             Text(
               'Fuzzy matching: "Andromea" finds "Andromeda"',
-              style: TextStyle(fontSize: 11, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
             ),
           ],
         ),
@@ -108,7 +108,7 @@ class SearchResultCard extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.border),
         ),
         child: Row(
@@ -128,7 +128,7 @@ class SearchResultCard extends StatelessWidget {
                         ? getDsoDisplayInfo(object as DeepSkyObject).$1
                         : object.name,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                     ),
@@ -136,14 +136,14 @@ class SearchResultCard extends StatelessWidget {
                   if (object is DeepSkyObject) ...[
                     Text(
                       _buildDsoSubtitle(object as DeepSkyObject),
-                      style: TextStyle(fontSize: 11, color: colors.textMuted),
+                      style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                   ] else
                     Text(
                       object.id,
-                      style: TextStyle(fontSize: 11, color: colors.textMuted),
+                      style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                     ),
                 ],
               ),
@@ -151,7 +151,7 @@ class SearchResultCard extends StatelessWidget {
             if (object.magnitude != null)
               Text(
                 'mag ${object.magnitude!.toStringAsFixed(1)}',
-                style: TextStyle(fontSize: 11, color: colors.textSecondary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
               ),
           ],
         ),
