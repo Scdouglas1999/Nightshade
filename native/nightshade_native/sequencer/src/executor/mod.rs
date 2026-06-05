@@ -1168,7 +1168,7 @@ async fn run_recovery_attempt(
     device_ops: &SharedDeviceOps,
     mount_id: Option<&str>,
     device_ids: &[String],
-    _trigger_manager: &Arc<RwLock<TriggerManager>>,
+    trigger_manager: &Arc<RwLock<TriggerManager>>,
 ) -> crate::recovery::AttemptOutcome {
     use crate::recovery::AttemptOutcome;
     use crate::recovery::RecoveryCause;
@@ -1208,15 +1208,41 @@ async fn run_recovery_attempt(
                 message: "No mount is configured; cannot recover tracking".to_string(),
             },
         },
-        RecoveryCause::WeatherUnsafe => match device_ops.safety_is_safe(None).await {
-            Ok(true) => AttemptOutcome::Succeeded,
-            Ok(false) => AttemptOutcome::Failed {
-                message: "Weather still unsafe".to_string(),
-            },
-            Err(e) => AttemptOutcome::Failed {
-                message: format!("Weather poll failed: {}", e),
-            },
-        },
+        RecoveryCause::WeatherUnsafe => {
+            // Fail-closed recovery gate (architecture-unification 2026-06-05,
+            // Subsystem 2 step 4). A weather abort can be tripped by EITHER the
+            // hardware safety device (`safety_is_safe`) OR the Dart-side verdict
+            // (API alert / configured threshold / park-before-dawn), ORed in
+            // `triggers.rs:535`. The old re-check polled ONLY the hardware boolean,
+            // so a Dart-threshold-only abort (hardware reads safe, but the API
+            // says a storm is overhead) was declared "recovered" the instant the
+            // hardware poll returned safe → premature resume into API-unsafe
+            // weather. We now require BOTH sources to be clear before resuming:
+            // the hardware poll must read safe AND the Dart verdict must not be
+            // `Some(true)` (still-unsafe). `Some(false)` (Dart explicitly safe)
+            // and `None` (Dart abstains) both permit resume — they cannot pin the
+            // sequence paused, so this only adds-unsafe and never weakens the gate.
+            let verdict_unsafe = {
+                let state = trigger_manager.read().await.state();
+                let guard = state.read().await;
+                guard.weather_verdict_unsafe == Some(true)
+            };
+            if verdict_unsafe {
+                AttemptOutcome::Failed {
+                    message: "Weather still unsafe (Dart verdict reports unsafe)".to_string(),
+                }
+            } else {
+                match device_ops.safety_is_safe(None).await {
+                    Ok(true) => AttemptOutcome::Succeeded,
+                    Ok(false) => AttemptOutcome::Failed {
+                        message: "Weather still unsafe".to_string(),
+                    },
+                    Err(e) => AttemptOutcome::Failed {
+                        message: format!("Weather poll failed: {}", e),
+                    },
+                }
+            }
+        }
         RecoveryCause::FocusDriftCritical => {
             // Focus-drift recovery for now is "wait it out" — the next
             // periodic autofocus (already managed by the AutofocusInterval
@@ -6154,6 +6180,88 @@ mod tests {
         });
         // NullDeviceOps.safety_is_safe returns Ok(true).
         assert_eq!(outcome, crate::recovery::AttemptOutcome::Succeeded);
+    }
+
+    /// Architecture-unification 2026-06-05 (Subsystem 2 step 4): a weather
+    /// recovery MUST NOT clear/resume on a hardware-only re-poll while the
+    /// Dart-side verdict still reports unsafe (`weather_verdict_unsafe ==
+    /// Some(true)`). NullDeviceOps.safety_is_safe returns Ok(true) (hardware
+    /// reads safe), so the OLD code would have declared Succeeded and resumed
+    /// the sequence into API-unsafe weather. With the verdict gate the attempt
+    /// must Fail until the Dart verdict also clears.
+    #[test]
+    fn run_recovery_attempt_weather_unsafe_blocked_by_dart_verdict() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let device_ops: SharedDeviceOps = std::sync::Arc::new(crate::device_ops::NullDeviceOps);
+        let mgr = Arc::new(RwLock::new(TriggerManager::new()));
+        // Dart computed UNSAFE (API alert / threshold), even though the hardware
+        // boolean reads safe.
+        rt.block_on(async {
+            let state = mgr.read().await.state();
+            state.write().await.update_weather_verdict(Some(true));
+        });
+        let outcome = rt.block_on(async {
+            run_recovery_attempt(
+                &crate::recovery::RecoveryCause::WeatherUnsafe,
+                &device_ops,
+                None,
+                &[],
+                &mgr,
+            )
+            .await
+        });
+        match outcome {
+            crate::recovery::AttemptOutcome::Failed { message } => {
+                assert!(
+                    message.contains("Dart verdict"),
+                    "expected the Dart-verdict block message, got: {}",
+                    message
+                );
+            }
+            other => panic!(
+                "expected Failed (Dart verdict still unsafe), got {:?}",
+                other
+            ),
+        }
+    }
+
+    /// Sibling to the above: once the Dart verdict clears to `Some(false)`
+    /// (explicitly safe) the hardware poll is consulted again and a safe
+    /// hardware reading resumes the sequence. `None` (abstain) behaves the same
+    /// — neither pins the sequence paused, so the gate only adds-unsafe.
+    #[test]
+    fn run_recovery_attempt_weather_unsafe_resumes_when_verdict_clears() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let device_ops: SharedDeviceOps = std::sync::Arc::new(crate::device_ops::NullDeviceOps);
+        for verdict in [Some(false), None] {
+            let mgr = Arc::new(RwLock::new(TriggerManager::new()));
+            rt.block_on(async {
+                let state = mgr.read().await.state();
+                state.write().await.update_weather_verdict(verdict);
+            });
+            let outcome = rt.block_on(async {
+                run_recovery_attempt(
+                    &crate::recovery::RecoveryCause::WeatherUnsafe,
+                    &device_ops,
+                    None,
+                    &[],
+                    &mgr,
+                )
+                .await
+            });
+            assert_eq!(
+                outcome,
+                crate::recovery::AttemptOutcome::Succeeded,
+                "verdict {:?} with safe hardware should resume",
+                verdict
+            );
+        }
     }
 
     /// FocusDriftCritical and ConsecutiveRejectsExceeded and SlewFailed

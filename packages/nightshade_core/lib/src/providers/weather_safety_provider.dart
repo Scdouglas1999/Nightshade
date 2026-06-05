@@ -7,6 +7,7 @@ import '../models/sequence/sequence_models.dart' show ConditionsScoreWeights;
 import '../services/scheduler/sky_calculations.dart';
 import '../services/adaptive_swap_service.dart';
 import '../services/safe_rig_service.dart';
+import '../services/weather/weather_threshold_evaluator.dart';
 import 'imaging_provider.dart';
 import 'science_provider.dart';
 import 'weather_providers.dart';
@@ -358,17 +359,36 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       });
     }
 
-    // Defense-in-depth (full-night audit 2026-06-04): push this overall verdict
-    // into the Rust executor so the in-sequencer `WeatherUnsafe` trigger reacts
-    // even on a rig with no hardware safety device (where the executor's
-    // `weather_safe` poll would otherwise stay at its default). The Dart SafeRig
-    // enforcement above is the primary path; this is the redundant in-sequencer
-    // layer. `unsafe` => abort; anything else (safe / disabled / snoozed) => the
-    // operator's effective verdict is "do not abort on weather", so we report
-    // SAFE — the Rust evaluator ORs this with the hardware reading, so a
-    // hardware-unsafe device still aborts regardless.
+    // Defense-in-depth (full-night audit 2026-06-04): push this verdict into
+    // the Rust executor so the in-sequencer `WeatherUnsafe` trigger reacts even
+    // on a rig with no hardware safety device. The Dart SafeRig enforcement
+    // above is the primary path; this is the redundant in-sequencer layer.
+    //
+    // Architecture-unification 2026-06-05 (Subsystem 2 steps 1+2): compute the
+    // pushed verdict from the NON-HARDWARE Dart sources only (API alert /
+    // hardware-weather thresholds / dawn) and ABSTAIN (`None`) when the operator
+    // has effectively opted out of weather-driven aborts. See
+    // [_computePushedVerdict] for the full rationale; in short:
+    //   * the safety-monitor component is excluded so it is evaluated ONCE (Rust
+    //     polls `safety_is_safe` and ORs it); folding it here too double-counted
+    //     it.
+    //   * disabled / snoozed / failOpen / warnOnly push `None`, never `false`.
+    //     Pushing `false` (SAFE) is only harmless today because Rust ORs it; if a
+    //     future refactor ever made Rust trust the verdict, a disabled toggle
+    //     asserting SAFE could suppress a hardware-unsafe abort. `None` makes the
+    //     channel strictly "add-unsafe-or-abstain" and closes that landmine.
     unawaited(
-      _pushWeatherVerdict(finalStatus == WeatherSafetyStatus.unsafe),
+      _pushWeatherVerdict(
+        _computePushedVerdict(
+          weatherSettings: weatherSettings,
+          finalStatus: finalStatus,
+          failMode: failMode,
+          useFailMode: useFailMode,
+          apiWeatherSafe: apiWeatherSafe,
+          hardwareWeatherSafe: hardwareWeatherSafe,
+          dawnParkDue: dawnParkDue,
+        ),
+      ),
     );
 
     if (previousStatus == WeatherSafetyStatus.unsafe &&
@@ -522,21 +542,83 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     });
   }
 
-  /// Defense-in-depth (full-night audit 2026-06-04): forward the overall
+  /// Compute the verdict pushed to the Rust executor's `WeatherUnsafe` trigger.
+  ///
+  /// Architecture-unification 2026-06-05 (Subsystem 2). Returns:
+  ///   * `null` (ABSTAIN) when the operator has effectively opted out of
+  ///     weather-driven aborts — safety disabled, currently snoozed, or the
+  ///     no-data fail-mode is permissive (failOpen / warnOnly). Abstaining
+  ///     leaves the Rust trigger to rely solely on its own hardware poll; it
+  ///     can never suppress a hardware-unsafe abort.
+  ///   * `Some(true)` (UNSAFE) when the NON-HARDWARE Dart sources — API alert,
+  ///     hardware-weather thresholds (humidity/wind/rain/cloud), or
+  ///     park-before-dawn — say unsafe, OR the fail-closed no-data path is
+  ///     active. The hardware **safety-monitor** component is deliberately
+  ///     EXCLUDED: Rust already polls `safety_is_safe` and ORs it in, so folding
+  ///     it here too would double-count the same device.
+  ///   * `Some(false)` (SAFE) when none of the above non-hardware sources are
+  ///     unsafe and the operator has NOT opted out.
+  ///
+  /// This is strictly safety-monotone: it only ever ADDS an unsafe assertion or
+  /// ABSTAINS — it never asserts SAFE in a situation where the previous code
+  /// would have asserted UNSAFE on a non-hardware source.
+  bool? _computePushedVerdict({
+    required WeatherSettings weatherSettings,
+    required WeatherSafetyStatus finalStatus,
+    required SafetyFailMode failMode,
+    required bool useFailMode,
+    required bool apiWeatherSafe,
+    required bool hardwareWeatherSafe,
+    required bool dawnParkDue,
+  }) {
+    // Opt-out cases ABSTAIN. `finalStatus == snoozed` covers an active snooze;
+    // we also abstain for an explicit just-issued snooze that has not yet been
+    // re-evaluated (the snooze() setter pushes status to snoozed directly).
+    if (!weatherSettings.weatherSafetyEnabled ||
+        finalStatus == WeatherSafetyStatus.snoozed) {
+      return null;
+    }
+
+    // No-data fail-mode: failClosed asserts UNSAFE (matches finalStatus); the
+    // permissive modes (failOpen / warnOnly) ABSTAIN rather than assert SAFE so
+    // a permissive fail-mode can never suppress a hardware-unsafe abort.
+    if (useFailMode) {
+      switch (failMode) {
+        case SafetyFailMode.failClosed:
+          return true;
+        case SafetyFailMode.failOpen:
+        case SafetyFailMode.warnOnly:
+          return null;
+      }
+    }
+
+    // Normal path: fold the non-hardware sources. The safety monitor is
+    // intentionally absent (Rust evaluates it once). `dawnParkDue` is folded so
+    // the park-before-dawn abort also reaches the in-sequencer trigger.
+    final nonHardwareUnsafe =
+        !apiWeatherSafe || !hardwareWeatherSafe || dawnParkDue;
+    return nonHardwareUnsafe;
+  }
+
+  /// Defense-in-depth (full-night audit 2026-06-04): forward the
   /// weather-safety verdict to the Rust executor's `WeatherUnsafe` trigger.
   ///
   /// Pushed on every evaluation so the in-sequencer trigger has a current
   /// verdict on its next tick, regardless of whether a hardware safety device
   /// is connected. Best-effort like the cloud-motion push: the backend may be
   /// disconnected (DisconnectedBackend throws), in which case there is no live
-  /// executor to inform and we swallow the error. The Rust side folds this as
-  /// an additional unsafe source (OR-of-unsafe with the hardware reading), so a
-  /// `false` here never suppresses a hardware-unsafe abort.
-  Future<void> _pushWeatherVerdict(bool isUnsafe) async {
+  /// executor to inform and we swallow the error.
+  ///
+  /// `verdict` is `null` (abstain), `true` (unsafe) or `false` (safe) — see
+  /// [_computePushedVerdict]. The Rust side ORs `Some(true)` as an additional
+  /// unsafe source and treats `Some(false)` / `None` as non-asserting, so this
+  /// channel can only ever add-unsafe or abstain — it never weakens the
+  /// hardware gate.
+  Future<void> _pushWeatherVerdict(bool? verdict) async {
     if (!mounted) return;
     try {
       final backend = _ref.read(backendProvider);
-      await backend.sequencerUpdateWeatherVerdict(unsafeOverride: isUnsafe);
+      await backend.sequencerUpdateWeatherVerdict(unsafeOverride: verdict);
     } catch (_) {
       // No live executor to inform (e.g. backend disconnected). The verdict is
       // re-pushed on the next evaluation; the Dart SafeRig path remains the
@@ -697,26 +779,30 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     }
   }
 
-  /// Evaluate hardware weather device for safety
+  /// Evaluate hardware weather device for safety.
+  ///
+  /// Architecture-unification 2026-06-05 (Subsystem 2 step 3): the threshold
+  /// comparison logic now lives in the pure [WeatherThresholdEvaluator] so it
+  /// has one definition and is unit-testable in isolation. This method just
+  /// adapts the provider's [WeatherState] / [WeatherSettings] into the
+  /// evaluator's plain inputs.
   bool _evaluateHardwareWeather(WeatherState weatherState) {
     final settings = _ref.read(weatherSettingsProvider);
-    // Check various weather metrics if available
-    if (weatherState.humidity != null &&
-        weatherState.humidity! > settings.maxHumidityPercent) {
-      return false; // Too humid
-    }
-    if (weatherState.windSpeed != null &&
-        weatherState.windSpeed! > settings.maxWindSpeedKph) {
-      return false; // Too windy
-    }
-    if (weatherState.rainRate != null && weatherState.rainRate! > 0) {
-      return false; // Any rain is unsafe
-    }
-    if (weatherState.cloudCover != null &&
-        weatherState.cloudCover! > settings.maxCloudCoverPercent) {
-      return false; // Too cloudy
-    }
-    return true;
+    const evaluator = WeatherThresholdEvaluator();
+    final result = evaluator.evaluate(
+      WeatherReading(
+        humidityPercent: weatherState.humidity,
+        windSpeedKph: weatherState.windSpeed,
+        rainRate: weatherState.rainRate,
+        cloudCoverPercent: weatherState.cloudCover,
+      ),
+      WeatherThresholds(
+        maxHumidityPercent: settings.maxHumidityPercent,
+        maxWindSpeedKph: settings.maxWindSpeedKph,
+        maxCloudCoverPercent: settings.maxCloudCoverPercent,
+      ),
+    );
+    return result.isSafe;
   }
 
   /// Determine if dome should be closed

@@ -75,7 +75,10 @@ void main() {
           )).thenAnswer((_) async {});
     });
 
-    ProviderContainer buildContainer({required bool safetyEnabled}) {
+    ProviderContainer buildContainer({
+      required bool safetyEnabled,
+      SafetyFailMode failMode = SafetyFailMode.failClosed,
+    }) {
       final container = ProviderContainer(
         overrides: [
           backendProvider.overrideWith(
@@ -83,9 +86,9 @@ void main() {
           ),
           appSettingsProvider.overrideWith(
             () => _FakeAppSettingsNotifier(
-              // failClosed is the default; with no connected weather/safety
-              // device and no API alert the evaluator takes the fail-mode path.
-              const AppSettingsState(safetyFailMode: SafetyFailMode.failClosed),
+              // With no connected weather/safety device and no API alert the
+              // evaluator takes the fail-mode path.
+              AppSettingsState(safetyFailMode: failMode),
             ),
           ),
           weatherSettingsProvider.overrideWithValue(
@@ -121,20 +124,108 @@ void main() {
       );
     });
 
-    test('reports SAFE when weather safety is disabled', () async {
+    test('ABSTAINS (pushes None) when weather safety is disabled', () async {
+      // Architecture-unification 2026-06-05 (Subsystem 2 step 1): a disabled
+      // weather toggle is the operator opting out of weather-driven aborts, but
+      // it MUST NOT assert SAFE to the executor. Pushing `false` (SAFE) was only
+      // harmless because Rust ORs it; if a future refactor ever made Rust trust
+      // the verdict, a disabled toggle asserting SAFE would suppress a
+      // hardware-unsafe abort. So we push `None` (abstain) instead — the
+      // executor falls back to its own hardware poll. This is the deliberate
+      // contract change (was: expect `false`).
       final container = buildContainer(safetyEnabled: false);
       container.read(weatherSafetyProvider.notifier);
       await container.read(appSettingsProvider.future);
       await Future<void>.delayed(Duration.zero);
       await Future<void>.delayed(Duration.zero);
 
-      // Safety disabled => the operator's effective verdict is "do not abort on
-      // weather" => SAFE is pushed (the Rust evaluator still ORs in the
-      // hardware reading, so a hardware-unsafe device aborts regardless).
-      verify(() => backend.sequencerUpdateWeatherVerdict(unsafeOverride: false))
+      verify(() => backend.sequencerUpdateWeatherVerdict(unsafeOverride: null))
           .called(greaterThanOrEqualTo(1));
       verifyNever(
         () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: true),
+      );
+      verifyNever(
+        () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: false),
+      );
+    });
+
+    test('ABSTAINS (pushes None) under the failOpen no-data fail-mode',
+        () async {
+      // Permissive fail-mode means "treat missing data as safe" for the
+      // operator's UI, but the executor verdict must ABSTAIN, not assert SAFE,
+      // so the permissive policy can never gag a hardware-unsafe device.
+      final container = buildContainer(
+        safetyEnabled: true,
+        failMode: SafetyFailMode.failOpen,
+      );
+      final notifier = container.read(weatherSafetyProvider.notifier);
+      await container.read(appSettingsProvider.future);
+      // The construction-time evaluation runs before the async appSettings
+      // future resolves (failMode defaults to failClosed until then). Force a
+      // fresh evaluation now that the failOpen setting is loaded, then assert
+      // only on the post-load push.
+      clearInteractions(backend);
+      notifier.forceEvaluation();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      verify(() => backend.sequencerUpdateWeatherVerdict(unsafeOverride: null))
+          .called(greaterThanOrEqualTo(1));
+      verifyNever(
+        () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: false),
+      );
+      verifyNever(
+        () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: true),
+      );
+    });
+
+    test('ABSTAINS (pushes None) under the warnOnly no-data fail-mode',
+        () async {
+      final container = buildContainer(
+        safetyEnabled: true,
+        failMode: SafetyFailMode.warnOnly,
+      );
+      final notifier = container.read(weatherSafetyProvider.notifier);
+      await container.read(appSettingsProvider.future);
+      clearInteractions(backend);
+      notifier.forceEvaluation();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      verify(() => backend.sequencerUpdateWeatherVerdict(unsafeOverride: null))
+          .called(greaterThanOrEqualTo(1));
+      verifyNever(
+        () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: false),
+      );
+      verifyNever(
+        () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: true),
+      );
+    });
+
+    test('ABSTAINS (pushes None) while snoozed', () async {
+      // The abstain landmine, snooze variant: a snooze suppresses the operator
+      // alert but MUST NOT assert SAFE to the executor. We snooze, force a
+      // re-evaluation, and assert the push abstains. Combined with the Rust OR
+      // (covered in triggers.rs), this proves a snooze cannot suppress a
+      // hardware-unsafe abort.
+      final container = buildContainer(safetyEnabled: true);
+      final notifier = container.read(weatherSafetyProvider.notifier);
+      await container.read(appSettingsProvider.future);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      // Re-arm the verify by clearing prior interactions, then snooze + force a
+      // fresh evaluation so the snoozed-branch verdict is pushed.
+      clearInteractions(backend);
+      notifier.snooze(const Duration(minutes: 30));
+      notifier.forceEvaluation();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      verify(() => backend.sequencerUpdateWeatherVerdict(unsafeOverride: null))
+          .called(greaterThanOrEqualTo(1));
+      verifyNever(
+        () => backend.sequencerUpdateWeatherVerdict(unsafeOverride: false),
       );
     });
   });

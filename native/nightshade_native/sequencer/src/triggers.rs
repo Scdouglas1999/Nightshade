@@ -2351,6 +2351,44 @@ mod tests {
         );
     }
 
+    /// Architecture-unification 2026-06-05 (Subsystem 2 step 1): the abstain
+    /// landmine. A disabled / snoozed / permissive-fail-mode weather toggle on
+    /// the Dart side pushes `None` (abstain), NOT `Some(false)`. This test pins
+    /// that abstaining MUST NOT suppress a hardware-unsafe abort — even though
+    /// the operator "turned weather safety off", a hardware safety device that
+    /// reads unsafe still aborts via the OR in `check`. This is the structural
+    /// guarantee that makes the disabled-toggle change safe.
+    #[tokio::test]
+    async fn test_weather_unsafe_abstain_does_not_suppress_hardware_abort() {
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Weather Abstain",
+            TriggerType::WeatherUnsafe,
+            RecoveryAction::ParkAndAbort,
+        );
+
+        let mut state = TriggerState::new();
+
+        // Operator opted out of weather-driven aborts => Dart abstains (None).
+        // The hardware safety device nonetheless reads UNSAFE. The trigger MUST
+        // still fire: a disabled toggle can never gag a hardware-unsafe device.
+        state.weather_safe = false;
+        state.update_weather_verdict(None);
+        assert!(
+            trigger.check(&state).await,
+            "abstain (None) must NOT suppress a hardware-unsafe abort"
+        );
+
+        // And when the hardware also reads safe under abstain, nothing fires —
+        // abstain is genuinely non-asserting, not a stuck-unsafe.
+        state.weather_safe = true;
+        state.update_weather_verdict(None);
+        assert!(
+            !trigger.check(&state).await,
+            "abstain (None) with safe hardware must not fire"
+        );
+    }
+
     #[tokio::test]
     async fn test_temperature_shift_trigger() {
         let mut trigger = Trigger::new(
