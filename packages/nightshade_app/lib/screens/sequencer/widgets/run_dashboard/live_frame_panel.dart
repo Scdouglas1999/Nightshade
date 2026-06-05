@@ -446,14 +446,16 @@ class _ControlButton extends StatelessWidget {
 /// Filter + exposure + live-quality metadata badge for the current frame.
 ///
 /// Beyond filter/exposure this overlays the measured quality of the displayed
-/// sub — HFR, star count, FWHM — colour-graded for HFR, plus a compact
-/// HFR-vs-time sparkline so trends (focus drifting, clouds rolling in) are
-/// visible at a glance. Quality fields appear only when measured; an
-/// unanalysed frame shows just filter + exposure rather than fabricated zeros.
+/// sub — HFR, eccentricity, star count, FWHM — colour-graded for HFR and
+/// eccentricity, plus a compact HFR-vs-time sparkline so trends (focus
+/// drifting, clouds rolling in) are visible at a glance. Quality fields appear
+/// only when measured; an unanalysed frame shows just filter + exposure rather
+/// than fabricated zeros.
 ///
-/// Eccentricity is intentionally absent: [ImageStats] does not carry it (only
-/// hfr / fwhm / starCount), so surfacing it here would require a core/native
-/// change outside this cluster's scope. Tracked as deferred.
+/// Eccentricity is the per-frame median star roundness now measured by the
+/// native star detector (carried on [ImageStats.eccentricity]); it renders only
+/// when the detector could honestly measure it (enough reliable stars),
+/// otherwise it is omitted — never shown as a fabricated 0.
 class _FrameBadge extends StatelessWidget {
   final NightshadeColors colors;
   final String? filterLabel;
@@ -479,11 +481,21 @@ class _FrameBadge extends StatelessWidget {
     return colors.error;
   }
 
+  Color _eccColor(double ecc) {
+    // Eccentricity is 0 (round) → 1 (a line). These bands mirror the common
+    // reject thresholds (≈0.6 catches trailed frames, ≈0.8 catastrophic
+    // tracking): well-guided rigs sit comfortably under 0.5.
+    if (ecc <= 0.5) return colors.success;
+    if (ecc <= 0.7) return colors.warning;
+    return colors.error;
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = stats;
     final hfr = s?.hfr;
     final fwhm = s?.fwhm;
+    final eccentricity = s?.eccentricity;
     final starCount = s?.starCount;
 
     final captionStyle = NightshadeTypography.withTabular(
@@ -514,6 +526,15 @@ class _FrameBadge extends StatelessWidget {
           label: 'HFR',
           value: hfr.toStringAsFixed(2),
           valueColor: _hfrColor(hfr),
+        ),
+      // Renders only when honestly measured (enough reliable stars).
+      if (eccentricity != null)
+        _QualityChip(
+          colors: colors,
+          icon: LucideIcons.circleDashed,
+          label: 'Ecc',
+          value: eccentricity.toStringAsFixed(2),
+          valueColor: _eccColor(eccentricity),
         ),
       if (fwhm != null)
         _QualityChip(

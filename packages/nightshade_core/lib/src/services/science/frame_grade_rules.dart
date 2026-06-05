@@ -138,18 +138,23 @@ class FrameGradeRules {
   /// the persisted auto-grader never disagree (there is exactly one rule
   /// engine).
   ///
-  /// Unlike a database row, [ImageStats] carries neither eccentricity nor
-  /// guiding RMS, so those two metrics are supplied by the caller:
-  /// [eccentricity] from the science row when one exists, [guidingRmsTotal]
-  /// from the live guiding telemetry. As in [gradeFrame], a `null` metric
-  /// means "cannot grade this dimension" and that rule is skipped — passing
-  /// `null` for either argument simply omits the corresponding check.
+  /// [ImageStats] now carries a per-frame [ImageStats.eccentricity] (measured
+  /// by the native star detector from star shape moments), so the gate reads
+  /// it directly. Guiding RMS still lives outside the stats snapshot and is
+  /// supplied via [guidingRmsTotal] from live telemetry. The optional
+  /// [eccentricity] argument overrides [ImageStats.eccentricity] when a caller
+  /// has a more authoritative value (e.g. the persisted science row); when
+  /// omitted the engine falls back to the live measured value. As in
+  /// [gradeFrame], a `null` metric means "cannot grade this dimension" and that
+  /// rule is skipped — never a no-evidence reject.
   String? gradeStats(
     ImageStats stats, {
     double? guidingRmsTotal,
     double? eccentricity,
   }) {
     final reasons = <String>[];
+    // Caller override wins; otherwise use the live measured frame value.
+    final effectiveEccentricity = eccentricity ?? stats.eccentricity;
     if (maxHfr != null && stats.hfr != null && stats.hfr! > maxHfr!) {
       reasons.add(
           'HFR ${stats.hfr!.toStringAsFixed(2)} > ${maxHfr!.toStringAsFixed(2)}');
@@ -159,10 +164,10 @@ class FrameGradeRules {
           'FWHM ${stats.fwhm!.toStringAsFixed(2)} > ${maxFwhm!.toStringAsFixed(2)}');
     }
     if (maxEccentricity != null &&
-        eccentricity != null &&
-        eccentricity > maxEccentricity!) {
+        effectiveEccentricity != null &&
+        effectiveEccentricity > maxEccentricity!) {
       reasons.add(
-          'Eccentricity ${eccentricity.toStringAsFixed(2)} > ${maxEccentricity!.toStringAsFixed(2)}');
+          'Eccentricity ${effectiveEccentricity.toStringAsFixed(2)} > ${maxEccentricity!.toStringAsFixed(2)}');
     }
     if (minStars != null &&
         stats.starCount != null &&

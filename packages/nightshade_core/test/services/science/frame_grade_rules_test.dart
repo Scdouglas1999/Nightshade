@@ -198,6 +198,36 @@ void main() {
       expect(reason, isNot(contains('Eccentricity')));
     });
 
+    test('(g) live ImageStats.eccentricity rejects when no arg supplied', () {
+      // The native detector now measures per-frame eccentricity and it rides
+      // on ImageStats. With no out-of-band eccentricity arg, the gate must read
+      // the live measured value and reject a trailed frame.
+      const trailed =
+          ImageStats(hfr: 2.0, fwhm: 3.0, eccentricity: 0.9, starCount: 120);
+      final reason = rules.gradeStats(trailed, guidingRmsTotal: 0.5);
+      expect(reason, isNotNull);
+      expect(reason, contains('Eccentricity'));
+      expect(reason, contains('0.90'));
+    });
+
+    test('(g2) round live ImageStats.eccentricity passes the gate', () {
+      const round =
+          ImageStats(hfr: 2.0, fwhm: 3.0, eccentricity: 0.18, starCount: 120);
+      expect(rules.gradeStats(round, guidingRmsTotal: 0.5), isNull);
+    });
+
+    test('(g3) explicit eccentricity arg overrides the live stats value', () {
+      // The science-row override (e.g. a more authoritative offline measure)
+      // takes precedence over the live ImageStats value.
+      const liveRound =
+          ImageStats(hfr: 2.0, fwhm: 3.0, eccentricity: 0.1, starCount: 120);
+      final reason =
+          rules.gradeStats(liveRound, guidingRmsTotal: 0.5, eccentricity: 0.9);
+      expect(reason, isNotNull,
+          reason: 'explicit arg 0.9 must override live 0.1 and reject');
+      expect(reason, contains('Eccentricity'));
+    });
+
     test('multiple failures are joined with "; " in stable rule order', () {
       const stats = ImageStats(hfr: 3.5, fwhm: 5.0, starCount: 20);
       final reason = rules.gradeStats(

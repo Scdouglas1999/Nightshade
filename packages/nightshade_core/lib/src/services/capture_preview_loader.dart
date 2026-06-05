@@ -177,6 +177,7 @@ CapturedImageData capturedImageDataFromResult({
       fwhm: capturedImage.stats.hfr != null
           ? capturedImage.stats.hfr! * 2.35
           : null,
+      eccentricity: capturedImage.stats.eccentricity,
       starCount: capturedImage.stats.starCount > 0
           ? capturedImage.stats.starCount
           : null,

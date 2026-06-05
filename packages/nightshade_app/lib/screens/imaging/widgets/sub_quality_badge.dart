@@ -67,9 +67,17 @@ class SubQualityBadge extends ConsumerWidget {
       guideStatsProvider.select((s) => s.rmsTotal),
     );
 
+    // Prefer the live per-frame eccentricity now measured by the native star
+    // detector and carried on [ImageStats]; fall back to the injected
+    // science-row value only when the live frame did not measure it (too few
+    // reliable stars). Either may be null → rendered as `ECC —` and skipped by
+    // the grade rule, matching [FrameGradeRules.gradeStats] semantics.
+    final effectiveEccentricity = stats.eccentricity ?? eccentricity;
+
     final hfrText = stats.hfr != null ? stats.hfr!.toStringAsFixed(2) : '—';
-    final eccText =
-        eccentricity != null ? eccentricity!.toStringAsFixed(2) : '—';
+    final eccText = effectiveEccentricity != null
+        ? effectiveEccentricity.toStringAsFixed(2)
+        : '—';
     final starText = stats.starCount != null ? '${stats.starCount}' : '—';
 
     // PHD2 reports 0.0 as its "no data yet" sentinel for rolling RMS; treat
@@ -82,7 +90,7 @@ class SubQualityBadge extends ConsumerWidget {
         ? rules.gradeStats(
             stats,
             guidingRmsTotal: liveRms,
-            eccentricity: eccentricity,
+            eccentricity: effectiveEccentricity,
           )
         : null;
 
