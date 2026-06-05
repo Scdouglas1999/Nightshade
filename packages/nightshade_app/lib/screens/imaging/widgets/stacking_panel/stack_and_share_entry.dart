@@ -50,7 +50,7 @@ class _StackAndShareEntry extends StatelessWidget {
       width: double.infinity,
       child: NightshadeButton(
         label: 'Stack & Share',
-        icon: LucideIcons.sparkles,
+        icon: NightshadeIcons.sparkle,
         isLoading: isBusy,
         onPressed: enabled ? onPressed : null,
       ),

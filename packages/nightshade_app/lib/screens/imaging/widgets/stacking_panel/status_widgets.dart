@@ -53,11 +53,7 @@ class _StatRow extends StatelessWidget {
             style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary)),
         Text(
           value,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize12,
-            fontWeight: FontWeight.w500,
-            color: valueColor ?? colors.textPrimary,
-          ),
+          style: NightshadeTypography.labelSm.copyWith(color: valueColor ?? colors.textPrimary),
         ),
       ],
     );
@@ -100,7 +96,7 @@ class _RejectionWarning extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            isError ? LucideIcons.alertOctagon : LucideIcons.alertTriangle,
+            isError ? NightshadeIcons.critical : NightshadeIcons.warning,
             size: 14,
             color: accent,
           ),
@@ -111,11 +107,7 @@ class _RejectionWarning extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w600,
-                    color: accent,
-                  ),
+                  style: NightshadeTypography.labelStrongSm.copyWith(color: accent),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -189,10 +181,7 @@ class _AlignmentQualityBar extends StatelessWidget {
             Text('Alignment Quality',
                 style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary)),
             Text(qualityLabel,
-                style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w600,
-                    color: qualityColor)),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: qualityColor)),
           ],
         ),
         const SizedBox(height: 6),

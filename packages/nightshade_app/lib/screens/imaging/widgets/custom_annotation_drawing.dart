@@ -721,7 +721,7 @@ class CustomAnnotationToolbar extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           _ToolButton(
-            icon: LucideIcons.circle,
+            icon: NightshadeIcons.circle,
             tooltip: 'Draw Circle',
             isActive: activeTool == CustomAnnotationType.circle,
             colors: colors,
@@ -758,7 +758,7 @@ class CustomAnnotationToolbar extends ConsumerWidget {
             color: Colors.white.withValues(alpha: 0.2),
           ),
           _ToolButton(
-            icon: LucideIcons.trash2,
+            icon: NightshadeIcons.delete,
             tooltip: 'Delete Annotation',
             isActive: deleteTool,
             colors: colors,
@@ -776,7 +776,7 @@ class CustomAnnotationToolbar extends ConsumerWidget {
               color: Colors.white.withValues(alpha: 0.2),
             ),
             _ToolButton(
-              icon: LucideIcons.xCircle,
+              icon: NightshadeIcons.error,
               tooltip: 'Clear All ($annotationCount)',
               isActive: false,
               colors: colors,

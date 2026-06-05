@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -109,8 +108,8 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
         children: [
           Icon(
             _isExpanded
-                ? LucideIcons.chevronDown
-                : LucideIcons.chevronRight,
+                ? NightshadeIcons.chevronDown
+                : NightshadeIcons.chevronRight,
             size: 16,
             color: colors.textMuted,
           ),
@@ -161,7 +160,7 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
         ),
         child: Row(
           children: [
-            Icon(LucideIcons.info, size: 14, color: colors.textMuted),
+            Icon(NightshadeIcons.info, size: 14, color: colors.textMuted),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -300,7 +299,7 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
         ),
         child: Row(
           children: [
-            Icon(LucideIcons.thermometer, size: 14, color: colors.textMuted),
+            Icon(NightshadeIcons.temperature, size: 14, color: colors.textMuted),
             const SizedBox(width: 8),
             Text(
               'No temperature reading available from focuser',
@@ -325,7 +324,7 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
         ),
         child: Row(
           children: [
-            Icon(LucideIcons.thermometer, size: 14, color: colors.textMuted),
+            Icon(NightshadeIcons.temperature, size: 14, color: colors.textMuted),
             const SizedBox(width: 8),
             Text(
               'Current: ${currentTemp.toStringAsFixed(1)}°C',
@@ -349,7 +348,7 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
       ),
       child: Row(
         children: [
-          Icon(LucideIcons.thermometer, size: 16, color: colors.primary),
+          Icon(NightshadeIcons.temperature, size: 16, color: colors.primary),
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -370,9 +369,9 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
             ],
           ),
           const SizedBox(width: 24),
-          Icon(LucideIcons.arrowRight, size: 14, color: colors.textMuted),
+          Icon(NightshadeIcons.arrowRight, size: 14, color: colors.textMuted),
           const SizedBox(width: 24),
-          Icon(LucideIcons.focus, size: 16, color: colors.primary),
+          Icon(NightshadeIcons.focuser, size: 16, color: colors.primary),
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -401,10 +400,7 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
             ),
             child: Text(
               prediction.confidenceDescription,
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize11,
-                fontWeight: FontWeight.w600,
-                color: _confidenceColor(prediction.confidence, colors),
+              style: NightshadeTypography.labelStrongSm.copyWith(color: _confidenceColor(prediction.confidence, colors),
               ),
             ),
           ),
@@ -429,7 +425,7 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
       children: [
         NightshadeButton(
           label: 'Clear Model',
-          icon: LucideIcons.trash2,
+          icon: NightshadeIcons.delete,
           size: ButtonSize.small,
           variant: ButtonVariant.outline,
           onPressed: dataPoints.isEmpty
@@ -619,11 +615,7 @@ class _QualityBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: NightshadeTypography.fontSize11,
-          fontWeight: FontWeight.w600,
-          color: badgeColor,
-        ),
+        style: NightshadeTypography.labelStrongSm.copyWith(color: badgeColor),
       ),
     );
   }
@@ -662,11 +654,7 @@ class _FilterChip extends StatelessWidget {
               ),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: NightshadeTypography.fontSize11,
-            fontWeight: FontWeight.w500,
-            color: isSelected ? colors.primary : colors.textSecondary,
-          ),
+          style: NightshadeTypography.labelQuiet.copyWith(color: isSelected ? colors.primary : colors.textSecondary),
         ),
       ),
     );

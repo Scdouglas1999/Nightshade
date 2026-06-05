@@ -162,7 +162,7 @@ class CapturePanel extends ConsumerWidget {
                             .setImageOutputPath(result);
                       }
                     },
-                    child: Icon(LucideIcons.folderOpen,
+                    child: Icon(NightshadeIcons.folderOpen,
                         size: 14, color: colors.textSecondary),
                   ),
                 ),
@@ -188,10 +188,7 @@ class CapturePanel extends ConsumerWidget {
                         '${sessionImages.length} frames',
                         textAlign: TextAlign.end,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            fontWeight: FontWeight.w500,
-                            color: colors.textPrimary),
+                        style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
                       ),
                     ),
                   ],
@@ -208,10 +205,7 @@ class CapturePanel extends ConsumerWidget {
                         _formatDuration(sessionState.totalIntegrationSecs),
                         textAlign: TextAlign.end,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            fontWeight: FontWeight.w500,
-                            color: colors.textPrimary),
+                        style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
                       ),
                     ),
                   ],
@@ -238,10 +232,7 @@ class CapturePanel extends ConsumerWidget {
                           const SizedBox(width: 6),
                           Text(
                             'Active',
-                            style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize12,
-                                fontWeight: FontWeight.w500,
-                                color: colors.success),
+                            style: NightshadeTypography.labelSm.copyWith(color: colors.success),
                           ),
                         ],
                       ),
@@ -258,10 +249,7 @@ class CapturePanel extends ConsumerWidget {
                         sessionState.duration != null
                             ? _formatSessionDuration(sessionState.duration!)
                             : '--:--:--',
-                        style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            fontWeight: FontWeight.w500,
-                            color: colors.textPrimary),
+                        style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
                       ),
                     ],
                   ),
@@ -283,7 +271,7 @@ class CapturePanel extends ConsumerWidget {
                     Expanded(
                       child: SmallButton(
                         label: 'Clear Session',
-                        icon: LucideIcons.trash2,
+                        icon: NightshadeIcons.delete,
                         isOutline: true,
                         colors: colors,
                         onTap: () {
@@ -301,7 +289,7 @@ class CapturePanel extends ConsumerWidget {
                     width: double.infinity,
                     child: SmallButton(
                       label: 'End Session',
-                      icon: LucideIcons.stopCircle,
+                      icon: NightshadeIcons.stopCircle,
                       colors: colors,
                       onTap: () => _showEndSessionDialog(context, ref, colors),
                     ),
@@ -347,7 +335,7 @@ class CapturePanel extends ConsumerWidget {
       builder: (context) => AlertDialog(
         title: Row(
           children: [
-            Icon(LucideIcons.stopCircle, color: colors.warning),
+            Icon(NightshadeIcons.stopCircle, color: colors.warning),
             const SizedBox(width: 12),
             const Text('End Session'),
           ],

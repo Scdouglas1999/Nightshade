@@ -248,7 +248,7 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
       context: context,
       builder: (ctx) => NightshadeDialog(
         title: 'Delete Preset',
-        icon: LucideIcons.trash2,
+        icon: NightshadeIcons.delete,
         width: 420,
         actions: [
           NightshadeButton(
@@ -377,11 +377,7 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                 ),
                 child: Text(
                   '${filteredObjects.length}/${displayableObjects.length} objects',
-                  style: TextStyle(
-                    color: widget.colors.primary,
-                    fontSize: NightshadeTypography.fontSize11,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: NightshadeTypography.labelStrongSm.copyWith(color: widget.colors.primary),
                 ),
               ),
               const Spacer(),
@@ -449,7 +445,7 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                         child: Padding(
                           padding: const EdgeInsets.all(4),
                           child: Icon(
-                            LucideIcons.refreshCw,
+                            NightshadeIcons.refresh,
                             size: 14,
                             color: widget.colors.textMuted,
                           ),
@@ -476,7 +472,7 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                         child: Padding(
                           padding: const EdgeInsets.all(4),
                           child: Icon(
-                            LucideIcons.download,
+                            NightshadeIcons.download,
                             size: 14,
                             color: annotation != null
                                 ? widget.colors.textMuted
@@ -522,7 +518,7 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                     value: 'ds9',
                     child: Row(
                       children: [
-                        Icon(LucideIcons.map,
+                        Icon(NightshadeIcons.map,
                             size: 14, color: widget.colors.textPrimary),
                         const SizedBox(width: 8),
                         Text('Export DS9 Regions',
@@ -571,7 +567,7 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                           Icon(
                             preset.isBuiltIn
                                 ? LucideIcons.bookmark
-                                : LucideIcons.user,
+                                : NightshadeIcons.user,
                             size: 14,
                             color: widget.colors.textPrimary,
                           ),
@@ -594,7 +590,7 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                               child: Padding(
                                 padding: const EdgeInsets.all(2),
                                 child: Icon(
-                                  LucideIcons.trash2,
+                                  NightshadeIcons.delete,
                                   size: 12,
                                   color: widget.colors.textMuted,
                                 ),
@@ -609,7 +605,7 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                     value: '_save_as_preset',
                     child: Row(
                       children: [
-                        Icon(LucideIcons.save,
+                        Icon(NightshadeIcons.save,
                             size: 14, color: widget.colors.primary),
                         const SizedBox(width: 8),
                         Text('Save as Preset',
@@ -649,14 +645,10 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
           dense: true,
           title: Text(
             'Filters',
-            style: TextStyle(
-              color: widget.colors.textSecondary,
-              fontSize: NightshadeTypography.fontSize12,
-              fontWeight: FontWeight.w500,
-            ),
+            style: NightshadeTypography.labelSm.copyWith(color: widget.colors.textSecondary),
           ),
           trailing: Icon(
-            _filtersExpanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+            _filtersExpanded ? NightshadeIcons.chevronUp : NightshadeIcons.chevronDown,
             size: 16,
             color: widget.colors.textMuted,
           ),
@@ -821,7 +813,7 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
                       Icon(
                         annotation == null
                             ? LucideIcons.sparkle
-                            : LucideIcons.searchX,
+                            : NightshadeIcons.searchEmpty,
                         size: 32,
                         color: widget.colors.textMuted.withValues(alpha: 0.5),
                       ),

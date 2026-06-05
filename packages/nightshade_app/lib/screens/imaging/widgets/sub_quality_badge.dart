@@ -191,7 +191,7 @@ class _VerdictChip extends StatelessWidget {
     final accepted = reason == null;
     final statusColor = accepted ? colors.success : colors.error;
     final label = accepted ? 'ACCEPT' : 'REJECT';
-    final glyph = accepted ? LucideIcons.check : LucideIcons.x;
+    final glyph = accepted ? NightshadeIcons.check : LucideIcons.x;
 
     final pill = DecoratedBox(
       decoration: BoxDecoration(

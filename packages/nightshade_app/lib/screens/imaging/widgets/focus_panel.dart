@@ -285,7 +285,7 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                   width: double.infinity,
                   child: SmallButton(
                     label: 'Go To Position...',
-                    icon: LucideIcons.move,
+                    icon: NightshadeIcons.move,
                     colors: widget.colors,
                     isEnabled: isConnected && !isMoving,
                     onTap: _showGoToPositionDialog,
@@ -365,8 +365,8 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                   child: SmallButton(
                     label: _isRunningAutofocus ? 'Running...' : 'Run Autofocus',
                     icon: _isRunningAutofocus
-                        ? LucideIcons.loader2
-                        : LucideIcons.focus,
+                        ? NightshadeIcons.loading
+                        : NightshadeIcons.focuser,
                     colors: widget.colors,
                     isEnabled: isConnected && !_isRunningAutofocus,
                     onTap: _runAutofocus,

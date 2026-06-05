@@ -311,7 +311,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                                                 color: colors.border),
                                           ),
                                           child: Icon(
-                                            LucideIcons.camera,
+                                            NightshadeIcons.camera,
                                             size: 48,
                                             color: colors.textMuted,
                                           ),

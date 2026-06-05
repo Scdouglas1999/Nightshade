@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -32,7 +31,7 @@ class ReAnnotateSuggestionBanner extends ConsumerWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            LucideIcons.sparkles,
+            NightshadeIcons.sparkle,
             size: 16,
             color: foreground,
           ),
@@ -41,11 +40,7 @@ class ReAnnotateSuggestionBanner extends ConsumerWidget {
             child: Text(
               'Image quality improved ${suggestion.improvementPercent.toStringAsFixed(0)}% - '
               're-annotate to find more objects?',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: NightshadeTypography.fontSize12,
-                fontWeight: FontWeight.w500,
-              ),
+              style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
             ),
           ),
           const SizedBox(width: 8),
@@ -64,11 +59,7 @@ class ReAnnotateSuggestionBanner extends ConsumerWidget {
               ),
               child: Text(
                 'Re-annotate',
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: NightshadeTypography.fontSize11,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: foreground),
               ),
             ),
           ),
@@ -82,7 +73,7 @@ class ReAnnotateSuggestionBanner extends ConsumerWidget {
             child: Padding(
               padding: const EdgeInsets.all(4),
               child: Icon(
-                LucideIcons.x,
+                NightshadeIcons.close,
                 size: 14,
                 color: colors.textSecondary,
               ),

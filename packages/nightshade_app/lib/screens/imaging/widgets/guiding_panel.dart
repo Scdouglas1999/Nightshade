@@ -156,7 +156,7 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
                                 ? 'Guiding'
                                 : 'Start',
                         icon:
-                            isGuiding ? LucideIcons.activity : LucideIcons.play,
+                            isGuiding ? NightshadeIcons.activity : NightshadeIcons.play,
                         colors: widget.colors,
                         isEnabled:
                             isConnected && !isGuiding && !_isStartingGuiding,
@@ -167,7 +167,7 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
                     Expanded(
                       child: SmallButton(
                         label: 'Stop',
-                        icon: LucideIcons.square,
+                        icon: NightshadeIcons.stop,
                         isOutline: true,
                         colors: widget.colors,
                         isEnabled: isConnected && isGuiding,
@@ -182,7 +182,7 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
                   child: SmallButton(
                     label: _isDithering ? 'Dithering...' : 'Dither',
                     icon: _isDithering
-                        ? LucideIcons.loader2
+                        ? NightshadeIcons.loading
                         : LucideIcons.shuffle,
                     isOutline: true,
                     colors: widget.colors,
@@ -288,19 +288,15 @@ class _BuiltinGuiderConfigSection extends ConsumerWidget {
               children: [
                 Icon(
                   isExpanded
-                      ? LucideIcons.chevronDown
-                      : LucideIcons.chevronRight,
+                      ? NightshadeIcons.chevronDown
+                      : NightshadeIcons.chevronRight,
                   size: 14,
                   color: colors.textPrimary,
                 ),
                 const SizedBox(width: 6),
                 Text(
                   'Guider Configuration',
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
                 ),
                 const Spacer(),
                 Container(
@@ -610,7 +606,7 @@ class _BuiltinGuiderConfigFormState
               Expanded(
                 child: SmallButton(
                   label: 'Apply',
-                  icon: LucideIcons.check,
+                  icon: NightshadeIcons.check,
                   colors: widget.colors,
                   onTap: () => _applyConfig(mountCaps),
                 ),
@@ -619,7 +615,7 @@ class _BuiltinGuiderConfigFormState
               Expanded(
                 child: SmallButton(
                   label: 'Reset Defaults',
-                  icon: LucideIcons.rotateCcw,
+                  icon: NightshadeIcons.undo,
                   isOutline: true,
                   colors: widget.colors,
                   onTap: _resetDefaults,
@@ -803,7 +799,7 @@ class CompactGuidingGraph extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    isGuiding ? LucideIcons.activity : LucideIcons.crosshair,
+                    isGuiding ? NightshadeIcons.activity : NightshadeIcons.crosshair,
                     size: 24,
                     color: isGuiding ? colors.success : colors.textMuted,
                   ),
@@ -938,11 +934,7 @@ class GuideStat extends StatelessWidget {
         children: [
           Text(
             value,
-            style: TextStyle(
-              fontSize: NightshadeTypography.fontSize14,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 2),
           Text(

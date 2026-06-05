@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Search bar widget for filtering annotation objects by name or catalog ID.
@@ -17,7 +16,7 @@ class AnnotationSearchBar extends StatelessWidget {
       padding: const EdgeInsets.all(8),
       child: NightshadeTextField(
         hint: 'Search objects...',
-        prefixIcon: LucideIcons.search,
+        prefixIcon: NightshadeIcons.search,
         onChanged: onChanged,
       ),
     );

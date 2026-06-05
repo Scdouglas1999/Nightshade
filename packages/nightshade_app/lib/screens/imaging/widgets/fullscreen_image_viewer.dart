@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -61,7 +60,7 @@ class FullscreenImageViewer extends StatelessWidget {
                   color: colors.surface.withValues(alpha: 0.72),
                   shape: const CircleBorder(),
                   child: IconButton(
-                    icon: Icon(LucideIcons.x, color: colors.textPrimary),
+                    icon: Icon(NightshadeIcons.close, color: colors.textPrimary),
                     tooltip: 'Close',
                     onPressed: () => Navigator.of(context).pop(),
                   ),

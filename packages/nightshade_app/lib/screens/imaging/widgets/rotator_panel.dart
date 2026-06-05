@@ -307,7 +307,7 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
         const SizedBox(width: 8),
         SmallButton(
           label: _isGoingTo ? 'Moving...' : 'Go To',
-          icon: _isGoingTo ? LucideIcons.loader2 : LucideIcons.navigation,
+          icon: _isGoingTo ? NightshadeIcons.loading : LucideIcons.navigation,
           colors: colors,
           isEnabled: canGoTo,
           onTap: _goToAngle,

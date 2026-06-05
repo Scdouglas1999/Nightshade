@@ -138,11 +138,7 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                             isConnected && cameraState.temperature != null
                                 ? '${cameraState.temperature!.toStringAsFixed(1)}°C'
                                 : '---',
-                            style: TextStyle(
-                              fontSize: NightshadeTypography.fontSize16,
-                              fontWeight: FontWeight.w600,
-                              color: widget.colors.textPrimary,
-                            ),
+                            style: NightshadeTypography.h4.copyWith(color: widget.colors.textPrimary),
                           ),
                           if (isConnected && coolingStatus.isCooling)
                             Padding(
@@ -150,7 +146,7 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                               child: Icon(
                                 coolingStatus.isAtTarget
                                     ? LucideIcons.checkCircle2
-                                    : LucideIcons.arrowDown,
+                                    : NightshadeIcons.arrowDown,
                                 size: 14,
                                 color: coolingStatus.isAtTarget
                                     ? widget.colors.success
@@ -229,7 +225,7 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                       Expanded(
                         child: SmallButton(
                           label: _isCooling ? 'Setting...' : 'Cool Down',
-                          icon: LucideIcons.snowflake,
+                          icon: NightshadeIcons.frost,
                           colors: widget.colors,
                           isEnabled: isConnected && !_isCooling,
                           onTap: () async {

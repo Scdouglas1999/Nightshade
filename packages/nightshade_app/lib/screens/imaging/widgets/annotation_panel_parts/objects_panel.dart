@@ -363,11 +363,7 @@ class _AnnotationObjectsPanelState
           const SizedBox(width: 8),
           Text(
             'Detected Objects',
-            style: TextStyle(
-              color: widget.colors.textPrimary,
-              fontSize: NightshadeTypography.fontSize13,
-              fontWeight: FontWeight.w600,
-            ),
+            style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
           ),
           const Spacer(),
           // Object count badge
@@ -379,11 +375,7 @@ class _AnnotationObjectsPanelState
             ),
             child: Text(
               '${filteredObjects.length}/${displayableObjects.length}',
-              style: TextStyle(
-                color: widget.colors.primary,
-                fontSize: NightshadeTypography.fontSize11,
-                fontWeight: FontWeight.w600,
-              ),
+              style: NightshadeTypography.labelStrongSm.copyWith(color: widget.colors.primary),
             ),
           ),
           const SizedBox(width: 8),
@@ -450,7 +442,7 @@ class _AnnotationObjectsPanelState
                     child: Padding(
                       padding: const EdgeInsets.all(4),
                       child: Icon(
-                        LucideIcons.refreshCw,
+                        NightshadeIcons.refresh,
                         size: 14,
                         color: widget.colors.textMuted,
                       ),
@@ -476,7 +468,7 @@ class _AnnotationObjectsPanelState
                     child: Padding(
                       padding: const EdgeInsets.all(4),
                       child: Icon(
-                        LucideIcons.download,
+                        NightshadeIcons.download,
                         size: 14,
                         color: annotation != null
                             ? widget.colors.textMuted
@@ -522,7 +514,7 @@ class _AnnotationObjectsPanelState
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(LucideIcons.map,
+                    Icon(NightshadeIcons.map,
                         size: 14, color: widget.colors.textPrimary),
                     const SizedBox(width: 8),
                     Text('Export DS9 Regions',
@@ -552,7 +544,7 @@ class _AnnotationObjectsPanelState
             child: Padding(
               padding: const EdgeInsets.all(4),
               child: Icon(
-                LucideIcons.x,
+                NightshadeIcons.close,
                 size: 16,
                 color: widget.colors.textMuted,
               ),
@@ -576,14 +568,10 @@ class _AnnotationObjectsPanelState
       dense: true,
       title: Text(
         'Filters',
-        style: TextStyle(
-          color: widget.colors.textSecondary,
-          fontSize: NightshadeTypography.fontSize12,
-          fontWeight: FontWeight.w500,
-        ),
+        style: NightshadeTypography.labelSm.copyWith(color: widget.colors.textSecondary),
       ),
       trailing: Icon(
-        _filtersExpanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+        _filtersExpanded ? NightshadeIcons.chevronUp : NightshadeIcons.chevronDown,
         size: 16,
         color: widget.colors.textMuted,
       ),
@@ -719,7 +707,7 @@ class _AnnotationObjectsPanelState
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            annotation == null ? LucideIcons.sparkle : LucideIcons.searchX,
+            annotation == null ? LucideIcons.sparkle : NightshadeIcons.searchEmpty,
             size: 32,
             color: widget.colors.textMuted.withValues(alpha: 0.5),
           ),

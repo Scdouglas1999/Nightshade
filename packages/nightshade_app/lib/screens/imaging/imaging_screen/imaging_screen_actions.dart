@@ -55,7 +55,7 @@ extension _ImagingScreenActions on _ImagingScreenState {
         backgroundColor: colors.surface,
         title: Row(
           children: [
-            Icon(LucideIcons.sparkles, color: colors.primary, size: 22),
+            Icon(NightshadeIcons.sparkle, color: colors.primary, size: 22),
             const SizedBox(width: 10),
             Expanded(
               child: Text(

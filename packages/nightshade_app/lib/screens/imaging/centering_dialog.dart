@@ -217,7 +217,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                       const SizedBox(width: 12),
                       NightshadeButton(
                         label: 'Start Centering',
-                        icon: LucideIcons.target,
+                        icon: NightshadeIcons.target,
                         onPressed: _startCentering,
                         variant: ButtonVariant.primary,
                       ),
@@ -236,7 +236,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     return Row(
       children: [
         Icon(
-          LucideIcons.target,
+          NightshadeIcons.target,
           color: colors.accent,
           size: 28,
         ),
@@ -358,7 +358,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                 child: _buildCoordInfo(
                   'Target RA',
                   _formatRa(widget.targetRa!),
-                  LucideIcons.compass,
+                  NightshadeIcons.compass,
                   colors,
                 ),
               ),
@@ -383,7 +383,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                   child: _buildCoordInfo(
                     'Solved RA',
                     _formatRa(status.solvedRa!),
-                    LucideIcons.sparkles,
+                    NightshadeIcons.sparkle,
                     colors,
                   ),
                 ),
@@ -392,7 +392,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                   child: _buildCoordInfo(
                     'Solved Dec',
                     _formatDec(status.solvedDec!),
-                    LucideIcons.sparkles,
+                    NightshadeIcons.sparkle,
                     colors,
                   ),
                 ),
@@ -416,7 +416,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
       ),
       child: Row(
         children: [
-          Icon(LucideIcons.camera, size: 16, color: colors.textSecondary),
+          Icon(NightshadeIcons.camera, size: 16, color: colors.textSecondary),
           const SizedBox(width: 8),
           Text(
             'Solve exposure:',
@@ -517,12 +517,12 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     switch (status.state) {
       case CenteringState.exposing:
         stateText = 'Capturing...';
-        stateIcon = LucideIcons.camera;
+        stateIcon = NightshadeIcons.camera;
         stateColor = colors.accent;
         break;
       case CenteringState.solving:
         stateText = 'Plate solving...';
-        stateIcon = LucideIcons.sparkles;
+        stateIcon = NightshadeIcons.sparkle;
         stateColor = colors.accent;
         break;
       case CenteringState.slewing:
@@ -532,12 +532,12 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
         break;
       case CenteringState.verifying:
         stateText = 'Verifying...';
-        stateIcon = LucideIcons.checkCircle;
+        stateIcon = NightshadeIcons.success;
         stateColor = colors.accent;
         break;
       case CenteringState.completed:
         stateText = 'Centered!';
-        stateIcon = LucideIcons.checkCircle;
+        stateIcon = NightshadeIcons.success;
         stateColor = colors.success;
         break;
       case CenteringState.error:
@@ -547,7 +547,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
         break;
       default:
         stateText = 'Ready';
-        stateIcon = LucideIcons.circle;
+        stateIcon = NightshadeIcons.circle;
         stateColor = colors.textMuted;
     }
 
@@ -627,7 +627,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   Widget _buildResultSection(CenteringResult result, NightshadeColors colors) {
     final theme = Theme.of(context);
     final isSuccess = result.success;
-    final icon = isSuccess ? LucideIcons.checkCircle : LucideIcons.xCircle;
+    final icon = isSuccess ? NightshadeIcons.success : NightshadeIcons.error;
     final color = isSuccess ? colors.success : colors.error;
 
     return Container(
@@ -738,9 +738,9 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                         ),
                 ),
                 if (isSuccess)
-                  Icon(LucideIcons.checkCircle, size: 14, color: color),
+                  Icon(NightshadeIcons.success, size: 14, color: color),
                 if (!isSuccess)
-                  Icon(LucideIcons.xCircle, size: 14, color: color),
+                  Icon(NightshadeIcons.error, size: 14, color: color),
               ],
             ),
           );

@@ -28,7 +28,7 @@ class AnnotationCatalogBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(LucideIcons.info, size: 16, color: colors.primary),
+          Icon(NightshadeIcons.info, size: 16, color: colors.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
@@ -47,7 +47,7 @@ class AnnotationCatalogBanner extends StatelessWidget {
             size: ButtonSize.small,
           ),
           IconButton(
-            icon: Icon(LucideIcons.x, size: 16, color: colors.textMuted),
+            icon: Icon(NightshadeIcons.close, size: 16, color: colors.textMuted),
             onPressed: onDismiss,
             tooltip: 'Dismiss',
             padding: EdgeInsets.zero,
@@ -158,14 +158,14 @@ class AnnotationStatusIndicator extends ConsumerWidget {
           ),
         );
       case AnnotationStatus.complete:
-        return Icon(LucideIcons.checkCircle,
+        return Icon(NightshadeIcons.success,
             size: 14, color: _getTextColor(status));
       case AnnotationStatus.error:
       case AnnotationStatus.plateSolveFailed:
         return Icon(LucideIcons.alertCircle,
             size: 14, color: _getTextColor(status));
       case AnnotationStatus.catalogsNotInstalled:
-        return Icon(LucideIcons.alertTriangle,
+        return Icon(NightshadeIcons.warning,
             size: 14, color: _getTextColor(status));
       case AnnotationStatus.idle:
         return const SizedBox.shrink();

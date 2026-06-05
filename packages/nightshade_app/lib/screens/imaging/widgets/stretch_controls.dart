@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -143,7 +142,7 @@ class _CompactStretchControls extends StatelessWidget {
             message: 'Advanced stretch settings',
             position: NightshadeTooltipPosition.bottom,
             child: _CompactIconButton(
-              icon: LucideIcons.settings2,
+              icon: NightshadeIcons.settings2,
               colors: colors,
               onPressed: () => _showAdvancedDialog(context),
             ),
@@ -176,11 +175,7 @@ class _ExpandedStretchControls extends StatelessWidget {
         NightshadeSwitchRow(
           label: 'Auto-Stretch',
           value: settings.enabled,
-          labelStyle: TextStyle(
-            fontSize: NightshadeTypography.fontSize13,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          labelStyle: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
           onChanged: (value) {
             onSettingsChanged(settings.copyWith(enabled: value));
           },
@@ -390,7 +385,7 @@ class _StretchSettingsDialogState extends State<_StretchSettingsDialog> {
 
     return NightshadeDialog(
       title: 'Auto-Stretch Settings',
-      icon: LucideIcons.sliders,
+      icon: NightshadeIcons.sliders,
       width: 420,
       onClose: _close,
       scrollableBody: false,
@@ -477,7 +472,7 @@ class _MethodDropdown extends StatelessWidget {
             isExpanded: isExpanded,
             isDense: true,
             icon: Icon(
-              LucideIcons.chevronDown,
+              NightshadeIcons.chevronDown,
               size: 14,
               color: colors.textSecondary,
             ),
@@ -591,7 +586,7 @@ class _SettingRow extends StatelessWidget {
             message: tooltip!,
             position: NightshadeTooltipPosition.top,
             child: Icon(
-              LucideIcons.helpCircle,
+              NightshadeIcons.help,
               size: 12,
               color: colors.textMuted,
             ),
@@ -658,7 +653,7 @@ class _SliderSetting extends StatelessWidget {
                   message: tooltip!,
                   position: NightshadeTooltipPosition.top,
                   child: Icon(
-                    LucideIcons.helpCircle,
+                    NightshadeIcons.help,
                     size: 12,
                     color: colors.textMuted,
                   ),

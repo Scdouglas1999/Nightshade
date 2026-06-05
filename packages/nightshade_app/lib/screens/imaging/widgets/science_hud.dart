@@ -43,15 +43,11 @@ class ScienceHudPanel extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Icon(LucideIcons.flaskConical, size: 15, color: colors.primary),
+                Icon(NightshadeIcons.science, size: 15, color: colors.primary),
                 const SizedBox(width: 8),
                 Text(
                   'Science HUD',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: NightshadeTypography.fontSize13,
-                  ),
+                  style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                 ),
                 const Spacer(),
                 Text(
@@ -572,11 +568,7 @@ class _OfferTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: NightshadeTypography.fontSize11,
-                    ),
+                    style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -638,7 +630,7 @@ class _TransparencyUnlockProgress extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(LucideIcons.cloud, size: 11, color: colors.textMuted),
+              Icon(NightshadeIcons.cloud, size: 11, color: colors.textMuted),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(

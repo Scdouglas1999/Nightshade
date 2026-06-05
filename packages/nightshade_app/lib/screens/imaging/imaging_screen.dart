@@ -202,7 +202,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                   minPanelWidth: 250,
                   maxPanelWidth: 500,
                   primarySegmentLabel: 'Image',
-                  primarySegmentIcon: LucideIcons.image,
+                  primarySegmentIcon: NightshadeIcons.image,
                   primary: _buildPreviewColumn(
                     colors,
                     viewerState,
@@ -211,7 +211,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                   secondary: [
                     AdaptivePanel(
                       title: 'Controls',
-                      icon: LucideIcons.sliders,
+                      icon: NightshadeIcons.sliders,
                       child: _buildTabsPanel(
                         colors,
                         selectedPanel,
@@ -476,8 +476,8 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                 child: BigActionButton(
                   key: ImagingTutorialKeys.snapshotBtn,
                   icon: _isSingleCapture
-                      ? LucideIcons.loader2
-                      : LucideIcons.camera,
+                      ? NightshadeIcons.loading
+                      : NightshadeIcons.camera,
                   label: _isSingleCapture ? 'Taking...' : 'Snapshot$hostSuffix',
                   color: colors.primary,
                   isLoading: _isSingleCapture,
@@ -491,7 +491,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                 width: 120,
                 child: BigActionButton(
                   key: ImagingTutorialKeys.loopBtn,
-                  icon: _isLooping ? LucideIcons.square : LucideIcons.video,
+                  icon: _isLooping ? NightshadeIcons.stop : LucideIcons.video,
                   label: _isLooping ? 'Stop' : 'Loop',
                   color: _isLooping ? colors.error : colors.accent,
                   isEnabled: isConnected && !_isSingleCapture,

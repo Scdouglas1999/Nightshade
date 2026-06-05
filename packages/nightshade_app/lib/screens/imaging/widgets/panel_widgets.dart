@@ -63,13 +63,13 @@ class PanelTabs extends ConsumerWidget {
   });
 
   static const _tabs = [
-    (LucideIcons.camera, 'Capture'),
-    (LucideIcons.aperture, 'Camera'),
-    (LucideIcons.focus, 'Focus'),
-    (LucideIcons.crosshair, 'Guiding'),
-    (LucideIcons.compass, 'Mount'),
-    (LucideIcons.rotateCw, 'Rotator'),
-    (LucideIcons.layers, 'Stack'),
+    (NightshadeIcons.camera, 'Capture'),
+    (NightshadeIcons.aperture, 'Camera'),
+    (NightshadeIcons.focuser, 'Focus'),
+    (NightshadeIcons.crosshair, 'Guiding'),
+    (NightshadeIcons.compass, 'Mount'),
+    (NightshadeIcons.rotator, 'Rotator'),
+    (NightshadeIcons.layers, 'Stack'),
     (LucideIcons.sparkle, 'Annotations'),
   ];
 
@@ -302,7 +302,7 @@ class _BigActionButtonState extends State<BigActionButton>
                         return Transform.rotate(
                           angle: _loadingController.value * 2 * math.pi,
                           child: Icon(
-                            LucideIcons.loader2,
+                            NightshadeIcons.loading,
                             size: 24,
                             color: primaryForeground.withValues(
                                 alpha: widget.isEnabled ? 1.0 : 0.5),
@@ -459,9 +459,7 @@ class _EditableCompactInputState extends State<EditableCompactInput> {
                         )
                       : Text(
                           widget.value,
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize13,
-                            fontWeight: FontWeight.w500,
+                          style: NightshadeTypography.label.copyWith(
                             color: widget.colors.textPrimary,
                           ),
                         ),
@@ -884,9 +882,7 @@ class _SmallButtonState extends State<SmallButton> {
               Flexible(
                 child: Text(
                   widget.label,
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize12,
-                    fontWeight: FontWeight.w500,
+                  style: NightshadeTypography.labelSm.copyWith(
                     color: widget.isOutline
                         ? primaryColor
                         : isEnabled

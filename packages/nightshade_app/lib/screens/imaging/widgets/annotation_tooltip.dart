@@ -3,7 +3,6 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../../utils/preview_transform.dart';
@@ -184,7 +183,7 @@ class _AnnotationOverlayWrapperState
       context: context,
       builder: (context) => NightshadeDialog(
         title: obj.commonName ?? obj.name,
-        icon: LucideIcons.info,
+        icon: NightshadeIcons.info,
         width: 460,
         child: SingleChildScrollView(
           child: Column(

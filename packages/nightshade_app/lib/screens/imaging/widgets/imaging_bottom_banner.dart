@@ -208,7 +208,7 @@ class _CaptureGroup extends StatelessWidget {
         SmallButton(
           key: ImagingTutorialKeys.snapshotBtn,
           label: isSingleCapture ? 'Taking…' : 'Snapshot$hostSuffix',
-          icon: isSingleCapture ? LucideIcons.loader2 : LucideIcons.camera,
+          icon: isSingleCapture ? NightshadeIcons.loading : NightshadeIcons.camera,
           colors: colors,
           isEnabled: isConnected && !isCapturing,
           onTap: onSnapshot,
@@ -217,7 +217,7 @@ class _CaptureGroup extends StatelessWidget {
         SmallButton(
           key: ImagingTutorialKeys.loopBtn,
           label: isLooping ? 'Stop' : 'Loop',
-          icon: isLooping ? LucideIcons.square : LucideIcons.video,
+          icon: isLooping ? NightshadeIcons.stop : LucideIcons.video,
           colors: colors,
           isOutline: !isLooping,
           isEnabled: isConnected && !isSingleCapture,
@@ -445,7 +445,7 @@ class _ExposurePopover extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.sliders, size: 14, color: colors.textSecondary),
+            Icon(NightshadeIcons.sliders, size: 14, color: colors.textSecondary),
             const SizedBox(width: 6),
             Text(
               'G${settings.gain}',
@@ -457,7 +457,7 @@ class _ExposurePopover extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 2),
-            Icon(LucideIcons.chevronDown, size: 13, color: colors.textMuted),
+            Icon(NightshadeIcons.chevronDown, size: 13, color: colors.textMuted),
           ],
         ),
       ),
@@ -557,11 +557,11 @@ class _BannerStats extends ConsumerWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _segment(LucideIcons.thermometer, tempValue),
+        _segment(NightshadeIcons.temperature, tempValue),
         const SizedBox(width: NightshadeTokens.spaceMd),
-        _segment(LucideIcons.activity, rmsValue),
+        _segment(NightshadeIcons.activity, rmsValue),
         const SizedBox(width: NightshadeTokens.spaceMd),
-        _segment(LucideIcons.target, hfrValue),
+        _segment(NightshadeIcons.target, hfrValue),
       ],
     );
   }

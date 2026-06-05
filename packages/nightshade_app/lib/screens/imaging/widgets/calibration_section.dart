@@ -80,7 +80,7 @@ class CalibrationSection extends ConsumerWidget {
               alignment: Alignment.centerLeft,
               child: NightshadeButton(
                 label: 'Go to Equipment',
-                icon: LucideIcons.plug,
+                icon: NightshadeIcons.connected,
                 size: ButtonSize.small,
                 onPressed: () => context.go('/equipment'),
               ),
@@ -216,13 +216,13 @@ class _StatusBlock extends ConsumerWidget {
       },
       loading: () => _StatusLine(
         colors: colors,
-        icon: LucideIcons.loader2,
+        icon: NightshadeIcons.loading,
         iconColor: colors.textSecondary,
         message: 'Loading defect map status...',
       ),
       error: (err, _) => _StatusLine(
         colors: colors,
-        icon: LucideIcons.alertTriangle,
+        icon: NightshadeIcons.warning,
         iconColor: colors.error,
         message: 'Failed to load defect map status: $err',
       ),
@@ -272,7 +272,7 @@ class _NoMapForBucketBlock extends ConsumerWidget {
       children: [
         _StatusLine(
           colors: colors,
-          icon: LucideIcons.info,
+          icon: NightshadeIcons.info,
           iconColor: colors.textSecondary,
           message: 'No defect map for $cameraName at ${currentBucket.label}.',
         ),
@@ -369,7 +369,7 @@ class _AlternateBucketChip extends ConsumerWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(LucideIcons.thermometer, size: 14, color: colors.accent),
+          Icon(NightshadeIcons.temperature, size: 14, color: colors.accent),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -385,7 +385,7 @@ class _AlternateBucketChip extends ConsumerWidget {
           const SizedBox(width: 8),
           NightshadeButton(
             label: 'Use ${alternateBucket.label} map',
-            icon: LucideIcons.check,
+            icon: NightshadeIcons.check,
             size: ButtonSize.small,
             variant: ButtonVariant.outline,
             onPressed: () async {
@@ -536,7 +536,7 @@ class _BuildButtonState extends ConsumerState<_BuildButton> {
       label: isBuilding
           ? 'Building defect map...'
           : 'Build defect map from current darks',
-      icon: isBuilding ? LucideIcons.loader2 : LucideIcons.cog,
+      icon: isBuilding ? NightshadeIcons.loading : LucideIcons.cog,
       colors: widget.colors,
       isEnabled: buttonEnabled,
       onTap: buttonEnabled ? _pickAndBuild : null,
@@ -703,7 +703,7 @@ class _ClearButton extends ConsumerWidget {
       label: uiState.isClearing
           ? 'Clearing...'
           : 'Clear defect map for this camera at this temperature',
-      icon: uiState.isClearing ? LucideIcons.loader2 : LucideIcons.trash2,
+      icon: uiState.isClearing ? NightshadeIcons.loading : NightshadeIcons.delete,
       isOutline: true,
       colors: colors,
       isEnabled: buttonEnabled,

@@ -123,19 +123,19 @@ class AnnotationObjectListItem extends StatelessWidget {
       case ObjectType.galaxy:
         return LucideIcons.disc3;
       case ObjectType.nebula:
-        return LucideIcons.cloud;
+        return NightshadeIcons.cloud;
       case ObjectType.starCluster:
-        return LucideIcons.sparkles;
+        return NightshadeIcons.sparkle;
       case ObjectType.planetaryNebula:
-        return LucideIcons.circle;
+        return NightshadeIcons.circle;
       case ObjectType.star:
-        return LucideIcons.star;
+        return NightshadeIcons.star;
       case ObjectType.doubleStar:
         return LucideIcons.gitMerge;
       case ObjectType.asterism:
         return LucideIcons.shapes;
       case ObjectType.unknown:
-        return LucideIcons.helpCircle;
+        return NightshadeIcons.help;
     }
   }
 

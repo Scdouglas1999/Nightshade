@@ -277,15 +277,11 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                               : isError
                                   ? 'Error'
                                   : 'Idle',
-                          style: TextStyle(
-                            fontSize: NightshadeTypography.fontSize12,
-                            fontWeight: FontWeight.w500,
-                            color: isRunning
+                          style: NightshadeTypography.labelSm.copyWith(color: isRunning
                                 ? widget.colors.success
                                 : isError
                                     ? widget.colors.error
-                                    : widget.colors.textSecondary,
-                          ),
+                                    : widget.colors.textSecondary),
                         ),
                       ],
                     ),
@@ -313,8 +309,8 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                       child: SmallButton(
                         label: _isStarting ? 'Starting...' : 'Start',
                         icon: _isStarting
-                            ? LucideIcons.loader2
-                            : LucideIcons.layers,
+                            ? NightshadeIcons.loading
+                            : NightshadeIcons.layers,
                         colors: widget.colors,
                         isEnabled: !isRemoteMode && !isRunning && !_isStarting,
                         onTap: _startStacking,
@@ -324,7 +320,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                     Expanded(
                       child: SmallButton(
                         label: _isStopping ? 'Stopping...' : 'Stop',
-                        icon: LucideIcons.square,
+                        icon: NightshadeIcons.stop,
                         isOutline: true,
                         colors: widget.colors,
                         isEnabled: isRunning && !_isStopping,
@@ -339,7 +335,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                     width: double.infinity,
                     child: SmallButton(
                       label: 'Reset Stack',
-                      icon: LucideIcons.refreshCw,
+                      icon: NightshadeIcons.refresh,
                       isOutline: true,
                       colors: widget.colors,
                       onTap: _resetStack,

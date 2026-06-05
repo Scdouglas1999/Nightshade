@@ -133,11 +133,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                     children: [
                       Text(
                         'Mount Status',
-                        style: TextStyle(
-                          fontSize: NightshadeTypography.fontSize14,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textPrimary,
-                        ),
+                        style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                       ),
                       if (isConnected)
                         _StatusBadge(
@@ -193,11 +189,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                 children: [
                   Text(
                     'Actions',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize14,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -222,7 +214,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                       Expanded(
                         child: NightshadeButton(
                           label: mountState.isTracking ? 'Stop Track' : 'Start Track',
-                          icon: LucideIcons.activity,
+                          icon: NightshadeIcons.activity,
                           variant: mountState.isTracking ? ButtonVariant.outline : ButtonVariant.primary,
                           // DEV-P3-1: gate on canSetTracking capability.
                           onPressed: isConnected && canSetTracking
@@ -265,18 +257,14 @@ class _MountTabState extends ConsumerState<MountTab> {
                 children: [
                   Text(
                     'Alignment',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize14,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 16),
                   SizedBox(
                     width: double.infinity,
                     child: NightshadeButton(
                       label: 'Three-Point Polar Alignment',
-                      icon: LucideIcons.compass,
+                      icon: NightshadeIcons.compass,
                       variant: ButtonVariant.outline,
                       onPressed: () => context.push('/polar-alignment'),
                     ),
@@ -297,11 +285,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                 children: [
                   Text(
                     'GoTo / Sync',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize14,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -346,7 +330,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                               // Show disabled button if coordinates are invalid
                               return const NightshadeButton(
                                 label: 'Slew',
-                                icon: LucideIcons.move,
+                                icon: NightshadeIcons.move,
                                 // onPressed null makes button appear disabled
                                 onPressed: null,
                               );
@@ -367,7 +351,7 @@ class _MountTabState extends ConsumerState<MountTab> {
                       Expanded(
                         child: NightshadeButton(
                           label: 'Sync',
-                          icon: LucideIcons.refreshCw,
+                          icon: NightshadeIcons.refresh,
                           variant: ButtonVariant.outline,
                           onPressed: _handleSync,
                         ),
@@ -390,32 +374,28 @@ class _MountTabState extends ConsumerState<MountTab> {
                 children: [
                   Text(
                     'Pulse Guide',
-                    style: TextStyle(
-                      fontSize: NightshadeTypography.fontSize14,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 16),
                   Center(
                     child: Column(
                       children: [
-                         _PulseButton(icon: LucideIcons.chevronUp, label: "N", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide("north").then((result) {
+                         _PulseButton(icon: NightshadeIcons.chevronUp, label: "N", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide("north").then((result) {
                           if (mounted) context.showCommandActionResult(result);
                         })),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            _PulseButton(icon: LucideIcons.chevronLeft, label: "W", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide("west").then((result) {
+                            _PulseButton(icon: NightshadeIcons.chevronLeft, label: "W", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide("west").then((result) {
                               if (mounted) context.showCommandActionResult(result);
                             })),
                             const SizedBox(width: 48),
-                            _PulseButton(icon: LucideIcons.chevronRight, label: "E", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide("east").then((result) {
+                            _PulseButton(icon: NightshadeIcons.chevronRight, label: "E", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide("east").then((result) {
                               if (mounted) context.showCommandActionResult(result);
                             })),
                           ],
                         ),
-                        _PulseButton(icon: LucideIcons.chevronDown, label: "S", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide("south").then((result) {
+                        _PulseButton(icon: NightshadeIcons.chevronDown, label: "S", onPressed: () => ref.read(mountCommandServiceProvider).pulseGuide("south").then((result) {
                           if (mounted) context.showCommandActionResult(result);
                         })),
                       ],
