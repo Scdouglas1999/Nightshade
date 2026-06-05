@@ -80,6 +80,43 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     'recovery_stop_tracking_during_recovery',
     'recovery_abort_on_meridian',
     'recovery_audible_alert_when_entered',
+    // Full-night audit 2026-06-04 follow-up (long tail) — remaining
+    // high-value unattended-night knobs now carried by models.AppSettings.
+    // Weather-safety / dawn.
+    'park_before_dawn',
+    // Meridian flip detail.
+    'enable_meridian_flip',
+    // Focuser temp-comp + backlash (calibration).
+    'temp_compensation',
+    'temp_coefficient',
+    'backlash_compensation',
+    // Guider settle (calibration).
+    'settle_threshold',
+    'settle_timeout',
+    // Plate-solving extra.
+    'plate_solver',
+    'blind_solve',
+    // Site / horizon.
+    'bortle_class',
+    'effective_horizon_deg',
+    // Pre-flight.
+    'preflight_strictness',
+    'polar_alignment_max_age_days',
+    'optical_train_drift_threshold',
+    // Dark library.
+    'dark_library_min_coverage',
+    // Smart Night defaults.
+    'smart_night_max_session_hours',
+    'smart_night_default_af_cadence_frames',
+    'smart_night_default_integration_budget_mins_per_target',
+    'smart_night_include_flats_at_end',
+    'smart_night_use_scheduler_for_multi_target',
+    'smart_night_scheduler_target_threshold',
+    'smart_night_default_strategy',
+    'smart_night_polar_alignment_stale_after_days',
+    'smart_night_sub_exposure_floor_secs',
+    'smart_night_sub_exposure_ceiling_secs',
+    'smart_night_target_snr',
   };
 
   /// FAIL-LOUD guard for the remote-write path. Throws an [UnsupportedError]

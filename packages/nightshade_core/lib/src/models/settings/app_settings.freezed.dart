@@ -364,7 +364,120 @@ mixin _$AppSettings {
   /// Recovery: ring the platform alert sound on recovery entry.
   /// DB key `recovery_audible_alert_when_entered`.
   bool get recoveryAudibleAlertWhenEntered =>
+      throw _privateConstructorUsedError; // -------------------------------------------------------------------
+// Full-night audit 2026-06-04 follow-up (long tail) — the remaining
+// high-value unattended-night knobs that `_applySettingsMap` already
+// maps into AppSettingsState but which had NO wire field, so a remote
+// save of them was rejected by the `_assertKeysRemotable` fail-loud
+// guard. Carrying them here lets a phone-driven night keep them.
+// -------------------------------------------------------------------
+// Weather-safety / dawn.
+  /// Park the mount before astronomical dawn at the end of the night.
+  /// DB key `park_before_dawn`.
+  bool get parkBeforeDawn =>
+      throw _privateConstructorUsedError; // Meridian flip detail.
+  /// Master enable for automatic meridian flips. DB key `enable_meridian_flip`.
+  bool get enableMeridianFlip =>
+      throw _privateConstructorUsedError; // Focuser temperature compensation + backlash (calibration).
+  /// Enable focuser temperature compensation. DB key `temp_compensation`.
+  bool get tempCompensation => throw _privateConstructorUsedError;
+
+  /// Temp-comp coefficient (steps per °C). DB key `temp_coefficient`.
+  double get tempCoefficient => throw _privateConstructorUsedError;
+
+  /// Focuser backlash compensation (steps). DB key `backlash_compensation`.
+  int get backlashCompensation =>
+      throw _privateConstructorUsedError; // Guider settle (calibration).
+  /// Guider settle pixel threshold. DB key `settle_threshold`.
+  double get settleThreshold => throw _privateConstructorUsedError;
+
+  /// Guider settle timeout in seconds. DB key `settle_timeout`.
+  int get settleTimeout =>
+      throw _privateConstructorUsedError; // Plate-solving extra.
+  /// Selected plate solver ('ASTAP', 'Astrometry.net', 'PlateSolve2').
+  /// DB key `plate_solver`.
+  String get plateSolver => throw _privateConstructorUsedError;
+
+  /// Allow a blind (no-hint) solve fallback. DB key `blind_solve`.
+  bool get blindSolve => throw _privateConstructorUsedError; // Site / horizon.
+  /// Bortle dark-sky class (1-9). DB key `bortle_class`.
+  int get bortleClass => throw _privateConstructorUsedError;
+
+  /// Effective horizon altitude floor in degrees. DB key `effective_horizon_deg`.
+  double get effectiveHorizonDeg =>
+      throw _privateConstructorUsedError; // Pre-flight checklist strictness + freshness gates.
+  /// Pre-flight strictness as the enum name ('lax' / 'normal' / 'strict').
+  /// Carried as a String to avoid the wire model depending on the provider
+  /// library that owns the `PreflightStrictness` enum. DB key
+  /// `preflight_strictness`.
+  String get preflightStrictness => throw _privateConstructorUsedError;
+
+  /// Polar-alignment max age (days) before pre-flight flags it.
+  /// DB key `polar_alignment_max_age_days`.
+  int get polarAlignmentMaxAgeDays => throw _privateConstructorUsedError;
+
+  /// Optical-train drift threshold (arcmin) before pre-flight flags it.
+  /// DB key `optical_train_drift_threshold`.
+  double get opticalTrainDriftThreshold =>
+      throw _privateConstructorUsedError; // Dark library.
+  /// Minimum matching dark frames before the dark library is "covered".
+  /// DB key `dark_library_min_coverage`.
+  int get darkLibraryMinCoverage =>
+      throw _privateConstructorUsedError; // -------------------------------------------------------------------
+// Smart Night defaults — the one-click "plan tonight" builder reads these
+// when assembling a sequence, so an unattended night planned from a phone
+// must carry them.
+// -------------------------------------------------------------------
+  /// Cap a planned session to this many hours. `null` => use the full dark
+  /// window. DB key `smart_night_max_session_hours`.
+  double? get smartNightMaxSessionHours => throw _privateConstructorUsedError;
+
+  /// Default autofocus cadence (frames) for built sequences.
+  /// DB key `smart_night_default_af_cadence_frames`.
+  int get smartNightDefaultAfCadenceFrames =>
       throw _privateConstructorUsedError;
+
+  /// Default per-target integration budget (minutes).
+  /// DB key `smart_night_default_integration_budget_mins_per_target`.
+  int get smartNightDefaultIntegrationBudgetMinsPerTarget =>
+      throw _privateConstructorUsedError;
+
+  /// Append flats at the end of the planned night.
+  /// DB key `smart_night_include_flats_at_end`.
+  bool get smartNightIncludeFlatsAtEnd => throw _privateConstructorUsedError;
+
+  /// Use the scheduler (vs a single linear sequence) for multi-target nights.
+  /// DB key `smart_night_use_scheduler_for_multi_target`.
+  bool get smartNightUseSchedulerForMultiTarget =>
+      throw _privateConstructorUsedError;
+
+  /// Target count at/above which the scheduler is used.
+  /// DB key `smart_night_scheduler_target_threshold`.
+  int get smartNightSchedulerTargetThreshold =>
+      throw _privateConstructorUsedError;
+
+  /// Default capture strategy id (e.g. 'auto_lrgb').
+  /// DB key `smart_night_default_strategy`.
+  String get smartNightDefaultStrategy => throw _privateConstructorUsedError;
+
+  /// Days after which polar alignment is considered stale for the wizard.
+  /// DB key `smart_night_polar_alignment_stale_after_days`.
+  int get smartNightPolarAlignmentStaleAfterDays =>
+      throw _privateConstructorUsedError;
+
+  /// Sub-exposure floor (seconds) for the planner.
+  /// DB key `smart_night_sub_exposure_floor_secs`.
+  double get smartNightSubExposureFloorSecs =>
+      throw _privateConstructorUsedError;
+
+  /// Sub-exposure ceiling (seconds) for the planner.
+  /// DB key `smart_night_sub_exposure_ceiling_secs`.
+  double get smartNightSubExposureCeilingSecs =>
+      throw _privateConstructorUsedError;
+
+  /// Target SNR the planner sizes sub-exposures toward.
+  /// DB key `smart_night_target_snr`.
+  double get smartNightTargetSnr => throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -442,7 +555,33 @@ abstract class $AppSettingsCopyWith<$Res> {
       double recoveryDefaultMaxDurationMins,
       bool recoveryStopTrackingDuringRecovery,
       bool recoveryAbortOnMeridian,
-      bool recoveryAudibleAlertWhenEntered});
+      bool recoveryAudibleAlertWhenEntered,
+      bool parkBeforeDawn,
+      bool enableMeridianFlip,
+      bool tempCompensation,
+      double tempCoefficient,
+      int backlashCompensation,
+      double settleThreshold,
+      int settleTimeout,
+      String plateSolver,
+      bool blindSolve,
+      int bortleClass,
+      double effectiveHorizonDeg,
+      String preflightStrictness,
+      int polarAlignmentMaxAgeDays,
+      double opticalTrainDriftThreshold,
+      int darkLibraryMinCoverage,
+      double? smartNightMaxSessionHours,
+      int smartNightDefaultAfCadenceFrames,
+      int smartNightDefaultIntegrationBudgetMinsPerTarget,
+      bool smartNightIncludeFlatsAtEnd,
+      bool smartNightUseSchedulerForMultiTarget,
+      int smartNightSchedulerTargetThreshold,
+      String smartNightDefaultStrategy,
+      int smartNightPolarAlignmentStaleAfterDays,
+      double smartNightSubExposureFloorSecs,
+      double smartNightSubExposureCeilingSecs,
+      double smartNightTargetSnr});
 
   $ObserverLocationCopyWith<$Res>? get location;
 }
@@ -524,6 +663,32 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
     Object? recoveryStopTrackingDuringRecovery = null,
     Object? recoveryAbortOnMeridian = null,
     Object? recoveryAudibleAlertWhenEntered = null,
+    Object? parkBeforeDawn = null,
+    Object? enableMeridianFlip = null,
+    Object? tempCompensation = null,
+    Object? tempCoefficient = null,
+    Object? backlashCompensation = null,
+    Object? settleThreshold = null,
+    Object? settleTimeout = null,
+    Object? plateSolver = null,
+    Object? blindSolve = null,
+    Object? bortleClass = null,
+    Object? effectiveHorizonDeg = null,
+    Object? preflightStrictness = null,
+    Object? polarAlignmentMaxAgeDays = null,
+    Object? opticalTrainDriftThreshold = null,
+    Object? darkLibraryMinCoverage = null,
+    Object? smartNightMaxSessionHours = freezed,
+    Object? smartNightDefaultAfCadenceFrames = null,
+    Object? smartNightDefaultIntegrationBudgetMinsPerTarget = null,
+    Object? smartNightIncludeFlatsAtEnd = null,
+    Object? smartNightUseSchedulerForMultiTarget = null,
+    Object? smartNightSchedulerTargetThreshold = null,
+    Object? smartNightDefaultStrategy = null,
+    Object? smartNightPolarAlignmentStaleAfterDays = null,
+    Object? smartNightSubExposureFloorSecs = null,
+    Object? smartNightSubExposureCeilingSecs = null,
+    Object? smartNightTargetSnr = null,
   }) {
     return _then(_value.copyWith(
       location: freezed == location
@@ -785,6 +950,114 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
           ? _value.recoveryAudibleAlertWhenEntered
           : recoveryAudibleAlertWhenEntered // ignore: cast_nullable_to_non_nullable
               as bool,
+      parkBeforeDawn: null == parkBeforeDawn
+          ? _value.parkBeforeDawn
+          : parkBeforeDawn // ignore: cast_nullable_to_non_nullable
+              as bool,
+      enableMeridianFlip: null == enableMeridianFlip
+          ? _value.enableMeridianFlip
+          : enableMeridianFlip // ignore: cast_nullable_to_non_nullable
+              as bool,
+      tempCompensation: null == tempCompensation
+          ? _value.tempCompensation
+          : tempCompensation // ignore: cast_nullable_to_non_nullable
+              as bool,
+      tempCoefficient: null == tempCoefficient
+          ? _value.tempCoefficient
+          : tempCoefficient // ignore: cast_nullable_to_non_nullable
+              as double,
+      backlashCompensation: null == backlashCompensation
+          ? _value.backlashCompensation
+          : backlashCompensation // ignore: cast_nullable_to_non_nullable
+              as int,
+      settleThreshold: null == settleThreshold
+          ? _value.settleThreshold
+          : settleThreshold // ignore: cast_nullable_to_non_nullable
+              as double,
+      settleTimeout: null == settleTimeout
+          ? _value.settleTimeout
+          : settleTimeout // ignore: cast_nullable_to_non_nullable
+              as int,
+      plateSolver: null == plateSolver
+          ? _value.plateSolver
+          : plateSolver // ignore: cast_nullable_to_non_nullable
+              as String,
+      blindSolve: null == blindSolve
+          ? _value.blindSolve
+          : blindSolve // ignore: cast_nullable_to_non_nullable
+              as bool,
+      bortleClass: null == bortleClass
+          ? _value.bortleClass
+          : bortleClass // ignore: cast_nullable_to_non_nullable
+              as int,
+      effectiveHorizonDeg: null == effectiveHorizonDeg
+          ? _value.effectiveHorizonDeg
+          : effectiveHorizonDeg // ignore: cast_nullable_to_non_nullable
+              as double,
+      preflightStrictness: null == preflightStrictness
+          ? _value.preflightStrictness
+          : preflightStrictness // ignore: cast_nullable_to_non_nullable
+              as String,
+      polarAlignmentMaxAgeDays: null == polarAlignmentMaxAgeDays
+          ? _value.polarAlignmentMaxAgeDays
+          : polarAlignmentMaxAgeDays // ignore: cast_nullable_to_non_nullable
+              as int,
+      opticalTrainDriftThreshold: null == opticalTrainDriftThreshold
+          ? _value.opticalTrainDriftThreshold
+          : opticalTrainDriftThreshold // ignore: cast_nullable_to_non_nullable
+              as double,
+      darkLibraryMinCoverage: null == darkLibraryMinCoverage
+          ? _value.darkLibraryMinCoverage
+          : darkLibraryMinCoverage // ignore: cast_nullable_to_non_nullable
+              as int,
+      smartNightMaxSessionHours: freezed == smartNightMaxSessionHours
+          ? _value.smartNightMaxSessionHours
+          : smartNightMaxSessionHours // ignore: cast_nullable_to_non_nullable
+              as double?,
+      smartNightDefaultAfCadenceFrames: null == smartNightDefaultAfCadenceFrames
+          ? _value.smartNightDefaultAfCadenceFrames
+          : smartNightDefaultAfCadenceFrames // ignore: cast_nullable_to_non_nullable
+              as int,
+      smartNightDefaultIntegrationBudgetMinsPerTarget: null ==
+              smartNightDefaultIntegrationBudgetMinsPerTarget
+          ? _value.smartNightDefaultIntegrationBudgetMinsPerTarget
+          : smartNightDefaultIntegrationBudgetMinsPerTarget // ignore: cast_nullable_to_non_nullable
+              as int,
+      smartNightIncludeFlatsAtEnd: null == smartNightIncludeFlatsAtEnd
+          ? _value.smartNightIncludeFlatsAtEnd
+          : smartNightIncludeFlatsAtEnd // ignore: cast_nullable_to_non_nullable
+              as bool,
+      smartNightUseSchedulerForMultiTarget: null ==
+              smartNightUseSchedulerForMultiTarget
+          ? _value.smartNightUseSchedulerForMultiTarget
+          : smartNightUseSchedulerForMultiTarget // ignore: cast_nullable_to_non_nullable
+              as bool,
+      smartNightSchedulerTargetThreshold: null ==
+              smartNightSchedulerTargetThreshold
+          ? _value.smartNightSchedulerTargetThreshold
+          : smartNightSchedulerTargetThreshold // ignore: cast_nullable_to_non_nullable
+              as int,
+      smartNightDefaultStrategy: null == smartNightDefaultStrategy
+          ? _value.smartNightDefaultStrategy
+          : smartNightDefaultStrategy // ignore: cast_nullable_to_non_nullable
+              as String,
+      smartNightPolarAlignmentStaleAfterDays: null ==
+              smartNightPolarAlignmentStaleAfterDays
+          ? _value.smartNightPolarAlignmentStaleAfterDays
+          : smartNightPolarAlignmentStaleAfterDays // ignore: cast_nullable_to_non_nullable
+              as int,
+      smartNightSubExposureFloorSecs: null == smartNightSubExposureFloorSecs
+          ? _value.smartNightSubExposureFloorSecs
+          : smartNightSubExposureFloorSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      smartNightSubExposureCeilingSecs: null == smartNightSubExposureCeilingSecs
+          ? _value.smartNightSubExposureCeilingSecs
+          : smartNightSubExposureCeilingSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      smartNightTargetSnr: null == smartNightTargetSnr
+          ? _value.smartNightTargetSnr
+          : smartNightTargetSnr // ignore: cast_nullable_to_non_nullable
+              as double,
     ) as $Val);
   }
 
@@ -873,7 +1146,33 @@ abstract class _$$AppSettingsImplCopyWith<$Res>
       double recoveryDefaultMaxDurationMins,
       bool recoveryStopTrackingDuringRecovery,
       bool recoveryAbortOnMeridian,
-      bool recoveryAudibleAlertWhenEntered});
+      bool recoveryAudibleAlertWhenEntered,
+      bool parkBeforeDawn,
+      bool enableMeridianFlip,
+      bool tempCompensation,
+      double tempCoefficient,
+      int backlashCompensation,
+      double settleThreshold,
+      int settleTimeout,
+      String plateSolver,
+      bool blindSolve,
+      int bortleClass,
+      double effectiveHorizonDeg,
+      String preflightStrictness,
+      int polarAlignmentMaxAgeDays,
+      double opticalTrainDriftThreshold,
+      int darkLibraryMinCoverage,
+      double? smartNightMaxSessionHours,
+      int smartNightDefaultAfCadenceFrames,
+      int smartNightDefaultIntegrationBudgetMinsPerTarget,
+      bool smartNightIncludeFlatsAtEnd,
+      bool smartNightUseSchedulerForMultiTarget,
+      int smartNightSchedulerTargetThreshold,
+      String smartNightDefaultStrategy,
+      int smartNightPolarAlignmentStaleAfterDays,
+      double smartNightSubExposureFloorSecs,
+      double smartNightSubExposureCeilingSecs,
+      double smartNightTargetSnr});
 
   @override
   $ObserverLocationCopyWith<$Res>? get location;
@@ -954,6 +1253,32 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
     Object? recoveryStopTrackingDuringRecovery = null,
     Object? recoveryAbortOnMeridian = null,
     Object? recoveryAudibleAlertWhenEntered = null,
+    Object? parkBeforeDawn = null,
+    Object? enableMeridianFlip = null,
+    Object? tempCompensation = null,
+    Object? tempCoefficient = null,
+    Object? backlashCompensation = null,
+    Object? settleThreshold = null,
+    Object? settleTimeout = null,
+    Object? plateSolver = null,
+    Object? blindSolve = null,
+    Object? bortleClass = null,
+    Object? effectiveHorizonDeg = null,
+    Object? preflightStrictness = null,
+    Object? polarAlignmentMaxAgeDays = null,
+    Object? opticalTrainDriftThreshold = null,
+    Object? darkLibraryMinCoverage = null,
+    Object? smartNightMaxSessionHours = freezed,
+    Object? smartNightDefaultAfCadenceFrames = null,
+    Object? smartNightDefaultIntegrationBudgetMinsPerTarget = null,
+    Object? smartNightIncludeFlatsAtEnd = null,
+    Object? smartNightUseSchedulerForMultiTarget = null,
+    Object? smartNightSchedulerTargetThreshold = null,
+    Object? smartNightDefaultStrategy = null,
+    Object? smartNightPolarAlignmentStaleAfterDays = null,
+    Object? smartNightSubExposureFloorSecs = null,
+    Object? smartNightSubExposureCeilingSecs = null,
+    Object? smartNightTargetSnr = null,
   }) {
     return _then(_$AppSettingsImpl(
       location: freezed == location
@@ -1215,6 +1540,114 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
           ? _value.recoveryAudibleAlertWhenEntered
           : recoveryAudibleAlertWhenEntered // ignore: cast_nullable_to_non_nullable
               as bool,
+      parkBeforeDawn: null == parkBeforeDawn
+          ? _value.parkBeforeDawn
+          : parkBeforeDawn // ignore: cast_nullable_to_non_nullable
+              as bool,
+      enableMeridianFlip: null == enableMeridianFlip
+          ? _value.enableMeridianFlip
+          : enableMeridianFlip // ignore: cast_nullable_to_non_nullable
+              as bool,
+      tempCompensation: null == tempCompensation
+          ? _value.tempCompensation
+          : tempCompensation // ignore: cast_nullable_to_non_nullable
+              as bool,
+      tempCoefficient: null == tempCoefficient
+          ? _value.tempCoefficient
+          : tempCoefficient // ignore: cast_nullable_to_non_nullable
+              as double,
+      backlashCompensation: null == backlashCompensation
+          ? _value.backlashCompensation
+          : backlashCompensation // ignore: cast_nullable_to_non_nullable
+              as int,
+      settleThreshold: null == settleThreshold
+          ? _value.settleThreshold
+          : settleThreshold // ignore: cast_nullable_to_non_nullable
+              as double,
+      settleTimeout: null == settleTimeout
+          ? _value.settleTimeout
+          : settleTimeout // ignore: cast_nullable_to_non_nullable
+              as int,
+      plateSolver: null == plateSolver
+          ? _value.plateSolver
+          : plateSolver // ignore: cast_nullable_to_non_nullable
+              as String,
+      blindSolve: null == blindSolve
+          ? _value.blindSolve
+          : blindSolve // ignore: cast_nullable_to_non_nullable
+              as bool,
+      bortleClass: null == bortleClass
+          ? _value.bortleClass
+          : bortleClass // ignore: cast_nullable_to_non_nullable
+              as int,
+      effectiveHorizonDeg: null == effectiveHorizonDeg
+          ? _value.effectiveHorizonDeg
+          : effectiveHorizonDeg // ignore: cast_nullable_to_non_nullable
+              as double,
+      preflightStrictness: null == preflightStrictness
+          ? _value.preflightStrictness
+          : preflightStrictness // ignore: cast_nullable_to_non_nullable
+              as String,
+      polarAlignmentMaxAgeDays: null == polarAlignmentMaxAgeDays
+          ? _value.polarAlignmentMaxAgeDays
+          : polarAlignmentMaxAgeDays // ignore: cast_nullable_to_non_nullable
+              as int,
+      opticalTrainDriftThreshold: null == opticalTrainDriftThreshold
+          ? _value.opticalTrainDriftThreshold
+          : opticalTrainDriftThreshold // ignore: cast_nullable_to_non_nullable
+              as double,
+      darkLibraryMinCoverage: null == darkLibraryMinCoverage
+          ? _value.darkLibraryMinCoverage
+          : darkLibraryMinCoverage // ignore: cast_nullable_to_non_nullable
+              as int,
+      smartNightMaxSessionHours: freezed == smartNightMaxSessionHours
+          ? _value.smartNightMaxSessionHours
+          : smartNightMaxSessionHours // ignore: cast_nullable_to_non_nullable
+              as double?,
+      smartNightDefaultAfCadenceFrames: null == smartNightDefaultAfCadenceFrames
+          ? _value.smartNightDefaultAfCadenceFrames
+          : smartNightDefaultAfCadenceFrames // ignore: cast_nullable_to_non_nullable
+              as int,
+      smartNightDefaultIntegrationBudgetMinsPerTarget: null ==
+              smartNightDefaultIntegrationBudgetMinsPerTarget
+          ? _value.smartNightDefaultIntegrationBudgetMinsPerTarget
+          : smartNightDefaultIntegrationBudgetMinsPerTarget // ignore: cast_nullable_to_non_nullable
+              as int,
+      smartNightIncludeFlatsAtEnd: null == smartNightIncludeFlatsAtEnd
+          ? _value.smartNightIncludeFlatsAtEnd
+          : smartNightIncludeFlatsAtEnd // ignore: cast_nullable_to_non_nullable
+              as bool,
+      smartNightUseSchedulerForMultiTarget: null ==
+              smartNightUseSchedulerForMultiTarget
+          ? _value.smartNightUseSchedulerForMultiTarget
+          : smartNightUseSchedulerForMultiTarget // ignore: cast_nullable_to_non_nullable
+              as bool,
+      smartNightSchedulerTargetThreshold: null ==
+              smartNightSchedulerTargetThreshold
+          ? _value.smartNightSchedulerTargetThreshold
+          : smartNightSchedulerTargetThreshold // ignore: cast_nullable_to_non_nullable
+              as int,
+      smartNightDefaultStrategy: null == smartNightDefaultStrategy
+          ? _value.smartNightDefaultStrategy
+          : smartNightDefaultStrategy // ignore: cast_nullable_to_non_nullable
+              as String,
+      smartNightPolarAlignmentStaleAfterDays: null ==
+              smartNightPolarAlignmentStaleAfterDays
+          ? _value.smartNightPolarAlignmentStaleAfterDays
+          : smartNightPolarAlignmentStaleAfterDays // ignore: cast_nullable_to_non_nullable
+              as int,
+      smartNightSubExposureFloorSecs: null == smartNightSubExposureFloorSecs
+          ? _value.smartNightSubExposureFloorSecs
+          : smartNightSubExposureFloorSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      smartNightSubExposureCeilingSecs: null == smartNightSubExposureCeilingSecs
+          ? _value.smartNightSubExposureCeilingSecs
+          : smartNightSubExposureCeilingSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      smartNightTargetSnr: null == smartNightTargetSnr
+          ? _value.smartNightTargetSnr
+          : smartNightTargetSnr // ignore: cast_nullable_to_non_nullable
+              as double,
     ));
   }
 }
@@ -1289,7 +1722,33 @@ class _$AppSettingsImpl implements _AppSettings {
       this.recoveryDefaultMaxDurationMins = 90.0,
       this.recoveryStopTrackingDuringRecovery = true,
       this.recoveryAbortOnMeridian = true,
-      this.recoveryAudibleAlertWhenEntered = true})
+      this.recoveryAudibleAlertWhenEntered = true,
+      this.parkBeforeDawn = true,
+      this.enableMeridianFlip = true,
+      this.tempCompensation = true,
+      this.tempCoefficient = -12.0,
+      this.backlashCompensation = 0,
+      this.settleThreshold = 0.5,
+      this.settleTimeout = 30,
+      this.plateSolver = 'ASTAP',
+      this.blindSolve = false,
+      this.bortleClass = 5,
+      this.effectiveHorizonDeg = 0.0,
+      this.preflightStrictness = 'normal',
+      this.polarAlignmentMaxAgeDays = 7,
+      this.opticalTrainDriftThreshold = 8.0,
+      this.darkLibraryMinCoverage = 10,
+      this.smartNightMaxSessionHours,
+      this.smartNightDefaultAfCadenceFrames = 25,
+      this.smartNightDefaultIntegrationBudgetMinsPerTarget = 240,
+      this.smartNightIncludeFlatsAtEnd = true,
+      this.smartNightUseSchedulerForMultiTarget = true,
+      this.smartNightSchedulerTargetThreshold = 3,
+      this.smartNightDefaultStrategy = 'auto_lrgb',
+      this.smartNightPolarAlignmentStaleAfterDays = 7,
+      this.smartNightSubExposureFloorSecs = 30.0,
+      this.smartNightSubExposureCeilingSecs = 300.0,
+      this.smartNightTargetSnr = 30.0})
       : _adaptiveExposurePerFilterEnabled = adaptiveExposurePerFilterEnabled,
         _adaptiveExposurePerFilterMinSecs = adaptiveExposurePerFilterMinSecs,
         _adaptiveExposurePerFilterMaxSecs = adaptiveExposurePerFilterMaxSecs;
@@ -1603,10 +2062,169 @@ class _$AppSettingsImpl implements _AppSettings {
   @override
   @JsonKey()
   final bool recoveryAudibleAlertWhenEntered;
+// -------------------------------------------------------------------
+// Full-night audit 2026-06-04 follow-up (long tail) — the remaining
+// high-value unattended-night knobs that `_applySettingsMap` already
+// maps into AppSettingsState but which had NO wire field, so a remote
+// save of them was rejected by the `_assertKeysRemotable` fail-loud
+// guard. Carrying them here lets a phone-driven night keep them.
+// -------------------------------------------------------------------
+// Weather-safety / dawn.
+  /// Park the mount before astronomical dawn at the end of the night.
+  /// DB key `park_before_dawn`.
+  @override
+  @JsonKey()
+  final bool parkBeforeDawn;
+// Meridian flip detail.
+  /// Master enable for automatic meridian flips. DB key `enable_meridian_flip`.
+  @override
+  @JsonKey()
+  final bool enableMeridianFlip;
+// Focuser temperature compensation + backlash (calibration).
+  /// Enable focuser temperature compensation. DB key `temp_compensation`.
+  @override
+  @JsonKey()
+  final bool tempCompensation;
+
+  /// Temp-comp coefficient (steps per °C). DB key `temp_coefficient`.
+  @override
+  @JsonKey()
+  final double tempCoefficient;
+
+  /// Focuser backlash compensation (steps). DB key `backlash_compensation`.
+  @override
+  @JsonKey()
+  final int backlashCompensation;
+// Guider settle (calibration).
+  /// Guider settle pixel threshold. DB key `settle_threshold`.
+  @override
+  @JsonKey()
+  final double settleThreshold;
+
+  /// Guider settle timeout in seconds. DB key `settle_timeout`.
+  @override
+  @JsonKey()
+  final int settleTimeout;
+// Plate-solving extra.
+  /// Selected plate solver ('ASTAP', 'Astrometry.net', 'PlateSolve2').
+  /// DB key `plate_solver`.
+  @override
+  @JsonKey()
+  final String plateSolver;
+
+  /// Allow a blind (no-hint) solve fallback. DB key `blind_solve`.
+  @override
+  @JsonKey()
+  final bool blindSolve;
+// Site / horizon.
+  /// Bortle dark-sky class (1-9). DB key `bortle_class`.
+  @override
+  @JsonKey()
+  final int bortleClass;
+
+  /// Effective horizon altitude floor in degrees. DB key `effective_horizon_deg`.
+  @override
+  @JsonKey()
+  final double effectiveHorizonDeg;
+// Pre-flight checklist strictness + freshness gates.
+  /// Pre-flight strictness as the enum name ('lax' / 'normal' / 'strict').
+  /// Carried as a String to avoid the wire model depending on the provider
+  /// library that owns the `PreflightStrictness` enum. DB key
+  /// `preflight_strictness`.
+  @override
+  @JsonKey()
+  final String preflightStrictness;
+
+  /// Polar-alignment max age (days) before pre-flight flags it.
+  /// DB key `polar_alignment_max_age_days`.
+  @override
+  @JsonKey()
+  final int polarAlignmentMaxAgeDays;
+
+  /// Optical-train drift threshold (arcmin) before pre-flight flags it.
+  /// DB key `optical_train_drift_threshold`.
+  @override
+  @JsonKey()
+  final double opticalTrainDriftThreshold;
+// Dark library.
+  /// Minimum matching dark frames before the dark library is "covered".
+  /// DB key `dark_library_min_coverage`.
+  @override
+  @JsonKey()
+  final int darkLibraryMinCoverage;
+// -------------------------------------------------------------------
+// Smart Night defaults — the one-click "plan tonight" builder reads these
+// when assembling a sequence, so an unattended night planned from a phone
+// must carry them.
+// -------------------------------------------------------------------
+  /// Cap a planned session to this many hours. `null` => use the full dark
+  /// window. DB key `smart_night_max_session_hours`.
+  @override
+  final double? smartNightMaxSessionHours;
+
+  /// Default autofocus cadence (frames) for built sequences.
+  /// DB key `smart_night_default_af_cadence_frames`.
+  @override
+  @JsonKey()
+  final int smartNightDefaultAfCadenceFrames;
+
+  /// Default per-target integration budget (minutes).
+  /// DB key `smart_night_default_integration_budget_mins_per_target`.
+  @override
+  @JsonKey()
+  final int smartNightDefaultIntegrationBudgetMinsPerTarget;
+
+  /// Append flats at the end of the planned night.
+  /// DB key `smart_night_include_flats_at_end`.
+  @override
+  @JsonKey()
+  final bool smartNightIncludeFlatsAtEnd;
+
+  /// Use the scheduler (vs a single linear sequence) for multi-target nights.
+  /// DB key `smart_night_use_scheduler_for_multi_target`.
+  @override
+  @JsonKey()
+  final bool smartNightUseSchedulerForMultiTarget;
+
+  /// Target count at/above which the scheduler is used.
+  /// DB key `smart_night_scheduler_target_threshold`.
+  @override
+  @JsonKey()
+  final int smartNightSchedulerTargetThreshold;
+
+  /// Default capture strategy id (e.g. 'auto_lrgb').
+  /// DB key `smart_night_default_strategy`.
+  @override
+  @JsonKey()
+  final String smartNightDefaultStrategy;
+
+  /// Days after which polar alignment is considered stale for the wizard.
+  /// DB key `smart_night_polar_alignment_stale_after_days`.
+  @override
+  @JsonKey()
+  final int smartNightPolarAlignmentStaleAfterDays;
+
+  /// Sub-exposure floor (seconds) for the planner.
+  /// DB key `smart_night_sub_exposure_floor_secs`.
+  @override
+  @JsonKey()
+  final double smartNightSubExposureFloorSecs;
+
+  /// Sub-exposure ceiling (seconds) for the planner.
+  /// DB key `smart_night_sub_exposure_ceiling_secs`.
+  @override
+  @JsonKey()
+  final double smartNightSubExposureCeilingSecs;
+
+  /// Target SNR the planner sizes sub-exposures toward.
+  /// DB key `smart_night_target_snr`.
+  @override
+  @JsonKey()
+  final double smartNightTargetSnr;
 
   @override
   String toString() {
-    return 'AppSettings(location: $location, theme: $theme, language: $language, autoConnect: $autoConnect, latitude: $latitude, longitude: $longitude, elevation: $elevation, fileNamingPattern: $fileNamingPattern, meridianFlipMinutes: $meridianFlipMinutes, autoFocusEveryMinutes: $autoFocusEveryMinutes, ditherEveryFrames: $ditherEveryFrames, plateSolveTimeout: $plateSolveTimeout, plateSolveSearchRadius: $plateSolveSearchRadius, discordWebhook: $discordWebhook, pushoverKey: $pushoverKey, pushoverUser: $pushoverUser, astapPath: $astapPath, autoDiscoverOnLaunch: $autoDiscoverOnLaunch, accentColor: $accentColor, fontSize: $fontSize, uiScale: $uiScale, indiServerHost: $indiServerHost, indiServerPort: $indiServerPort, indiAutoConnect: $indiAutoConnect, alpacaServerHost: $alpacaServerHost, alpacaServerPort: $alpacaServerPort, alpacaAutoDiscover: $alpacaAutoDiscover, useNativeExecution: $useNativeExecution, useSimulationMode: $useSimulationMode, imageOutputPath: $imageOutputPath, observer: $observer, telescope: $telescope, instrument: $instrument, updateCheckEnabled: $updateCheckEnabled, updateServerUrl: $updateServerUrl, updateChannel: $updateChannel, updateCheckIntervalHours: $updateCheckIntervalHours, skippedUpdateVersion: $skippedUpdateVersion, safetyFailMode: $safetyFailMode, enableImageGrading: $enableImageGrading, imageGradingHfrThresholdPx: $imageGradingHfrThresholdPx, imageGradingHfrBaselinePercent: $imageGradingHfrBaselinePercent, imageGradingEccentricityThreshold: $imageGradingEccentricityThreshold, imageGradingStarCountMin: $imageGradingStarCountMin, imageGradingMaxConsecutiveRejects: $imageGradingMaxConsecutiveRejects, imageGradingRejectFolderPath: $imageGradingRejectFolderPath, adaptiveExposureEnabled: $adaptiveExposureEnabled, adaptiveExposureTargetSnr: $adaptiveExposureTargetSnr, adaptiveExposureReferenceMag: $adaptiveExposureReferenceMag, adaptiveExposureMinSecs: $adaptiveExposureMinSecs, adaptiveExposureMaxSecs: $adaptiveExposureMaxSecs, adaptiveExposurePerFilterEnabled: $adaptiveExposurePerFilterEnabled, adaptiveExposurePerFilterMinSecs: $adaptiveExposurePerFilterMinSecs, adaptiveExposurePerFilterMaxSecs: $adaptiveExposurePerFilterMaxSecs, parkOnUnsafeWeather: $parkOnUnsafeWeather, autoFocusOnFilterChange: $autoFocusOnFilterChange, afDisableGuidingDuringAf: $afDisableGuidingDuringAf, ditherEnabled: $ditherEnabled, ditherScale: $ditherScale, recoveryDefaultRetryIntervalMins: $recoveryDefaultRetryIntervalMins, recoveryDefaultMaxDurationMins: $recoveryDefaultMaxDurationMins, recoveryStopTrackingDuringRecovery: $recoveryStopTrackingDuringRecovery, recoveryAbortOnMeridian: $recoveryAbortOnMeridian, recoveryAudibleAlertWhenEntered: $recoveryAudibleAlertWhenEntered)';
+    return 'AppSettings(location: $location, theme: $theme, language: $language, autoConnect: $autoConnect, latitude: $latitude, longitude: $longitude, elevation: $elevation, fileNamingPattern: $fileNamingPattern, meridianFlipMinutes: $meridianFlipMinutes, autoFocusEveryMinutes: $autoFocusEveryMinutes, ditherEveryFrames: $ditherEveryFrames, plateSolveTimeout: $plateSolveTimeout, plateSolveSearchRadius: $plateSolveSearchRadius, discordWebhook: $discordWebhook, pushoverKey: $pushoverKey, pushoverUser: $pushoverUser, astapPath: $astapPath, autoDiscoverOnLaunch: $autoDiscoverOnLaunch, accentColor: $accentColor, fontSize: $fontSize, uiScale: $uiScale, indiServerHost: $indiServerHost, indiServerPort: $indiServerPort, indiAutoConnect: $indiAutoConnect, alpacaServerHost: $alpacaServerHost, alpacaServerPort: $alpacaServerPort, alpacaAutoDiscover: $alpacaAutoDiscover, useNativeExecution: $useNativeExecution, useSimulationMode: $useSimulationMode, imageOutputPath: $imageOutputPath, observer: $observer, telescope: $telescope, instrument: $instrument, updateCheckEnabled: $updateCheckEnabled, updateServerUrl: $updateServerUrl, updateChannel: $updateChannel, updateCheckIntervalHours: $updateCheckIntervalHours, skippedUpdateVersion: $skippedUpdateVersion, safetyFailMode: $safetyFailMode, enableImageGrading: $enableImageGrading, imageGradingHfrThresholdPx: $imageGradingHfrThresholdPx, imageGradingHfrBaselinePercent: $imageGradingHfrBaselinePercent, imageGradingEccentricityThreshold: $imageGradingEccentricityThreshold, imageGradingStarCountMin: $imageGradingStarCountMin, imageGradingMaxConsecutiveRejects: $imageGradingMaxConsecutiveRejects, imageGradingRejectFolderPath: $imageGradingRejectFolderPath, adaptiveExposureEnabled: $adaptiveExposureEnabled, adaptiveExposureTargetSnr: $adaptiveExposureTargetSnr, adaptiveExposureReferenceMag: $adaptiveExposureReferenceMag, adaptiveExposureMinSecs: $adaptiveExposureMinSecs, adaptiveExposureMaxSecs: $adaptiveExposureMaxSecs, adaptiveExposurePerFilterEnabled: $adaptiveExposurePerFilterEnabled, adaptiveExposurePerFilterMinSecs: $adaptiveExposurePerFilterMinSecs, adaptiveExposurePerFilterMaxSecs: $adaptiveExposurePerFilterMaxSecs, parkOnUnsafeWeather: $parkOnUnsafeWeather, autoFocusOnFilterChange: $autoFocusOnFilterChange, afDisableGuidingDuringAf: $afDisableGuidingDuringAf, ditherEnabled: $ditherEnabled, ditherScale: $ditherScale, recoveryDefaultRetryIntervalMins: $recoveryDefaultRetryIntervalMins, recoveryDefaultMaxDurationMins: $recoveryDefaultMaxDurationMins, recoveryStopTrackingDuringRecovery: $recoveryStopTrackingDuringRecovery, recoveryAbortOnMeridian: $recoveryAbortOnMeridian, recoveryAudibleAlertWhenEntered: $recoveryAudibleAlertWhenEntered, parkBeforeDawn: $parkBeforeDawn, enableMeridianFlip: $enableMeridianFlip, tempCompensation: $tempCompensation, tempCoefficient: $tempCoefficient, backlashCompensation: $backlashCompensation, settleThreshold: $settleThreshold, settleTimeout: $settleTimeout, plateSolver: $plateSolver, blindSolve: $blindSolve, bortleClass: $bortleClass, effectiveHorizonDeg: $effectiveHorizonDeg, preflightStrictness: $preflightStrictness, polarAlignmentMaxAgeDays: $polarAlignmentMaxAgeDays, opticalTrainDriftThreshold: $opticalTrainDriftThreshold, darkLibraryMinCoverage: $darkLibraryMinCoverage, smartNightMaxSessionHours: $smartNightMaxSessionHours, smartNightDefaultAfCadenceFrames: $smartNightDefaultAfCadenceFrames, smartNightDefaultIntegrationBudgetMinsPerTarget: $smartNightDefaultIntegrationBudgetMinsPerTarget, smartNightIncludeFlatsAtEnd: $smartNightIncludeFlatsAtEnd, smartNightUseSchedulerForMultiTarget: $smartNightUseSchedulerForMultiTarget, smartNightSchedulerTargetThreshold: $smartNightSchedulerTargetThreshold, smartNightDefaultStrategy: $smartNightDefaultStrategy, smartNightPolarAlignmentStaleAfterDays: $smartNightPolarAlignmentStaleAfterDays, smartNightSubExposureFloorSecs: $smartNightSubExposureFloorSecs, smartNightSubExposureCeilingSecs: $smartNightSubExposureCeilingSecs, smartNightTargetSnr: $smartNightTargetSnr)';
   }
 
   @override
@@ -1720,7 +2338,33 @@ class _$AppSettingsImpl implements _AppSettings {
             (identical(other.recoveryDefaultMaxDurationMins, recoveryDefaultMaxDurationMins) || other.recoveryDefaultMaxDurationMins == recoveryDefaultMaxDurationMins) &&
             (identical(other.recoveryStopTrackingDuringRecovery, recoveryStopTrackingDuringRecovery) || other.recoveryStopTrackingDuringRecovery == recoveryStopTrackingDuringRecovery) &&
             (identical(other.recoveryAbortOnMeridian, recoveryAbortOnMeridian) || other.recoveryAbortOnMeridian == recoveryAbortOnMeridian) &&
-            (identical(other.recoveryAudibleAlertWhenEntered, recoveryAudibleAlertWhenEntered) || other.recoveryAudibleAlertWhenEntered == recoveryAudibleAlertWhenEntered));
+            (identical(other.recoveryAudibleAlertWhenEntered, recoveryAudibleAlertWhenEntered) || other.recoveryAudibleAlertWhenEntered == recoveryAudibleAlertWhenEntered) &&
+            (identical(other.parkBeforeDawn, parkBeforeDawn) || other.parkBeforeDawn == parkBeforeDawn) &&
+            (identical(other.enableMeridianFlip, enableMeridianFlip) || other.enableMeridianFlip == enableMeridianFlip) &&
+            (identical(other.tempCompensation, tempCompensation) || other.tempCompensation == tempCompensation) &&
+            (identical(other.tempCoefficient, tempCoefficient) || other.tempCoefficient == tempCoefficient) &&
+            (identical(other.backlashCompensation, backlashCompensation) || other.backlashCompensation == backlashCompensation) &&
+            (identical(other.settleThreshold, settleThreshold) || other.settleThreshold == settleThreshold) &&
+            (identical(other.settleTimeout, settleTimeout) || other.settleTimeout == settleTimeout) &&
+            (identical(other.plateSolver, plateSolver) || other.plateSolver == plateSolver) &&
+            (identical(other.blindSolve, blindSolve) || other.blindSolve == blindSolve) &&
+            (identical(other.bortleClass, bortleClass) || other.bortleClass == bortleClass) &&
+            (identical(other.effectiveHorizonDeg, effectiveHorizonDeg) || other.effectiveHorizonDeg == effectiveHorizonDeg) &&
+            (identical(other.preflightStrictness, preflightStrictness) || other.preflightStrictness == preflightStrictness) &&
+            (identical(other.polarAlignmentMaxAgeDays, polarAlignmentMaxAgeDays) || other.polarAlignmentMaxAgeDays == polarAlignmentMaxAgeDays) &&
+            (identical(other.opticalTrainDriftThreshold, opticalTrainDriftThreshold) || other.opticalTrainDriftThreshold == opticalTrainDriftThreshold) &&
+            (identical(other.darkLibraryMinCoverage, darkLibraryMinCoverage) || other.darkLibraryMinCoverage == darkLibraryMinCoverage) &&
+            (identical(other.smartNightMaxSessionHours, smartNightMaxSessionHours) || other.smartNightMaxSessionHours == smartNightMaxSessionHours) &&
+            (identical(other.smartNightDefaultAfCadenceFrames, smartNightDefaultAfCadenceFrames) || other.smartNightDefaultAfCadenceFrames == smartNightDefaultAfCadenceFrames) &&
+            (identical(other.smartNightDefaultIntegrationBudgetMinsPerTarget, smartNightDefaultIntegrationBudgetMinsPerTarget) || other.smartNightDefaultIntegrationBudgetMinsPerTarget == smartNightDefaultIntegrationBudgetMinsPerTarget) &&
+            (identical(other.smartNightIncludeFlatsAtEnd, smartNightIncludeFlatsAtEnd) || other.smartNightIncludeFlatsAtEnd == smartNightIncludeFlatsAtEnd) &&
+            (identical(other.smartNightUseSchedulerForMultiTarget, smartNightUseSchedulerForMultiTarget) || other.smartNightUseSchedulerForMultiTarget == smartNightUseSchedulerForMultiTarget) &&
+            (identical(other.smartNightSchedulerTargetThreshold, smartNightSchedulerTargetThreshold) || other.smartNightSchedulerTargetThreshold == smartNightSchedulerTargetThreshold) &&
+            (identical(other.smartNightDefaultStrategy, smartNightDefaultStrategy) || other.smartNightDefaultStrategy == smartNightDefaultStrategy) &&
+            (identical(other.smartNightPolarAlignmentStaleAfterDays, smartNightPolarAlignmentStaleAfterDays) || other.smartNightPolarAlignmentStaleAfterDays == smartNightPolarAlignmentStaleAfterDays) &&
+            (identical(other.smartNightSubExposureFloorSecs, smartNightSubExposureFloorSecs) || other.smartNightSubExposureFloorSecs == smartNightSubExposureFloorSecs) &&
+            (identical(other.smartNightSubExposureCeilingSecs, smartNightSubExposureCeilingSecs) || other.smartNightSubExposureCeilingSecs == smartNightSubExposureCeilingSecs) &&
+            (identical(other.smartNightTargetSnr, smartNightTargetSnr) || other.smartNightTargetSnr == smartNightTargetSnr));
   }
 
   @JsonKey(ignore: true)
@@ -1790,7 +2434,33 @@ class _$AppSettingsImpl implements _AppSettings {
         recoveryDefaultMaxDurationMins,
         recoveryStopTrackingDuringRecovery,
         recoveryAbortOnMeridian,
-        recoveryAudibleAlertWhenEntered
+        recoveryAudibleAlertWhenEntered,
+        parkBeforeDawn,
+        enableMeridianFlip,
+        tempCompensation,
+        tempCoefficient,
+        backlashCompensation,
+        settleThreshold,
+        settleTimeout,
+        plateSolver,
+        blindSolve,
+        bortleClass,
+        effectiveHorizonDeg,
+        preflightStrictness,
+        polarAlignmentMaxAgeDays,
+        opticalTrainDriftThreshold,
+        darkLibraryMinCoverage,
+        smartNightMaxSessionHours,
+        smartNightDefaultAfCadenceFrames,
+        smartNightDefaultIntegrationBudgetMinsPerTarget,
+        smartNightIncludeFlatsAtEnd,
+        smartNightUseSchedulerForMultiTarget,
+        smartNightSchedulerTargetThreshold,
+        smartNightDefaultStrategy,
+        smartNightPolarAlignmentStaleAfterDays,
+        smartNightSubExposureFloorSecs,
+        smartNightSubExposureCeilingSecs,
+        smartNightTargetSnr
       ]);
 
   @JsonKey(ignore: true)
@@ -1872,7 +2542,33 @@ abstract class _AppSettings implements AppSettings {
       final double recoveryDefaultMaxDurationMins,
       final bool recoveryStopTrackingDuringRecovery,
       final bool recoveryAbortOnMeridian,
-      final bool recoveryAudibleAlertWhenEntered}) = _$AppSettingsImpl;
+      final bool recoveryAudibleAlertWhenEntered,
+      final bool parkBeforeDawn,
+      final bool enableMeridianFlip,
+      final bool tempCompensation,
+      final double tempCoefficient,
+      final int backlashCompensation,
+      final double settleThreshold,
+      final int settleTimeout,
+      final String plateSolver,
+      final bool blindSolve,
+      final int bortleClass,
+      final double effectiveHorizonDeg,
+      final String preflightStrictness,
+      final int polarAlignmentMaxAgeDays,
+      final double opticalTrainDriftThreshold,
+      final int darkLibraryMinCoverage,
+      final double? smartNightMaxSessionHours,
+      final int smartNightDefaultAfCadenceFrames,
+      final int smartNightDefaultIntegrationBudgetMinsPerTarget,
+      final bool smartNightIncludeFlatsAtEnd,
+      final bool smartNightUseSchedulerForMultiTarget,
+      final int smartNightSchedulerTargetThreshold,
+      final String smartNightDefaultStrategy,
+      final int smartNightPolarAlignmentStaleAfterDays,
+      final double smartNightSubExposureFloorSecs,
+      final double smartNightSubExposureCeilingSecs,
+      final double smartNightTargetSnr}) = _$AppSettingsImpl;
 
   factory _AppSettings.fromJson(Map<String, dynamic> json) =
       _$AppSettingsImpl.fromJson;
@@ -2089,6 +2785,131 @@ abstract class _AppSettings implements AppSettings {
   /// Recovery: ring the platform alert sound on recovery entry.
   /// DB key `recovery_audible_alert_when_entered`.
   bool get recoveryAudibleAlertWhenEntered;
+  @override // -------------------------------------------------------------------
+// Full-night audit 2026-06-04 follow-up (long tail) — the remaining
+// high-value unattended-night knobs that `_applySettingsMap` already
+// maps into AppSettingsState but which had NO wire field, so a remote
+// save of them was rejected by the `_assertKeysRemotable` fail-loud
+// guard. Carrying them here lets a phone-driven night keep them.
+// -------------------------------------------------------------------
+// Weather-safety / dawn.
+  /// Park the mount before astronomical dawn at the end of the night.
+  /// DB key `park_before_dawn`.
+  bool get parkBeforeDawn;
+  @override // Meridian flip detail.
+  /// Master enable for automatic meridian flips. DB key `enable_meridian_flip`.
+  bool get enableMeridianFlip;
+  @override // Focuser temperature compensation + backlash (calibration).
+  /// Enable focuser temperature compensation. DB key `temp_compensation`.
+  bool get tempCompensation;
+  @override
+
+  /// Temp-comp coefficient (steps per °C). DB key `temp_coefficient`.
+  double get tempCoefficient;
+  @override
+
+  /// Focuser backlash compensation (steps). DB key `backlash_compensation`.
+  int get backlashCompensation;
+  @override // Guider settle (calibration).
+  /// Guider settle pixel threshold. DB key `settle_threshold`.
+  double get settleThreshold;
+  @override
+
+  /// Guider settle timeout in seconds. DB key `settle_timeout`.
+  int get settleTimeout;
+  @override // Plate-solving extra.
+  /// Selected plate solver ('ASTAP', 'Astrometry.net', 'PlateSolve2').
+  /// DB key `plate_solver`.
+  String get plateSolver;
+  @override
+
+  /// Allow a blind (no-hint) solve fallback. DB key `blind_solve`.
+  bool get blindSolve;
+  @override // Site / horizon.
+  /// Bortle dark-sky class (1-9). DB key `bortle_class`.
+  int get bortleClass;
+  @override
+
+  /// Effective horizon altitude floor in degrees. DB key `effective_horizon_deg`.
+  double get effectiveHorizonDeg;
+  @override // Pre-flight checklist strictness + freshness gates.
+  /// Pre-flight strictness as the enum name ('lax' / 'normal' / 'strict').
+  /// Carried as a String to avoid the wire model depending on the provider
+  /// library that owns the `PreflightStrictness` enum. DB key
+  /// `preflight_strictness`.
+  String get preflightStrictness;
+  @override
+
+  /// Polar-alignment max age (days) before pre-flight flags it.
+  /// DB key `polar_alignment_max_age_days`.
+  int get polarAlignmentMaxAgeDays;
+  @override
+
+  /// Optical-train drift threshold (arcmin) before pre-flight flags it.
+  /// DB key `optical_train_drift_threshold`.
+  double get opticalTrainDriftThreshold;
+  @override // Dark library.
+  /// Minimum matching dark frames before the dark library is "covered".
+  /// DB key `dark_library_min_coverage`.
+  int get darkLibraryMinCoverage;
+  @override // -------------------------------------------------------------------
+// Smart Night defaults — the one-click "plan tonight" builder reads these
+// when assembling a sequence, so an unattended night planned from a phone
+// must carry them.
+// -------------------------------------------------------------------
+  /// Cap a planned session to this many hours. `null` => use the full dark
+  /// window. DB key `smart_night_max_session_hours`.
+  double? get smartNightMaxSessionHours;
+  @override
+
+  /// Default autofocus cadence (frames) for built sequences.
+  /// DB key `smart_night_default_af_cadence_frames`.
+  int get smartNightDefaultAfCadenceFrames;
+  @override
+
+  /// Default per-target integration budget (minutes).
+  /// DB key `smart_night_default_integration_budget_mins_per_target`.
+  int get smartNightDefaultIntegrationBudgetMinsPerTarget;
+  @override
+
+  /// Append flats at the end of the planned night.
+  /// DB key `smart_night_include_flats_at_end`.
+  bool get smartNightIncludeFlatsAtEnd;
+  @override
+
+  /// Use the scheduler (vs a single linear sequence) for multi-target nights.
+  /// DB key `smart_night_use_scheduler_for_multi_target`.
+  bool get smartNightUseSchedulerForMultiTarget;
+  @override
+
+  /// Target count at/above which the scheduler is used.
+  /// DB key `smart_night_scheduler_target_threshold`.
+  int get smartNightSchedulerTargetThreshold;
+  @override
+
+  /// Default capture strategy id (e.g. 'auto_lrgb').
+  /// DB key `smart_night_default_strategy`.
+  String get smartNightDefaultStrategy;
+  @override
+
+  /// Days after which polar alignment is considered stale for the wizard.
+  /// DB key `smart_night_polar_alignment_stale_after_days`.
+  int get smartNightPolarAlignmentStaleAfterDays;
+  @override
+
+  /// Sub-exposure floor (seconds) for the planner.
+  /// DB key `smart_night_sub_exposure_floor_secs`.
+  double get smartNightSubExposureFloorSecs;
+  @override
+
+  /// Sub-exposure ceiling (seconds) for the planner.
+  /// DB key `smart_night_sub_exposure_ceiling_secs`.
+  double get smartNightSubExposureCeilingSecs;
+  @override
+
+  /// Target SNR the planner sizes sub-exposures toward.
+  /// DB key `smart_night_target_snr`.
+  double get smartNightTargetSnr;
   @override
   @JsonKey(ignore: true)
   _$$AppSettingsImplCopyWith<_$AppSettingsImpl> get copyWith =>

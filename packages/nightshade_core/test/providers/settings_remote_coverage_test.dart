@@ -109,19 +109,129 @@ void main() {
 
     await container.read(appSettingsProvider.future);
 
-    // dark_library_min_coverage is NOT carried by models.AppSettings, so
-    // saving it over a network backend would silently vanish. The guard
-    // must throw. (Long-tail settings like this remain deferred; the
-    // fail-loud guard keeps them honest until carried.)
+    // default_gain is NOT carried by models.AppSettings, so saving it over a
+    // network backend would silently vanish. The guard must throw. (Long-tail
+    // equipment-default settings like this remain deferred; the fail-loud
+    // guard keeps them honest until carried.)
     await expectLater(
-      container
-          .read(appSettingsProvider.notifier)
-          .setDarkLibraryMinCoverage(25),
+      container.read(appSettingsProvider.notifier).setDefaultGain(120),
       throwsA(isA<UnsupportedError>()),
     );
 
     expect(h.writes, isEmpty,
         reason: 'a non-remotable key must never reach the host');
+  });
+
+  // Full-night audit 2026-06-04 follow-up (long tail) — the remaining
+  // high-value unattended-night knobs (calibration / dark-library / pre-flight
+  // / smart-night defaults / site / meridian-flip detail) are now carried by
+  // models.AppSettings, so a remote save round-trips instead of failing loud.
+  test('dark-library min coverage round-trips through the remote wire model',
+      () async {
+    final h = buildBackend(const models.AppSettings());
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    await container.read(appSettingsProvider.future);
+    await container
+        .read(appSettingsProvider.notifier)
+        .setDarkLibraryMinCoverage(25);
+
+    expect(h.writes.last.darkLibraryMinCoverage, 25);
+  });
+
+  test('pre-flight strictness round-trips (enum carried as its name)',
+      () async {
+    final h = buildBackend(const models.AppSettings());
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    await container.read(appSettingsProvider.future);
+    await container
+        .read(appSettingsProvider.notifier)
+        .setPreflightStrictness(PreflightStrictness.strict);
+
+    expect(h.writes.last.preflightStrictness, 'strict',
+        reason: 'the enum must cross the wire as its .name');
+  });
+
+  test('smart-night target SNR + max session hours round-trip', () async {
+    final h = buildBackend(const models.AppSettings());
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    await container.read(appSettingsProvider.future);
+    await container
+        .read(appSettingsProvider.notifier)
+        .setSmartNightTargetSnr(42.0);
+    await container
+        .read(appSettingsProvider.notifier)
+        .setSmartNightMaxSessionHours(6.5);
+
+    expect(h.writes.last.smartNightTargetSnr, 42.0);
+    expect(h.writes.last.smartNightMaxSessionHours, 6.5);
+  });
+
+  test('calibration (settle threshold) + meridian-flip enable round-trip',
+      () async {
+    final h = buildBackend(const models.AppSettings());
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    await container.read(appSettingsProvider.future);
+    await container
+        .read(appSettingsProvider.notifier)
+        .setSettleThreshold(1.25);
+    await container
+        .read(appSettingsProvider.notifier)
+        .setEnableMeridianFlip(false);
+
+    expect(h.writes.last.settleThreshold, 1.25);
+    expect(h.writes.last.enableMeridianFlip, isFalse);
+  });
+
+  test('site (bortle class) round-trips through the remote wire model',
+      () async {
+    final h = buildBackend(const models.AppSettings());
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    await container.read(appSettingsProvider.future);
+    await container.read(appSettingsProvider.notifier).setBortleClass(3);
+
+    expect(h.writes.last.bortleClass, 3);
+  });
+
+  test(
+      'inbound settings.changed for smartNightTargetSnr is applied in-place',
+      () async {
+    final h = buildBackend(const models.AppSettings(smartNightTargetSnr: 30.0));
+    addTearDown(h.events.close);
+    final container = containerFor(h.backend);
+    addTearDown(container.dispose);
+
+    final initial = await container.read(appSettingsProvider.future);
+    expect(initial.smartNightTargetSnr, 30.0);
+
+    h.events.add(NightshadeEvent(
+      timestamp: DateTime.now().millisecondsSinceEpoch,
+      severity: EventSeverity.info,
+      category: EventCategory.system,
+      eventType: settingsChangedEventType,
+      data: const {
+        'key': 'smartNightTargetSnr',
+        'value': 55.0,
+      },
+    ));
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    final after = container.read(appSettingsProvider).valueOrNull;
+    expect(after!.smartNightTargetSnr, 55.0);
   });
 
   // Full-night audit 2026-06-04 follow-up — the high-value unattended-night

@@ -76,6 +76,40 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
           remote.recoveryStopTrackingDuringRecovery,
       recoveryAbortOnMeridian: remote.recoveryAbortOnMeridian,
       recoveryAudibleAlertWhenEntered: remote.recoveryAudibleAlertWhenEntered,
+      // Full-night audit 2026-06-04 follow-up (long tail).
+      parkBeforeDawn: remote.parkBeforeDawn,
+      enableMeridianFlip: remote.enableMeridianFlip,
+      tempCompensation: remote.tempCompensation,
+      tempCoefficient: remote.tempCoefficient,
+      backlashCompensation: remote.backlashCompensation,
+      settleThreshold: remote.settleThreshold,
+      settleTimeout: remote.settleTimeout,
+      plateSolver: remote.plateSolver,
+      blindSolve: remote.blindSolve,
+      bortleClass: remote.bortleClass,
+      effectiveHorizonDeg: remote.effectiveHorizonDeg,
+      preflightStrictness:
+          _parsePreflightStrictness(remote.preflightStrictness),
+      polarAlignmentMaxAgeDays: remote.polarAlignmentMaxAgeDays,
+      opticalTrainDriftThreshold: remote.opticalTrainDriftThreshold,
+      darkLibraryMinCoverage: remote.darkLibraryMinCoverage,
+      smartNightMaxSessionHours: remote.smartNightMaxSessionHours,
+      smartNightDefaultAfCadenceFrames:
+          remote.smartNightDefaultAfCadenceFrames,
+      smartNightDefaultIntegrationBudgetMinsPerTarget:
+          remote.smartNightDefaultIntegrationBudgetMinsPerTarget,
+      smartNightIncludeFlatsAtEnd: remote.smartNightIncludeFlatsAtEnd,
+      smartNightUseSchedulerForMultiTarget:
+          remote.smartNightUseSchedulerForMultiTarget,
+      smartNightSchedulerTargetThreshold:
+          remote.smartNightSchedulerTargetThreshold,
+      smartNightDefaultStrategy: remote.smartNightDefaultStrategy,
+      smartNightPolarAlignmentStaleAfterDays:
+          remote.smartNightPolarAlignmentStaleAfterDays,
+      smartNightSubExposureFloorSecs: remote.smartNightSubExposureFloorSecs,
+      smartNightSubExposureCeilingSecs:
+          remote.smartNightSubExposureCeilingSecs,
+      smartNightTargetSnr: remote.smartNightTargetSnr,
     );
   }
 
@@ -162,6 +196,42 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
           settings.recoveryStopTrackingDuringRecovery,
       recoveryAbortOnMeridian: settings.recoveryAbortOnMeridian,
       recoveryAudibleAlertWhenEntered: settings.recoveryAudibleAlertWhenEntered,
+      // Full-night audit 2026-06-04 follow-up (long tail) — push the remaining
+      // unattended-night knobs to the host so a remote save keeps them.
+      parkBeforeDawn: settings.parkBeforeDawn,
+      enableMeridianFlip: settings.enableMeridianFlip,
+      tempCompensation: settings.tempCompensation,
+      tempCoefficient: settings.tempCoefficient,
+      backlashCompensation: settings.backlashCompensation,
+      settleThreshold: settings.settleThreshold,
+      settleTimeout: settings.settleTimeout,
+      plateSolver: settings.plateSolver,
+      blindSolve: settings.blindSolve,
+      bortleClass: settings.bortleClass,
+      effectiveHorizonDeg: settings.effectiveHorizonDeg,
+      // PreflightStrictness lives in the provider library; carry its `.name` so
+      // the wire model stays free of that dependency.
+      preflightStrictness: settings.preflightStrictness.name,
+      polarAlignmentMaxAgeDays: settings.polarAlignmentMaxAgeDays,
+      opticalTrainDriftThreshold: settings.opticalTrainDriftThreshold,
+      darkLibraryMinCoverage: settings.darkLibraryMinCoverage,
+      smartNightMaxSessionHours: settings.smartNightMaxSessionHours,
+      smartNightDefaultAfCadenceFrames:
+          settings.smartNightDefaultAfCadenceFrames,
+      smartNightDefaultIntegrationBudgetMinsPerTarget:
+          settings.smartNightDefaultIntegrationBudgetMinsPerTarget,
+      smartNightIncludeFlatsAtEnd: settings.smartNightIncludeFlatsAtEnd,
+      smartNightUseSchedulerForMultiTarget:
+          settings.smartNightUseSchedulerForMultiTarget,
+      smartNightSchedulerTargetThreshold:
+          settings.smartNightSchedulerTargetThreshold,
+      smartNightDefaultStrategy: settings.smartNightDefaultStrategy,
+      smartNightPolarAlignmentStaleAfterDays:
+          settings.smartNightPolarAlignmentStaleAfterDays,
+      smartNightSubExposureFloorSecs: settings.smartNightSubExposureFloorSecs,
+      smartNightSubExposureCeilingSecs:
+          settings.smartNightSubExposureCeilingSecs,
+      smartNightTargetSnr: settings.smartNightTargetSnr,
     );
   }
 
@@ -416,6 +486,120 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
       case 'recoveryAudibleAlertWhenEntered':
         return value is bool
             ? current.copyWith(recoveryAudibleAlertWhenEntered: value)
+            : null;
+      // Full-night audit 2026-06-04 follow-up (long tail). Keys mirror
+      // models.AppSettings.toJson() (camelCase).
+      case 'parkBeforeDawn':
+        return value is bool ? current.copyWith(parkBeforeDawn: value) : null;
+      case 'enableMeridianFlip':
+        return value is bool
+            ? current.copyWith(enableMeridianFlip: value)
+            : null;
+      case 'tempCompensation':
+        return value is bool
+            ? current.copyWith(tempCompensation: value)
+            : null;
+      case 'tempCoefficient':
+        return value is num
+            ? current.copyWith(tempCoefficient: value.toDouble())
+            : null;
+      case 'backlashCompensation':
+        return value is num
+            ? current.copyWith(backlashCompensation: value.toInt())
+            : null;
+      case 'settleThreshold':
+        return value is num
+            ? current.copyWith(settleThreshold: value.toDouble())
+            : null;
+      case 'settleTimeout':
+        return value is num
+            ? current.copyWith(settleTimeout: value.toInt())
+            : null;
+      case 'plateSolver':
+        return value is String ? current.copyWith(plateSolver: value) : null;
+      case 'blindSolve':
+        return value is bool ? current.copyWith(blindSolve: value) : null;
+      case 'bortleClass':
+        return value is num
+            ? current.copyWith(bortleClass: value.toInt())
+            : null;
+      case 'effectiveHorizonDeg':
+        return value is num
+            ? current.copyWith(effectiveHorizonDeg: value.toDouble())
+            : null;
+      case 'preflightStrictness':
+        return value is String
+            ? current.copyWith(
+                preflightStrictness: _parsePreflightStrictness(value),
+              )
+            : null;
+      case 'polarAlignmentMaxAgeDays':
+        return value is num
+            ? current.copyWith(polarAlignmentMaxAgeDays: value.toInt())
+            : null;
+      case 'opticalTrainDriftThreshold':
+        return value is num
+            ? current.copyWith(
+                opticalTrainDriftThreshold: value.toDouble())
+            : null;
+      case 'darkLibraryMinCoverage':
+        return value is num
+            ? current.copyWith(darkLibraryMinCoverage: value.toInt())
+            : null;
+      case 'smartNightMaxSessionHours':
+        if (value == null) {
+          return current.copyWith(smartNightMaxSessionHours: null);
+        }
+        return value is num
+            ? current.copyWith(
+                smartNightMaxSessionHours: value.toDouble())
+            : null;
+      case 'smartNightDefaultAfCadenceFrames':
+        return value is num
+            ? current.copyWith(
+                smartNightDefaultAfCadenceFrames: value.toInt())
+            : null;
+      case 'smartNightDefaultIntegrationBudgetMinsPerTarget':
+        return value is num
+            ? current.copyWith(
+                smartNightDefaultIntegrationBudgetMinsPerTarget:
+                    value.toInt())
+            : null;
+      case 'smartNightIncludeFlatsAtEnd':
+        return value is bool
+            ? current.copyWith(smartNightIncludeFlatsAtEnd: value)
+            : null;
+      case 'smartNightUseSchedulerForMultiTarget':
+        return value is bool
+            ? current.copyWith(smartNightUseSchedulerForMultiTarget: value)
+            : null;
+      case 'smartNightSchedulerTargetThreshold':
+        return value is num
+            ? current.copyWith(
+                smartNightSchedulerTargetThreshold: value.toInt())
+            : null;
+      case 'smartNightDefaultStrategy':
+        return value is String
+            ? current.copyWith(smartNightDefaultStrategy: value)
+            : null;
+      case 'smartNightPolarAlignmentStaleAfterDays':
+        return value is num
+            ? current.copyWith(
+                smartNightPolarAlignmentStaleAfterDays: value.toInt())
+            : null;
+      case 'smartNightSubExposureFloorSecs':
+        return value is num
+            ? current.copyWith(
+                smartNightSubExposureFloorSecs: value.toDouble())
+            : null;
+      case 'smartNightSubExposureCeilingSecs':
+        return value is num
+            ? current.copyWith(
+                smartNightSubExposureCeilingSecs: value.toDouble())
+            : null;
+      case 'smartNightTargetSnr':
+        return value is num
+            ? current.copyWith(smartNightTargetSnr: value.toDouble())
             : null;
       default:
         // Forward-compat: a newer host may emit settings this build

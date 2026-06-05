@@ -127,6 +127,52 @@ _$AppSettingsImpl _$$AppSettingsImplFromJson(Map<String, dynamic> json) =>
       recoveryAbortOnMeridian: json['recoveryAbortOnMeridian'] as bool? ?? true,
       recoveryAudibleAlertWhenEntered:
           json['recoveryAudibleAlertWhenEntered'] as bool? ?? true,
+      parkBeforeDawn: json['parkBeforeDawn'] as bool? ?? true,
+      enableMeridianFlip: json['enableMeridianFlip'] as bool? ?? true,
+      tempCompensation: json['tempCompensation'] as bool? ?? true,
+      tempCoefficient: (json['tempCoefficient'] as num?)?.toDouble() ?? -12.0,
+      backlashCompensation:
+          (json['backlashCompensation'] as num?)?.toInt() ?? 0,
+      settleThreshold: (json['settleThreshold'] as num?)?.toDouble() ?? 0.5,
+      settleTimeout: (json['settleTimeout'] as num?)?.toInt() ?? 30,
+      plateSolver: json['plateSolver'] as String? ?? 'ASTAP',
+      blindSolve: json['blindSolve'] as bool? ?? false,
+      bortleClass: (json['bortleClass'] as num?)?.toInt() ?? 5,
+      effectiveHorizonDeg:
+          (json['effectiveHorizonDeg'] as num?)?.toDouble() ?? 0.0,
+      preflightStrictness: json['preflightStrictness'] as String? ?? 'normal',
+      polarAlignmentMaxAgeDays:
+          (json['polarAlignmentMaxAgeDays'] as num?)?.toInt() ?? 7,
+      opticalTrainDriftThreshold:
+          (json['opticalTrainDriftThreshold'] as num?)?.toDouble() ?? 8.0,
+      darkLibraryMinCoverage:
+          (json['darkLibraryMinCoverage'] as num?)?.toInt() ?? 10,
+      smartNightMaxSessionHours:
+          (json['smartNightMaxSessionHours'] as num?)?.toDouble(),
+      smartNightDefaultAfCadenceFrames:
+          (json['smartNightDefaultAfCadenceFrames'] as num?)?.toInt() ?? 25,
+      smartNightDefaultIntegrationBudgetMinsPerTarget:
+          (json['smartNightDefaultIntegrationBudgetMinsPerTarget'] as num?)
+                  ?.toInt() ??
+              240,
+      smartNightIncludeFlatsAtEnd:
+          json['smartNightIncludeFlatsAtEnd'] as bool? ?? true,
+      smartNightUseSchedulerForMultiTarget:
+          json['smartNightUseSchedulerForMultiTarget'] as bool? ?? true,
+      smartNightSchedulerTargetThreshold:
+          (json['smartNightSchedulerTargetThreshold'] as num?)?.toInt() ?? 3,
+      smartNightDefaultStrategy:
+          json['smartNightDefaultStrategy'] as String? ?? 'auto_lrgb',
+      smartNightPolarAlignmentStaleAfterDays:
+          (json['smartNightPolarAlignmentStaleAfterDays'] as num?)?.toInt() ??
+              7,
+      smartNightSubExposureFloorSecs:
+          (json['smartNightSubExposureFloorSecs'] as num?)?.toDouble() ?? 30.0,
+      smartNightSubExposureCeilingSecs:
+          (json['smartNightSubExposureCeilingSecs'] as num?)?.toDouble() ??
+              300.0,
+      smartNightTargetSnr:
+          (json['smartNightTargetSnr'] as num?)?.toDouble() ?? 30.0,
     );
 
 Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
@@ -203,6 +249,38 @@ Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
       'recoveryAbortOnMeridian': instance.recoveryAbortOnMeridian,
       'recoveryAudibleAlertWhenEntered':
           instance.recoveryAudibleAlertWhenEntered,
+      'parkBeforeDawn': instance.parkBeforeDawn,
+      'enableMeridianFlip': instance.enableMeridianFlip,
+      'tempCompensation': instance.tempCompensation,
+      'tempCoefficient': instance.tempCoefficient,
+      'backlashCompensation': instance.backlashCompensation,
+      'settleThreshold': instance.settleThreshold,
+      'settleTimeout': instance.settleTimeout,
+      'plateSolver': instance.plateSolver,
+      'blindSolve': instance.blindSolve,
+      'bortleClass': instance.bortleClass,
+      'effectiveHorizonDeg': instance.effectiveHorizonDeg,
+      'preflightStrictness': instance.preflightStrictness,
+      'polarAlignmentMaxAgeDays': instance.polarAlignmentMaxAgeDays,
+      'opticalTrainDriftThreshold': instance.opticalTrainDriftThreshold,
+      'darkLibraryMinCoverage': instance.darkLibraryMinCoverage,
+      'smartNightMaxSessionHours': instance.smartNightMaxSessionHours,
+      'smartNightDefaultAfCadenceFrames':
+          instance.smartNightDefaultAfCadenceFrames,
+      'smartNightDefaultIntegrationBudgetMinsPerTarget':
+          instance.smartNightDefaultIntegrationBudgetMinsPerTarget,
+      'smartNightIncludeFlatsAtEnd': instance.smartNightIncludeFlatsAtEnd,
+      'smartNightUseSchedulerForMultiTarget':
+          instance.smartNightUseSchedulerForMultiTarget,
+      'smartNightSchedulerTargetThreshold':
+          instance.smartNightSchedulerTargetThreshold,
+      'smartNightDefaultStrategy': instance.smartNightDefaultStrategy,
+      'smartNightPolarAlignmentStaleAfterDays':
+          instance.smartNightPolarAlignmentStaleAfterDays,
+      'smartNightSubExposureFloorSecs': instance.smartNightSubExposureFloorSecs,
+      'smartNightSubExposureCeilingSecs':
+          instance.smartNightSubExposureCeilingSecs,
+      'smartNightTargetSnr': instance.smartNightTargetSnr,
     };
 
 const _$SafetyFailModeEnumMap = {
