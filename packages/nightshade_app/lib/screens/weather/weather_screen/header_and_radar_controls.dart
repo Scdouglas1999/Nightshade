@@ -174,7 +174,7 @@ class _SliderRow extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
             ),
           ),
@@ -202,7 +202,7 @@ class _SliderRow extends StatelessWidget {
           child: Text(
             displayValue,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w500,
               color: colors.textPrimary,
             ),
@@ -235,7 +235,7 @@ class _NoLocationContent extends StatelessWidget {
             padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: NightshadeTokens.borderRadiusInline8,
             border: Border.all(color: colors.border),
           ),
           child: Column(
@@ -257,7 +257,7 @@ class _NoLocationContent extends StatelessWidget {
               Text(
                 'Location Not Configured',
                 style: TextStyle(
-                  fontSize: 20,
+                  fontSize: NightshadeTypography.fontSize20,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -267,7 +267,7 @@ class _NoLocationContent extends StatelessWidget {
                 'Weather radar requires your observation location to display relevant data. Please configure your location in Settings.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: NightshadeTypography.fontSize14,
                   color: colors.textSecondary,
                   height: 1.5,
                 ),

@@ -277,11 +277,11 @@ class _OnboardingFilterWheelStepState
                         hintText: 'L / R / G / B / Ha …',
                         hintStyle: TextStyle(color: colors.textMuted),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: NightshadeTokens.borderRadiusMd,
                           borderSide: BorderSide(color: colors.border),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: NightshadeTokens.borderRadiusMd,
                           borderSide: BorderSide(color: colors.primary),
                         ),
                         filled: true,

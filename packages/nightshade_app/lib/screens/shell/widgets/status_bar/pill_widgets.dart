@@ -57,7 +57,7 @@ class _StatusPillButtonState extends State<_StatusPillButton> {
             ),
             decoration: BoxDecoration(
               color: _isHovered ? widget.colors.surfaceAlt : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: NightshadeTokens.borderRadiusMd,
             ),
             child: widget.compact
                 ? Row(
@@ -88,7 +88,7 @@ class _StatusPillButtonState extends State<_StatusPillButton> {
                       Text(
                         widget.label,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: widget.colors.textSecondary,
                         ),
                       ),
@@ -104,7 +104,7 @@ class _StatusPillButtonState extends State<_StatusPillButton> {
                           widget.value,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: NightshadeTypography.fontSize11,
                             fontWeight: FontWeight.w600,
                             color: widget.colors.textPrimary,
                           ),
@@ -148,7 +148,7 @@ class _InfoChip extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textSecondary,
             fontFeatures: const [FontFeature.tabularFigures()],
           ),

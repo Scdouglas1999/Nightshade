@@ -395,7 +395,7 @@ mixin _GuidingMobileSections
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
                     color: colors.surface,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: NightshadeTokens.borderRadiusInline8,
                     border: Border.all(color: colors.border),
                   ),
                   child: Column(
@@ -411,7 +411,7 @@ mixin _GuidingMobileSections
                         style: TextStyle(
                           color: colors.textPrimary,
                           fontWeight: FontWeight.w600,
-                          fontSize: 16,
+                          fontSize: NightshadeTypography.fontSize16,
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -420,7 +420,7 @@ mixin _GuidingMobileSections
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: colors.textSecondary,
-                          fontSize: 13,
+                          fontSize: NightshadeTypography.fontSize13,
                         ),
                       ),
                     ],

@@ -120,7 +120,7 @@ class _TransientCardState extends State<TransientCard> {
               Text(
                 widget.alert.name,
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: NightshadeTypography.fontSize16,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -131,7 +131,7 @@ class _TransientCardState extends State<TransientCard> {
                   Text(
                     _getTypeLabel(),
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: colors.textSecondary,
                     ),
                   ),
@@ -139,7 +139,7 @@ class _TransientCardState extends State<TransientCard> {
                     Text(
                       ' - ${widget.alert.classification}',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: colors.textMuted,
                       ),
                     ),
@@ -174,7 +174,7 @@ class _TransientCardState extends State<TransientCard> {
                   '${CoordinateFormat.ra(widget.alert.raHours, seconds: SecondsPrecision.integerFloored)}  '
                   '${CoordinateFormat.dec(widget.alert.decDegrees, seconds: SecondsPrecision.integerFloored)}',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontFamily: 'monospace',
                     color: colors.textSecondary,
                   ),
@@ -293,7 +293,7 @@ class _TransientCardState extends State<TransientCard> {
                   Text(
                     'Queued',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       fontWeight: FontWeight.w500,
                       color: colors.warning,
                     ),
@@ -325,7 +325,7 @@ class _TransientCardState extends State<TransientCard> {
                   Text(
                     'Observed',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       fontWeight: FontWeight.w500,
                       color: colors.success,
                     ),
@@ -508,7 +508,7 @@ class _StateBadge extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: NightshadeTypography.fontSize11,
           fontWeight: FontWeight.w600,
           color: color,
         ),
@@ -567,7 +567,7 @@ class _MagnitudeIndicator extends StatelessWidget {
           Text(
             'mag ${magnitude.toStringAsFixed(1)}',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w600,
               color: color,
             ),
@@ -585,7 +585,7 @@ class _MagnitudeIndicator extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 9,
+                fontSize: NightshadeTypography.fontSize9,
                 fontWeight: FontWeight.w600,
                 color: color,
               ),
@@ -638,7 +638,7 @@ class _DetailRow extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textMuted,
                 ),
               ),
@@ -650,7 +650,7 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               value,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textSecondary,
               ),
             ),
@@ -666,7 +666,7 @@ class _DetailRow extends StatelessWidget {
         Text(
           '$label: ',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,
           ),
         ),
@@ -674,7 +674,7 @@ class _DetailRow extends StatelessWidget {
           child: Text(
             value,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
             ),
             overflow: TextOverflow.ellipsis,

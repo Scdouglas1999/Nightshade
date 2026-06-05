@@ -19,7 +19,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
           key: PolarAlignmentTutorialKeys.imageView,
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: NightshadeTokens.borderRadiusInline8,
                 border: Border.all(color: colors.border),
               ),
               child: Stack(
@@ -28,7 +28,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                   if (state.hasImage)
                     Center(
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: NightshadeTokens.borderRadiusInline8,
                         child: Image.memory(
                           state.imageData!,
                           fit: BoxFit.contain,
@@ -53,7 +53,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                           Text(
                             'Waiting for image...',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: NightshadeTypography.fontSize12,
                               color: colors.textMuted,
                             ),
                           ),
@@ -71,7 +71,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                             horizontal: 10, vertical: 6),
                         decoration: BoxDecoration(
                           color: colors.background.withValues(alpha: 0.85),
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: NightshadeTokens.borderRadiusInline4,
                           border: Border.all(color: colors.border),
                         ),
                         child: Column(
@@ -87,7 +87,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                                 Text(
                                   'Plate Solved',
                                   style: TextStyle(
-                                    fontSize: 10,
+                                    fontSize: NightshadeTypography.fontSize10,
                                     fontWeight: FontWeight.w600,
                                     color: colors.success,
                                   ),
@@ -98,7 +98,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                             Text(
                               'RA: ${_formatRA(state.solvedRa!)}',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: NightshadeTypography.fontSize11,
                                 color: colors.textPrimary,
                                 fontFamily: 'monospace',
                               ),
@@ -106,7 +106,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                             Text(
                               'Dec: ${_formatDec(state.solvedDec!)}',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: NightshadeTypography.fontSize11,
                                 color: colors.textPrimary,
                                 fontFamily: 'monospace',
                               ),
@@ -123,7 +123,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: NightshadeTokens.borderRadiusInline8,
             border: Border.all(color: colors.border),
           ),
           child: Column(
@@ -133,7 +133,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
               Text(
                 'Progress',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -163,7 +163,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
               Text(
                 'Status',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textMuted,
                 ),
               ),
@@ -176,7 +176,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                 Text(
                   status,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -187,7 +187,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: NightshadeTokens.borderRadiusMd,
                 ),
                 child: Row(
                   children: [
@@ -204,7 +204,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                       child: Text(
                         'Capturing Point $point',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: colors.textPrimary,
                         ),
                       ),
@@ -284,7 +284,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
         final imageArea = Container(
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: NightshadeTokens.borderRadiusInline8,
                 border: Border.all(color: colors.border),
               ),
               child: Stack(
@@ -293,7 +293,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                   if (state.hasImage)
                     Center(
                       child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: NightshadeTokens.borderRadiusInline8,
                         child: Image.memory(
                           state.imageData!,
                           fit: BoxFit.contain,
@@ -318,7 +318,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                           Text(
                             'Capturing adjustment image...',
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: NightshadeTypography.fontSize12,
                               color: colors.textMuted,
                             ),
                           ),
@@ -345,7 +345,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
                 color: colors.surface,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: NightshadeTokens.borderRadiusInline8,
                 border: Border.all(color: colors.border),
               ),
               child: Column(
@@ -355,7 +355,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                   Text(
                     'Adjust Mount',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: NightshadeTypography.fontSize14,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                     ),
@@ -366,7 +366,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                   Text(
                     'Azimuth',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textMuted,
                     ),
                   ),
@@ -375,7 +375,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                     Text(
                       '$azDir ${error.azimuthError.abs().toStringAsFixed(1)}"',
                       style: TextStyle(
-                        fontSize: 22,
+                        fontSize: NightshadeTypography.fontSize22,
                         fontWeight: FontWeight.bold,
                         color: error.azimuthError.abs() < 30
                             ? colors.success
@@ -388,7 +388,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                     Text(
                       '--',
                       style: TextStyle(
-                        fontSize: 22,
+                        fontSize: NightshadeTypography.fontSize22,
                         fontWeight: FontWeight.bold,
                         color: colors.textMuted,
                       ),
@@ -400,7 +400,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                   Text(
                     'Altitude',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textMuted,
                     ),
                   ),
@@ -409,7 +409,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                     Text(
                       '$altDir ${error.altitudeError.abs().toStringAsFixed(1)}"',
                       style: TextStyle(
-                        fontSize: 22,
+                        fontSize: NightshadeTypography.fontSize22,
                         fontWeight: FontWeight.bold,
                         color: error.altitudeError.abs() < 30
                             ? colors.success
@@ -422,7 +422,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                     Text(
                       '--',
                       style: TextStyle(
-                        fontSize: 22,
+                        fontSize: NightshadeTypography.fontSize22,
                         fontWeight: FontWeight.bold,
                         color: colors.textMuted,
                       ),
@@ -436,7 +436,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                   Text(
                     'Total Error',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textMuted,
                     ),
                   ),
@@ -445,7 +445,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                     Text(
                       '${error.totalError.toStringAsFixed(1)}"',
                       style: TextStyle(
-                        fontSize: 28,
+                        fontSize: NightshadeTypography.fontSize28,
                         fontWeight: FontWeight.bold,
                         color: error.totalError < 30
                             ? colors.success
@@ -458,7 +458,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                     Text(
                       '--',
                       style: TextStyle(
-                        fontSize: 28,
+                        fontSize: NightshadeTypography.fontSize28,
                         fontWeight: FontWeight.bold,
                         color: colors.textMuted,
                       ),
@@ -470,13 +470,13 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                   Text(
                     'Threshold: ${config.autoCompleteThreshold.toStringAsFixed(0)}"',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                       color: colors.textMuted,
                     ),
                   ),
                   const SizedBox(height: 6),
                   ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: NightshadeTokens.borderRadiusInline4,
                     child: LinearProgressIndicator(
                       value: error != null
                           ? (1.0 - (error.totalError / 120.0)).clamp(0.0, 1.0)
@@ -499,7 +499,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: colors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: NightshadeTokens.borderRadiusMd,
                     ),
                     child: Row(
                       children: [
@@ -521,7 +521,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                                 ? 'Below threshold!'
                                 : 'Adjust to threshold',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: NightshadeTypography.fontSize11,
                               color: error != null &&
                                       error.totalError <
                                           config.autoCompleteThreshold

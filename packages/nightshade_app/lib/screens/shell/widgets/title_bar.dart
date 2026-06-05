@@ -40,7 +40,7 @@ class TitleBar extends ConsumerWidget {
                   height: 24,
                   decoration: BoxDecoration(
                     color: colors.primary,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: NightshadeTokens.borderRadiusMd,
                   ),
                   child: Icon(
                     LucideIcons.sparkles,
@@ -53,7 +53,7 @@ class TitleBar extends ConsumerWidget {
                   'NIGHTSHADE',
                   style: TextStyle(
                     color: colors.textPrimary,
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 1.5,
                   ),
@@ -161,7 +161,7 @@ class _TitleBarButton extends StatelessWidget {
 
     final button = InkWell(
       onTap: onPressed,
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: NightshadeTokens.borderRadiusInline4,
       child: Padding(
         padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
         child: Icon(

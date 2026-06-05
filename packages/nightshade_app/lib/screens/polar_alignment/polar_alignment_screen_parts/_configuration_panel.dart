@@ -74,7 +74,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
         Text(
           title,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
@@ -135,7 +135,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
                 width: 40,
                 child: Text(
                   '${config.exposureTime.toInt()}s',
-                  style: TextStyle(fontSize: 11, color: colors.textPrimary),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
                 ),
               ),
             ],
@@ -168,7 +168,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
             Text(
               'Common',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -217,7 +217,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
                   width: 40,
                   child: Text(
                     '${config.stepSize.toInt()}°',
-                    style: TextStyle(fontSize: 11, color: colors.textPrimary),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
                   ),
                 ),
               ],
@@ -270,7 +270,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
             Text(
               'Advanced',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -313,7 +313,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
                   width: 40,
                   child: Text(
                     '${config.solveTimeout.toInt()}s',
-                    style: TextStyle(fontSize: 11, color: colors.textPrimary),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
                   ),
                 ),
               ],
@@ -362,7 +362,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
                   width: 40,
                   child: Text(
                     '${config.autoCompleteThreshold.toInt()}"',
-                    style: TextStyle(fontSize: 11, color: colors.textPrimary),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
                   ),
                 ),
               ],

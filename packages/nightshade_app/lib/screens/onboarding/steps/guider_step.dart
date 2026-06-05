@@ -135,7 +135,7 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: NightshadeTokens.borderRadiusLg,
             border: Border.all(color: colors.border),
           ),
           child: Column(
@@ -168,11 +168,11 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
                         labelText: 'Host',
                         labelStyle: TextStyle(color: colors.textSecondary),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: NightshadeTokens.borderRadiusMd,
                           borderSide: BorderSide(color: colors.border),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: NightshadeTokens.borderRadiusMd,
                           borderSide: BorderSide(color: colors.primary),
                         ),
                         filled: true,
@@ -191,11 +191,11 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
                         labelText: 'Port',
                         labelStyle: TextStyle(color: colors.textSecondary),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: NightshadeTokens.borderRadiusMd,
                           borderSide: BorderSide(color: colors.border),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: NightshadeTokens.borderRadiusMd,
                           borderSide: BorderSide(color: colors.primary),
                         ),
                         filled: true,

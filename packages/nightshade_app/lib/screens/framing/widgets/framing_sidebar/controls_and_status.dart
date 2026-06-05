@@ -27,7 +27,7 @@ class FramingControlsSection extends ConsumerWidget {
         Text(
           'Frame',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
@@ -75,7 +75,7 @@ class FramingControlsSection extends ConsumerWidget {
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NightshadeTokens.borderRadiusInline8,
               border: Border.all(color: colors.border),
             ),
             child: Row(
@@ -85,7 +85,7 @@ class FramingControlsSection extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     'Configure equipment to see FOV overlay',
-                    style: TextStyle(fontSize: 11, color: colors.textMuted),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                   ),
                 ),
               ],
@@ -98,7 +98,7 @@ class FramingControlsSection extends ConsumerWidget {
         // Preview FOV control (always available for browsing)
         Text(
           'Preview Field of View',
-          style: TextStyle(fontSize: 11, color: colors.textSecondary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
         ),
         const SizedBox(height: 6),
         FramingPreviewFovSlider(
@@ -136,21 +136,21 @@ class FramingControlsSection extends ConsumerWidget {
         // Survey source dropdown (always available - can browse sky without FOV)
         Text(
           'Survey Source',
-          style: TextStyle(fontSize: 11, color: colors.textSecondary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
         ),
         const SizedBox(height: 6),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: NightshadeTokens.borderRadiusMd,
             border: Border.all(color: colors.border),
           ),
           child: DropdownButton<SurveySource>(
             value: framingState.surveySource,
             isExpanded: true,
             underline: const SizedBox(),
-            style: TextStyle(fontSize: 11, color: colors.textPrimary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
             dropdownColor: colors.surfaceAlt,
             items: SurveySource.values.map((source) {
               return DropdownMenuItem(
@@ -225,7 +225,7 @@ class FramingCoordinatesPanel extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: NightshadeTokens.borderRadiusLg,
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -237,7 +237,7 @@ class FramingCoordinatesPanel extends StatelessWidget {
               Text(
                 'Coordinates',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -298,7 +298,7 @@ class FramingCoordinatesPanel extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(
                     'Target below horizon',
-                    style: TextStyle(fontSize: 10, color: colors.warning),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.warning),
                   ),
                 ],
               ),
@@ -330,7 +330,7 @@ class FramingAltitudePanel extends StatelessWidget {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: NightshadeTokens.borderRadiusLg,
           border: Border.all(color: colors.border),
         ),
         child: Column(
@@ -343,7 +343,7 @@ class FramingAltitudePanel extends StatelessWidget {
                 Text(
                   'Altitude',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -354,7 +354,7 @@ class FramingAltitudePanel extends StatelessWidget {
             Center(
               child: Text(
                 'Select a target to view altitude chart',
-                style: TextStyle(fontSize: 10, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
               ),
             ),
           ],
@@ -366,7 +366,7 @@ class FramingAltitudePanel extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: NightshadeTokens.borderRadiusLg,
         border: Border.all(color: colors.border),
       ),
       child: AltitudeChart(

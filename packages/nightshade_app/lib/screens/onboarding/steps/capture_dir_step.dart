@@ -111,7 +111,7 @@ class _OnboardingCaptureDirStepState
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: NightshadeTokens.borderRadiusLg,
             border: Border.all(color: colors.border),
           ),
           child: Column(

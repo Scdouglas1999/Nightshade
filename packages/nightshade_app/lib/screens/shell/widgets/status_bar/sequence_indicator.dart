@@ -58,7 +58,7 @@ class _SequenceIndicatorState extends ConsumerState<_SequenceIndicator>
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
           color: widget.colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: NightshadeTokens.borderRadiusInline8,
           border: Border.all(
             color: widget.colors.border,
           ),
@@ -88,7 +88,7 @@ class _SequenceIndicatorState extends ConsumerState<_SequenceIndicator>
             Text(
               displayText,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w500,
                 color: widget.colors.textSecondary,
               ),

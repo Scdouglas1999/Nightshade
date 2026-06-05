@@ -38,7 +38,7 @@ class FramingSliderField extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textSecondary,
             ),
           ),
@@ -66,7 +66,7 @@ class FramingSliderField extends StatelessWidget {
           child: Text(
             '${value.toInt()}${suffix ?? ''}',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textPrimary,
             ),
             textAlign: TextAlign.right,
@@ -103,7 +103,7 @@ class FramingToggleChip extends StatelessWidget {
           color: isActive
               ? colors.primary.withValues(alpha: 0.2)
               : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: NightshadeTokens.borderRadiusMd,
           border: Border.all(
             color: isActive
                 ? colors.primary.withValues(alpha: 0.5)
@@ -113,7 +113,7 @@ class FramingToggleChip extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             color: isActive ? colors.primary : colors.textSecondary,
             fontWeight: isActive ? FontWeight.w500 : FontWeight.normal,
           ),
@@ -161,13 +161,14 @@ class _FramingSmallIconButtonState extends State<FramingSmallIconButton> {
             decoration: BoxDecoration(
               color:
                   _isHovered ? widget.colors.primary : widget.colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: NightshadeTokens.borderRadiusMd,
               border: Border.all(color: widget.colors.border),
             ),
             child: Icon(
               widget.icon,
               size: 14,
-              color: _isHovered ? Colors.white : widget.colors.textSecondary,
+              color:
+                  _isHovered ? widget.colors.textPrimary : widget.colors.textSecondary,
             ),
           ),
         ),
@@ -200,7 +201,7 @@ class FramingPreviewFovSlider extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: NightshadeTokens.borderRadiusInline8,
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -212,7 +213,7 @@ class FramingPreviewFovSlider extends StatelessWidget {
               Text(
                 '${value.toStringAsFixed(1)}°',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: NightshadeTypography.fontSize16,
                   fontWeight: FontWeight.bold,
                   color: colors.primary,
                   fontFeatures: const [FontFeature.tabularFigures()],
@@ -228,13 +229,13 @@ class FramingPreviewFovSlider extends StatelessWidget {
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: NightshadeDecorations.emphasisSurface(
                       colors.info,
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: NightshadeTokens.borderRadiusInline4,
                     ),
                     child: Text(
                       'Equipment: ${equipmentFov!.toStringAsFixed(2)}°',
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 9,
+                        fontSize: NightshadeTypography.fontSize9,
                         color: colors.info,
                       ),
                     ),
@@ -265,9 +266,9 @@ class FramingPreviewFovSlider extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text('0.1°',
-                  style: TextStyle(fontSize: 9, color: colors.textMuted)),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted)),
               Text('10°',
-                  style: TextStyle(fontSize: 9, color: colors.textMuted)),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted)),
             ],
           ),
           const SizedBox(height: 8),
@@ -349,7 +350,7 @@ class _FovPresetButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
           color: isSelected ? color.withValues(alpha: 0.2) : Colors.transparent,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: NightshadeTokens.borderRadiusInline4,
           border: Border.all(
             color: isSelected ? color : colors.border,
           ),
@@ -357,7 +358,7 @@ class _FovPresetButton extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
             color: isSelected ? color : colors.textSecondary,
           ),
@@ -391,7 +392,7 @@ class FramingEquipmentFovOverlayControls extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.info.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: NightshadeTokens.borderRadiusInline8,
         border: Border.all(color: colors.info.withValues(alpha: 0.2)),
       ),
       child: Column(
@@ -405,7 +406,7 @@ class FramingEquipmentFovOverlayControls extends StatelessWidget {
                 child: Text(
                   'Equipment FOV Overlay',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w600,
                     color: colors.info,
                   ),
@@ -423,7 +424,7 @@ class FramingEquipmentFovOverlayControls extends StatelessWidget {
               children: [
                 Text(
                   'Opacity',
-                  style: TextStyle(fontSize: 10, color: colors.textSecondary),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
                 ),
                 Expanded(
                   child: SliderTheme(
@@ -448,7 +449,7 @@ class FramingEquipmentFovOverlayControls extends StatelessWidget {
                   width: 35,
                   child: Text(
                     '${(opacity * 100).round()}%',
-                    style: TextStyle(fontSize: 10, color: colors.textSecondary),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
                     textAlign: TextAlign.right,
                   ),
                 ),
@@ -457,7 +458,7 @@ class FramingEquipmentFovOverlayControls extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               'Shows your actual equipment field of view as an overlay',
-              style: TextStyle(fontSize: 9, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
             ),
           ],
         ],
@@ -492,13 +493,13 @@ class FramingMosaicSpinner extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 10, color: colors.textSecondary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
         ),
         const SizedBox(height: 4),
         Container(
           decoration: BoxDecoration(
             color: colors.background,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: NightshadeTokens.borderRadiusMd,
             border: Border.all(color: colors.border),
           ),
           child: Row(
@@ -513,7 +514,7 @@ class FramingMosaicSpinner extends StatelessWidget {
                   '$value',
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -547,7 +548,7 @@ class _SpinnerButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: NightshadeTokens.borderRadiusInline4,
       child: Container(
         padding: const EdgeInsets.all(8),
         child: Icon(
@@ -601,7 +602,7 @@ class _FramingOptionButtonState extends State<FramingOptionButton> {
                 : _isHovered
                     ? widget.colors.surfaceAlt
                     : widget.colors.background,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: NightshadeTokens.borderRadiusMd,
             border: Border.all(
               color: widget.isSelected
                   ? widget.colors.primary.withValues(alpha: 0.5)
@@ -629,7 +630,7 @@ class _FramingOptionButtonState extends State<FramingOptionButton> {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     fontWeight:
                         widget.isSelected ? FontWeight.w600 : FontWeight.normal,
                     color: widget.isSelected
@@ -664,7 +665,7 @@ class FramingStartCornerSelector extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colors.background,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: NightshadeTokens.borderRadiusMd,
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -735,7 +736,7 @@ class _CornerOption extends StatelessWidget {
             color: isSelected
                 ? colors.primary.withValues(alpha: 0.15)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: NightshadeTokens.borderRadiusInline4,
           ),
           child: Column(
             children: [
@@ -748,7 +749,7 @@ class _CornerOption extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 8,
+                  fontSize: NightshadeTypography.fontSize8,
                   fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                   color: isSelected ? colors.primary : colors.textMuted,
                 ),
@@ -832,7 +833,7 @@ class _FramingExportMosaicButtonState
             color: _isHovered
                 ? widget.colors.primary.withValues(alpha: 0.92)
                 : widget.colors.primary,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: NightshadeTokens.borderRadiusInline8,
             border: Border.all(
               color: widget.colors.primary.withValues(alpha: 0.85),
             ),
@@ -861,7 +862,7 @@ class _FramingExportMosaicButtonState
                     ? 'Exporting...'
                     : 'Export ${widget.panels.length} Panels to Targets',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w600,
                   color: onPrimary,
                 ),

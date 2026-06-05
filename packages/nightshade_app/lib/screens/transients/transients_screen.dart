@@ -189,7 +189,7 @@ class TransientsScreen extends ConsumerWidget {
             Text(
               message,
               style: TextStyle(
-                fontSize: 16,
+                fontSize: NightshadeTypography.fontSize16,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -201,7 +201,7 @@ class TransientsScreen extends ConsumerWidget {
                   : 'No alerts match the current filter.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: colors.textSecondary,
               ),
             ),
@@ -232,7 +232,7 @@ class TransientsScreen extends ConsumerWidget {
             Text(
               'Failed to load transient alerts',
               style: TextStyle(
-                fontSize: 16,
+                fontSize: NightshadeTypography.fontSize16,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -242,7 +242,7 @@ class TransientsScreen extends ConsumerWidget {
               error.toString(),
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: colors.textSecondary,
               ),
             ),
@@ -331,7 +331,7 @@ class _TransientsHeader extends StatelessWidget {
           Text(
             'Transient Alerts',
             style: TextStyle(
-              fontSize: 18,
+              fontSize: NightshadeTypography.fontSize18,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
             ),
@@ -431,7 +431,7 @@ class _FilterChip extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               fontWeight: FontWeight.w500,
               color: isSelected ? onPrimary : colors.textSecondary,
             ),
@@ -551,7 +551,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                 Text(
                   'Alert Settings',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: NightshadeTypography.fontSize18,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -571,7 +571,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
             Text(
               'Alert Sources',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: NightshadeTypography.fontSize14,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -590,7 +590,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                   checkmarkColor: colors.primary,
                   labelStyle: TextStyle(
                     color: isEnabled ? colors.primary : colors.textSecondary,
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                   ),
                 );
               }).toList(),
@@ -602,7 +602,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
             Text(
               'Transient Types',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: NightshadeTypography.fontSize14,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -621,7 +621,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                   checkmarkColor: colors.primary,
                   labelStyle: TextStyle(
                     color: isEnabled ? colors.primary : colors.textSecondary,
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                   ),
                 );
               }).toList(),
@@ -633,7 +633,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
             Text(
               'Magnitude Threshold',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: NightshadeTypography.fontSize14,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -665,7 +665,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                   child: Text(
                     'mag ${settings.magnitudeThreshold.toStringAsFixed(1)}',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: colors.textSecondary,
                     ),
                   ),
@@ -675,7 +675,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
             Text(
               'Only show alerts brighter than this magnitude',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
               ),
             ),
@@ -692,7 +692,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                       Text(
                         'Notifications',
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: NightshadeTypography.fontSize14,
                           fontWeight: FontWeight.w600,
                           color: colors.textPrimary,
                         ),
@@ -700,7 +700,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                       Text(
                         'Show notifications for new alerts',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: colors.textMuted,
                         ),
                       ),

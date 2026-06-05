@@ -45,7 +45,7 @@ class _CloudCoverCard extends StatelessWidget {
       padding: _weatherCardPadding(context),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: NightshadeTokens.borderRadiusInline8,
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -55,7 +55,7 @@ class _CloudCoverCard extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             decoration: NightshadeDecorations.tintedBadge(
               coverColor,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NightshadeTokens.borderRadiusInline8,
             ),
             child: Icon(
               icon,
@@ -73,7 +73,7 @@ class _CloudCoverCard extends StatelessWidget {
                 Text(
                   'Cloud Cover',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -97,7 +97,7 @@ class _CloudCoverCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: NightshadeTypography.fontSize14,
                           fontWeight: FontWeight.w500,
                           color: colors.textPrimary,
                         ),
@@ -125,7 +125,7 @@ class _CloudCoverCard extends StatelessWidget {
                 Text(
                   cloudCoverPercent != null ? '${percent.toInt()}' : '--',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -165,7 +165,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
       padding: _weatherCardPadding(context),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: NightshadeTokens.borderRadiusInline8,
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -178,7 +178,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
                 padding: const EdgeInsets.all(8),
                 decoration: NightshadeDecorations.tintedBadge(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: NightshadeTokens.borderRadiusInline8,
                 ),
                 child: Icon(
                   LucideIcons.cpu,
@@ -194,7 +194,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
                     Text(
                       'Hardware Sensors',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: NightshadeTypography.fontSize14,
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
                       ),
@@ -202,7 +202,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
                     Text(
                       'Live readings from connected devices',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: colors.textSecondary,
                       ),
                     ),
@@ -307,7 +307,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
             Text(
               'Last updated: ${_formatTime(weatherState.lastUpdated!)}',
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 color: colors.textSecondary.withValues(alpha: 0.7),
               ),
             ),
@@ -357,7 +357,7 @@ class _SensorRow extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textSecondary,
                 ),
               ),
@@ -365,7 +365,7 @@ class _SensorRow extends StatelessWidget {
                 Text(
                   deviceName!,
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: NightshadeTypography.fontSize9,
                     color: colors.textSecondary.withValues(alpha: 0.6),
                   ),
                 ),
@@ -375,7 +375,7 @@ class _SensorRow extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: NightshadeTypography.fontSize13,
             fontWeight: FontWeight.w600,
             color: valueColor ?? colors.textPrimary,
           ),

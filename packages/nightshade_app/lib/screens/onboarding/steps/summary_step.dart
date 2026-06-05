@@ -90,11 +90,11 @@ class _OnboardingSummaryStepState
             hintText: 'My First Rig',
             hintStyle: TextStyle(color: colors.textMuted),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NightshadeTokens.borderRadiusInline8,
               borderSide: BorderSide(color: colors.border),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NightshadeTokens.borderRadiusInline8,
               borderSide: BorderSide(color: colors.primary),
             ),
             filled: true,
@@ -111,7 +111,7 @@ class _OnboardingSummaryStepState
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: NightshadeTokens.borderRadiusLg,
             border: Border.all(color: colors.border),
           ),
           child: Column(
@@ -154,7 +154,7 @@ class _OnboardingSummaryStepState
           padding: const EdgeInsets.all(12),
           decoration: NightshadeDecorations.emphasisSurface(
             colors.primary,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: NightshadeTokens.borderRadiusLg,
           ),
           child: Row(
             children: [

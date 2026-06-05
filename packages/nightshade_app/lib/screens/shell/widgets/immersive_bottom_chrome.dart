@@ -52,7 +52,7 @@ class ImmersiveBottomChrome extends StatelessWidget {
                   height: 3,
                   decoration: BoxDecoration(
                     color: colors.textMuted.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: NightshadeTokens.borderRadiusInline2,
                   ),
                 ),
                 const SizedBox(width: 6),

@@ -98,18 +98,18 @@ class _DriverTile extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: InkWell(
         onTap: onToggle,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: NightshadeTokens.borderRadiusLg,
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: selected
               ? NightshadeDecorations.selectedSurface(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: NightshadeTokens.borderRadiusLg,
                   fillAlpha: 0.08,
                 )
               : BoxDecoration(
                   color: colors.surface,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: NightshadeTokens.borderRadiusLg,
                   border: Border.all(color: colors.border),
                 ),
           child: Row(

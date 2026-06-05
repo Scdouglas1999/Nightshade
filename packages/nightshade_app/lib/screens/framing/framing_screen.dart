@@ -265,9 +265,9 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
               message: 'Show optical config panel',
               child: Material(
                 color: colors.surface,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: NightshadeTokens.borderRadiusInline8,
                 child: InkWell(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: NightshadeTokens.borderRadiusInline8,
                   onTap: () {
                     ref
                         .read(framingProvider.notifier)
@@ -283,7 +283,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       border: Border.all(color: colors.border),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: NightshadeTokens.borderRadiusInline8,
                     ),
                     child: Icon(
                       LucideIcons.aperture,

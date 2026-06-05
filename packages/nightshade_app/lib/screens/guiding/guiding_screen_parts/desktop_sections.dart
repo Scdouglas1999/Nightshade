@@ -109,7 +109,7 @@ mixin _GuidingDesktopSections
                     style: TextStyle(
                       color: colors.textPrimary,
                       fontWeight: FontWeight.w500,
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                     ),
                   ),
                 SizedBox(width: isMobile ? 8 : 20),
@@ -124,7 +124,7 @@ mixin _GuidingDesktopSections
                     ),
                     decoration: NightshadeDecorations.statusChip(
                       stateColor,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: NightshadeTokens.borderRadiusMd,
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -169,7 +169,7 @@ mixin _GuidingDesktopSections
               ),
             ] else ...[
               // Desktop shows RMS in graph header, not here
-              _buildRmsChip('RA', guideStats.rmsRa, Colors.redAccent, colors),
+              _buildRmsChip('RA', guideStats.rmsRa, colors.error, colors),
               const SizedBox(width: 10),
               _buildRmsChip('Dec', guideStats.rmsDec, colors.info, colors),
               const SizedBox(width: 10),
@@ -188,13 +188,13 @@ mixin _GuidingDesktopSections
               ),
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: NightshadeTokens.borderRadiusInline4,
               ),
               child: Text(
                 'RMS: --',
                 style: TextStyle(
                   color: colors.textMuted,
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                 ),
               ),
             ),
@@ -222,7 +222,7 @@ mixin _GuidingDesktopSections
           Container(
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NightshadeTokens.borderRadiusInline8,
             ),
             child: IconButton(
               icon: Icon(LucideIcons.settings,
@@ -252,7 +252,7 @@ mixin _GuidingDesktopSections
       ),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: NightshadeTokens.borderRadiusInline4,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -397,7 +397,7 @@ mixin _GuidingDesktopSections
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: NightshadeTokens.borderRadiusInline8,
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -418,7 +418,7 @@ mixin _GuidingDesktopSections
                   padding: EdgeInsets.all(iconPadding),
                   decoration: BoxDecoration(
                     color: colors.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: NightshadeTokens.borderRadiusMd,
                   ),
                   child: Icon(icon, size: iconSize, color: colors.primary),
                 ),
@@ -462,7 +462,7 @@ mixin _GuidingDesktopSections
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: NightshadeTokens.borderRadiusInline8,
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -485,7 +485,7 @@ mixin _GuidingDesktopSections
                   padding: EdgeInsets.all(iconPadding),
                   decoration: BoxDecoration(
                     color: colors.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: NightshadeTokens.borderRadiusMd,
                   ),
                   child: Icon(LucideIcons.lineChart,
                       size: iconSize, color: colors.primary),
@@ -511,7 +511,7 @@ mixin _GuidingDesktopSections
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           _buildCompactRms(
-                              'RA', stats.rmsRa, Colors.redAccent, colors),
+                              'RA', stats.rmsRa, colors.error, colors),
                           const SizedBox(width: 12),
                           _buildCompactRms(
                               'Dec', stats.rmsDec, colors.info, colors),
@@ -567,7 +567,7 @@ mixin _GuidingDesktopSections
       children: [
         Text(
           '$label:',
-          style: TextStyle(color: colors.textMuted, fontSize: 11),
+          style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
         ),
         const SizedBox(width: 4),
         Text(
@@ -678,7 +678,7 @@ mixin _GuidingDesktopSections
                   height: 36,
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: NightshadeTokens.borderRadiusMd,
                   ),
                 ),
               ),
@@ -700,7 +700,7 @@ mixin _GuidingDesktopSections
                 style: TextStyle(
                   color: colors.textPrimary,
                   fontWeight: FontWeight.w600,
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                 ),
               ),
               const SizedBox(height: 6),
@@ -710,7 +710,7 @@ mixin _GuidingDesktopSections
               Text(
                 _brainErrorMessage(e),
                 textAlign: TextAlign.center,
-                style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
               ),
               const SizedBox(height: 14),
               NightshadeButton(
@@ -745,7 +745,7 @@ mixin _GuidingDesktopSections
           flex: 1,
           child: Text(
             label,
-            style: TextStyle(color: colors.textSecondary, fontSize: 12),
+            style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
             overflow: TextOverflow.ellipsis,
           ),
         ),

@@ -165,7 +165,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -185,7 +185,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                   const SizedBox(width: 4),
                   Text(
                     'Airmass',
-                    style: TextStyle(fontSize: 10, color: colors.textMuted),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                   ),
                 ],
               ),
@@ -247,19 +247,19 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: NightshadeTokens.borderRadiusInline4,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             '$label: ',
-            style: TextStyle(fontSize: 10, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
           ),
           Text(
             value,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               fontWeight: FontWeight.w600,
               color: valueColor,
             ),
@@ -275,7 +275,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
       child: Container(
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: NightshadeTokens.borderRadiusInline8,
       ),
       child: Center(
         child: Column(
@@ -285,7 +285,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
             const SizedBox(height: 8),
             Text(
               'Set location in Settings',
-              style: TextStyle(fontSize: 11, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
             ),
           ],
         ),
@@ -345,14 +345,14 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                     if (value == 1 || value == 2 || value == 3 || value == 4) {
                       return Text(
                         value.toInt().toString(),
-                        style: TextStyle(fontSize: 9, color: colors.textMuted),
+                        style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
                       );
                     }
                   } else {
                     if (value == 0 || value == 30 || value == 60 || value == 90) {
                       return Text(
                         '${value.toInt()}°',
-                        style: TextStyle(fontSize: 9, color: colors.textMuted),
+                        style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
                       );
                     }
                   }
@@ -369,7 +369,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                   final time = _startTime.add(Duration(minutes: value.toInt()));
                   return Text(
                     DateFormat('HH:mm').format(time),
-                    style: TextStyle(fontSize: 9, color: colors.textMuted),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
                   );
                 },
               ),
@@ -431,7 +431,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                 label: VerticalLineLabel(
                   show: true,
                   alignment: Alignment.topRight,
-                  style: TextStyle(fontSize: 8, color: colors.error),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize8, color: colors.error),
                   labelResolver: (_) => 'Now',
                 ),
               ),
@@ -480,12 +480,12 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
                   if (_showAirmass) {
                     return LineTooltipItem(
                       '$timeStr\nAirmass: ${spot.y.toStringAsFixed(2)}',
-                      TextStyle(fontSize: 10, color: colors.textPrimary),
+                      TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textPrimary),
                     );
                   }
                   return LineTooltipItem(
                     '$timeStr\nAlt: ${spot.y.toStringAsFixed(1)}°',
-                    TextStyle(fontSize: 10, color: colors.textPrimary),
+                    TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textPrimary),
                   );
                 }).toList();
               },
@@ -552,12 +552,12 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
           _visibility!.transitAltitude! > 0) {
         return Text(
           'Circumpolar - always visible',
-          style: TextStyle(fontSize: 10, color: colors.success),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.success),
         );
       } else {
         return Text(
           'Never rises at this location',
-          style: TextStyle(fontSize: 10, color: colors.error),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.error),
         );
       }
     }
@@ -575,7 +575,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: NightshadeTokens.borderRadiusInline4,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -584,12 +584,12 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
           const SizedBox(width: 4),
           Text(
             '$label: ',
-            style: TextStyle(fontSize: 9, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
           ),
           Text(
             value,
             style: TextStyle(
-              fontSize: 9,
+              fontSize: NightshadeTypography.fontSize9,
               fontWeight: FontWeight.w500,
               color: colors.textPrimary,
             ),

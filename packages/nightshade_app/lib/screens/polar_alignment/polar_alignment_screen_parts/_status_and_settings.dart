@@ -22,7 +22,7 @@ class _StatusChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: NightshadeDecorations.statusChip(
         isConnected ? colors.success : colors.error,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: NightshadeTokens.borderRadiusMd,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -36,7 +36,7 @@ class _StatusChip extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w500,
               color: isConnected ? colors.success : colors.error,
             ),
@@ -70,7 +70,7 @@ class _SettingRow extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
               ),
             ),
@@ -109,7 +109,7 @@ class _TipItem extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             text,
-            style: TextStyle(fontSize: 11, color: colors.textSecondary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
           ),
         ],
       ),

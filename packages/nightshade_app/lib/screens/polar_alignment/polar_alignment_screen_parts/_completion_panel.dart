@@ -18,7 +18,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
         Text(
           'Alignment Complete',
           style: TextStyle(
-            fontSize: 20,
+            fontSize: NightshadeTypography.fontSize20,
             fontWeight: FontWeight.bold,
             color: colors.textPrimary,
           ),
@@ -28,7 +28,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
           Text(
             'Final error: ${state.currentError!.totalError.toStringAsFixed(1)} arcseconds',
             style: TextStyle(
-              fontSize: 14,
+              fontSize: NightshadeTypography.fontSize14,
               color: colors.textSecondary,
             ),
           ),
@@ -58,7 +58,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: NightshadeTokens.borderRadiusInline8,
             border: Border.all(color: colors.border),
           ),
           child: Column(
@@ -72,7 +72,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                   Text(
                     'Alignment Summary',
                     style: TextStyle(
-                      fontSize: 14,
+                      fontSize: NightshadeTypography.fontSize14,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                     ),
@@ -90,7 +90,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                       padding: const EdgeInsets.all(12),
                       decoration: NightshadeDecorations.tintedBadge(
                         colors.error,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: NightshadeTokens.borderRadiusInline8,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -98,7 +98,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                           Text(
                             'Before',
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: NightshadeTypography.fontSize10,
                               fontWeight: FontWeight.w600,
                               color: colors.error,
                             ),
@@ -107,7 +107,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                           Text(
                             '${initial.totalError.toStringAsFixed(0)}"',
                             style: TextStyle(
-                              fontSize: 24,
+                              fontSize: NightshadeTypography.fontSize24,
                               fontWeight: FontWeight.bold,
                               color: colors.textPrimary,
                             ),
@@ -116,12 +116,12 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                           Text(
                             'Az: ${initial.azimuthError.toStringAsFixed(1)}"',
                             style: TextStyle(
-                                fontSize: 10, color: colors.textMuted),
+                                fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                           ),
                           Text(
                             'Alt: ${initial.altitudeError.toStringAsFixed(1)}"',
                             style: TextStyle(
-                                fontSize: 10, color: colors.textMuted),
+                                fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                           ),
                         ],
                       ),
@@ -144,7 +144,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                       padding: const EdgeInsets.all(12),
                       decoration: NightshadeDecorations.tintedBadge(
                         colors.success,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: NightshadeTokens.borderRadiusInline8,
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,7 +152,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                           Text(
                             'After',
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: NightshadeTypography.fontSize10,
                               fontWeight: FontWeight.w600,
                               color: colors.success,
                             ),
@@ -161,7 +161,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                           Text(
                             '${current.totalError.toStringAsFixed(0)}"',
                             style: TextStyle(
-                              fontSize: 24,
+                              fontSize: NightshadeTypography.fontSize24,
                               fontWeight: FontWeight.bold,
                               color: colors.textPrimary,
                             ),
@@ -170,12 +170,12 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                           Text(
                             'Az: ${current.azimuthError.toStringAsFixed(1)}"',
                             style: TextStyle(
-                                fontSize: 10, color: colors.textMuted),
+                                fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                           ),
                           Text(
                             'Alt: ${current.altitudeError.toStringAsFixed(1)}"',
                             style: TextStyle(
-                                fontSize: 10, color: colors.textMuted),
+                                fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                           ),
                         ],
                       ),
@@ -190,7 +190,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
               Text(
                 'Improvement',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textMuted,
                 ),
               ),
@@ -199,7 +199,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                 children: [
                   Expanded(
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: NightshadeTokens.borderRadiusInline4,
                       child: LinearProgressIndicator(
                         value: improvementPercent / 100.0,
                         backgroundColor: colors.surfaceAlt,
@@ -218,12 +218,12 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
                         const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: NightshadeDecorations.tintedBadge(
                       colors.success,
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: NightshadeTokens.borderRadiusInline4,
                     ),
                     child: Text(
                       '+${improvementPercent.toStringAsFixed(0)}%',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: NightshadeTypography.fontSize14,
                         fontWeight: FontWeight.bold,
                         color: colors.success,
                       ),
@@ -251,7 +251,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
         Text(
           'Error Occurred',
           style: TextStyle(
-            fontSize: 20,
+            fontSize: NightshadeTypography.fontSize20,
             fontWeight: FontWeight.bold,
             color: colors.textPrimary,
           ),
@@ -260,7 +260,7 @@ extension _CompletionPanel on _PolarAlignmentScreenState {
         Text(
           state.errorMessage ?? state.statusMessage,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: NightshadeTypography.fontSize13,
             color: colors.error,
           ),
           textAlign: TextAlign.center,

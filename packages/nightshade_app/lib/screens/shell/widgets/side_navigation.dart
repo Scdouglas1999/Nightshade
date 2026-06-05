@@ -193,7 +193,7 @@ class _CollapseButtonState extends State<_CollapseButton> {
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
             color: _isHovered ? colors.surfaceAlt : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: NightshadeTokens.borderRadiusInline8,
             border: Border.all(
               color: _isHovered ? colors.border : Colors.transparent,
             ),
@@ -217,7 +217,7 @@ class _CollapseButtonState extends State<_CollapseButton> {
                   child: Text(
                     context.l10n.text('collapse'),
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: colors.textMuted,
                     ),
                     overflow: TextOverflow.ellipsis,

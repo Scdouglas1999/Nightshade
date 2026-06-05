@@ -164,7 +164,7 @@ extension _CenterPanel on _PolarAlignmentScreenState {
                 : 'Three-Point Polar Alignment',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 20,
+              fontSize: NightshadeTypography.fontSize20,
               fontWeight: FontWeight.bold,
               color: colors.textPrimary,
             ),
@@ -182,7 +182,7 @@ extension _CenterPanel on _PolarAlignmentScreenState {
                     'alignment error.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               color: colors.textSecondary,
               height: 1.5,
             ),

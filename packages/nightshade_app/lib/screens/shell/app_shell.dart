@@ -200,7 +200,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           return AlertDialog(
             backgroundColor: colors.surface,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NightshadeTokens.borderRadiusInline8,
               side: BorderSide(color: colors.border),
             ),
             title: Row(
@@ -222,7 +222,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   'A previous sequence was interrupted and can be resumed.',
                   style: TextStyle(
                     color: colors.textSecondary,
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -230,7 +230,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: NightshadeTokens.borderRadiusInline8,
                     border: Border.all(color: colors.border),
                   ),
                   child: Column(
@@ -287,7 +287,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textMuted,
               fontWeight: FontWeight.w500,
             ),
@@ -297,7 +297,7 @@ class _AppShellState extends ConsumerState<AppShell> {
           child: Text(
             value,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textPrimary,
               fontWeight: FontWeight.w600,
             ),
@@ -449,7 +449,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.onError,
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         fontWeight: FontWeight.w500,
                       ),
                     ),

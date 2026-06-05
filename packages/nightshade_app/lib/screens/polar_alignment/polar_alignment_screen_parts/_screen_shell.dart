@@ -64,7 +64,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
                 'Polar Alignment',
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: NightshadeTypography.fontSize16,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -73,7 +73,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
                 ui.mode.displayName,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textMuted,
                 ),
               ),
@@ -205,7 +205,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
           child: Text(
             state.statusMessage,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
             ),
             overflow: TextOverflow.ellipsis,

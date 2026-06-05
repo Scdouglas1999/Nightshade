@@ -33,7 +33,7 @@ class FramingMosaicSection extends ConsumerWidget {
               child: Text(
                 'Mosaic',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -52,7 +52,7 @@ class FramingMosaicSection extends ConsumerWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NightshadeTokens.borderRadiusInline8,
             ),
             child: Row(
               children: [
@@ -61,7 +61,7 @@ class FramingMosaicSection extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     'Configure equipment to enable mosaic planning',
-                    style: TextStyle(fontSize: 10, color: colors.textMuted),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                   ),
                 ),
               ],
@@ -140,7 +140,7 @@ class FramingMosaicSection extends ConsumerWidget {
           // Start corner dropdown
           Text(
             'Start Corner',
-            style: TextStyle(fontSize: 10, color: colors.textSecondary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
           ),
           const SizedBox(height: 6),
           FramingStartCornerSelector(
@@ -155,7 +155,7 @@ class FramingMosaicSection extends ConsumerWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NightshadeTokens.borderRadiusInline8,
               border: Border.all(color: colors.border),
             ),
             child: Column(
@@ -169,7 +169,7 @@ class FramingMosaicSection extends ConsumerWidget {
                     Text(
                       '${config.totalPanels} Panels',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
                       ),
@@ -199,7 +199,7 @@ class FramingMosaicSection extends ConsumerWidget {
                               color: isSelected
                                   ? colors.primary.withValues(alpha: 0.2)
                                   : Colors.transparent,
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: NightshadeTokens.borderRadiusInline4,
                             ),
                             child: Row(
                               children: [
@@ -211,7 +211,7 @@ class FramingMosaicSection extends ConsumerWidget {
                                     color: isSelected
                                         ? colors.primary
                                         : colors.surface,
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: NightshadeTokens.borderRadiusInline4,
                                     border: Border.all(
                                       color: isSelected
                                           ? colors.primary
@@ -221,10 +221,10 @@ class FramingMosaicSection extends ConsumerWidget {
                                   child: Text(
                                     '${panel.index + 1}',
                                     style: TextStyle(
-                                      fontSize: 9,
+                                      fontSize: NightshadeTypography.fontSize9,
                                       fontWeight: FontWeight.w600,
                                       color: isSelected
-                                          ? Colors.white
+                                          ? colors.textPrimary
                                           : colors.textSecondary,
                                     ),
                                   ),
@@ -234,7 +234,7 @@ class FramingMosaicSection extends ConsumerWidget {
                                   child: Text(
                                     panel.raFormatted,
                                     style: TextStyle(
-                                      fontSize: 10,
+                                      fontSize: NightshadeTypography.fontSize10,
                                       fontFamily: 'monospace',
                                       color: colors.textSecondary,
                                     ),
@@ -243,7 +243,7 @@ class FramingMosaicSection extends ConsumerWidget {
                                 Text(
                                   panel.decFormatted,
                                   style: TextStyle(
-                                    fontSize: 10,
+                                    fontSize: NightshadeTypography.fontSize10,
                                     fontFamily: 'monospace',
                                     color: colors.textSecondary,
                                   ),

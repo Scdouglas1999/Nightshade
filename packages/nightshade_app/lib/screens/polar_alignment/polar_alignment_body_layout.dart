@@ -275,10 +275,10 @@ class _CompactTabLayoutState extends ConsumerState<_CompactTabLayout>
             indicatorColor: widget.colors.primary,
             dividerColor: widget.colors.border,
             labelStyle: const TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w600,
             ),
-            unselectedLabelStyle: const TextStyle(fontSize: 12),
+            unselectedLabelStyle: const TextStyle(fontSize: NightshadeTypography.fontSize12),
             tabs: const [
               Tab(text: 'Settings'),
               Tab(text: 'Guide'),

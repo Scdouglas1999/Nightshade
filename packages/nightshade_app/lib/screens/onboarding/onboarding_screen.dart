@@ -415,7 +415,7 @@ class _Header extends StatelessWidget {
           height: 40,
           decoration: NightshadeDecorations.iconChip(
             colors.primary,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: NightshadeTokens.borderRadiusLg,
           ),
           child: Icon(LucideIcons.sparkles, color: colors.primary, size: 20),
         ),
@@ -489,7 +489,7 @@ class _PhoneHeader extends StatelessWidget {
               height: chipSize,
               decoration: NightshadeDecorations.iconChip(
                 colors.primary,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: NightshadeTokens.borderRadiusLg,
               ),
               child: Icon(
                 LucideIcons.sparkles,
@@ -540,7 +540,7 @@ class _PhoneHeader extends StatelessWidget {
         ),
         SizedBox(height: compact ? 6 : 10),
         ClipRRect(
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: NightshadeTokens.borderRadiusFull,
           child: LinearProgressIndicator(
             value: progress,
             minHeight: 4,

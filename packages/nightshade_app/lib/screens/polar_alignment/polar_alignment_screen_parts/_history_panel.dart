@@ -9,7 +9,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: NightshadeTokens.borderRadiusInline8,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -72,7 +72,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
       padding: const EdgeInsets.all(12),
       decoration: NightshadeDecorations.emphasisSurface(
         magnitudeColor,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: NightshadeTokens.borderRadiusInline8,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -84,7 +84,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
               Text(
                 magnitudeText,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: magnitudeColor,
                 ),
@@ -95,7 +95,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
           Text(
             adjustmentHint,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textSecondary,
             ),
           ),
@@ -117,7 +117,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                   Text(
                     'Azimuth: $azDirection ${azMagnitude.toStringAsFixed(0)}"',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: _getErrorMagnitudeColor(colors, azMagnitude),
                     ),
                   ),
@@ -139,7 +139,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                 Text(
                   'Altitude: $altDirection ${altMagnitude.toStringAsFixed(0)}"',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: _getErrorMagnitudeColor(colors, altMagnitude),
                   ),
                 ),
@@ -172,7 +172,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: NightshadeTokens.borderRadiusInline8,
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -185,7 +185,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
               Text(
                 'Alignment History',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -202,7 +202,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                     child: Text(
                       'No alignment history yet',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: colors.textMuted,
                       ),
                     ),
@@ -226,7 +226,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: colors.surface,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: NightshadeTokens.borderRadiusMd,
                     ),
                     child: Row(
                       children: [
@@ -247,7 +247,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                               Text(
                                 dateStr,
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: NightshadeTypography.fontSize10,
                                   color: colors.textMuted,
                                 ),
                               ),
@@ -255,7 +255,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                               Text(
                                 'Final: ${entry.finalTotalError.toStringAsFixed(0)}"',
                                 style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: NightshadeTypography.fontSize11,
                                   fontWeight: FontWeight.w500,
                                   color: colors.textPrimary,
                                 ),
@@ -272,12 +272,12 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
                             improvementPercent > 50
                                 ? colors.success
                                 : colors.info,
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: NightshadeTokens.borderRadiusInline4,
                           ),
                           child: Text(
                             '+${improvementPercent.toStringAsFixed(0)}%',
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: NightshadeTypography.fontSize10,
                               fontWeight: FontWeight.w600,
                               color: improvementPercent > 50
                                   ? colors.success
@@ -309,7 +309,7 @@ extension _HistoryPanel on _PolarAlignmentScreenState {
               child: Text(
                 'Failed to load history: $error',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.error,
                 ),
               ),

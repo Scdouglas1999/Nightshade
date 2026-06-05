@@ -65,7 +65,7 @@ class OnboardingWelcomeStep extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: NightshadeTokens.borderRadiusLg,
             border: Border.all(color: colors.border),
           ),
           child: Column(
@@ -101,7 +101,7 @@ class OnboardingWelcomeStep extends ConsumerWidget {
               padding: const EdgeInsets.all(12),
               decoration: NightshadeDecorations.emphasisSurface(
                 colors.warning,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: NightshadeTokens.borderRadiusLg,
               ),
               child: Row(
                 children: [

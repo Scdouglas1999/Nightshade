@@ -17,7 +17,7 @@ class _WeatherSafetyCard extends ConsumerWidget {
       padding: _weatherCardPadding(context),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: NightshadeTokens.borderRadiusInline8,
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -29,7 +29,7 @@ class _WeatherSafetyCard extends ConsumerWidget {
                 padding: const EdgeInsets.all(8),
                 decoration: NightshadeDecorations.tintedBadge(
                   isSafe ? colors.success : colors.error,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: NightshadeTokens.borderRadiusInline8,
                 ),
                 child: Icon(
                   isSafe ? LucideIcons.shieldCheck : LucideIcons.shieldAlert,
@@ -45,7 +45,7 @@ class _WeatherSafetyCard extends ConsumerWidget {
                     Text(
                       'Safety Status',
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: NightshadeTypography.fontSize14,
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
                       ),
@@ -53,7 +53,7 @@ class _WeatherSafetyCard extends ConsumerWidget {
                     Text(
                       _getStatusText(status, snoozeUntil),
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: colors.textSecondary,
                       ),
                     ),
@@ -141,7 +141,7 @@ class _WeatherSettingsCard extends ConsumerWidget {
       padding: _weatherCardPadding(context),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: NightshadeTokens.borderRadiusInline8,
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -153,7 +153,7 @@ class _WeatherSettingsCard extends ConsumerWidget {
                 padding: const EdgeInsets.all(8),
                 decoration: NightshadeDecorations.tintedBadge(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: NightshadeTokens.borderRadiusInline8,
                 ),
                 child: Icon(
                   LucideIcons.sliders,
@@ -168,7 +168,7 @@ class _WeatherSettingsCard extends ConsumerWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -253,7 +253,7 @@ class _SettingRow extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textSecondary,
               ),
             ),
@@ -266,7 +266,7 @@ class _SettingRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               textAlign: TextAlign.end,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: FontWeight.w500,
                 color: valueColor ?? colors.textPrimary,
               ),

@@ -60,7 +60,7 @@ class _TempCompIndicator extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
         decoration: NightshadeDecorations.tintedBadge(
           indicatorColor,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: NightshadeTokens.borderRadiusInline4,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -70,7 +70,7 @@ class _TempCompIndicator extends ConsumerWidget {
             Text(
               'TC',
               style: TextStyle(
-                fontSize: 9,
+                fontSize: NightshadeTypography.fontSize9,
                 fontWeight: FontWeight.w600,
                 color: indicatorColor,
               ),
@@ -114,7 +114,7 @@ class _TimeDisplay extends ConsumerWidget {
         Text(
           timeStr,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: FontWeight.w500,
             color: colors.textSecondary,
             fontFeatures: const [FontFeature.tabularFigures()],
@@ -125,13 +125,13 @@ class _TimeDisplay extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: NightshadeDecorations.statusChip(
             colors.primary,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: NightshadeTokens.borderRadiusInline4,
             bordered: false,
           ),
           child: Text(
             'LST ${_formatLST(lst)}',
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               fontWeight: FontWeight.w500,
               color: colors.primary,
               fontFeatures: const [FontFeature.tabularFigures()],

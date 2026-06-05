@@ -92,7 +92,7 @@ class AllSkyTargetReticle extends StatelessWidget {
                   Text(
                     '${totalError.toStringAsFixed(1)}″',
                     style: TextStyle(
-                      fontSize: 22,
+                      fontSize: NightshadeTypography.fontSize22,
                       fontWeight: FontWeight.w700,
                       color: withinThreshold
                           ? colors.success
@@ -107,7 +107,7 @@ class AllSkyTargetReticle extends StatelessWidget {
                         : 'Az ${_formatSigned(azimuthErrorArcsec)}″   '
                             'Alt ${_formatSigned(altitudeErrorArcsec)}″',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textMuted,
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
@@ -133,7 +133,7 @@ class AllSkyTargetReticle extends StatelessWidget {
                   Text(
                     'Waiting for first plate solve...',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       color: colors.textMuted,
                     ),
                   ),
@@ -307,7 +307,7 @@ class _ReticlePainter extends CustomPainter {
         text: text,
         style: TextStyle(
           color: colors.textMuted,
-          fontSize: 10,
+          fontSize: NightshadeTypography.fontSize10,
           fontWeight: FontWeight.w600,
         ),
       ),
