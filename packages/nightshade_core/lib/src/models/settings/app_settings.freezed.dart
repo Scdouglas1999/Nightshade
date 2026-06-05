@@ -314,6 +314,56 @@ mixin _$AppSettings {
 
   /// Per-filter maximum exposure overrides (seconds).
   Map<String, double> get adaptiveExposurePerFilterMaxSecs =>
+      throw _privateConstructorUsedError; // -------------------------------------------------------------------
+// Full-night audit 2026-06-04 follow-up — high-value unattended-night
+// knobs that previously had NO wire field, so a phone/remote save of
+// them was rejected by the `_assertKeysRemotable` fail-loud guard. These
+// round-trip the autofocus / dither / weather-safety / recovery settings
+// that an operator must be able to tune for an unattended night.
+// -------------------------------------------------------------------
+  /// Weather-safety: when true, the rig parks (not just pauses) when weather
+  /// turns unsafe. Mirrors `app_settings` DB key `park_on_unsafe_weather`.
+  bool get parkOnUnsafeWeather => throw _privateConstructorUsedError;
+
+  /// Autofocus: run an autofocus pass on every filter change.
+  /// DB key `auto_focus_on_filter_change`.
+  bool get autoFocusOnFilterChange => throw _privateConstructorUsedError;
+
+  /// Autofocus: disable the guider while an autofocus sweep runs (avoids the
+  /// guide star wandering out of frame during the focuser sweep).
+  /// DB key `af_disable_guiding`.
+  bool get afDisableGuidingDuringAf => throw _privateConstructorUsedError;
+
+  /// Dither: master enable for between-frame dithering.
+  /// DB key `dither_enabled`.
+  bool get ditherEnabled => throw _privateConstructorUsedError;
+
+  /// Dither: dither step size — 'Small', 'Medium', or 'Large'.
+  /// DB key `dither_scale`.
+  String get ditherScale => throw _privateConstructorUsedError;
+
+  /// Recovery: minutes between auto-retry attempts during a recovery loop.
+  /// DB key `recovery_default_retry_interval_mins`.
+  double get recoveryDefaultRetryIntervalMins =>
+      throw _privateConstructorUsedError;
+
+  /// Recovery: total minutes before the recovery loop gives up.
+  /// DB key `recovery_default_max_duration_mins`.
+  double get recoveryDefaultMaxDurationMins =>
+      throw _privateConstructorUsedError;
+
+  /// Recovery: stop tracking while recovering (dew/cloud wait).
+  /// DB key `recovery_stop_tracking_during_recovery`.
+  bool get recoveryStopTrackingDuringRecovery =>
+      throw _privateConstructorUsedError;
+
+  /// Recovery: abort the recovery loop if a meridian crossing falls inside
+  /// the recovery window. DB key `recovery_abort_on_meridian`.
+  bool get recoveryAbortOnMeridian => throw _privateConstructorUsedError;
+
+  /// Recovery: ring the platform alert sound on recovery entry.
+  /// DB key `recovery_audible_alert_when_entered`.
+  bool get recoveryAudibleAlertWhenEntered =>
       throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -382,7 +432,17 @@ abstract class $AppSettingsCopyWith<$Res> {
       double adaptiveExposureMaxSecs,
       Map<String, bool> adaptiveExposurePerFilterEnabled,
       Map<String, double> adaptiveExposurePerFilterMinSecs,
-      Map<String, double> adaptiveExposurePerFilterMaxSecs});
+      Map<String, double> adaptiveExposurePerFilterMaxSecs,
+      bool parkOnUnsafeWeather,
+      bool autoFocusOnFilterChange,
+      bool afDisableGuidingDuringAf,
+      bool ditherEnabled,
+      String ditherScale,
+      double recoveryDefaultRetryIntervalMins,
+      double recoveryDefaultMaxDurationMins,
+      bool recoveryStopTrackingDuringRecovery,
+      bool recoveryAbortOnMeridian,
+      bool recoveryAudibleAlertWhenEntered});
 
   $ObserverLocationCopyWith<$Res>? get location;
 }
@@ -454,6 +514,16 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
     Object? adaptiveExposurePerFilterEnabled = null,
     Object? adaptiveExposurePerFilterMinSecs = null,
     Object? adaptiveExposurePerFilterMaxSecs = null,
+    Object? parkOnUnsafeWeather = null,
+    Object? autoFocusOnFilterChange = null,
+    Object? afDisableGuidingDuringAf = null,
+    Object? ditherEnabled = null,
+    Object? ditherScale = null,
+    Object? recoveryDefaultRetryIntervalMins = null,
+    Object? recoveryDefaultMaxDurationMins = null,
+    Object? recoveryStopTrackingDuringRecovery = null,
+    Object? recoveryAbortOnMeridian = null,
+    Object? recoveryAudibleAlertWhenEntered = null,
   }) {
     return _then(_value.copyWith(
       location: freezed == location
@@ -674,6 +744,47 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
           ? _value.adaptiveExposurePerFilterMaxSecs
           : adaptiveExposurePerFilterMaxSecs // ignore: cast_nullable_to_non_nullable
               as Map<String, double>,
+      parkOnUnsafeWeather: null == parkOnUnsafeWeather
+          ? _value.parkOnUnsafeWeather
+          : parkOnUnsafeWeather // ignore: cast_nullable_to_non_nullable
+              as bool,
+      autoFocusOnFilterChange: null == autoFocusOnFilterChange
+          ? _value.autoFocusOnFilterChange
+          : autoFocusOnFilterChange // ignore: cast_nullable_to_non_nullable
+              as bool,
+      afDisableGuidingDuringAf: null == afDisableGuidingDuringAf
+          ? _value.afDisableGuidingDuringAf
+          : afDisableGuidingDuringAf // ignore: cast_nullable_to_non_nullable
+              as bool,
+      ditherEnabled: null == ditherEnabled
+          ? _value.ditherEnabled
+          : ditherEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      ditherScale: null == ditherScale
+          ? _value.ditherScale
+          : ditherScale // ignore: cast_nullable_to_non_nullable
+              as String,
+      recoveryDefaultRetryIntervalMins: null == recoveryDefaultRetryIntervalMins
+          ? _value.recoveryDefaultRetryIntervalMins
+          : recoveryDefaultRetryIntervalMins // ignore: cast_nullable_to_non_nullable
+              as double,
+      recoveryDefaultMaxDurationMins: null == recoveryDefaultMaxDurationMins
+          ? _value.recoveryDefaultMaxDurationMins
+          : recoveryDefaultMaxDurationMins // ignore: cast_nullable_to_non_nullable
+              as double,
+      recoveryStopTrackingDuringRecovery: null ==
+              recoveryStopTrackingDuringRecovery
+          ? _value.recoveryStopTrackingDuringRecovery
+          : recoveryStopTrackingDuringRecovery // ignore: cast_nullable_to_non_nullable
+              as bool,
+      recoveryAbortOnMeridian: null == recoveryAbortOnMeridian
+          ? _value.recoveryAbortOnMeridian
+          : recoveryAbortOnMeridian // ignore: cast_nullable_to_non_nullable
+              as bool,
+      recoveryAudibleAlertWhenEntered: null == recoveryAudibleAlertWhenEntered
+          ? _value.recoveryAudibleAlertWhenEntered
+          : recoveryAudibleAlertWhenEntered // ignore: cast_nullable_to_non_nullable
+              as bool,
     ) as $Val);
   }
 
@@ -752,7 +863,17 @@ abstract class _$$AppSettingsImplCopyWith<$Res>
       double adaptiveExposureMaxSecs,
       Map<String, bool> adaptiveExposurePerFilterEnabled,
       Map<String, double> adaptiveExposurePerFilterMinSecs,
-      Map<String, double> adaptiveExposurePerFilterMaxSecs});
+      Map<String, double> adaptiveExposurePerFilterMaxSecs,
+      bool parkOnUnsafeWeather,
+      bool autoFocusOnFilterChange,
+      bool afDisableGuidingDuringAf,
+      bool ditherEnabled,
+      String ditherScale,
+      double recoveryDefaultRetryIntervalMins,
+      double recoveryDefaultMaxDurationMins,
+      bool recoveryStopTrackingDuringRecovery,
+      bool recoveryAbortOnMeridian,
+      bool recoveryAudibleAlertWhenEntered});
 
   @override
   $ObserverLocationCopyWith<$Res>? get location;
@@ -823,6 +944,16 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
     Object? adaptiveExposurePerFilterEnabled = null,
     Object? adaptiveExposurePerFilterMinSecs = null,
     Object? adaptiveExposurePerFilterMaxSecs = null,
+    Object? parkOnUnsafeWeather = null,
+    Object? autoFocusOnFilterChange = null,
+    Object? afDisableGuidingDuringAf = null,
+    Object? ditherEnabled = null,
+    Object? ditherScale = null,
+    Object? recoveryDefaultRetryIntervalMins = null,
+    Object? recoveryDefaultMaxDurationMins = null,
+    Object? recoveryStopTrackingDuringRecovery = null,
+    Object? recoveryAbortOnMeridian = null,
+    Object? recoveryAudibleAlertWhenEntered = null,
   }) {
     return _then(_$AppSettingsImpl(
       location: freezed == location
@@ -1043,6 +1174,47 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
           ? _value._adaptiveExposurePerFilterMaxSecs
           : adaptiveExposurePerFilterMaxSecs // ignore: cast_nullable_to_non_nullable
               as Map<String, double>,
+      parkOnUnsafeWeather: null == parkOnUnsafeWeather
+          ? _value.parkOnUnsafeWeather
+          : parkOnUnsafeWeather // ignore: cast_nullable_to_non_nullable
+              as bool,
+      autoFocusOnFilterChange: null == autoFocusOnFilterChange
+          ? _value.autoFocusOnFilterChange
+          : autoFocusOnFilterChange // ignore: cast_nullable_to_non_nullable
+              as bool,
+      afDisableGuidingDuringAf: null == afDisableGuidingDuringAf
+          ? _value.afDisableGuidingDuringAf
+          : afDisableGuidingDuringAf // ignore: cast_nullable_to_non_nullable
+              as bool,
+      ditherEnabled: null == ditherEnabled
+          ? _value.ditherEnabled
+          : ditherEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      ditherScale: null == ditherScale
+          ? _value.ditherScale
+          : ditherScale // ignore: cast_nullable_to_non_nullable
+              as String,
+      recoveryDefaultRetryIntervalMins: null == recoveryDefaultRetryIntervalMins
+          ? _value.recoveryDefaultRetryIntervalMins
+          : recoveryDefaultRetryIntervalMins // ignore: cast_nullable_to_non_nullable
+              as double,
+      recoveryDefaultMaxDurationMins: null == recoveryDefaultMaxDurationMins
+          ? _value.recoveryDefaultMaxDurationMins
+          : recoveryDefaultMaxDurationMins // ignore: cast_nullable_to_non_nullable
+              as double,
+      recoveryStopTrackingDuringRecovery: null ==
+              recoveryStopTrackingDuringRecovery
+          ? _value.recoveryStopTrackingDuringRecovery
+          : recoveryStopTrackingDuringRecovery // ignore: cast_nullable_to_non_nullable
+              as bool,
+      recoveryAbortOnMeridian: null == recoveryAbortOnMeridian
+          ? _value.recoveryAbortOnMeridian
+          : recoveryAbortOnMeridian // ignore: cast_nullable_to_non_nullable
+              as bool,
+      recoveryAudibleAlertWhenEntered: null == recoveryAudibleAlertWhenEntered
+          ? _value.recoveryAudibleAlertWhenEntered
+          : recoveryAudibleAlertWhenEntered // ignore: cast_nullable_to_non_nullable
+              as bool,
     ));
   }
 }
@@ -1107,7 +1279,17 @@ class _$AppSettingsImpl implements _AppSettings {
       final Map<String, double> adaptiveExposurePerFilterMinSecs =
           const <String, double>{},
       final Map<String, double> adaptiveExposurePerFilterMaxSecs =
-          const <String, double>{}})
+          const <String, double>{},
+      this.parkOnUnsafeWeather = true,
+      this.autoFocusOnFilterChange = true,
+      this.afDisableGuidingDuringAf = false,
+      this.ditherEnabled = true,
+      this.ditherScale = 'Medium',
+      this.recoveryDefaultRetryIntervalMins = 10.0,
+      this.recoveryDefaultMaxDurationMins = 90.0,
+      this.recoveryStopTrackingDuringRecovery = true,
+      this.recoveryAbortOnMeridian = true,
+      this.recoveryAudibleAlertWhenEntered = true})
       : _adaptiveExposurePerFilterEnabled = adaptiveExposurePerFilterEnabled,
         _adaptiveExposurePerFilterMinSecs = adaptiveExposurePerFilterMinSecs,
         _adaptiveExposurePerFilterMaxSecs = adaptiveExposurePerFilterMaxSecs;
@@ -1354,9 +1536,77 @@ class _$AppSettingsImpl implements _AppSettings {
     return EqualUnmodifiableMapView(_adaptiveExposurePerFilterMaxSecs);
   }
 
+// -------------------------------------------------------------------
+// Full-night audit 2026-06-04 follow-up — high-value unattended-night
+// knobs that previously had NO wire field, so a phone/remote save of
+// them was rejected by the `_assertKeysRemotable` fail-loud guard. These
+// round-trip the autofocus / dither / weather-safety / recovery settings
+// that an operator must be able to tune for an unattended night.
+// -------------------------------------------------------------------
+  /// Weather-safety: when true, the rig parks (not just pauses) when weather
+  /// turns unsafe. Mirrors `app_settings` DB key `park_on_unsafe_weather`.
+  @override
+  @JsonKey()
+  final bool parkOnUnsafeWeather;
+
+  /// Autofocus: run an autofocus pass on every filter change.
+  /// DB key `auto_focus_on_filter_change`.
+  @override
+  @JsonKey()
+  final bool autoFocusOnFilterChange;
+
+  /// Autofocus: disable the guider while an autofocus sweep runs (avoids the
+  /// guide star wandering out of frame during the focuser sweep).
+  /// DB key `af_disable_guiding`.
+  @override
+  @JsonKey()
+  final bool afDisableGuidingDuringAf;
+
+  /// Dither: master enable for between-frame dithering.
+  /// DB key `dither_enabled`.
+  @override
+  @JsonKey()
+  final bool ditherEnabled;
+
+  /// Dither: dither step size — 'Small', 'Medium', or 'Large'.
+  /// DB key `dither_scale`.
+  @override
+  @JsonKey()
+  final String ditherScale;
+
+  /// Recovery: minutes between auto-retry attempts during a recovery loop.
+  /// DB key `recovery_default_retry_interval_mins`.
+  @override
+  @JsonKey()
+  final double recoveryDefaultRetryIntervalMins;
+
+  /// Recovery: total minutes before the recovery loop gives up.
+  /// DB key `recovery_default_max_duration_mins`.
+  @override
+  @JsonKey()
+  final double recoveryDefaultMaxDurationMins;
+
+  /// Recovery: stop tracking while recovering (dew/cloud wait).
+  /// DB key `recovery_stop_tracking_during_recovery`.
+  @override
+  @JsonKey()
+  final bool recoveryStopTrackingDuringRecovery;
+
+  /// Recovery: abort the recovery loop if a meridian crossing falls inside
+  /// the recovery window. DB key `recovery_abort_on_meridian`.
+  @override
+  @JsonKey()
+  final bool recoveryAbortOnMeridian;
+
+  /// Recovery: ring the platform alert sound on recovery entry.
+  /// DB key `recovery_audible_alert_when_entered`.
+  @override
+  @JsonKey()
+  final bool recoveryAudibleAlertWhenEntered;
+
   @override
   String toString() {
-    return 'AppSettings(location: $location, theme: $theme, language: $language, autoConnect: $autoConnect, latitude: $latitude, longitude: $longitude, elevation: $elevation, fileNamingPattern: $fileNamingPattern, meridianFlipMinutes: $meridianFlipMinutes, autoFocusEveryMinutes: $autoFocusEveryMinutes, ditherEveryFrames: $ditherEveryFrames, plateSolveTimeout: $plateSolveTimeout, plateSolveSearchRadius: $plateSolveSearchRadius, discordWebhook: $discordWebhook, pushoverKey: $pushoverKey, pushoverUser: $pushoverUser, astapPath: $astapPath, autoDiscoverOnLaunch: $autoDiscoverOnLaunch, accentColor: $accentColor, fontSize: $fontSize, uiScale: $uiScale, indiServerHost: $indiServerHost, indiServerPort: $indiServerPort, indiAutoConnect: $indiAutoConnect, alpacaServerHost: $alpacaServerHost, alpacaServerPort: $alpacaServerPort, alpacaAutoDiscover: $alpacaAutoDiscover, useNativeExecution: $useNativeExecution, useSimulationMode: $useSimulationMode, imageOutputPath: $imageOutputPath, observer: $observer, telescope: $telescope, instrument: $instrument, updateCheckEnabled: $updateCheckEnabled, updateServerUrl: $updateServerUrl, updateChannel: $updateChannel, updateCheckIntervalHours: $updateCheckIntervalHours, skippedUpdateVersion: $skippedUpdateVersion, safetyFailMode: $safetyFailMode, enableImageGrading: $enableImageGrading, imageGradingHfrThresholdPx: $imageGradingHfrThresholdPx, imageGradingHfrBaselinePercent: $imageGradingHfrBaselinePercent, imageGradingEccentricityThreshold: $imageGradingEccentricityThreshold, imageGradingStarCountMin: $imageGradingStarCountMin, imageGradingMaxConsecutiveRejects: $imageGradingMaxConsecutiveRejects, imageGradingRejectFolderPath: $imageGradingRejectFolderPath, adaptiveExposureEnabled: $adaptiveExposureEnabled, adaptiveExposureTargetSnr: $adaptiveExposureTargetSnr, adaptiveExposureReferenceMag: $adaptiveExposureReferenceMag, adaptiveExposureMinSecs: $adaptiveExposureMinSecs, adaptiveExposureMaxSecs: $adaptiveExposureMaxSecs, adaptiveExposurePerFilterEnabled: $adaptiveExposurePerFilterEnabled, adaptiveExposurePerFilterMinSecs: $adaptiveExposurePerFilterMinSecs, adaptiveExposurePerFilterMaxSecs: $adaptiveExposurePerFilterMaxSecs)';
+    return 'AppSettings(location: $location, theme: $theme, language: $language, autoConnect: $autoConnect, latitude: $latitude, longitude: $longitude, elevation: $elevation, fileNamingPattern: $fileNamingPattern, meridianFlipMinutes: $meridianFlipMinutes, autoFocusEveryMinutes: $autoFocusEveryMinutes, ditherEveryFrames: $ditherEveryFrames, plateSolveTimeout: $plateSolveTimeout, plateSolveSearchRadius: $plateSolveSearchRadius, discordWebhook: $discordWebhook, pushoverKey: $pushoverKey, pushoverUser: $pushoverUser, astapPath: $astapPath, autoDiscoverOnLaunch: $autoDiscoverOnLaunch, accentColor: $accentColor, fontSize: $fontSize, uiScale: $uiScale, indiServerHost: $indiServerHost, indiServerPort: $indiServerPort, indiAutoConnect: $indiAutoConnect, alpacaServerHost: $alpacaServerHost, alpacaServerPort: $alpacaServerPort, alpacaAutoDiscover: $alpacaAutoDiscover, useNativeExecution: $useNativeExecution, useSimulationMode: $useSimulationMode, imageOutputPath: $imageOutputPath, observer: $observer, telescope: $telescope, instrument: $instrument, updateCheckEnabled: $updateCheckEnabled, updateServerUrl: $updateServerUrl, updateChannel: $updateChannel, updateCheckIntervalHours: $updateCheckIntervalHours, skippedUpdateVersion: $skippedUpdateVersion, safetyFailMode: $safetyFailMode, enableImageGrading: $enableImageGrading, imageGradingHfrThresholdPx: $imageGradingHfrThresholdPx, imageGradingHfrBaselinePercent: $imageGradingHfrBaselinePercent, imageGradingEccentricityThreshold: $imageGradingEccentricityThreshold, imageGradingStarCountMin: $imageGradingStarCountMin, imageGradingMaxConsecutiveRejects: $imageGradingMaxConsecutiveRejects, imageGradingRejectFolderPath: $imageGradingRejectFolderPath, adaptiveExposureEnabled: $adaptiveExposureEnabled, adaptiveExposureTargetSnr: $adaptiveExposureTargetSnr, adaptiveExposureReferenceMag: $adaptiveExposureReferenceMag, adaptiveExposureMinSecs: $adaptiveExposureMinSecs, adaptiveExposureMaxSecs: $adaptiveExposureMaxSecs, adaptiveExposurePerFilterEnabled: $adaptiveExposurePerFilterEnabled, adaptiveExposurePerFilterMinSecs: $adaptiveExposurePerFilterMinSecs, adaptiveExposurePerFilterMaxSecs: $adaptiveExposurePerFilterMaxSecs, parkOnUnsafeWeather: $parkOnUnsafeWeather, autoFocusOnFilterChange: $autoFocusOnFilterChange, afDisableGuidingDuringAf: $afDisableGuidingDuringAf, ditherEnabled: $ditherEnabled, ditherScale: $ditherScale, recoveryDefaultRetryIntervalMins: $recoveryDefaultRetryIntervalMins, recoveryDefaultMaxDurationMins: $recoveryDefaultMaxDurationMins, recoveryStopTrackingDuringRecovery: $recoveryStopTrackingDuringRecovery, recoveryAbortOnMeridian: $recoveryAbortOnMeridian, recoveryAudibleAlertWhenEntered: $recoveryAudibleAlertWhenEntered)';
   }
 
   @override
@@ -1460,7 +1710,17 @@ class _$AppSettingsImpl implements _AppSettings {
             (identical(other.adaptiveExposureMaxSecs, adaptiveExposureMaxSecs) || other.adaptiveExposureMaxSecs == adaptiveExposureMaxSecs) &&
             const DeepCollectionEquality().equals(other._adaptiveExposurePerFilterEnabled, _adaptiveExposurePerFilterEnabled) &&
             const DeepCollectionEquality().equals(other._adaptiveExposurePerFilterMinSecs, _adaptiveExposurePerFilterMinSecs) &&
-            const DeepCollectionEquality().equals(other._adaptiveExposurePerFilterMaxSecs, _adaptiveExposurePerFilterMaxSecs));
+            const DeepCollectionEquality().equals(other._adaptiveExposurePerFilterMaxSecs, _adaptiveExposurePerFilterMaxSecs) &&
+            (identical(other.parkOnUnsafeWeather, parkOnUnsafeWeather) || other.parkOnUnsafeWeather == parkOnUnsafeWeather) &&
+            (identical(other.autoFocusOnFilterChange, autoFocusOnFilterChange) || other.autoFocusOnFilterChange == autoFocusOnFilterChange) &&
+            (identical(other.afDisableGuidingDuringAf, afDisableGuidingDuringAf) || other.afDisableGuidingDuringAf == afDisableGuidingDuringAf) &&
+            (identical(other.ditherEnabled, ditherEnabled) || other.ditherEnabled == ditherEnabled) &&
+            (identical(other.ditherScale, ditherScale) || other.ditherScale == ditherScale) &&
+            (identical(other.recoveryDefaultRetryIntervalMins, recoveryDefaultRetryIntervalMins) || other.recoveryDefaultRetryIntervalMins == recoveryDefaultRetryIntervalMins) &&
+            (identical(other.recoveryDefaultMaxDurationMins, recoveryDefaultMaxDurationMins) || other.recoveryDefaultMaxDurationMins == recoveryDefaultMaxDurationMins) &&
+            (identical(other.recoveryStopTrackingDuringRecovery, recoveryStopTrackingDuringRecovery) || other.recoveryStopTrackingDuringRecovery == recoveryStopTrackingDuringRecovery) &&
+            (identical(other.recoveryAbortOnMeridian, recoveryAbortOnMeridian) || other.recoveryAbortOnMeridian == recoveryAbortOnMeridian) &&
+            (identical(other.recoveryAudibleAlertWhenEntered, recoveryAudibleAlertWhenEntered) || other.recoveryAudibleAlertWhenEntered == recoveryAudibleAlertWhenEntered));
   }
 
   @JsonKey(ignore: true)
@@ -1520,7 +1780,17 @@ class _$AppSettingsImpl implements _AppSettings {
         adaptiveExposureMaxSecs,
         const DeepCollectionEquality().hash(_adaptiveExposurePerFilterEnabled),
         const DeepCollectionEquality().hash(_adaptiveExposurePerFilterMinSecs),
-        const DeepCollectionEquality().hash(_adaptiveExposurePerFilterMaxSecs)
+        const DeepCollectionEquality().hash(_adaptiveExposurePerFilterMaxSecs),
+        parkOnUnsafeWeather,
+        autoFocusOnFilterChange,
+        afDisableGuidingDuringAf,
+        ditherEnabled,
+        ditherScale,
+        recoveryDefaultRetryIntervalMins,
+        recoveryDefaultMaxDurationMins,
+        recoveryStopTrackingDuringRecovery,
+        recoveryAbortOnMeridian,
+        recoveryAudibleAlertWhenEntered
       ]);
 
   @JsonKey(ignore: true)
@@ -1539,61 +1809,70 @@ class _$AppSettingsImpl implements _AppSettings {
 
 abstract class _AppSettings implements AppSettings {
   const factory _AppSettings(
-          {final ObserverLocation? location,
-          final String theme,
-          final String language,
-          final bool autoConnect,
-          final double latitude,
-          final double longitude,
-          final double elevation,
-          final String fileNamingPattern,
-          final int meridianFlipMinutes,
-          final int autoFocusEveryMinutes,
-          final int ditherEveryFrames,
-          final int plateSolveTimeout,
-          final double plateSolveSearchRadius,
-          final String discordWebhook,
-          final String pushoverKey,
-          final String pushoverUser,
-          final String astapPath,
-          final bool autoDiscoverOnLaunch,
-          final String accentColor,
-          final String fontSize,
-          final String uiScale,
-          final String indiServerHost,
-          final int indiServerPort,
-          final bool indiAutoConnect,
-          final String alpacaServerHost,
-          final int alpacaServerPort,
-          final bool alpacaAutoDiscover,
-          final bool useNativeExecution,
-          final bool useSimulationMode,
-          final String imageOutputPath,
-          final String observer,
-          final String telescope,
-          final String instrument,
-          final bool updateCheckEnabled,
-          final String updateServerUrl,
-          final String updateChannel,
-          final int updateCheckIntervalHours,
-          final String skippedUpdateVersion,
-          final SafetyFailMode safetyFailMode,
-          final bool enableImageGrading,
-          final double? imageGradingHfrThresholdPx,
-          final double? imageGradingHfrBaselinePercent,
-          final double? imageGradingEccentricityThreshold,
-          final int? imageGradingStarCountMin,
-          final int imageGradingMaxConsecutiveRejects,
-          final String? imageGradingRejectFolderPath,
-          final bool adaptiveExposureEnabled,
-          final double adaptiveExposureTargetSnr,
-          final double adaptiveExposureReferenceMag,
-          final double adaptiveExposureMinSecs,
-          final double adaptiveExposureMaxSecs,
-          final Map<String, bool> adaptiveExposurePerFilterEnabled,
-          final Map<String, double> adaptiveExposurePerFilterMinSecs,
-          final Map<String, double> adaptiveExposurePerFilterMaxSecs}) =
-      _$AppSettingsImpl;
+      {final ObserverLocation? location,
+      final String theme,
+      final String language,
+      final bool autoConnect,
+      final double latitude,
+      final double longitude,
+      final double elevation,
+      final String fileNamingPattern,
+      final int meridianFlipMinutes,
+      final int autoFocusEveryMinutes,
+      final int ditherEveryFrames,
+      final int plateSolveTimeout,
+      final double plateSolveSearchRadius,
+      final String discordWebhook,
+      final String pushoverKey,
+      final String pushoverUser,
+      final String astapPath,
+      final bool autoDiscoverOnLaunch,
+      final String accentColor,
+      final String fontSize,
+      final String uiScale,
+      final String indiServerHost,
+      final int indiServerPort,
+      final bool indiAutoConnect,
+      final String alpacaServerHost,
+      final int alpacaServerPort,
+      final bool alpacaAutoDiscover,
+      final bool useNativeExecution,
+      final bool useSimulationMode,
+      final String imageOutputPath,
+      final String observer,
+      final String telescope,
+      final String instrument,
+      final bool updateCheckEnabled,
+      final String updateServerUrl,
+      final String updateChannel,
+      final int updateCheckIntervalHours,
+      final String skippedUpdateVersion,
+      final SafetyFailMode safetyFailMode,
+      final bool enableImageGrading,
+      final double? imageGradingHfrThresholdPx,
+      final double? imageGradingHfrBaselinePercent,
+      final double? imageGradingEccentricityThreshold,
+      final int? imageGradingStarCountMin,
+      final int imageGradingMaxConsecutiveRejects,
+      final String? imageGradingRejectFolderPath,
+      final bool adaptiveExposureEnabled,
+      final double adaptiveExposureTargetSnr,
+      final double adaptiveExposureReferenceMag,
+      final double adaptiveExposureMinSecs,
+      final double adaptiveExposureMaxSecs,
+      final Map<String, bool> adaptiveExposurePerFilterEnabled,
+      final Map<String, double> adaptiveExposurePerFilterMinSecs,
+      final Map<String, double> adaptiveExposurePerFilterMaxSecs,
+      final bool parkOnUnsafeWeather,
+      final bool autoFocusOnFilterChange,
+      final bool afDisableGuidingDuringAf,
+      final bool ditherEnabled,
+      final String ditherScale,
+      final double recoveryDefaultRetryIntervalMins,
+      final double recoveryDefaultMaxDurationMins,
+      final bool recoveryStopTrackingDuringRecovery,
+      final bool recoveryAbortOnMeridian,
+      final bool recoveryAudibleAlertWhenEntered}) = _$AppSettingsImpl;
 
   factory _AppSettings.fromJson(Map<String, dynamic> json) =
       _$AppSettingsImpl.fromJson;
@@ -1754,6 +2033,62 @@ abstract class _AppSettings implements AppSettings {
 
   /// Per-filter maximum exposure overrides (seconds).
   Map<String, double> get adaptiveExposurePerFilterMaxSecs;
+  @override // -------------------------------------------------------------------
+// Full-night audit 2026-06-04 follow-up — high-value unattended-night
+// knobs that previously had NO wire field, so a phone/remote save of
+// them was rejected by the `_assertKeysRemotable` fail-loud guard. These
+// round-trip the autofocus / dither / weather-safety / recovery settings
+// that an operator must be able to tune for an unattended night.
+// -------------------------------------------------------------------
+  /// Weather-safety: when true, the rig parks (not just pauses) when weather
+  /// turns unsafe. Mirrors `app_settings` DB key `park_on_unsafe_weather`.
+  bool get parkOnUnsafeWeather;
+  @override
+
+  /// Autofocus: run an autofocus pass on every filter change.
+  /// DB key `auto_focus_on_filter_change`.
+  bool get autoFocusOnFilterChange;
+  @override
+
+  /// Autofocus: disable the guider while an autofocus sweep runs (avoids the
+  /// guide star wandering out of frame during the focuser sweep).
+  /// DB key `af_disable_guiding`.
+  bool get afDisableGuidingDuringAf;
+  @override
+
+  /// Dither: master enable for between-frame dithering.
+  /// DB key `dither_enabled`.
+  bool get ditherEnabled;
+  @override
+
+  /// Dither: dither step size — 'Small', 'Medium', or 'Large'.
+  /// DB key `dither_scale`.
+  String get ditherScale;
+  @override
+
+  /// Recovery: minutes between auto-retry attempts during a recovery loop.
+  /// DB key `recovery_default_retry_interval_mins`.
+  double get recoveryDefaultRetryIntervalMins;
+  @override
+
+  /// Recovery: total minutes before the recovery loop gives up.
+  /// DB key `recovery_default_max_duration_mins`.
+  double get recoveryDefaultMaxDurationMins;
+  @override
+
+  /// Recovery: stop tracking while recovering (dew/cloud wait).
+  /// DB key `recovery_stop_tracking_during_recovery`.
+  bool get recoveryStopTrackingDuringRecovery;
+  @override
+
+  /// Recovery: abort the recovery loop if a meridian crossing falls inside
+  /// the recovery window. DB key `recovery_abort_on_meridian`.
+  bool get recoveryAbortOnMeridian;
+  @override
+
+  /// Recovery: ring the platform alert sound on recovery entry.
+  /// DB key `recovery_audible_alert_when_entered`.
+  bool get recoveryAudibleAlertWhenEntered;
   @override
   @JsonKey(ignore: true)
   _$$AppSettingsImplCopyWith<_$AppSettingsImpl> get copyWith =>

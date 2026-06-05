@@ -66,6 +66,20 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
     'adaptive_exposure_per_filter_enabled',
     'adaptive_exposure_per_filter_min_secs',
     'adaptive_exposure_per_filter_max_secs',
+    // Full-night audit 2026-06-04 follow-up — high-value unattended-night
+    // knobs now carried by models.AppSettings (autofocus / dither /
+    // weather-safety / recovery). Previously these threw via the fail-loud
+    // guard on a remote save; now they round-trip.
+    'park_on_unsafe_weather',
+    'auto_focus_on_filter_change',
+    'af_disable_guiding',
+    'dither_enabled',
+    'dither_scale',
+    'recovery_default_retry_interval_mins',
+    'recovery_default_max_duration_mins',
+    'recovery_stop_tracking_during_recovery',
+    'recovery_abort_on_meridian',
+    'recovery_audible_alert_when_entered',
   };
 
   /// FAIL-LOUD guard for the remote-write path. Throws an [UnsupportedError]

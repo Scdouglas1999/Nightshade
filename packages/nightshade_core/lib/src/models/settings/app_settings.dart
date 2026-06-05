@@ -131,6 +131,44 @@ class AppSettings with _$AppSettings {
     /// Per-filter maximum exposure overrides (seconds).
     @Default(<String, double>{}) Map<String, double>
         adaptiveExposurePerFilterMaxSecs,
+    // -------------------------------------------------------------------
+    // Full-night audit 2026-06-04 follow-up — high-value unattended-night
+    // knobs that previously had NO wire field, so a phone/remote save of
+    // them was rejected by the `_assertKeysRemotable` fail-loud guard. These
+    // round-trip the autofocus / dither / weather-safety / recovery settings
+    // that an operator must be able to tune for an unattended night.
+    // -------------------------------------------------------------------
+    /// Weather-safety: when true, the rig parks (not just pauses) when weather
+    /// turns unsafe. Mirrors `app_settings` DB key `park_on_unsafe_weather`.
+    @Default(true) bool parkOnUnsafeWeather,
+    /// Autofocus: run an autofocus pass on every filter change.
+    /// DB key `auto_focus_on_filter_change`.
+    @Default(true) bool autoFocusOnFilterChange,
+    /// Autofocus: disable the guider while an autofocus sweep runs (avoids the
+    /// guide star wandering out of frame during the focuser sweep).
+    /// DB key `af_disable_guiding`.
+    @Default(false) bool afDisableGuidingDuringAf,
+    /// Dither: master enable for between-frame dithering.
+    /// DB key `dither_enabled`.
+    @Default(true) bool ditherEnabled,
+    /// Dither: dither step size — 'Small', 'Medium', or 'Large'.
+    /// DB key `dither_scale`.
+    @Default('Medium') String ditherScale,
+    /// Recovery: minutes between auto-retry attempts during a recovery loop.
+    /// DB key `recovery_default_retry_interval_mins`.
+    @Default(10.0) double recoveryDefaultRetryIntervalMins,
+    /// Recovery: total minutes before the recovery loop gives up.
+    /// DB key `recovery_default_max_duration_mins`.
+    @Default(90.0) double recoveryDefaultMaxDurationMins,
+    /// Recovery: stop tracking while recovering (dew/cloud wait).
+    /// DB key `recovery_stop_tracking_during_recovery`.
+    @Default(true) bool recoveryStopTrackingDuringRecovery,
+    /// Recovery: abort the recovery loop if a meridian crossing falls inside
+    /// the recovery window. DB key `recovery_abort_on_meridian`.
+    @Default(true) bool recoveryAbortOnMeridian,
+    /// Recovery: ring the platform alert sound on recovery entry.
+    /// DB key `recovery_audible_alert_when_entered`.
+    @Default(true) bool recoveryAudibleAlertWhenEntered,
   }) = _AppSettings;
 
   factory AppSettings.fromJson(Map<String, dynamic> json) =>

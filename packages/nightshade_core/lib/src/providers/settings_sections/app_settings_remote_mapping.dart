@@ -62,6 +62,20 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
           Map<String, double>.from(remote.adaptiveExposurePerFilterMinSecs),
       adaptiveExposurePerFilterMaxSecs:
           Map<String, double>.from(remote.adaptiveExposurePerFilterMaxSecs),
+      // Full-night audit 2026-06-04 follow-up — high-value unattended-night
+      // knobs (autofocus / dither / weather-safety / recovery) now carried by
+      // the wire model so a phone-driven night keeps them.
+      parkOnUnsafeWeather: remote.parkOnUnsafeWeather,
+      autoFocusOnFilterChange: remote.autoFocusOnFilterChange,
+      afDisableGuidingDuringAf: remote.afDisableGuidingDuringAf,
+      ditherEnabled: remote.ditherEnabled,
+      ditherScale: remote.ditherScale,
+      recoveryDefaultRetryIntervalMins: remote.recoveryDefaultRetryIntervalMins,
+      recoveryDefaultMaxDurationMins: remote.recoveryDefaultMaxDurationMins,
+      recoveryStopTrackingDuringRecovery:
+          remote.recoveryStopTrackingDuringRecovery,
+      recoveryAbortOnMeridian: remote.recoveryAbortOnMeridian,
+      recoveryAudibleAlertWhenEntered: remote.recoveryAudibleAlertWhenEntered,
     );
   }
 
@@ -134,6 +148,20 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
           Map<String, double>.from(settings.adaptiveExposurePerFilterMinSecs),
       adaptiveExposurePerFilterMaxSecs:
           Map<String, double>.from(settings.adaptiveExposurePerFilterMaxSecs),
+      // Full-night audit 2026-06-04 follow-up — push the live unattended-night
+      // knobs to the host so a remote save doesn't silently drop them.
+      parkOnUnsafeWeather: settings.parkOnUnsafeWeather,
+      autoFocusOnFilterChange: settings.autoFocusOnFilterChange,
+      afDisableGuidingDuringAf: settings.afDisableGuidingDuringAf,
+      ditherEnabled: settings.ditherEnabled,
+      ditherScale: settings.ditherScale,
+      recoveryDefaultRetryIntervalMins:
+          settings.recoveryDefaultRetryIntervalMins,
+      recoveryDefaultMaxDurationMins: settings.recoveryDefaultMaxDurationMins,
+      recoveryStopTrackingDuringRecovery:
+          settings.recoveryStopTrackingDuringRecovery,
+      recoveryAbortOnMeridian: settings.recoveryAbortOnMeridian,
+      recoveryAudibleAlertWhenEntered: settings.recoveryAudibleAlertWhenEntered,
     );
   }
 
@@ -348,6 +376,46 @@ extension _AppSettingsRemoteMapping on AppSettingsNotifier {
                   (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
                 ),
               )
+            : null;
+      // Full-night audit 2026-06-04 follow-up — keys mirror
+      // models.AppSettings.toJson() (camelCase). High-value unattended-night
+      // knobs pushed live from the host via the settings.changed event.
+      case 'parkOnUnsafeWeather':
+        return value is bool
+            ? current.copyWith(parkOnUnsafeWeather: value)
+            : null;
+      case 'autoFocusOnFilterChange':
+        return value is bool
+            ? current.copyWith(autoFocusOnFilterChange: value)
+            : null;
+      case 'afDisableGuidingDuringAf':
+        return value is bool
+            ? current.copyWith(afDisableGuidingDuringAf: value)
+            : null;
+      case 'ditherEnabled':
+        return value is bool ? current.copyWith(ditherEnabled: value) : null;
+      case 'ditherScale':
+        return value is String ? current.copyWith(ditherScale: value) : null;
+      case 'recoveryDefaultRetryIntervalMins':
+        return value is num
+            ? current.copyWith(
+                recoveryDefaultRetryIntervalMins: value.toDouble())
+            : null;
+      case 'recoveryDefaultMaxDurationMins':
+        return value is num
+            ? current.copyWith(recoveryDefaultMaxDurationMins: value.toDouble())
+            : null;
+      case 'recoveryStopTrackingDuringRecovery':
+        return value is bool
+            ? current.copyWith(recoveryStopTrackingDuringRecovery: value)
+            : null;
+      case 'recoveryAbortOnMeridian':
+        return value is bool
+            ? current.copyWith(recoveryAbortOnMeridian: value)
+            : null;
+      case 'recoveryAudibleAlertWhenEntered':
+        return value is bool
+            ? current.copyWith(recoveryAudibleAlertWhenEntered: value)
             : null;
       default:
         // Forward-compat: a newer host may emit settings this build

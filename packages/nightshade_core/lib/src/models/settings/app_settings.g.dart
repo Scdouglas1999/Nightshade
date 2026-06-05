@@ -111,6 +111,22 @@ _$AppSettingsImpl _$$AppSettingsImplFromJson(Map<String, dynamic> json) =>
                 (k, e) => MapEntry(k, (e as num).toDouble()),
               ) ??
               const <String, double>{},
+      parkOnUnsafeWeather: json['parkOnUnsafeWeather'] as bool? ?? true,
+      autoFocusOnFilterChange: json['autoFocusOnFilterChange'] as bool? ?? true,
+      afDisableGuidingDuringAf:
+          json['afDisableGuidingDuringAf'] as bool? ?? false,
+      ditherEnabled: json['ditherEnabled'] as bool? ?? true,
+      ditherScale: json['ditherScale'] as String? ?? 'Medium',
+      recoveryDefaultRetryIntervalMins:
+          (json['recoveryDefaultRetryIntervalMins'] as num?)?.toDouble() ??
+              10.0,
+      recoveryDefaultMaxDurationMins:
+          (json['recoveryDefaultMaxDurationMins'] as num?)?.toDouble() ?? 90.0,
+      recoveryStopTrackingDuringRecovery:
+          json['recoveryStopTrackingDuringRecovery'] as bool? ?? true,
+      recoveryAbortOnMeridian: json['recoveryAbortOnMeridian'] as bool? ?? true,
+      recoveryAudibleAlertWhenEntered:
+          json['recoveryAudibleAlertWhenEntered'] as bool? ?? true,
     );
 
 Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
@@ -174,6 +190,19 @@ Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
           instance.adaptiveExposurePerFilterMinSecs,
       'adaptiveExposurePerFilterMaxSecs':
           instance.adaptiveExposurePerFilterMaxSecs,
+      'parkOnUnsafeWeather': instance.parkOnUnsafeWeather,
+      'autoFocusOnFilterChange': instance.autoFocusOnFilterChange,
+      'afDisableGuidingDuringAf': instance.afDisableGuidingDuringAf,
+      'ditherEnabled': instance.ditherEnabled,
+      'ditherScale': instance.ditherScale,
+      'recoveryDefaultRetryIntervalMins':
+          instance.recoveryDefaultRetryIntervalMins,
+      'recoveryDefaultMaxDurationMins': instance.recoveryDefaultMaxDurationMins,
+      'recoveryStopTrackingDuringRecovery':
+          instance.recoveryStopTrackingDuringRecovery,
+      'recoveryAbortOnMeridian': instance.recoveryAbortOnMeridian,
+      'recoveryAudibleAlertWhenEntered':
+          instance.recoveryAudibleAlertWhenEntered,
     };
 
 const _$SafetyFailModeEnumMap = {
