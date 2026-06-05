@@ -129,6 +129,10 @@ List<HeadlessRoute> buildSequencerRoutes(SequencerHandlers h) =>
           h.handleSequencerUpdateCloudMotion),
       HeadlessRoute(HttpMethod.get, '/api/sequencer/cloud-motion',
           h.handleSequencerGetCloudMotion),
+      // Full-night audit 2026-06-04 (defense-in-depth) — weather-safety verdict
+      // forwarding from a remote controller into the local executor.
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/update-weather-verdict',
+          h.handleSequencerUpdateWeatherVerdict),
       HeadlessRoute(HttpMethod.post, '/api/sequencer/update-conditions-score',
           h.handleSequencerUpdateConditionsScore),
       HeadlessRoute(HttpMethod.get, '/api/sequencer/adaptive-swap',

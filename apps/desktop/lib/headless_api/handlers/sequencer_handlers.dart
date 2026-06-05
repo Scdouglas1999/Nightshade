@@ -641,6 +641,23 @@ class SequencerHandlers {
     return jsonOk({'status': 'ok'});
   }
 
+  /// Full-night audit 2026-06-04 (defense-in-depth) — POST
+  /// /api/sequencer/update-weather-verdict.
+  ///
+  /// Mirrors `NetworkBackend.sequencerUpdateWeatherVerdict`. Forwards the
+  /// Dart-side weather-safety verdict into the local executor so a remote
+  /// controller running as a thin client drives the remote rig's in-sequencer
+  /// `WeatherUnsafe` trigger the same way the local controller does.
+  Future<Response> handleSequencerUpdateWeatherVerdict(Request request) async {
+    _logInfo('[API] POST /api/sequencer/update-weather-verdict');
+    final payload = await readJsonObject(request);
+    final backend = container.read(sequencerBackendProvider);
+    await backend.sequencerUpdateWeatherVerdict(
+      unsafeOverride: _readNullableBool(payload, 'unsafeOverride'),
+    );
+    return jsonOk({'status': 'ok'});
+  }
+
   /// Wave 5 Agent 4 â€” GET /api/sequencer/cloud-motion.
   ///
   /// Returns `{"cloud_motion": "<json>"}` (or `null`) so the remote run
@@ -695,6 +712,13 @@ class SequencerHandlers {
     if (value == null) return null;
     if (value is num) return value.toDouble();
     throw FormatException('Expected number for $key, got ${value.runtimeType}');
+  }
+
+  bool? _readNullableBool(Map<String, dynamic> payload, String key) {
+    final value = payload[key];
+    if (value == null) return null;
+    if (value is bool) return value;
+    throw FormatException('Expected bool for $key, got ${value.runtimeType}');
   }
 
   Map<String, double> _readStringDoubleMap(

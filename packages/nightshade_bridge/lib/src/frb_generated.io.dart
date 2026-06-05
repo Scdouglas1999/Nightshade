@@ -13304,6 +13304,26 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__sequencer__api_sequencer_update_sky_brightnessPtr
           .asFunction<void Function(int, ffi.Pointer<ffi.Double>)>();
 
+  void wire__crate__api__sequencer__api_sequencer_update_weather_verdict(
+    int port_,
+    ffi.Pointer<ffi.Bool> unsafe_override,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_update_weather_verdict(
+      port_,
+      unsafe_override,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_update_weather_verdictPtr =
+      _lookup<
+          ffi
+          .NativeFunction<ffi.Void Function(ffi.Int64, ffi.Pointer<ffi.Bool>)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_weather_verdict',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_update_weather_verdict =
+      _wire__crate__api__sequencer__api_sequencer_update_weather_verdictPtr
+          .asFunction<void Function(int, ffi.Pointer<ffi.Bool>)>();
+
   void wire__crate__api__devices__camera__api_set_camera_binning(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,

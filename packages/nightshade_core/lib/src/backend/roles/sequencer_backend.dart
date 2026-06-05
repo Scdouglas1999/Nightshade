@@ -247,6 +247,20 @@ abstract class SequencerBackend implements AdaptiveSwapBackend {
     double? predictedClearSkyAz,
   });
 
+  /// Full-night audit 2026-06-04 (defense-in-depth) — push the Dart-side
+  /// weather-safety verdict into the Rust executor so the in-sequencer
+  /// `WeatherUnsafe` trigger reacts even on rigs without a hardware safety
+  /// device. The hardware `safety_is_safe` poll knows nothing about the
+  /// user's configured thresholds + API/cloud sources that
+  /// `weatherSafetyProvider` evaluates; this carries that overall verdict as
+  /// an additional unsafe source (folded OR-of-unsafe — never makes the rig
+  /// less safe than the hardware reading).
+  ///
+  /// `unsafeOverride == true` => Dart computed UNSAFE; `false` => Dart
+  /// computed SAFE; `null` => Dart abstains (provider disabled / no data) and
+  /// this layer stays inert.
+  Future<void> sequencerUpdateWeatherVerdict({bool? unsafeOverride});
+
   /// Wave 5 Agent 4 — JSON-serialised snapshot of the latest cloud-motion
   /// reading for the run dashboard. Returns `null` until the first push
   /// has been received. The shape mirrors the `CloudMotionSnapshot` Rust

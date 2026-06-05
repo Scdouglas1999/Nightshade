@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 712827643;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 688797454;
 
 // Section: executor
 
@@ -7241,6 +7241,34 @@ fn wire__crate__api__sequencer__api_sequencer_update_sky_brightness_impl(
                         let output_ok =
                             crate::api::sequencer::api_sequencer_update_sky_brightness(api_mag)
                                 .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__sequencer__api_sequencer_update_weather_verdict_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    unsafe_override: impl CstDecode<Option<bool>>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_sequencer_update_weather_verdict",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_unsafe_override = unsafe_override.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::sequencer::api_sequencer_update_weather_verdict(
+                                api_unsafe_override,
+                            )
+                            .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -29308,6 +29336,17 @@ mod io {
         mag: *mut f64,
     ) {
         wire__crate__api__sequencer__api_sequencer_update_sky_brightness_impl(port_, mag)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_weather_verdict(
+        port_: i64,
+        unsafe_override: *mut bool,
+    ) {
+        wire__crate__api__sequencer__api_sequencer_update_weather_verdict_impl(
+            port_,
+            unsafe_override,
+        )
     }
 
     #[unsafe(no_mangle)]

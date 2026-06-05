@@ -442,6 +442,21 @@ pub enum ExecutorCommand {
     UpdateConditionsScore {
         score: Option<crate::scheduling::ConditionsScore>,
     },
+    /// Full-night audit 2026-06-04 (defense-in-depth) — push the Dart-side
+    /// `weatherSafetyProvider` overall verdict into the executor's trigger
+    /// state. The hardware `safety_is_safe` poll only knows what a connected
+    /// safety/weather device reports; a rig WITHOUT such a device never aborts
+    /// via the in-sequencer `WeatherUnsafe` trigger even when the Dart side
+    /// computed UNSAFE from the user's configured thresholds + API/cloud
+    /// sources. This carries that verdict so the trigger has a redundant
+    /// non-hardware unsafe source. `unsafe_override = Some(true)` => Dart
+    /// computed UNSAFE; `Some(false)` => Dart computed SAFE; `None` => Dart
+    /// abstains (provider disabled / no data) and this layer is inert. Folded
+    /// as an OR-of-unsafe into `weather_safe` evaluation — it can only make the
+    /// rig safer, never less safe than the hardware verdict.
+    UpdateWeatherVerdict {
+        unsafe_override: Option<bool>,
+    },
 }
 
 /// State of the sequence executor
@@ -2736,6 +2751,27 @@ impl SequenceExecutor {
                                 tracing::debug!("Runtime conditions score updated: {:?}", summary);
                                 let _ = event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
                                     what: "conditions_score".to_string(),
+                                });
+                            }
+                            ExecutorCommand::UpdateWeatherVerdict { unsafe_override } => {
+                                // Full-night audit 2026-06-04 (defense-in-depth) —
+                                // fold the Dart-side weather-safety verdict into the
+                                // trigger state so the in-sequencer `WeatherUnsafe`
+                                // trigger reacts even on rigs without a hardware
+                                // safety device. The evaluator ORs this with the
+                                // hardware `weather_safe` reading (never less safe).
+                                {
+                                    let manager = trigger_manager.read().await;
+                                    let state_lock = manager.state();
+                                    let mut state = state_lock.write().await;
+                                    state.update_weather_verdict(unsafe_override);
+                                }
+                                tracing::debug!(
+                                    "Runtime weather verdict updated: unsafe_override={:?}",
+                                    unsafe_override
+                                );
+                                let _ = event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
+                                    what: "weather_verdict".to_string(),
                                 });
                             }
                             ExecutorCommand::UpdateRecoveryConfig { config } => {

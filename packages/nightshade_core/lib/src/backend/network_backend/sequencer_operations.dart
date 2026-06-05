@@ -343,6 +343,16 @@ mixin _NetworkBackendSequencerOperations on _NetworkBackendTransport {
   }
 
   @override
+  Future<void> sequencerUpdateWeatherVerdict({bool? unsafeOverride}) async {
+    // Full-night audit 2026-06-04 (defense-in-depth) — forwarded to the remote
+    // host so the remote rig's in-sequencer WeatherUnsafe trigger sees the same
+    // weather-safety verdict the local controller computed.
+    await _post('sequencer/update-weather-verdict', {
+      'unsafeOverride': unsafeOverride,
+    });
+  }
+
+  @override
   Future<String?> sequencerGetCloudMotionJson() async {
     // Wave 5 Agent 4 — fetched lazily by the dashboard tick. The remote
     // endpoint mirrors the local FRB call.

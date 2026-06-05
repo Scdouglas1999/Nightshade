@@ -521,7 +521,19 @@ impl Trigger {
                     false
                 }
             }
-            TriggerType::WeatherUnsafe => !state.weather_safe,
+            TriggerType::WeatherUnsafe => {
+                // Defense-in-depth (full-night audit 2026-06-04): the in-sequencer
+                // WeatherUnsafe trigger must abort when EITHER the hardware safety
+                // monitor reports unsafe OR the Dart-side weather-safety verdict
+                // (configured thresholds + API/cloud sources) computed unsafe. A
+                // rig with no hardware safety device leaves `weather_safe` at its
+                // `false`-by-default/last-poll value; the verdict is the path that
+                // makes the trigger react to non-hardware weather conditions. This
+                // is OR-of-unsafe (never less safe than the hardware verdict) — an
+                // abstaining verdict (`None`) or a `Some(false)` SAFE verdict never
+                // suppresses a hardware-unsafe reading.
+                !state.weather_safe || state.weather_verdict_unsafe == Some(true)
+            }
             TriggerType::TemperatureShift { degrees } => {
                 if let (Some(baseline), Some(current)) =
                     (state.baseline_temperature, state.current_temperature)
@@ -924,7 +936,20 @@ pub struct TriggerState {
     pub current_altitude: Option<f64>,
 
     // Weather
+    /// Hardware safety-monitor verdict: `true` when the connected safety/weather
+    /// device reports safe (or, under `WarnOnly`, the last good reading). Fed by
+    /// the executor's safety poll (`executor/mod.rs` `safety_is_safe`).
     pub weather_safe: bool,
+    /// Defense-in-depth: the Dart-side `weatherSafetyProvider` overall verdict,
+    /// composed from the user's configured thresholds + API/cloud sources (which
+    /// the hardware `weather_safe` poll knows nothing about). `Some(true)` means
+    /// the Dart side computed UNSAFE; `Some(false)` means it computed SAFE;
+    /// `None` means the Dart side has not reported (e.g. provider disabled / no
+    /// data) and this layer abstains. Folded into the `WeatherUnsafe` trigger as
+    /// an ADDITIONAL unsafe source — it can only make the rig safer, never less
+    /// safe than the hardware verdict (CLAUDE.md "fail closed"). Pushed via
+    /// `ExecutorCommand::UpdateWeatherVerdict`.
+    pub weather_verdict_unsafe: Option<bool>,
 
     // Temperature
     pub baseline_temperature: Option<f64>,
@@ -1052,6 +1077,7 @@ impl Default for TriggerState {
             current_humidity: None,
             current_altitude: None,
             weather_safe: false,
+            weather_verdict_unsafe: None,
             baseline_temperature: None,
             current_temperature: None,
             baseline_focuser_position: None,
@@ -1325,6 +1351,17 @@ impl TriggerState {
 
     pub fn update_humidity(&mut self, humidity: f64) {
         self.current_humidity = Some(humidity);
+    }
+
+    /// Defense-in-depth (full-night audit 2026-06-04): store the Dart-side
+    /// weather-safety verdict. `Some(true)` = Dart computed UNSAFE, `Some(false)`
+    /// = Dart computed SAFE, `None` = Dart abstains (provider disabled / no data).
+    /// Folded into the `WeatherUnsafe` trigger as an additional unsafe source so a
+    /// rig without a hardware safety device still aborts when the configured
+    /// thresholds / API / cloud sources say unsafe. Never makes the trigger LESS
+    /// safe than the hardware `weather_safe` reading (see the evaluator).
+    pub fn update_weather_verdict(&mut self, unsafe_override: Option<bool>) {
+        self.weather_verdict_unsafe = unsafe_override;
     }
 
     /// Wave 7 Science: store the latest transparency reading. `None`
@@ -2261,6 +2298,57 @@ mod tests {
         // Unsafe weather - should trigger
         state.weather_safe = false;
         assert!(trigger.check(&state).await);
+    }
+
+    /// Full-night audit 2026-06-04 (defense-in-depth): the Dart-side weather
+    /// verdict is an ADDITIONAL unsafe source. It must be able to abort a rig
+    /// whose hardware safety device reports SAFE (or has no device), but it
+    /// must never suppress a hardware-unsafe reading.
+    #[tokio::test]
+    async fn test_weather_unsafe_trigger_honours_dart_verdict() {
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Weather Verdict",
+            TriggerType::WeatherUnsafe,
+            RecoveryAction::ParkAndAbort,
+        );
+
+        let mut state = TriggerState::new();
+
+        // Hardware reports SAFE, verdict abstains (None) -> overall SAFE.
+        state.weather_safe = true;
+        state.update_weather_verdict(None);
+        assert!(
+            !trigger.check(&state).await,
+            "no unsafe source: should not fire"
+        );
+
+        // Hardware reports SAFE, but the Dart verdict computed UNSAFE -> the
+        // trigger MUST fire (this is the rig-without-a-safety-device path).
+        state.weather_safe = true;
+        state.update_weather_verdict(Some(true));
+        assert!(
+            trigger.check(&state).await,
+            "Some(true) verdict must abort even when hardware says safe"
+        );
+
+        // Hardware reports SAFE and the Dart verdict explicitly computed SAFE
+        // -> overall SAFE (verdict never spuriously fires).
+        state.weather_safe = true;
+        state.update_weather_verdict(Some(false));
+        assert!(
+            !trigger.check(&state).await,
+            "Some(false) verdict + device-safe must stay safe"
+        );
+
+        // Hardware reports UNSAFE and the Dart verdict says SAFE -> the verdict
+        // must NOT make the rig less safe than the hardware reading.
+        state.weather_safe = false;
+        state.update_weather_verdict(Some(false));
+        assert!(
+            trigger.check(&state).await,
+            "Some(false) verdict must never suppress a hardware-unsafe reading"
+        );
     }
 
     #[tokio::test]

@@ -358,6 +358,19 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       });
     }
 
+    // Defense-in-depth (full-night audit 2026-06-04): push this overall verdict
+    // into the Rust executor so the in-sequencer `WeatherUnsafe` trigger reacts
+    // even on a rig with no hardware safety device (where the executor's
+    // `weather_safe` poll would otherwise stay at its default). The Dart SafeRig
+    // enforcement above is the primary path; this is the redundant in-sequencer
+    // layer. `unsafe` => abort; anything else (safe / disabled / snoozed) => the
+    // operator's effective verdict is "do not abort on weather", so we report
+    // SAFE — the Rust evaluator ORs this with the hardware reading, so a
+    // hardware-unsafe device still aborts regardless.
+    unawaited(
+      _pushWeatherVerdict(finalStatus == WeatherSafetyStatus.unsafe),
+    );
+
     if (previousStatus == WeatherSafetyStatus.unsafe &&
         finalStatus == WeatherSafetyStatus.safe &&
         weatherSettings.autoResumeEnabled) {
@@ -507,6 +520,28 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       if (!mounted) return;
       unawaited(_pushAdaptiveConditions());
     });
+  }
+
+  /// Defense-in-depth (full-night audit 2026-06-04): forward the overall
+  /// weather-safety verdict to the Rust executor's `WeatherUnsafe` trigger.
+  ///
+  /// Pushed on every evaluation so the in-sequencer trigger has a current
+  /// verdict on its next tick, regardless of whether a hardware safety device
+  /// is connected. Best-effort like the cloud-motion push: the backend may be
+  /// disconnected (DisconnectedBackend throws), in which case there is no live
+  /// executor to inform and we swallow the error. The Rust side folds this as
+  /// an additional unsafe source (OR-of-unsafe with the hardware reading), so a
+  /// `false` here never suppresses a hardware-unsafe abort.
+  Future<void> _pushWeatherVerdict(bool isUnsafe) async {
+    if (!mounted) return;
+    try {
+      final backend = _ref.read(backendProvider);
+      await backend.sequencerUpdateWeatherVerdict(unsafeOverride: isUnsafe);
+    } catch (_) {
+      // No live executor to inform (e.g. backend disconnected). The verdict is
+      // re-pushed on the next evaluation; the Dart SafeRig path remains the
+      // primary enforcement layer.
+    }
   }
 
   Future<void> _pushCloudMotion() async {
