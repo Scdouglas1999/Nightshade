@@ -13,6 +13,8 @@ import '../../models/sequence/sequence_models.dart';
 import '../../models/settings/app_settings.dart'
     show ObserverLocation, SafetyFailMode;
 import '../../services/disk_space_guard.dart';
+import '../../services/live_stacking_broadcast_service.dart';
+import '../../services/live_stacking_service.dart' show LiveStackingConfig;
 import '../../services/safe_rig_service.dart';
 import '../../services/smart_night/guide_rms_collector.dart';
 import '../../services/capture_preview_loader.dart';
@@ -28,6 +30,7 @@ import '../equipment_provider.dart';
 // shared between flat-wizard and adaptive-exposure paths).
 import '../flat_wizard_provider.dart' show skyBrightnessTrackerProvider;
 import '../imaging_provider.dart';
+import '../live_stacking_provider.dart';
 import '../meridian_flip_provider.dart';
 // Wave 6 Pack P â€” plugin-node dispatcher abstraction.
 import '../plugin_node_dispatcher.dart';
@@ -112,6 +115,22 @@ class SequenceExecutor {
   Timer? _checkpointTimer;
   bool _runFinalized = false;
   bool _pauseResumeInProgress = false;
+
+  /// Live-stacking auto-feed (2026-06-04 follow-up): whether the live
+  /// stacker + LAN broadcast have been armed for the *current* run yet.
+  /// The first accepted frame of a run that contains an enabled
+  /// `LiveStackingNode` arms both (the frame becomes the stack
+  /// reference); every later accepted frame is added to the existing
+  /// stack. Reset to `false` in `start()` and torn down in `stop()` so a
+  /// new run never inherits the previous run's reference frame.
+  bool _liveStackingArmedForRun = false;
+
+  /// Guards against concurrent re-entrant accepted-frame feeds. FFI
+  /// stacking calls are async; without this a fast exposure cadence could
+  /// interleave an `addFrameFromFile` with the initial `startFromFile`
+  /// and corrupt the reference. We serialise feeds by chaining onto this
+  /// future. `null` when no feed is in flight.
+  Future<void>? _liveStackingFeedChain;
 
   /// Wave 5 Agent 2 â€” periodic poller that reads the latest sky brightness
   /// from `skyBrightnessTrackerProvider` and pushes it to the executor.
@@ -314,6 +333,10 @@ class SequenceExecutor {
     _ref.read(currentRunIdProvider.notifier).state = runId;
     _ref.read(liveSequenceStatsProvider.notifier).state = SequenceRunStats();
     _runFinalized = false;
+    // A fresh run must never inherit the previous run's live stack /
+    // reference frame. Arming happens lazily on the first accepted frame.
+    _liveStackingArmedForRun = false;
+    _liveStackingFeedChain = null;
 
     // Wave 8 Replay Debug â€” stamp the active sequence_runs.id onto the
     // Rust executor so every subsequent emitted DecisionEvent carries
@@ -509,6 +532,13 @@ class SequenceExecutor {
     // claiming a clean stop.
     final runStatus = preserveCheckpoint ? 'paused-stopped' : 'stopped';
     _finalizeRun(runStatus);
+
+    // Live-stacking auto-feed teardown: stop the LAN broadcast and the
+    // stacking engine so a stopped public-outreach run cannot keep
+    // serving a stale stack, and the next run starts from a clean
+    // reference. Done after `_finalizeRun` (which records run stats) but
+    // before backend teardown.
+    await _teardownLiveStacking();
 
     await _ref
         .read(sessionStateProvider.notifier)

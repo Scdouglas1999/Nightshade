@@ -121,6 +121,22 @@ class LiveStackingNotifier extends StateNotifier<LiveStackingState> {
       if (!mounted) return;
 
       state = state.copyWith(stats: stats);
+
+      // Surface the reference frame as the initial preview. `startFromFile`
+      // only returns stats (not pixels), so we read the current stacked
+      // result — which, with one frame in the stack, is the reference frame
+      // itself. Without this the reference shows no preview until the second
+      // frame lands, and the auto-feed broadcast would have no image to
+      // publish for the very first accepted frame.
+      final result = await _service.getCurrentResult();
+      if (!mounted) return;
+      state = state.copyWith(
+        previewData: Uint16List.fromList(result.data),
+        previewWidth: result.width,
+        previewHeight: result.height,
+        lastFrameTotalPixels: result.width * result.height,
+      );
+
       _logger.info(
           'Live stacking started: ${stats.stackedFrameCount} frames',
           source: 'LiveStackingNotifier');
@@ -160,6 +176,18 @@ class LiveStackingNotifier extends StateNotifier<LiveStackingState> {
       if (!mounted) return;
 
       state = state.copyWith(stats: stats);
+
+      // Mirror startFromFile: surface the reference frame as the initial
+      // preview so the panel and any auto-feed broadcast have an image
+      // immediately rather than only after the second frame.
+      final result = await _service.getCurrentResult();
+      if (!mounted) return;
+      state = state.copyWith(
+        previewData: Uint16List.fromList(result.data),
+        previewWidth: result.width,
+        previewHeight: result.height,
+        lastFrameTotalPixels: result.width * result.height,
+      );
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(
