@@ -223,17 +223,17 @@ class _EditIconButton extends StatelessWidget {
         height: 40,
         child: Material(
           color: Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
           child: InkWell(
             onTap: onTap,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             child: Center(
               // Visual element stays compact at 26x26px
               child: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
                 child: Icon(
                   icon,
@@ -263,7 +263,7 @@ class _DragHandleIndicator extends StatelessWidget {
       padding: const EdgeInsets.all(6),
       decoration: NightshadeDecorations.emphasisSurface(
         colors.primary,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Icon(
         LucideIcons.gripVertical,
@@ -317,7 +317,7 @@ class DashboardLayoutError extends StatelessWidget {
               Text(
                 title,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: NightshadeTypography.fontSize14,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -327,7 +327,7 @@ class DashboardLayoutError extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             error.toString(),
-            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
           ),
           const SizedBox(height: 16),
           Align(
@@ -365,7 +365,7 @@ class DashboardGlassCardInline extends StatelessWidget {
       clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
         boxShadow: NightshadeTokens.elevationLevel1,
       ),

@@ -44,7 +44,7 @@ class CockpitStandby extends ConsumerWidget {
                 'No run active',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 22,
+                  fontSize: NightshadeTypography.fontSize22,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                 ),
@@ -55,7 +55,7 @@ class CockpitStandby extends ConsumerWidget {
                 'imaging, or open the Sequencer to load an existing sequence.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   height: 1.4,
                   color: colors.textSecondary,
                 ),
@@ -114,7 +114,7 @@ class _LastRunSummary extends ConsumerWidget {
             Expanded(
               child: Text(
                 'No runs yet — your first night will appear here.',
-                style: TextStyle(fontSize: 12.5, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12_5, color: colors.textMuted),
               ),
             ),
           ],
@@ -145,7 +145,7 @@ class _LastRunSummary extends ConsumerWidget {
                 Text(
                   'Last run: ${lastRun.sequenceName}',
                   style: TextStyle(
-                    fontSize: 12.5,
+                    fontSize: NightshadeTypography.fontSize12_5,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -157,7 +157,7 @@ class _LastRunSummary extends ConsumerWidget {
                   '${_statusLabel(lastRun.status)} · '
                   '${_relativeTime(lastRun.startedAt)}',
                   style: NightshadeTypography.withTabular(
-                    TextStyle(fontSize: 11, color: colors.textMuted),
+                    TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                   ),
                 ),
               ],
@@ -328,7 +328,7 @@ class _ReadinessChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -339,7 +339,7 @@ class _ReadinessChip extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 11.5,
+              fontSize: NightshadeTypography.fontSize11_5,
               fontWeight: FontWeight.w600,
               color: colors.textSecondary,
             ),
@@ -352,7 +352,7 @@ class _ReadinessChip extends StatelessWidget {
               detail!,
               style: NightshadeTypography.withTabular(
                 TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),

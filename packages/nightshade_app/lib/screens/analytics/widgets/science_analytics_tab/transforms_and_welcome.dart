@@ -51,7 +51,7 @@ class _PhotometricTransformsCard extends ConsumerWidget {
               ),
               error: (error, _) => Text(
                 'Failed to load transforms: $error',
-                style: TextStyle(color: colors.error, fontSize: 12),
+                style: TextStyle(color: colors.error, fontSize: NightshadeTypography.fontSize12),
               ),
             ),
             const SizedBox(height: 12),
@@ -78,7 +78,7 @@ class _PhotometricTransformsCard extends ConsumerWidget {
         child: Text(
           'No transform coefficients computed yet. Use the Calibrate button '
           'to run the photometric calibration wizard on a standard star field.',
-          style: TextStyle(color: colors.textMuted, fontSize: 12),
+          style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
         ),
       );
     }
@@ -126,7 +126,7 @@ class _TransformRow extends StatelessWidget {
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: colors.surface.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border.withValues(alpha: 0.3)),
       ),
       child: Column(
@@ -138,14 +138,14 @@ class _TransformRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: NightshadeDecorations.statusChip(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                   bordered: false,
                 ),
                 child: Text(
                   transform.filterName,
                   style: TextStyle(
                     color: colors.primary,
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -155,14 +155,14 @@ class _TransformRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: NightshadeDecorations.statusChip(
                   qualityColor,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                   bordered: false,
                 ),
                 child: Text(
                   quality,
                   style: TextStyle(
                     color: qualityColor,
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -170,7 +170,7 @@ class _TransformRow extends StatelessWidget {
               const Spacer(),
               Text(
                 ageLabel,
-                style: TextStyle(color: colors.textMuted, fontSize: 10),
+                style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize10),
               ),
             ],
           ),
@@ -206,7 +206,7 @@ class _TransformRow extends StatelessWidget {
           Text(
             '${transform.matchedStarCount} stars matched  |  '
             'Catalog: ${transform.catalogSource}',
-            style: TextStyle(color: colors.textMuted, fontSize: 10),
+            style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize10),
           ),
         ],
       ),
@@ -249,7 +249,7 @@ class _CoefficientChip extends StatelessWidget {
             label,
             style: TextStyle(
               color: colors.textMuted,
-              fontSize: 9,
+              fontSize: NightshadeTypography.fontSize9,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -258,7 +258,7 @@ class _CoefficientChip extends StatelessWidget {
             value,
             style: TextStyle(
               color: colors.textPrimary,
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w500,
             ),
             overflow: TextOverflow.ellipsis,
@@ -296,7 +296,7 @@ class _ScienceWelcomeCard extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
         decoration: NightshadeDecorations.emphasisSurface(
           colors.primary,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -310,7 +310,7 @@ class _ScienceWelcomeCard extends ConsumerWidget {
                   style: TextStyle(
                     color: colors.textPrimary,
                     fontWeight: FontWeight.w700,
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                   ),
                 ),
                 const Spacer(),
@@ -371,7 +371,7 @@ class _ScienceWelcomeCard extends ConsumerWidget {
                 icon: const Icon(LucideIcons.check, size: 13),
                 label: const Text('Got it',
                     style:
-                        TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        TextStyle(fontSize: NightshadeTypography.fontSize12, fontWeight: FontWeight.w600)),
               ),
             ),
           ],
@@ -401,7 +401,7 @@ class _ScienceWelcomeCard extends ConsumerWidget {
               text: TextSpan(
                 style: TextStyle(
                   color: colors.textSecondary,
-                  fontSize: 11.5,
+                  fontSize: NightshadeTypography.fontSize11_5,
                   height: 1.35,
                 ),
                 children: [

@@ -84,7 +84,7 @@ class DashboardClockWidget extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: NightshadeDecorations.emphasisSurface(
         colors.primary,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -98,7 +98,7 @@ class DashboardClockWidget extends ConsumerWidget {
               Text(
                 '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}:${now.second.toString().padLeft(2, '0')}',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: NightshadeTypography.fontSize16,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                   fontFeatures: const [FontFeature.tabularFigures()],
@@ -107,7 +107,7 @@ class DashboardClockWidget extends ConsumerWidget {
               Text(
                 'LST ${_formatLST(lst)}',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textSecondary,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
@@ -131,7 +131,7 @@ class EditModeBanner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: NightshadeDecorations.emphasisSurface(
         colors.primary,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         children: [
@@ -140,7 +140,7 @@ class EditModeBanner extends StatelessWidget {
           Expanded(
             child: Text(
               'Edit mode: long-press the grip handle to drag and reorder tiles.',
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
             ),
           ),
         ],

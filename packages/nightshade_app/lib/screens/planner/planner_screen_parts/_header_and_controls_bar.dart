@@ -172,7 +172,7 @@ class _PlannerControlsBar extends ConsumerWidget {
                           child: Text(
                             'Filters & sort',
                             style: TextStyle(
-                              fontSize: 16,
+                              fontSize: NightshadeTypography.fontSize16,
                               fontWeight: FontWeight.w600,
                               color: colors.textPrimary,
                             ),
@@ -340,7 +340,7 @@ class _FiltersSheetButton extends StatelessWidget {
             Text(
               'Filters',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 fontWeight: FontWeight.w600,
                 color: fg,
               ),
@@ -357,7 +357,7 @@ class _FiltersSheetButton extends StatelessWidget {
                 child: Text(
                   '$activeCount',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w700,
                     color: colors.onPrimary,
                   ),

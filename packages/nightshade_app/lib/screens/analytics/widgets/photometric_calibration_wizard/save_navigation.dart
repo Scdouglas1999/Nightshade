@@ -18,7 +18,7 @@ extension _PhotometricWizardSaveNavigation
           'Save Calibration',
           style: TextStyle(
             color: colors.textPrimary,
-            fontSize: 14,
+            fontSize: NightshadeTypography.fontSize14,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -50,7 +50,7 @@ extension _PhotometricWizardSaveNavigation
           'measurements taken with the "$_filterName" filter. The standard '
           'equation M_std = m_inst - k*X + T*(B-V) + zp will be used '
           'to convert instrumental magnitudes to the standard system.',
-          style: TextStyle(color: colors.textSecondary, fontSize: 12),
+          style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
         ),
         if (_statusMessage.isNotEmpty) ...[
           const SizedBox(height: 8),
@@ -60,7 +60,7 @@ extension _PhotometricWizardSaveNavigation
               color: _statusMessage.contains('Saved')
                   ? colors.success
                   : colors.textMuted,
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
             ),
           ),
         ],

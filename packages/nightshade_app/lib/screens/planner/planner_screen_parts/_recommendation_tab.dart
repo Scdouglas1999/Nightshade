@@ -160,7 +160,7 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
                 Text(
                   l10n.text('plannerReviewHint'),
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                     height: 1.4,
                   ),
@@ -344,7 +344,7 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
                           ? context.l10n.text('plannerLocationMissingTitle')
                           : context.l10n.text('plannerPlanFailedTitle'),
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: NightshadeTypography.fontSize16,
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
                       ),
@@ -356,7 +356,7 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
                           : context.l10n.text('plannerPlanFailedBody'),
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         color: colors.textSecondary,
                       ),
                     ),

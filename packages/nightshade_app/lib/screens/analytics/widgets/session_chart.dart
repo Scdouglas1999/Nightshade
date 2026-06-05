@@ -50,7 +50,7 @@ class SessionChart extends StatelessWidget {
               Text(
                 title,
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: NightshadeTypography.fontSize14,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -61,12 +61,12 @@ class SessionChart extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   ),
                   child: Center(
                     child: Text(
                       'No data',
-                      style: TextStyle(fontSize: 12, color: colors.textMuted),
+                      style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
                     ),
                   ),
                 ),
@@ -104,7 +104,7 @@ class SessionChart extends StatelessWidget {
             Text(
               title,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: NightshadeTypography.fontSize14,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -156,7 +156,7 @@ class SessionChart extends StatelessWidget {
                                   : '${minutes}m',
                               style: TextStyle(
                                 color: colors.textSecondary,
-                                fontSize: 10,
+                                fontSize: NightshadeTypography.fontSize10,
                               ),
                             ),
                           );
@@ -173,7 +173,7 @@ class SessionChart extends StatelessWidget {
                             value.toStringAsFixed(1),
                             style: TextStyle(
                               color: colors.textSecondary,
-                              fontSize: 10,
+                              fontSize: NightshadeTypography.fontSize10,
                             ),
                           );
                         },
@@ -217,7 +217,7 @@ class SessionChart extends StatelessWidget {
                             '$yAxisLabel\n${spot.y.toStringAsFixed(2)}\n$timeStr',
                             TextStyle(
                               color: colors.textPrimary,
-                              fontSize: 11,
+                              fontSize: NightshadeTypography.fontSize11,
                               fontWeight: FontWeight.w500,
                             ),
                           );

@@ -42,7 +42,7 @@ class CockpitNowImaging extends ConsumerWidget {
               child: Text(
                 'No active target — load a sequence to begin.',
                 style: TextStyle(
-                  fontSize: 12.5,
+                  fontSize: NightshadeTypography.fontSize12_5,
                   fontWeight: FontWeight.w600,
                   color: colors.textSecondary,
                 ),
@@ -146,7 +146,7 @@ class _Identity extends StatelessWidget {
           child: Text(
             target.displayName,
             style: TextStyle(
-              fontSize: 16,
+              fontSize: NightshadeTypography.fontSize16,
               fontWeight: FontWeight.w700,
               color: colors.textPrimary,
             ),
@@ -204,7 +204,7 @@ class _StatChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 9.5,
+                fontSize: NightshadeTypography.fontSize9_5,
                 color: colors.textMuted,
                 letterSpacing: 0.3,
                 fontWeight: FontWeight.w600,
@@ -217,7 +217,7 @@ class _StatChip extends StatelessWidget {
           value,
           style: NightshadeTypography.withTabular(
             TextStyle(
-              fontSize: 15,
+              fontSize: NightshadeTypography.fontSize15,
               fontWeight: FontWeight.w700,
               color: valueColor ?? colors.textPrimary,
             ),
@@ -267,7 +267,7 @@ class _FrameChip extends ConsumerWidget {
               Text(
                 'This frame',
                 style: TextStyle(
-                  fontSize: 9.5,
+                  fontSize: NightshadeTypography.fontSize9_5,
                   color: colors.textMuted,
                   letterSpacing: 0.3,
                   fontWeight: FontWeight.w600,
@@ -280,7 +280,7 @@ class _FrameChip extends ConsumerWidget {
             valueText,
             style: NightshadeTypography.withTabular(
               TextStyle(
-                fontSize: 15,
+                fontSize: NightshadeTypography.fontSize15,
                 fontWeight: FontWeight.w700,
                 color: valueColor,
               ),
@@ -325,7 +325,7 @@ class _SequenceChip extends ConsumerWidget {
             Text(
               'Sequence',
               style: TextStyle(
-                fontSize: 9.5,
+                fontSize: NightshadeTypography.fontSize9_5,
                 color: colors.textMuted,
                 letterSpacing: 0.3,
                 fontWeight: FontWeight.w600,
@@ -343,7 +343,7 @@ class _SequenceChip extends ConsumerWidget {
               '${seq.completedExposures}/${seq.totalExposures}',
               style: NightshadeTypography.withTabular(
                 TextStyle(
-                  fontSize: 15,
+                  fontSize: NightshadeTypography.fontSize15,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                 ),
@@ -354,7 +354,7 @@ class _SequenceChip extends ConsumerWidget {
               '${(seq.progressPercent * 100).toStringAsFixed(0)}%',
               style: NightshadeTypography.withTabular(
                 TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w600,
                   color: colors.primary,
                 ),
@@ -365,7 +365,7 @@ class _SequenceChip extends ConsumerWidget {
               Text(
                 '~${formatSeconds(seq.estimatedRemainingSecs!)}',
                 style: NightshadeTypography.withTabular(
-                  TextStyle(fontSize: 11, color: colors.textMuted),
+                  TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                 ),
               ),
             ],

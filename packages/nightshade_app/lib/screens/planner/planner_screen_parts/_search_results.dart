@@ -35,7 +35,7 @@ class _InstalledCatalogResultsSection extends ConsumerWidget {
             const SizedBox(width: NightshadeTokens.spaceSm),
             Text(
               'Searching installed catalogs for "$query"...',
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
             ),
           ],
         ),
@@ -44,7 +44,7 @@ class _InstalledCatalogResultsSection extends ConsumerWidget {
         padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
         child: Text(
           'Installed catalog lookup failed: $e',
-          style: TextStyle(fontSize: 12, color: colors.warning),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.warning),
         ),
       ),
       data: (matches) {
@@ -107,7 +107,7 @@ class _CatalogResultRow extends StatelessWidget {
                 Text(
                   match.name,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -115,7 +115,7 @@ class _CatalogResultRow extends StatelessWidget {
                 Text(
                   metaParts.join(' · '),
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -176,7 +176,7 @@ class _SimbadResultsSection extends ConsumerWidget {
             const SizedBox(width: NightshadeTokens.spaceSm),
             Text(
               'Searching SIMBAD for "$query"…',
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
             ),
           ],
         ),
@@ -185,7 +185,7 @@ class _SimbadResultsSection extends ConsumerWidget {
         padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
         child: Text(
           'SIMBAD lookup failed: $e',
-          style: TextStyle(fontSize: 12, color: colors.warning),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.warning),
         ),
       ),
       data: (matches) {
@@ -195,7 +195,7 @@ class _SimbadResultsSection extends ConsumerWidget {
             padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
             child: Text(
               'SIMBAD found no objects matching "$query".',
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
             ),
           );
         }
@@ -256,7 +256,7 @@ class _SimbadResultRow extends ConsumerWidget {
                 Text(
                   match.mainId,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -264,7 +264,7 @@ class _SimbadResultRow extends ConsumerWidget {
                 Text(
                   metaParts.join(' · '),
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,
                   ),
                 ),

@@ -81,7 +81,7 @@ class _PhotometricCalibrationWizardState
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         side: BorderSide(color: colors.borderHighlight),
       ),
       child: ConstrainedBox(

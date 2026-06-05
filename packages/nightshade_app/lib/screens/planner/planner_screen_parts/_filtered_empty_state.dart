@@ -41,7 +41,7 @@ class _FilteredEmptyState extends ConsumerWidget {
                       ? 'No targets available'
                       : 'No targets match these filters',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: NightshadeTypography.fontSize16,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -65,7 +65,7 @@ class _FilteredEmptyState extends ConsumerWidget {
                     Text(
                       'The OpenNGC catalog is not installed. Without it, the planner can only score targets you have already saved to your library.',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         color: colors.textSecondary,
                         height: 1.4,
                       ),
@@ -83,7 +83,7 @@ class _FilteredEmptyState extends ConsumerWidget {
               return Text(
                 'The scoring engine returned zero candidates for tonight. Verify your location, twilight window, and your minimum altitude/score in suggestion config.',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   color: colors.textSecondary,
                   height: 1.4,
                 ),
@@ -94,7 +94,7 @@ class _FilteredEmptyState extends ConsumerWidget {
               '${breakdown.total} candidate${breakdown.total == 1 ? '' : 's'} were scored, '
               '${breakdown.passed} passed the filters.',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: colors.textSecondary,
                 height: 1.4,
               ),
@@ -104,7 +104,7 @@ class _FilteredEmptyState extends ConsumerWidget {
               Text(
                 'Filters with the largest impact:',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -122,7 +122,7 @@ class _FilteredEmptyState extends ConsumerWidget {
                         child: Text(
                           entry.key,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: NightshadeTypography.fontSize12,
                             color: colors.textSecondary,
                           ),
                         ),
@@ -130,7 +130,7 @@ class _FilteredEmptyState extends ConsumerWidget {
                       Text(
                         '−${entry.value}',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           fontWeight: FontWeight.w600,
                           color: colors.warning,
                         ),

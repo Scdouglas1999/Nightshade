@@ -144,7 +144,7 @@ class _QuickStatItem extends StatelessWidget {
             Text(
               value,
               style: TextStyle(
-                fontSize: 16,
+                fontSize: NightshadeTypography.fontSize16,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -153,7 +153,7 @@ class _QuickStatItem extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 color: colors.textMuted,
               ),
             ),

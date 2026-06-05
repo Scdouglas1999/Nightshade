@@ -31,11 +31,11 @@ class _SearchField extends StatelessWidget {
       child: TextField(
         controller: controller,
         onChanged: onChanged,
-        style: TextStyle(fontSize: 13, color: colors.textPrimary),
+        style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
         decoration: InputDecoration(
           isDense: true,
           hintText: hint,
-          hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
+          hintStyle: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
           prefixIcon:
               Icon(LucideIcons.search, size: 16, color: colors.textMuted),
           suffixIcon: controller.text.isEmpty
@@ -55,15 +55,15 @@ class _SearchField extends StatelessWidget {
             vertical: 8,
           ),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             borderSide: BorderSide(color: colors.border),
           ),
           enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             borderSide: BorderSide(color: colors.border),
           ),
           focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             borderSide: BorderSide(color: colors.primary),
           ),
         ),
@@ -117,7 +117,7 @@ class _ObjectTypeMultiSelect extends ConsumerWidget {
                         Text(
                           'Object types',
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: NightshadeTypography.fontSize14,
                             fontWeight: FontWeight.w600,
                             color: colors.textPrimary,
                           ),
@@ -233,7 +233,7 @@ class _ConstellationDropdown extends ConsumerWidget {
           value: selected,
           items: items,
           isDense: true,
-          style: TextStyle(fontSize: 12, color: colors.textPrimary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
           dropdownColor: colors.surface,
           iconSize: 14,
           onChanged: (value) {
@@ -303,7 +303,7 @@ class _MagnitudeRangeControl extends ConsumerWidget {
                       Text(
                         'Brighter ${lo.toStringAsFixed(1)} – Dimmer ${hi.toStringAsFixed(1)}',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           color: colors.textSecondary,
                         ),
                       ),
@@ -425,7 +425,7 @@ class _SizeRangeControl extends ConsumerWidget {
                       Text(
                         '${_formatSizeLabel(lo)} – ${_formatSizeLabel(hi)}',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           color: colors.textSecondary,
                         ),
                       ),
@@ -451,7 +451,7 @@ class _SizeRangeControl extends ConsumerWidget {
                           'Targets without recorded size data are excluded '
                           'while this filter is active.',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: NightshadeTypography.fontSize11,
                             color: colors.textMuted,
                           ),
                         ),
@@ -627,7 +627,7 @@ class _SortDropdown extends ConsumerWidget {
               DropdownMenuItem(value: m, child: Text(labels[m]!)),
           ],
           isDense: true,
-          style: TextStyle(fontSize: 12, color: colors.textPrimary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
           dropdownColor: colors.surface,
           iconSize: 14,
           onChanged: (v) {
@@ -705,7 +705,7 @@ class _ControlChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: FontWeight.w500,
                 color: fg,
               ),
@@ -742,7 +742,7 @@ Future<double?> _showAngleSlider({
                 Text(
                   '${val.toStringAsFixed(0)}$unit',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: NightshadeTypography.fontSize16,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),

@@ -147,14 +147,14 @@ class _FilterChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected
               ? colors.primary.withValues(alpha: 0.15)
               : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(
             color: isSelected
                 ? colors.primary.withValues(alpha: 0.5)
@@ -176,7 +176,7 @@ class _FilterChip extends StatelessWidget {
               label,
               style: TextStyle(
                 color: isSelected ? colors.primary : colors.textSecondary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
               ),
             ),

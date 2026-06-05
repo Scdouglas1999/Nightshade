@@ -64,7 +64,7 @@ class ScienceSolveRateCard extends StatelessWidget {
                 Text(
                   total == 0 ? '—' : '$pct%',
                   style: TextStyle(
-                    fontSize: 26,
+                    fontSize: NightshadeTypography.fontSize26,
                     fontWeight: FontWeight.w800,
                     color: tier.color(colors),
                   ),
@@ -77,7 +77,7 @@ class ScienceSolveRateCard extends StatelessWidget {
                         ? 'no light frames yet'
                         : '$solved of $total solved',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textSecondary,
                     ),
                   ),
@@ -86,7 +86,7 @@ class ScienceSolveRateCard extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             ClipRRect(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
               child: LinearProgressIndicator(
                 value: total == 0 ? 0 : rate.clamp(0.0, 1.0),
                 minHeight: 6,
@@ -100,7 +100,7 @@ class ScienceSolveRateCard extends StatelessWidget {
               tier.message(total: total),
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 height: 1.4,
               ),
             ),
@@ -203,12 +203,12 @@ class _StatusPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: NightshadeDecorations.statusChip(
         c,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
       ),
       child: Text(
         tier.label,
         style: TextStyle(
-          fontSize: 10,
+          fontSize: NightshadeTypography.fontSize10,
           fontWeight: FontWeight.w700,
           color: c,
         ),

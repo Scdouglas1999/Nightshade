@@ -93,12 +93,12 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
         height: kAnalyticsThumbnailRailHeight,
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         ),
         child: Center(
           child: Text(
             'No images captured in this session',
-            style: TextStyle(fontSize: 12, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
           ),
         ),
       );
@@ -155,13 +155,13 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
               ? Container(
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(color: colors.border),
                   ),
                   child: Center(
                     child: Text(
                       'No frames match "${_filterLabel(_qualityFilter)}"',
-                      style: TextStyle(fontSize: 12, color: colors.textMuted),
+                      style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
                     ),
                   ),
                 )
@@ -206,12 +206,12 @@ class _SummaryChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: NightshadeDecorations.tintedBadge(
         color,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
       ),
       child: Text(
         '$label: $value',
         style: TextStyle(
-          fontSize: 11,
+          fontSize: NightshadeTypography.fontSize11,
           fontWeight: FontWeight.w600,
           color: color,
         ),
@@ -238,7 +238,7 @@ class _QualityFilterChip extends StatelessWidget {
       label: Text(
         label,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: NightshadeTypography.fontSize11,
           fontWeight: FontWeight.w600,
           color: selected ? colors.textPrimary : colors.textSecondary,
         ),
@@ -319,12 +319,12 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
         onTap: widget.onTap,
         onLongPress: () => _showFrameMenu(context),
         onSecondaryTap: () => _showFrameMenu(context),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         child: Container(
           width: 100,
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(
               color: qualityBorderColor,
               width: qualityBorderWidth,
@@ -357,12 +357,12 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                               ),
                               decoration: BoxDecoration(
                                 color: qualityColor.withValues(alpha: 0.92),
-                                borderRadius: BorderRadius.circular(4),
+                                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                               ),
                               child: Text(
                                 widget.assessment!.label.toUpperCase(),
                                 style: const TextStyle(
-                                  fontSize: 8,
+                                  fontSize: NightshadeTypography.fontSize8,
                                   fontWeight: FontWeight.w700,
                                   color: Color(0xFFFFFFFF),
                                 ),
@@ -471,12 +471,12 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                             decoration: BoxDecoration(
                               color: _getHfrColor(widget.image.hfr!, colors)
                                   .withValues(alpha: 0.9),
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               widget.image.hfr!.toStringAsFixed(1),
                               style: const TextStyle(
-                                fontSize: 9,
+                                fontSize: NightshadeTypography.fontSize9,
                                 fontWeight: FontWeight.w600,
                                 color: Color(0xFFFFFFFF),
                               ),
@@ -525,12 +525,12 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                             ),
                             decoration: BoxDecoration(
                               color: colors.error,
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               'REJECTED',
                               style: TextStyle(
-                                fontSize: 8,
+                                fontSize: NightshadeTypography.fontSize8,
                                 fontWeight: FontWeight.w700,
                                 color: colors.background,
                               ),
@@ -549,7 +549,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                     Text(
                       widget.image.filter ?? 'L',
                       style: TextStyle(
-                        fontSize: 10,
+                        fontSize: NightshadeTypography.fontSize10,
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
                       ),
@@ -559,7 +559,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                     Text(
                       '${widget.image.exposureDuration.toInt()}s',
                       style: TextStyle(
-                        fontSize: 9,
+                        fontSize: NightshadeTypography.fontSize9,
                         color: colors.textSecondary,
                       ),
                     ),
@@ -570,7 +570,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                             child: Text(
                               '${widget.assessment!.advisoryScore.toStringAsFixed(0)} score',
                               style: TextStyle(
-                                fontSize: 8,
+                                fontSize: NightshadeTypography.fontSize8,
                                 color: qualityColor,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -710,7 +710,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
               const SizedBox(width: 8),
               Text(
                 isAccepted ? 'Flag as poor quality' : 'Restore as good',
-                style: TextStyle(color: colors.textPrimary, fontSize: 12),
+                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize12),
               ),
             ],
           ),
@@ -724,7 +724,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                 const SizedBox(width: 8),
                 Text(
                   'Show calibration details',
-                  style: TextStyle(color: colors.textPrimary, fontSize: 12),
+                  style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize12),
                 ),
               ],
             ),
@@ -771,7 +771,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
       builder: (context) => AlertDialog(
         backgroundColor: colors.surface,
         title: Text('Frame ${widget.image.fileName}',
-            style: TextStyle(color: colors.textPrimary, fontSize: 15)),
+            style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize15)),
         content: ConstrainedBox(
           constraints: AdaptiveDialogConstraints.hybrid(
             context,
@@ -843,14 +843,14 @@ class _ScienceBadge extends StatelessWidget {
         ),
         decoration: BoxDecoration(
           color: color.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(3),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
         ),
         child: icon != null
             ? Icon(icon, size: 9, color: const Color(0xFFFFFFFF))
             : Text(
                 label ?? '',
                 style: const TextStyle(
-                  fontSize: 8,
+                  fontSize: NightshadeTypography.fontSize8,
                   fontWeight: FontWeight.w700,
                   color: Color(0xFFFFFFFF),
                 ),
@@ -877,7 +877,7 @@ class _DetailRow extends StatelessWidget {
             width: 120,
             child: Text(
               label,
-              style: TextStyle(color: colors.textSecondary, fontSize: 12),
+              style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
             ),
           ),
           Expanded(
@@ -885,7 +885,7 @@ class _DetailRow extends StatelessWidget {
               value,
               style: TextStyle(
                 color: colors.textPrimary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: FontWeight.w600,
               ),
             ),

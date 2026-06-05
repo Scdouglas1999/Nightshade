@@ -174,7 +174,7 @@ void _showScienceInfoDialog(BuildContext context, String title, String body) {
     builder: (context) => AlertDialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         side: BorderSide(color: colors.borderHighlight),
       ),
       title: Row(
@@ -183,7 +183,7 @@ void _showScienceInfoDialog(BuildContext context, String title, String body) {
             padding: const EdgeInsets.all(8),
             decoration: NightshadeDecorations.tintedBadge(
               colors.primary,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Icon(
               LucideIcons.info,
@@ -197,7 +197,7 @@ void _showScienceInfoDialog(BuildContext context, String title, String body) {
               title,
               style: TextStyle(
                 color: colors.textPrimary,
-                fontSize: 17,
+                fontSize: NightshadeTypography.fontSize17,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -215,7 +215,7 @@ void _showScienceInfoDialog(BuildContext context, String title, String body) {
             body.trim(),
             style: TextStyle(
               color: colors.textSecondary,
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               height: 1.6,
             ),
           ),
@@ -248,7 +248,7 @@ class _ScienceInfoButton extends StatelessWidget {
       message: 'What is this?',
       child: InkWell(
         onTap: () => _showScienceInfoDialog(context, title, body),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         child: Padding(
           padding: const EdgeInsets.all(4),
           child: Icon(
@@ -388,7 +388,7 @@ class _SeriesChartCard extends StatelessWidget {
                           return Text(
                             '${mins}m',
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: NightshadeTypography.fontSize10,
                               color: colors.textSecondary,
                             ),
                           );
@@ -399,7 +399,7 @@ class _SeriesChartCard extends StatelessWidget {
                       axisNameWidget: Text(
                         yLabel,
                         style: TextStyle(
-                            color: colors.textSecondary, fontSize: 10),
+                            color: colors.textSecondary, fontSize: NightshadeTypography.fontSize10),
                       ),
                       sideTitles: SideTitles(
                         showTitles: true,
@@ -407,7 +407,7 @@ class _SeriesChartCard extends StatelessWidget {
                         getTitlesWidget: (value, meta) => Text(
                           value.toStringAsFixed(1),
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: NightshadeTypography.fontSize10,
                             color: colors.textSecondary,
                           ),
                         ),

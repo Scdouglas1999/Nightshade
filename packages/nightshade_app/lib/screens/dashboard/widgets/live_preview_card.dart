@@ -143,7 +143,7 @@ class _CaptureStatusIndicator extends ConsumerWidget {
               ? context.l10n.text('capturing')
               : context.l10n.text('idle'),
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             color: isCapturing ? colors.success : colors.textSecondary,
           ),
         ),
@@ -176,11 +176,11 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
     return Container(
       decoration: BoxDecoration(
         color: colors.background,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         child: Stack(
           children: [
             if (currentImage != null)
@@ -226,7 +226,7 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
                           ? context.l10n.text('noImage')
                           : context.l10n.text('noCameraConnected'),
                       style: TextStyle(
-                          fontSize: 14,
+                          fontSize: NightshadeTypography.fontSize14,
                           fontWeight: FontWeight.w500,
                           color: colors.textSecondary),
                     ),
@@ -235,7 +235,7 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
                       isConnected
                           ? context.l10n.text('takeSnapshotOrStartSequence')
                           : context.l10n.text('connectCameraInEquipment'),
-                      style: TextStyle(fontSize: 12, color: colors.textMuted),
+                      style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
                     ),
                   ],
                 ),
@@ -251,14 +251,14 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: colors.surface.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     border:
                         Border.all(color: colors.border.withValues(alpha: 0.5)),
                   ),
                   child: Text(
                     '${(_currentZoom * 100).toInt()}%',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       fontWeight: FontWeight.w600,
                       color: colors.textSecondary,
                       fontFamily: 'monospace',
@@ -276,14 +276,14 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: colors.surface.withValues(alpha: 0.85),
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     border:
                         Border.all(color: colors.border.withValues(alpha: 0.5)),
                   ),
                   child: Text(
                     '${currentImage.width} × ${currentImage.height}',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textSecondary,
                     ),
                   ),
@@ -315,7 +315,7 @@ class _ImageStatsRow extends ConsumerWidget {
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: colors.surfaceAlt.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border.withValues(alpha: 0.3)),
       ),
       child: Column(
@@ -394,14 +394,14 @@ class _StatCell extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w600,
               color: highlight ? colors.primary : colors.textPrimary,
             ),
           ),
           Text(
             label,
-            style: TextStyle(fontSize: 9, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
           ),
         ],
       ),
@@ -425,6 +425,7 @@ class _StarFieldPainter extends CustomPainter {
       final brightness = random.nextDouble() * 0.3 + 0.1;
       final radius = random.nextDouble() * 1.5 + 0.5;
 
+      // absolute: simulated stars drawn over the dark preview canvas
       paint.color = Colors.white.withValues(alpha: brightness);
       canvas.drawCircle(Offset(x, y), radius, paint);
     }

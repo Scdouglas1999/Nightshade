@@ -97,7 +97,7 @@ class _CandidateRowInfo extends ConsumerWidget {
                   Text(
                     suggestion.targetName,
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: NightshadeTypography.fontSize15,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                     ),
@@ -107,7 +107,7 @@ class _CandidateRowInfo extends ConsumerWidget {
                     Text(
                       suggestion.catalogId!,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: colors.textSecondary,
                       ),
                     ),
@@ -174,7 +174,7 @@ class _CandidateRowInfo extends ConsumerWidget {
             maxLines: 2,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
               height: 1.35,
             ),
@@ -366,7 +366,7 @@ class _CandidateRow extends ConsumerWidget {
                     child: Text(
                       'No observing lists yet. Create one to start adding targets.',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: colors.textSecondary,
                       ),
                     ),
@@ -535,7 +535,7 @@ class _ScoreBadge extends StatelessWidget {
         child: Text(
           score.toStringAsFixed(0),
           style: TextStyle(
-            fontSize: 15,
+            fontSize: NightshadeTypography.fontSize15,
             fontWeight: FontWeight.w700,
             color: badgeColor,
           ),
@@ -621,11 +621,11 @@ class _StatChip extends StatelessWidget {
       decoration: isWarning
           ? NightshadeDecorations.emphasisSurface(
               colors.warning,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             )
           : BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -635,7 +635,7 @@ class _StatChip extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w500,
               color: chipColor,
             ),

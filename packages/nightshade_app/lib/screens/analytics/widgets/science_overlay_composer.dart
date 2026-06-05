@@ -40,7 +40,7 @@ class ScienceOverlayComposer extends ConsumerWidget {
                   'Tap ⓘ for what each layer means',
                   style: TextStyle(
                     color: colors.textMuted,
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                   ),
                 ),
               ],
@@ -116,7 +116,7 @@ class ScienceOverlayComposer extends ConsumerWidget {
                     'Overlay Opacity ${(prefs.overlayOpacity * 100).round()}%',
                     style: TextStyle(
                       color: colors.textSecondary,
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                     ),
                   ),
                 ),
@@ -178,16 +178,16 @@ class _LayerChip extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       onLongPress: () => ScienceOverlayLegend.show(context, legendKey),
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: active
             ? NightshadeDecorations.selectedSurface(
                 colors.primary,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               )
             : BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 color: colors.surfaceElevated,
                 border: Border.all(color: colors.border),
               ),
@@ -197,14 +197,14 @@ class _LayerChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: active ? FontWeight.w700 : FontWeight.w500,
               ),
             ),
             const SizedBox(width: 6),
             InkWell(
               onTap: () => ScienceOverlayLegend.show(context, legendKey),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               child: Padding(
                 padding: const EdgeInsets.all(2),
                 child: Icon(

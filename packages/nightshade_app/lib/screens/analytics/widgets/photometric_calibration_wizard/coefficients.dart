@@ -15,7 +15,7 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
     if (coeff == null) {
       return Text(
         _statusMessage.isEmpty ? 'Fit computation failed.' : _statusMessage,
-        style: TextStyle(color: colors.error, fontSize: 13),
+        style: TextStyle(color: colors.error, fontSize: NightshadeTypography.fontSize13),
       );
     }
 
@@ -27,7 +27,7 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
             'Transformation Coefficients',
             style: TextStyle(
               color: colors.textPrimary,
-              fontSize: 14,
+              fontSize: NightshadeTypography.fontSize14,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -49,7 +49,7 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
             'Residual Plot',
             style: TextStyle(
               color: colors.textPrimary,
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -71,12 +71,12 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label,
-              style: TextStyle(color: colors.textSecondary, fontSize: 12)),
+              style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12)),
           Text(
             value,
             style: TextStyle(
               color: colors.textPrimary,
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               fontWeight: FontWeight.w600,
               fontFamily: 'monospace',
             ),
@@ -109,7 +109,7 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: NightshadeDecorations.statusChip(
         qualityColor,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         children: [
@@ -126,7 +126,7 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
             'Fit Quality: $qualityLabel (RMS ${rms.toStringAsFixed(4)} mag)',
             style: TextStyle(
               color: qualityColor,
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w500,
             ),
           ),
@@ -182,25 +182,25 @@ extension _PhotometricWizardCoefficients on _PhotometricCalibrationWizardState {
               const AxisTitles(sideTitles: SideTitles(showTitles: false)),
           bottomTitles: AxisTitles(
             axisNameWidget: Text('Catalog Magnitude',
-                style: TextStyle(color: colors.textSecondary, fontSize: 10)),
+                style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize10)),
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 24,
               getTitlesWidget: (value, meta) => Text(
                 value.toStringAsFixed(1),
-                style: TextStyle(fontSize: 10, color: colors.textSecondary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
               ),
             ),
           ),
           leftTitles: AxisTitles(
             axisNameWidget: Text('Residual (mag)',
-                style: TextStyle(color: colors.textSecondary, fontSize: 10)),
+                style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize10)),
             sideTitles: SideTitles(
               showTitles: true,
               reservedSize: 40,
               getTitlesWidget: (value, meta) => Text(
                 value.toStringAsFixed(2),
-                style: TextStyle(fontSize: 10, color: colors.textSecondary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
               ),
             ),
           ),

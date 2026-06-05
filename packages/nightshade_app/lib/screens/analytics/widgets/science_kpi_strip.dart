@@ -292,7 +292,7 @@ class _KpiCard extends StatelessWidget {
                 title.toUpperCase(),
                 style: TextStyle(
                   color: colors.textMuted,
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   letterSpacing: 0.6,
                   fontWeight: FontWeight.w700,
                 ),
@@ -303,7 +303,7 @@ class _KpiCard extends StatelessWidget {
                 style: TextStyle(
                   color: headlineTone,
                   fontWeight: FontWeight.w800,
-                  fontSize: 22,
+                  fontSize: NightshadeTypography.fontSize22,
                 ),
               ),
               const SizedBox(height: 2),
@@ -311,7 +311,7 @@ class _KpiCard extends StatelessWidget {
                 value,
                 style: TextStyle(
                   color: colors.textSecondary,
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                 ),
               ),
               if (trust.isNotEmpty) ...[
@@ -331,7 +331,7 @@ class _KpiCard extends StatelessWidget {
                             ),
                             decoration: NightshadeDecorations.statusChip(
                               t.tone ?? colors.textMuted,
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                             ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
@@ -343,7 +343,7 @@ class _KpiCard extends StatelessWidget {
                                 Text(
                                   t.label,
                                   style: TextStyle(
-                                    fontSize: 9,
+                                    fontSize: NightshadeTypography.fontSize9,
                                     fontWeight: FontWeight.w600,
                                     color:
                                         t.tone ?? colors.textSecondary,

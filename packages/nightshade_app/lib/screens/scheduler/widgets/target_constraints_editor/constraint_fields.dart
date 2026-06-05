@@ -76,7 +76,7 @@ class _TimeWindowField extends StatelessWidget {
           const SizedBox(width: NightshadeTokens.spaceSm),
           Text(
             '(crosses midnight)',
-            style: TextStyle(fontSize: 11, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
           ),
         ],
       ],
@@ -146,7 +146,7 @@ class _MoonField extends StatelessWidget {
             '${(value * 100).round()} %',
             textAlign: TextAlign.right,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
               fontFeatures: const [FontFeature.tabularFigures()],
@@ -175,7 +175,7 @@ class _HorizonField extends StatelessWidget {
     if (profiles.isEmpty) {
       return Text(
         'No horizon profiles defined yet.',
-        style: TextStyle(fontSize: 12, color: colors.warning),
+        style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.warning),
       );
     }
     return DropdownButton<int>(
@@ -231,7 +231,7 @@ class _ScheduledWindowField extends StatelessWidget {
               width: 92,
               child: Text(
                 'Priority boost',
-                style: TextStyle(fontSize: 11, color: colors.textSecondary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
               ),
             ),
             Expanded(
@@ -254,7 +254,7 @@ class _ScheduledWindowField extends StatelessWidget {
                 '+${window.priorityBoost.toStringAsFixed(1)}',
                 textAlign: TextAlign.right,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                   fontFeatures: const [FontFeature.tabularFigures()],

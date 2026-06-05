@@ -373,7 +373,7 @@ class _ActionButtonState extends State<_ActionButton> {
       // FocusRing surfaces keyboard focus on these GestureDetector-based
       // action buttons; without it keyboard nav silently skipped them.
       child: FocusRing(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         child: GestureDetector(
           onTap: isEnabled ? widget.onTap : null,
           child: AnimatedContainer(
@@ -383,7 +383,7 @@ class _ActionButtonState extends State<_ActionButton> {
               color: isActiveHover
                   ? widget.colors.primary.withValues(alpha: 0.1)
                   : widget.colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(
                 color: isActiveHover
                     ? widget.colors.primary
@@ -409,7 +409,7 @@ class _ActionButtonState extends State<_ActionButton> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       fontWeight: FontWeight.w500,
                       color: isEnabled
                           ? (isActiveHover
@@ -616,7 +616,7 @@ class _CenteringDialogState extends State<_CenteringDialog> {
         vertical: 24,
       ),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         side: BorderSide(color: widget.colors.border),
       ),
       title: Row(
@@ -651,7 +651,7 @@ class _CenteringDialogState extends State<_CenteringDialog> {
               padding: const EdgeInsets.all(12),
               decoration: NightshadeDecorations.emphasisSurface(
                 widget.colors.success,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Row(
                 children: [
@@ -672,7 +672,7 @@ class _CenteringDialogState extends State<_CenteringDialog> {
           const SizedBox(height: 16),
           Text(
             _status,
-            style: TextStyle(color: widget.colors.textSecondary, fontSize: 14),
+            style: TextStyle(color: widget.colors.textSecondary, fontSize: NightshadeTypography.fontSize14),
           ),
           if (_lastRaError != null || _lastDecError != null) ...[
             const SizedBox(height: 12),
@@ -681,11 +681,11 @@ class _CenteringDialogState extends State<_CenteringDialog> {
               children: [
                 Text('RA Error:',
                     style: TextStyle(
-                        color: widget.colors.textMuted, fontSize: 12)),
+                        color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize12)),
                 Text('${_lastRaError?.toStringAsFixed(1) ?? "---"}"',
                     style: TextStyle(
                         color: widget.colors.textPrimary,
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         fontWeight: FontWeight.w500)),
               ],
             ),
@@ -695,11 +695,11 @@ class _CenteringDialogState extends State<_CenteringDialog> {
               children: [
                 Text('Dec Error:',
                     style: TextStyle(
-                        color: widget.colors.textMuted, fontSize: 12)),
+                        color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize12)),
                 Text('${_lastDecError?.toStringAsFixed(1) ?? "---"}"',
                     style: TextStyle(
                         color: widget.colors.textPrimary,
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         fontWeight: FontWeight.w500)),
               ],
             ),
@@ -707,7 +707,7 @@ class _CenteringDialogState extends State<_CenteringDialog> {
           const SizedBox(height: 8),
           Text(
             'Iteration: $_iteration / $_maxIterations',
-            style: TextStyle(color: widget.colors.textMuted, fontSize: 12),
+            style: TextStyle(color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize12),
           ),
         ],
       ),

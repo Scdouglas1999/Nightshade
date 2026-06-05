@@ -36,7 +36,7 @@ class _SessionHistoryCard extends ConsumerWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: NightshadeTypography.fontSize14,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
             ),
@@ -47,12 +47,12 @@ class _SessionHistoryCard extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
             color: _getStatusColor(session.status, colors),
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
           ),
           child: Text(
             session.status.toUpperCase(),
             style: TextStyle(
-              fontSize: 9,
+              fontSize: NightshadeTypography.fontSize9,
               fontWeight: FontWeight.w600,
               color: colors.background,
             ),
@@ -63,7 +63,7 @@ class _SessionHistoryCard extends ConsumerWidget {
 
     final dateText = Text(
       DateFormat('MMM d, yyyy HH:mm').format(session.startTime),
-      style: TextStyle(fontSize: 12, color: colors.textSecondary),
+      style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
     );
 
     // Stats reflow as a Wrap so a narrow phone column never overflows; on wide
@@ -97,7 +97,7 @@ class _SessionHistoryCard extends ConsumerWidget {
       child: NightshadeCard(
         child: InkWell(
           onTap: () => _showSessionDetail(context, ref, session),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           child: Padding(
             padding: const EdgeInsets.all(16),
             child: LayoutBuilder(
@@ -211,7 +211,7 @@ class _StatChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -221,7 +221,7 @@ class _StatChip extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w500,
               color: colors.textPrimary,
             ),

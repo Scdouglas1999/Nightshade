@@ -77,7 +77,7 @@ class ScienceOverlayLegend {
       builder: (context) => AlertDialog(
         backgroundColor: colors.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
           side: BorderSide(color: colors.borderHighlight),
         ),
         title: Row(
@@ -86,7 +86,7 @@ class ScienceOverlayLegend {
               padding: const EdgeInsets.all(8),
               decoration: NightshadeDecorations.tintedBadge(
                 colors.primary,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Icon(entry.icon, color: colors.primary, size: 18),
             ),
@@ -96,7 +96,7 @@ class ScienceOverlayLegend {
                 entry.label,
                 style: TextStyle(
                   color: colors.textPrimary,
-                  fontSize: 17,
+                  fontSize: NightshadeTypography.fontSize17,
                   fontWeight: FontWeight.w700,
                 ),
               ),
@@ -116,7 +116,7 @@ class ScienceOverlayLegend {
                 entry.summary,
                 style: TextStyle(
                   color: colors.textSecondary,
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   height: 1.5,
                 ),
               ),
@@ -211,7 +211,7 @@ class _GradientRow extends StatelessWidget {
           height: swatchSize,
           decoration: BoxDecoration(
             color: swatches[i],
-            borderRadius: BorderRadius.circular(3),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
             border: Border.all(color: colors.border, width: 0.5),
           ),
         ),

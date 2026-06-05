@@ -49,12 +49,12 @@ class _SliderControl extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
               child: Text(
                 valueFormatter(value),
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -146,7 +146,7 @@ class _RangeSliderControl extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 4),
                   child: Text(
                     '–',
-                    style: TextStyle(fontSize: 11, color: colors.textMuted),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                   ),
                 ),
                 _valueBadge(maxValueFormatter(clampedMax)),
@@ -163,12 +163,12 @@ class _RangeSliderControl extends StatelessWidget {
               if (minLabel != null)
                 Text(
                   minLabel!,
-                  style: TextStyle(fontSize: 10, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                 ),
               if (maxLabel != null)
                 Text(
                   maxLabel!,
-                  style: TextStyle(fontSize: 10, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                 ),
             ],
           ),
@@ -201,12 +201,12 @@ class _RangeSliderControl extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       ),
       child: Text(
         text,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: NightshadeTypography.fontSize11,
           fontWeight: FontWeight.w600,
           color: colors.textPrimary,
         ),

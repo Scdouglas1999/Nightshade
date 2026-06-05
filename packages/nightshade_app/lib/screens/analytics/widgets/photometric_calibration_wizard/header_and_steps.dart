@@ -9,7 +9,7 @@ extension _PhotometricWizardHeaderAndSteps
           padding: const EdgeInsets.all(8),
           decoration: NightshadeDecorations.tintedBadge(
             colors.primary,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           ),
           child: Icon(LucideIcons.sparkles, color: colors.primary, size: 20),
         ),
@@ -22,13 +22,13 @@ extension _PhotometricWizardHeaderAndSteps
                 'Photometric Calibration Wizard',
                 style: TextStyle(
                   color: colors.textPrimary,
-                  fontSize: 17,
+                  fontSize: NightshadeTypography.fontSize17,
                   fontWeight: FontWeight.w600,
                 ),
               ),
               Text(
                 'Compute transformation coefficients for absolute photometry',
-                style: TextStyle(color: colors.textMuted, fontSize: 12),
+                style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
               ),
             ],
           ),
@@ -85,7 +85,7 @@ extension _PhotometricWizardHeaderAndSteps
                             color: isActive
                                 ? colors.textPrimary
                                 : colors.textMuted,
-                            fontSize: 11,
+                            fontSize: NightshadeTypography.fontSize11,
                             fontWeight: FontWeight.w600,
                           ),
                         ),

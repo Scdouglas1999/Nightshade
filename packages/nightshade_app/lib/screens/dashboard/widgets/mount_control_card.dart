@@ -109,7 +109,7 @@ class MountControlCard extends ConsumerWidget {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Row(
                   children: [
@@ -119,10 +119,10 @@ class MountControlCard extends ConsumerWidget {
                         children: [
                           Text(l10n.text('ra'),
                               style: TextStyle(
-                                  fontSize: 9, color: colors.textMuted)),
+                                  fontSize: NightshadeTypography.fontSize9, color: colors.textMuted)),
                           Text(raText,
                               style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: NightshadeTypography.fontSize12,
                                   fontWeight: FontWeight.w600,
                                   color: colors.textPrimary,
                                   fontFamily: 'monospace')),
@@ -135,10 +135,10 @@ class MountControlCard extends ConsumerWidget {
                         children: [
                           Text(l10n.text('dec'),
                               style: TextStyle(
-                                  fontSize: 9, color: colors.textMuted)),
+                                  fontSize: NightshadeTypography.fontSize9, color: colors.textMuted)),
                           Text(decText,
                               style: TextStyle(
-                                  fontSize: 12,
+                                  fontSize: NightshadeTypography.fontSize12,
                                   fontWeight: FontWeight.w600,
                                   color: colors.textPrimary,
                                   fontFamily: 'monospace')),
@@ -150,10 +150,10 @@ class MountControlCard extends ConsumerWidget {
                       children: [
                         Text(l10n.text('pier'),
                             style: TextStyle(
-                                fontSize: 9, color: colors.textMuted)),
+                                fontSize: NightshadeTypography.fontSize9, color: colors.textMuted)),
                         Text(pierText,
                             style: TextStyle(
-                                fontSize: 12,
+                                fontSize: NightshadeTypography.fontSize12,
                                 fontWeight: FontWeight.w600,
                                 color: colors.textPrimary)),
                       ],
@@ -182,7 +182,7 @@ class MountControlCard extends ConsumerWidget {
                   children: [
                     Text('${l10n.text('rate')}:',
                         style:
-                            TextStyle(fontSize: 10, color: colors.textMuted)),
+                            TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted)),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Container(
@@ -190,7 +190,7 @@ class MountControlCard extends ConsumerWidget {
                         padding: const EdgeInsets.symmetric(horizontal: 8),
                         decoration: BoxDecoration(
                           color: colors.surfaceAlt,
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                           border: Border.all(
                               color: colors.border.withValues(alpha: 0.5)),
                         ),
@@ -200,7 +200,7 @@ class MountControlCard extends ConsumerWidget {
                             isDense: true,
                             isExpanded: true,
                             style: TextStyle(
-                                fontSize: 11, color: colors.textPrimary),
+                                fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
                             dropdownColor: colors.surface,
                             icon: Icon(LucideIcons.chevronDown,
                                 size: 12, color: colors.textMuted),
@@ -308,7 +308,7 @@ class _MountDirectionalPad extends StatelessWidget {
       padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         color: colors.surfaceAlt.withValues(alpha: 0.5),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -380,10 +380,10 @@ class _DirectionalButton extends StatelessWidget {
       message: label,
       child: Material(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
         child: InkWell(
           onTap: isEnabled ? onPressed : null,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
           child: SizedBox(
             width: 32,
             height: 32,

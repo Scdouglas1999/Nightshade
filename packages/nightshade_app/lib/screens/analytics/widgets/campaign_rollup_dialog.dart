@@ -33,7 +33,7 @@ class CampaignRollupDialog extends ConsumerWidget {
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         side: BorderSide(color: colors.border),
       ),
       child: ConstrainedBox(
@@ -68,7 +68,7 @@ class CampaignRollupDialog extends ConsumerWidget {
                 const SizedBox(height: 6),
                 Text(
                   '$err',
-                  style: TextStyle(fontSize: 12, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
@@ -126,7 +126,7 @@ class _Body extends StatelessWidget {
                     Text(
                       'Campaign Rollup',
                       style: TextStyle(
-                        fontSize: 18,
+                        fontSize: NightshadeTypography.fontSize18,
                         fontWeight: FontWeight.w700,
                         color: colors.textPrimary,
                       ),
@@ -134,7 +134,7 @@ class _Body extends StatelessWidget {
                     Text(
                       rollup.targetName,
                       style:
-                          TextStyle(fontSize: 13, color: colors.textMuted),
+                          TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
                     ),
                   ],
                 ),
@@ -222,7 +222,7 @@ class _Body extends StatelessWidget {
                   Text(
                     'No frames captured for this target yet.',
                     style:
-                        TextStyle(fontSize: 13, color: colors.textMuted),
+                        TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
                   )
                 else
                   for (final f in rollup.filters)
@@ -238,7 +238,7 @@ class _Body extends StatelessWidget {
                   Text(
                     'No sessions recorded for this target.',
                     style:
-                        TextStyle(fontSize: 13, color: colors.textMuted),
+                        TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
                   )
                 else
                   for (final s in rollup.sessions)
@@ -298,7 +298,7 @@ class _SectionTitle extends StatelessWidget {
           Text(
             title,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               fontWeight: FontWeight.w700,
               color: colors.textPrimary,
               letterSpacing: 0.3,
@@ -329,18 +329,18 @@ class _SummaryTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontSize: 11, color: colors.textMuted)),
+          Text(label, style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted)),
           const SizedBox(height: 4),
           Text(
             value,
             style: TextStyle(
-              fontSize: 15,
+              fontSize: NightshadeTypography.fontSize15,
               fontWeight: FontWeight.w700,
               color: colors.textPrimary,
             ),
@@ -375,7 +375,7 @@ class _OverallProgress extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -386,7 +386,7 @@ class _OverallProgress extends StatelessWidget {
               Text(
                 'Overall',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: colors.textSecondary,
                 ),
@@ -395,7 +395,7 @@ class _OverallProgress extends StatelessWidget {
               Text(
                 '${(pct * 100).toStringAsFixed(1)}%',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w700,
                   color: isComplete ? colors.success : colors.textPrimary,
                 ),
@@ -404,7 +404,7 @@ class _OverallProgress extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           ClipRRect(
-            borderRadius: BorderRadius.circular(5),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
             child: LinearProgressIndicator(
               value: pct,
               minHeight: 10,
@@ -417,7 +417,7 @@ class _OverallProgress extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'Captured ${(captured / 3600.0).toStringAsFixed(1)}h of ${(goal / 3600.0).toStringAsFixed(1)}h goal | Remaining: ${remainingHours.toStringAsFixed(1)}h',
-            style: TextStyle(fontSize: 11, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
           ),
         ],
       ),
@@ -439,7 +439,7 @@ class _FilterRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -450,7 +450,7 @@ class _FilterRow extends StatelessWidget {
               Text(
                 filter.filter,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                 ),
@@ -460,19 +460,19 @@ class _FilterRow extends StatelessWidget {
                 Text(
                   '${filter.capturedFrames}/${filter.goalFrames} frames',
                   style:
-                      TextStyle(fontSize: 12, color: colors.textSecondary),
+                      TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
                 )
               else
                 Text(
                   '${filter.capturedFrames} frames captured (no goal)',
                   style:
-                      TextStyle(fontSize: 12, color: colors.textMuted),
+                      TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
                 ),
               const Spacer(),
               Text(
                 '${(filter.capturedIntegrationSecs / 3600.0).toStringAsFixed(1)}h',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                 ),
@@ -482,7 +482,7 @@ class _FilterRow extends StatelessWidget {
           if (pct != null) ...[
             const SizedBox(height: 6),
             ClipRRect(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
               child: LinearProgressIndicator(
                 value: pct,
                 minHeight: 6,
@@ -495,7 +495,7 @@ class _FilterRow extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               '${(pct * 100).toStringAsFixed(0)}% complete | ${filter.remainingFrames} frames remaining',
-              style: TextStyle(fontSize: 10, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
             ),
           ],
         ],
@@ -544,13 +544,13 @@ class _SessionRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onOpenReport,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         child: Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(color: colors.border),
           ),
           child: Row(
@@ -571,7 +571,7 @@ class _SessionRow extends StatelessWidget {
                     Text(
                       session.sessionName ?? 'Session ${session.sessionId}',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         fontWeight: FontWeight.w600,
                         color: colors.textPrimary,
                       ),
@@ -580,7 +580,7 @@ class _SessionRow extends StatelessWidget {
                     Text(
                       '${formatDateTime(session.startTime)} | $durationLabel | ${(session.sessionIntegrationSecs / 3600.0).toStringAsFixed(2)}h integration',
                       style:
-                          TextStyle(fontSize: 11, color: colors.textMuted),
+                          TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                     ),
                   ],
                 ),
@@ -626,19 +626,19 @@ class _Chip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             '$label ',
-            style: TextStyle(fontSize: 10, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
           ),
           Text(
             value,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
             ),

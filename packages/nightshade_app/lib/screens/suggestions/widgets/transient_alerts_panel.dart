@@ -36,7 +36,7 @@ class TransientAlertsPanel extends ConsumerWidget {
                   child: Text(
                     'Transient Alerts',
                     style: TextStyle(
-                      fontSize: 15,
+                      fontSize: NightshadeTypography.fontSize15,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                     ),
@@ -81,7 +81,7 @@ class TransientAlertsPanel extends ConsumerWidget {
                         Text(
                           'No transient alerts',
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: NightshadeTypography.fontSize13,
                             color: colors.textSecondary,
                           ),
                         ),
@@ -89,7 +89,7 @@ class TransientAlertsPanel extends ConsumerWidget {
                         Text(
                           'Check back later or adjust filter settings.',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: NightshadeTypography.fontSize11,
                             color: colors.textMuted,
                           ),
                         ),
@@ -125,7 +125,7 @@ class TransientAlertsPanel extends ConsumerWidget {
                       child: Text(
                         '${alerts.length - 10} more alerts not shown',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: colors.textMuted,
                           fontStyle: FontStyle.italic,
                         ),
@@ -154,7 +154,7 @@ class TransientAlertsPanel extends ConsumerWidget {
                   Expanded(
                     child: Text(
                       'Failed to load alerts: $error',
-                      style: TextStyle(fontSize: 12, color: colors.error),
+                      style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.error),
                     ),
                   ),
                   IconButton(
@@ -222,12 +222,12 @@ class _UnacknowledgedBadge extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
         color: colors.warning,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Text(
         '$count',
         style: TextStyle(
-          fontSize: 10,
+          fontSize: NightshadeTypography.fontSize10,
           fontWeight: FontWeight.w700,
           color: colors.background,
         ),
@@ -289,7 +289,7 @@ class _TransientAlertTile extends ConsumerWidget {
                           child: Text(
                             alert.name,
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: NightshadeTypography.fontSize13,
                               fontWeight:
                                   isNew ? FontWeight.w700 : FontWeight.w500,
                               color: colors.textPrimary,
@@ -302,12 +302,12 @@ class _TransientAlertTile extends ConsumerWidget {
                                 horizontal: 5, vertical: 1),
                             decoration: BoxDecoration(
                               color: colors.primary.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               'NEW',
                               style: TextStyle(
-                                fontSize: 9,
+                                fontSize: NightshadeTypography.fontSize9,
                                 fontWeight: FontWeight.w700,
                                 color: colors.primary,
                               ),
@@ -319,12 +319,12 @@ class _TransientAlertTile extends ConsumerWidget {
                                 horizontal: 5, vertical: 1),
                             decoration: BoxDecoration(
                               color: colors.success.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               'QUEUED',
                               style: TextStyle(
-                                fontSize: 9,
+                                fontSize: NightshadeTypography.fontSize9,
                                 fontWeight: FontWeight.w700,
                                 color: colors.success,
                               ),
@@ -336,12 +336,12 @@ class _TransientAlertTile extends ConsumerWidget {
                                 horizontal: 5, vertical: 1),
                             decoration: BoxDecoration(
                               color: colors.info.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                             ),
                             child: Text(
                               'OBSERVED',
                               style: TextStyle(
-                                fontSize: 9,
+                                fontSize: NightshadeTypography.fontSize9,
                                 fontWeight: FontWeight.w700,
                                 color: colors.info,
                               ),
@@ -358,13 +358,13 @@ class _TransientAlertTile extends ConsumerWidget {
                         Text(
                           _typeLabel(alert.type),
                           style:
-                              TextStyle(fontSize: 11, color: colors.textMuted),
+                              TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                         ),
                         if (alert.magnitude != null)
                           Text(
                             'mag ${alert.magnitude!.toStringAsFixed(1)}',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: NightshadeTypography.fontSize11,
                               color: colors.textSecondary,
                               fontWeight: FontWeight.w600,
                             ),
@@ -372,12 +372,12 @@ class _TransientAlertTile extends ConsumerWidget {
                         Text(
                           'RA ${_formatRa(alert.raHours)} Dec ${_formatDec(alert.decDegrees)}',
                           style:
-                              TextStyle(fontSize: 11, color: colors.textMuted),
+                              TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                         ),
                         Text(
                           DateFormat('MMM d').format(alert.discoveryTime),
                           style:
-                              TextStyle(fontSize: 11, color: colors.textMuted),
+                              TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                         ),
                       ],
                     ),
@@ -386,7 +386,7 @@ class _TransientAlertTile extends ConsumerWidget {
                       Text(
                         alert.classification!,
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: NightshadeTypography.fontSize10,
                           color: colors.textMuted,
                           fontStyle: FontStyle.italic,
                         ),
@@ -522,7 +522,7 @@ class _TypeBadge extends StatelessWidget {
       height: 28,
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       ),
       child: Icon(icon, size: 14, color: color),
     );
@@ -557,7 +557,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
               Text(
                 'Alert Sources',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w600,
                   color: colors.textSecondary,
                 ),
@@ -568,7 +568,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                   title: Text(
                     _sourceLabel(source),
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       color: colors.textPrimary,
                     ),
                   ),
@@ -576,7 +576,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                       ? Text(
                           'Requires API key',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: NightshadeTypography.fontSize11,
                             color: colors.textMuted,
                           ),
                         )
@@ -594,7 +594,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
               Text(
                 'Magnitude Threshold',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w600,
                   color: colors.textSecondary,
                 ),
@@ -602,14 +602,14 @@ class _TransientSettingsDialog extends ConsumerWidget {
               const SizedBox(height: 4),
               Text(
                 'Only show objects brighter than this magnitude',
-                style: TextStyle(fontSize: 11, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
               ),
               const SizedBox(height: 8),
               Row(
                 children: [
                   Text(
                     '5',
-                    style: TextStyle(fontSize: 11, color: colors.textMuted),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                   ),
                   Expanded(
                     child: Slider(
@@ -623,13 +623,13 @@ class _TransientSettingsDialog extends ConsumerWidget {
                   ),
                   Text(
                     '20',
-                    style: TextStyle(fontSize: 11, color: colors.textMuted),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     '<= ${settings.magnitudeThreshold.toStringAsFixed(1)}',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                     ),
@@ -643,7 +643,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
               Text(
                 'Types to Monitor',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w600,
                   color: colors.textSecondary,
                 ),
@@ -658,7 +658,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                     label: Text(
                       _typeLabel(type),
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color:
                             isEnabled ? colors.primary : colors.textSecondary,
                       ),
@@ -677,7 +677,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                 title: Text(
                   'Notify on new alerts',
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     color: colors.textPrimary,
                   ),
                 ),
@@ -689,13 +689,13 @@ class _TransientSettingsDialog extends ConsumerWidget {
                 title: Text(
                   'Auto-queue bright transients',
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     color: colors.textPrimary,
                   ),
                 ),
                 subtitle: Text(
                   'Automatically add transients brighter than mag ${settings.autoQueueMagnitude.toStringAsFixed(0)} to targets',
-                  style: TextStyle(fontSize: 11, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                 ),
                 dense: true,
                 value: settings.autoQueueBright,

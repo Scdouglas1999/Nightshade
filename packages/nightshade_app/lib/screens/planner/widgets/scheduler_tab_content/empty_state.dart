@@ -46,7 +46,7 @@ class _NoTargetsEmptyStateState extends State<_NoTargetsEmptyState> {
                     Text(
                       headline,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: NightshadeTypography.fontSize14,
                         fontWeight: FontWeight.w700,
                         color: colors.textPrimary,
                       ),
@@ -55,7 +55,7 @@ class _NoTargetsEmptyStateState extends State<_NoTargetsEmptyState> {
                     Text(
                       body,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: colors.textSecondary,
                         height: 1.4,
                       ),
@@ -95,7 +95,7 @@ class _NoTargetsEmptyStateState extends State<_NoTargetsEmptyState> {
               padding: NightshadeTokens.paddingMd,
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 border: Border.all(color: colors.border),
               ),
               child: Column(
@@ -104,7 +104,7 @@ class _NoTargetsEmptyStateState extends State<_NoTargetsEmptyState> {
                   Text(
                     'How the scheduler picks targets',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       fontWeight: FontWeight.w700,
                       color: colors.textPrimary,
                     ),
@@ -122,7 +122,7 @@ class _NoTargetsEmptyStateState extends State<_NoTargetsEmptyState> {
                     'is gated by a hysteresis ratio so the scheduler '
                     'does not flip-flop between two close scores.',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textSecondary,
                       height: 1.5,
                     ),

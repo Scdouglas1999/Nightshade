@@ -176,7 +176,7 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
                 padding: const EdgeInsets.all(8),
                 decoration: NightshadeDecorations.tintedBadge(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
                 child: Icon(
                   LucideIcons.sparkles,
@@ -189,7 +189,7 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
                 child: Text(
                   'Hardware ready - build tonight\'s plan?',
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -205,7 +205,7 @@ class _SmartNightPromptCardState extends ConsumerState<SmartNightPromptCard>
               'Smart Night will choose targets, exposures, and filters '
               'from your gear and the sky tonight.',
               style: TextStyle(
-                fontSize: 11.5,
+                fontSize: NightshadeTypography.fontSize11_5,
                 color: colors.textSecondary,
                 height: 1.35,
               ),

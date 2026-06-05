@@ -51,7 +51,7 @@ class _PrimaryTargetCard extends ConsumerWidget {
                       child: Text(
                         context.l10n.text('plannerUserOverride'),
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: NightshadeTypography.fontSize10,
                           fontWeight: FontWeight.w700,
                           color: colors.warning,
                           letterSpacing: 1.2,
@@ -61,7 +61,7 @@ class _PrimaryTargetCard extends ConsumerWidget {
                   Text(
                     target.targetName,
                     style: TextStyle(
-                      fontSize: 20,
+                      fontSize: NightshadeTypography.fontSize20,
                       fontWeight: FontWeight.w700,
                       color: colors.textPrimary,
                     ),
@@ -71,7 +71,7 @@ class _PrimaryTargetCard extends ConsumerWidget {
                     Text(
                       target.catalogId!,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         color: colors.textSecondary,
                       ),
                     ),
@@ -89,7 +89,7 @@ class _PrimaryTargetCard extends ConsumerWidget {
             Text(
               '$raFormatted  /  $decFormatted',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontFamily: 'monospace',
                 color: colors.textSecondary,
               ),
@@ -195,7 +195,7 @@ class _PrimaryTargetCard extends ConsumerWidget {
                       },
                     ),
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: colors.textSecondary,
                     ),
                   ),
@@ -239,7 +239,7 @@ class _PrimaryTargetCard extends ConsumerWidget {
                     child: Text(
                       warning.message,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: _warningColor(warning.severity, colors),
                       ),
                     ),
@@ -345,7 +345,7 @@ class _RiskFactorsList extends StatelessWidget {
                   child: Text(
                     riskFactors[i],
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       color: colors.textSecondary,
                       height: 1.4,
                     ),
@@ -399,7 +399,7 @@ class _RationaleList extends StatelessWidget {
                   child: Text(
                     rationale[i],
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       color: colors.textSecondary,
                       height: 1.4,
                     ),

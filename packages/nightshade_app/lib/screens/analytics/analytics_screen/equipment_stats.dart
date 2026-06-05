@@ -78,7 +78,7 @@ class _EquipmentStatCard extends StatelessWidget {
             Text(
               title,
               style: TextStyle(
-                fontSize: 14,
+                fontSize: NightshadeTypography.fontSize14,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -92,12 +92,12 @@ class _EquipmentStatCard extends StatelessWidget {
                       Text(
                         stat.label,
                         style: TextStyle(
-                            fontSize: 12, color: colors.textSecondary),
+                            fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
                       ),
                       Text(
                         stat.value,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           fontWeight: FontWeight.w500,
                           color: colors.textPrimary,
                         ),

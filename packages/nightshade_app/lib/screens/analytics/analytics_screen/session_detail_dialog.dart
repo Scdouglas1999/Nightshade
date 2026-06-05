@@ -38,7 +38,7 @@ class _SessionDetailDialog extends ConsumerWidget {
                         Text(
                           session.name ?? l10n.text('analyticsUnnamedSession'),
                           style: TextStyle(
-                            fontSize: 16,
+                            fontSize: NightshadeTypography.fontSize16,
                             fontWeight: FontWeight.w600,
                             color: colors.textPrimary,
                           ),
@@ -48,7 +48,7 @@ class _SessionDetailDialog extends ConsumerWidget {
                           DateFormat('MMM d, yyyy HH:mm')
                               .format(session.startTime),
                           style: TextStyle(
-                              fontSize: 12, color: colors.textSecondary),
+                              fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
                         ),
                       ],
                     ),
@@ -130,7 +130,7 @@ class _SessionDetailDialog extends ConsumerWidget {
         Text(
           l10n.text('analyticsStatistics'),
           style: TextStyle(
-            fontSize: 14,
+            fontSize: NightshadeTypography.fontSize14,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
@@ -184,12 +184,12 @@ class _SessionDetailDialog extends ConsumerWidget {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 11, color: colors.textSecondary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
         ),
         Text(
           value,
           style: TextStyle(
-            fontSize: 14,
+            fontSize: NightshadeTypography.fontSize14,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
@@ -212,7 +212,7 @@ class _SessionDetailDialog extends ConsumerWidget {
             params: {'count': images.length.toString()},
           ),
           style: TextStyle(
-            fontSize: 14,
+            fontSize: NightshadeTypography.fontSize14,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),

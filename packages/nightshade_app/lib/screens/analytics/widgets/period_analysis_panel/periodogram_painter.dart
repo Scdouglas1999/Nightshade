@@ -164,7 +164,7 @@ class _PeriodogramCustomPainter extends CustomPainter {
       text: TextSpan(
         text: 'P=${(1.0 / bestFrequency).toStringAsFixed(3)}d',
         style: TextStyle(
-            color: peakColor, fontSize: 9, fontWeight: FontWeight.w600),
+            color: peakColor, fontSize: NightshadeTypography.fontSize9, fontWeight: FontWeight.w600),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
@@ -175,7 +175,7 @@ class _PeriodogramCustomPainter extends CustomPainter {
 
   void _drawAxisLabels(Canvas canvas, Rect plotRect, double minFreq,
       double maxFreq, double maxPower) {
-    final textStyle = TextStyle(color: textColor, fontSize: 9);
+    final textStyle = TextStyle(color: textColor, fontSize: NightshadeTypography.fontSize9);
 
     // Y-axis labels.
     for (var i = 0; i <= 4; i++) {

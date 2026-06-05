@@ -34,7 +34,7 @@ class _ExportTypeCard extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(
           color: borderColor,
           width: highlight ? 1.5 : 1.0,
@@ -51,7 +51,7 @@ class _ExportTypeCard extends StatelessWidget {
                 Text(
                   title,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -60,7 +60,7 @@ class _ExportTypeCard extends StatelessWidget {
                 Text(
                   description,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textMuted,
                   ),
                 ),
@@ -96,12 +96,12 @@ class _DateButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(color: colors.border),
         ),
         child: Row(
@@ -112,7 +112,7 @@ class _DateButton extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textSecondary,
               ),
             ),

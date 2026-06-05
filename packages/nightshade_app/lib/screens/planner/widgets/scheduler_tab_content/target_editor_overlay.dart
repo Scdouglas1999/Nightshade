@@ -28,6 +28,7 @@ class _TargetEditorOverlay extends ConsumerWidget {
       child: GestureDetector(
         onTap: onClose,
         child: Container(
+          // absolute: modal barrier scrim dimming the screen behind the dialog
           color: Colors.black.withValues(alpha: 0.55),
           alignment: Alignment.center,
           child: GestureDetector(
@@ -56,6 +57,7 @@ class _TargetEditorOverlay extends ConsumerWidget {
                           border: Border.all(color: colors.border),
                           boxShadow: [
                             BoxShadow(
+                              // absolute: dialog drop shadow cast on the canvas
                               color: Colors.black.withValues(alpha: 0.35),
                               blurRadius: 24,
                               offset: const Offset(0, 8),
@@ -73,7 +75,7 @@ class _TargetEditorOverlay extends ConsumerWidget {
                                   Text(
                                     name,
                                     style: TextStyle(
-                                      fontSize: 18,
+                                      fontSize: NightshadeTypography.fontSize18,
                                       fontWeight: FontWeight.w700,
                                       color: colors.textPrimary,
                                     ),

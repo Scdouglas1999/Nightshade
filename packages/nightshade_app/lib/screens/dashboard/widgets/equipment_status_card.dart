@@ -57,7 +57,7 @@ class EquipmentStatusCard extends ConsumerWidget {
                 Text(
                   '$connectedCount/5',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w500,
                     color: connectedCount == 5
                         ? colors.success
@@ -70,7 +70,7 @@ class EquipmentStatusCard extends ConsumerWidget {
                   child: Text(
                     'Manage',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       fontWeight: FontWeight.w500,
                       color: colors.accent,
                     ),
@@ -87,7 +87,7 @@ class EquipmentStatusCard extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
             decoration: BoxDecoration(
               color: colors.surfaceAlt.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -157,11 +157,11 @@ class _CompactEquipmentIcon extends StatelessWidget {
             decoration: isConnected
                 ? NightshadeDecorations.statusChip(
                     colors.success,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                   )
                 : BoxDecoration(
                     color: colors.surface,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                     border: Border.all(color: colors.border),
                   ),
             child: Icon(
@@ -174,7 +174,7 @@ class _CompactEquipmentIcon extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 8,
+              fontSize: NightshadeTypography.fontSize8,
               color: isConnected ? colors.textSecondary : colors.textMuted,
             ),
           ),

@@ -298,7 +298,7 @@ class SuggestionFilters extends ConsumerWidget {
                 Text(
                   'Filter Suggestions',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: NightshadeTypography.fontSize18,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -316,7 +316,7 @@ class SuggestionFilters extends ConsumerWidget {
               Text(
                 'Object Types',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w500,
                   color: colors.textSecondary,
                 ),
@@ -339,7 +339,7 @@ class SuggestionFilters extends ConsumerWidget {
               Text(
                 'Constellation',
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w500,
                   color: colors.textSecondary,
                 ),
@@ -361,7 +361,7 @@ class SuggestionFilters extends ConsumerWidget {
             Text(
               'Sort By',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 fontWeight: FontWeight.w500,
                 color: colors.textSecondary,
               ),
@@ -521,7 +521,7 @@ class SuggestionFilters extends ConsumerWidget {
                       Text(
                         'Prioritize Incomplete Targets',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: NightshadeTypography.fontSize13,
                           fontWeight: FontWeight.w500,
                           color: colors.textSecondary,
                         ),
@@ -530,7 +530,7 @@ class SuggestionFilters extends ConsumerWidget {
                       Text(
                         'Rank targets with less data collected higher',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: colors.textMuted,
                         ),
                       ),

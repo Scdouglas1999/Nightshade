@@ -29,7 +29,7 @@ class _CardHubExportButton extends StatelessWidget {
             ),
           );
         },
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         child: Padding(
           padding: const EdgeInsets.all(4),
           child: Icon(
@@ -68,7 +68,7 @@ class _ScienceJumpNav extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -175,7 +175,7 @@ class _JumpChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         child: Row(
@@ -186,7 +186,7 @@ class _JumpChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: FontWeight.w500,
                 color: colors.textPrimary,
               ),
@@ -222,7 +222,7 @@ class _SectionHeading extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               fontWeight: FontWeight.w600,
               color: colors.textSecondary,
               letterSpacing: 0.4,

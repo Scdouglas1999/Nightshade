@@ -255,7 +255,7 @@ class _TrendCardShell extends StatelessWidget {
             Text(
               subtitle,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 height: 1.4,
                 color: colors.textSecondary,
               ),
@@ -325,7 +325,7 @@ class _TrendCardShell extends StatelessWidget {
                 return Text(
                   '${mins}m',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     color: colors.textSecondary,
                   ),
                 );
@@ -336,7 +336,7 @@ class _TrendCardShell extends StatelessWidget {
             axisNameWidget: Text(
               yLabel,
               style:
-                  TextStyle(color: colors.textSecondary, fontSize: 10),
+                  TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize10),
             ),
             sideTitles: SideTitles(
               showTitles: true,
@@ -344,7 +344,7 @@ class _TrendCardShell extends StatelessWidget {
               getTitlesWidget: (value, meta) => Text(
                 formatY(value),
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   color: colors.textSecondary,
                 ),
               ),
@@ -373,7 +373,7 @@ class _TrendCardShell extends StatelessWidget {
                 '${formatY(spot.y)}\n${mins}m into session',
                 TextStyle(
                   color: colors.textPrimary,
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w500,
                 ),
               );
@@ -402,12 +402,12 @@ class _LatestPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: NightshadeDecorations.statusChip(
         color,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
       ),
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 10,
+          fontSize: NightshadeTypography.fontSize10,
           fontWeight: FontWeight.w700,
           color: color,
         ),
@@ -427,7 +427,7 @@ class _Placeholder extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       alignment: Alignment.center,
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -435,7 +435,7 @@ class _Placeholder extends StatelessWidget {
         message,
         textAlign: TextAlign.center,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: NightshadeTypography.fontSize11,
           color: colors.textSecondary,
           height: 1.4,
         ),
