@@ -87,57 +87,55 @@ class _CatalogResultRow extends StatelessWidget {
       'RA ${CoordinateFormat.ra(match.ra / 15.0)}  Dec ${CoordinateFormat.dec(match.dec)}',
     ];
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceMd,
-        vertical: NightshadeTokens.spaceSm,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: NightshadeTokens.borderRadiusMd,
-        border: Border.all(color: colors.border),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  match.name,
-                  style: NightshadeTypography.h5.copyWith(
-                    color: colors.textPrimary,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
+      child: NightshadeCard(
+        variant: CardVariant.subtle,
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.spaceMd,
+          vertical: NightshadeTokens.spaceSm,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    match.name,
+                    style: NightshadeTypography.h5.copyWith(
+                      color: colors.textPrimary,
+                    ),
                   ),
-                ),
-                Text(
-                  metaParts.join(' · '),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textSecondary,
+                  Text(
+                    metaParts.join(' · '),
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textSecondary,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          NightshadeButton(
-            label: 'Send to Framing',
-            icon: LucideIcons.crosshair,
-            size: ButtonSize.small,
-            onPressed: () {
-              final uri = Uri(
-                path: '/framing',
-                queryParameters: {
-                  'ra': (match.ra / 15.0).toStringAsFixed(6),
-                  'dec': match.dec.toStringAsFixed(6),
-                  'name': match.name,
-                },
-              );
-              context.go(uri.toString());
-            },
-          ),
-        ],
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            NightshadeButton(
+              label: 'Send to Framing',
+              icon: LucideIcons.crosshair,
+              size: ButtonSize.small,
+              onPressed: () {
+                final uri = Uri(
+                  path: '/framing',
+                  queryParameters: {
+                    'ra': (match.ra / 15.0).toStringAsFixed(6),
+                    'dec': match.dec.toStringAsFixed(6),
+                    'name': match.name,
+                  },
+                );
+                context.go(uri.toString());
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -234,57 +232,55 @@ class _SimbadResultRow extends ConsumerWidget {
       'RA ${CoordinateFormat.ra(match.raHours)}  Dec ${CoordinateFormat.dec(match.decDegrees)}',
     );
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
-      padding: const EdgeInsets.symmetric(
-        horizontal: NightshadeTokens.spaceMd,
-        vertical: NightshadeTokens.spaceSm,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: NightshadeTokens.borderRadiusMd,
-        border: Border.all(color: colors.border),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  match.mainId,
-                  style: NightshadeTypography.h5.copyWith(
-                    color: colors.textPrimary,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
+      child: NightshadeCard(
+        variant: CardVariant.subtle,
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.spaceMd,
+          vertical: NightshadeTokens.spaceSm,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    match.mainId,
+                    style: NightshadeTypography.h5.copyWith(
+                      color: colors.textPrimary,
+                    ),
                   ),
-                ),
-                Text(
-                  metaParts.join(' · '),
-                  style: TextStyle(
-                    fontSize: NightshadeTypography.fontSize11,
-                    color: colors.textSecondary,
+                  Text(
+                    metaParts.join(' · '),
+                    style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textSecondary,
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          NightshadeButton(
-            label: 'Send to Framing',
-            icon: LucideIcons.crosshair,
-            size: ButtonSize.small,
-            onPressed: () {
-              final uri = Uri(
-                path: '/framing',
-                queryParameters: {
-                  'ra': match.raHours.toStringAsFixed(6),
-                  'dec': match.decDegrees.toStringAsFixed(6),
-                  'name': match.mainId,
-                },
-              );
-              context.go(uri.toString());
-            },
-          ),
-        ],
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            NightshadeButton(
+              label: 'Send to Framing',
+              icon: LucideIcons.crosshair,
+              size: ButtonSize.small,
+              onPressed: () {
+                final uri = Uri(
+                  path: '/framing',
+                  queryParameters: {
+                    'ra': match.raHours.toStringAsFixed(6),
+                    'dec': match.decDegrees.toStringAsFixed(6),
+                    'name': match.mainId,
+                  },
+                );
+                context.go(uri.toString());
+              },
+            ),
+          ],
+        ),
       ),
     );
   }

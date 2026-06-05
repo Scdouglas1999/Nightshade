@@ -133,16 +133,10 @@ class _WaitingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
+    return NightshadeCard(
       padding: const EdgeInsets.symmetric(
         horizontal: NightshadeTokens.spaceMd,
         vertical: NightshadeTokens.spaceSm,
-      ),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        border: Border.all(color: colors.border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

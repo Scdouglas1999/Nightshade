@@ -150,13 +150,8 @@ class _IntegrationGoalsEditorState
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (progress.isEmpty)
-                Container(
+                NightshadeCard(
                   padding: NightshadeTokens.paddingMd,
-                  decoration: BoxDecoration(
-                    color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-                    border: Border.all(color: colors.border),
-                  ),
                   child: Text(
                     'No integration goals yet. Add filters below to tell the scheduler what to image.',
                     style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
@@ -439,13 +434,8 @@ class _AddGoalRowState extends State<_AddGoalRow> {
       );
     }
 
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        border: Border.all(color: colors.border),
-      ),
       child: Row(
         children: [
           SizedBox(

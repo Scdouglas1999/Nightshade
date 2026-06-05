@@ -225,19 +225,12 @@ class _CandidateAltitudePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-        border: Border.all(color: colors.border.withValues(alpha: 0.6)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-        child: AltitudeChart(
-          raHours: suggestion.raHours,
-          decDegrees: suggestion.decDegrees,
-          targetName: suggestion.targetName,
-        ),
+    return NightshadeCard(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+      child: AltitudeChart(
+        raHours: suggestion.raHours,
+        decDegrees: suggestion.decDegrees,
+        targetName: suggestion.targetName,
       ),
     );
   }
@@ -269,12 +262,9 @@ class _CandidateRow extends ConsumerWidget {
       colors: colors,
     );
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: NightshadeTokens.borderRadiusLg,
-        border: Border.all(color: colors.border),
-      ),
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusLg,
       padding: NightshadeTokens.cardPadding,
       child: isMobile
           ? Column(

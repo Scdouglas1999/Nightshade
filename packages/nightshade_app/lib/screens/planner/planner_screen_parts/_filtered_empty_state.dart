@@ -18,21 +18,19 @@ class _FilteredEmptyState extends ConsumerWidget {
     final ranked = breakdown.excludedByFilter.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
 
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: const EdgeInsets.all(NightshadeTokens.space2xl),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: NightshadeTokens.borderRadiusLg,
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(LucideIcons.filterX,
+      child: NightshadeCard(
+        variant: CardVariant.subtle,
+        borderRadius: NightshadeTokens.radiusLg,
+        padding: const EdgeInsets.all(NightshadeTokens.space2xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(LucideIcons.filterX,
                   size: NightshadeTokens.iconLg, color: colors.warning),
               const SizedBox(width: NightshadeTokens.spaceSm),
               Expanded(
@@ -151,6 +149,7 @@ class _FilteredEmptyState extends ConsumerWidget {
             ),
           ),
         ],
+        ),
       ),
     );
   }

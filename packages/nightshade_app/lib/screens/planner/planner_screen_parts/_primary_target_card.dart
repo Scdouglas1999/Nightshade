@@ -376,12 +376,8 @@ class _RationaleList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: NightshadeTokens.borderRadiusLg,
-        border: Border.all(color: colors.border),
-      ),
+    return NightshadeCard(
+      borderRadius: NightshadeTokens.radiusLg,
       padding: NightshadeTokens.cardPadding,
       child: Column(
         children: [

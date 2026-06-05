@@ -90,19 +90,15 @@ class _NoTargetsEmptyStateState extends State<_NoTargetsEmptyState> {
           ),
           if (_learnMoreExpanded) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
-            Container(
+            SizedBox(
               width: double.infinity,
-              padding: NightshadeTokens.paddingMd,
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
-                border: Border.all(color: colors.border),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'How the scheduler picks targets',
+              child: NightshadeCard(
+                padding: NightshadeTokens.paddingMd,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'How the scheduler picks targets',
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize12,
                       fontWeight: FontWeight.w700,
@@ -127,7 +123,8 @@ class _NoTargetsEmptyStateState extends State<_NoTargetsEmptyState> {
                       height: 1.5,
                     ),
                   ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],

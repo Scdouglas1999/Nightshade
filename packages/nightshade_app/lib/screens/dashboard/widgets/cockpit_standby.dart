@@ -100,13 +100,8 @@ class _LastRunSummary extends ConsumerWidget {
     );
 
     if (lastRun == null) {
-      return Container(
+      return NightshadeCard(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: NightshadeTokens.borderRadiusMd,
-          border: Border.all(color: colors.border),
-        ),
         child: Row(
           children: [
             Icon(LucideIcons.history, size: 16, color: colors.textMuted),
@@ -122,13 +117,8 @@ class _LastRunSummary extends ConsumerWidget {
       );
     }
 
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: NightshadeTokens.borderRadiusMd,
-        border: Border.all(color: colors.border),
-      ),
       child: Row(
         children: [
           Icon(
