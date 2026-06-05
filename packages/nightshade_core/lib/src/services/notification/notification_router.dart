@@ -30,6 +30,7 @@ import '../../models/notification/notification_categories.dart';
 import 'event_classifier.dart';
 import 'notification_template.dart';
 import 'transports/notification_transport.dart';
+import 'transports/system_push_transport.dart';
 
 /// Public entry point the router uses to fan out a single notification.
 /// Tests can construct a router with an in-memory transport set and
@@ -46,6 +47,26 @@ class NotificationRouter {
 
   /// Per-category last fire time (for debouncing).
   final Map<NotificationCategory, DateTime> _lastFireTime = {};
+
+  /// Recently-emitted systemPush signatures, for cross-stream de-duplication.
+  ///
+  /// After the architecture-unification collapse the router is the single
+  /// systemPush producer, but it can be driven from TWO converging inputs:
+  ///   * its own [attachEventStream] subscription (core event stream), and
+  ///   * an explicit [route]/[routeExplicit] call from the Run Dashboard
+  ///     critical-events bridge (which observes the bridge-typed event
+  ///     history — a different representation of the SAME backend events with
+  ///     no shared id to dedup on).
+  /// Without dedup a single critical event the classifier recognises would
+  /// fire two phone pushes (one per input). We suppress an identical
+  /// (category + title + body) systemPush within [_pushDedupeWindow].
+  final Map<String, DateTime> _recentPushSignatures = {};
+
+  /// How long a systemPush content signature suppresses an identical repeat.
+  /// Long enough to absorb the small skew between the core stream and the
+  /// bridge's event-history update, short enough that a genuinely repeated
+  /// alert minutes later still fires.
+  static const Duration _pushDedupeWindow = Duration(seconds: 15);
 
   /// Event stream subscription.
   StreamSubscription<NightshadeEvent>? _subscription;
@@ -159,6 +180,49 @@ class NotificationRouter {
     }
   }
 
+  /// Route the Run Dashboard critical-events bridge's phone-push through the
+  /// single systemPush producer.
+  ///
+  /// The bridge escalates every `isCriticalEvent` (banner + toast + audible);
+  /// historically it ALSO owned a parallel phone-push via the push service.
+  /// That parallel feed is collapsed here: the bridge now forwards its push
+  /// through the router so there is exactly ONE systemPush producer.
+  ///
+  /// Some bridge-flagged events (generic system errors / FITS save failures)
+  /// have no [NotificationCategory] and the classifier path will not push
+  /// them, so this entry point forces a `critical` phone push with the copy
+  /// the bridge already rendered (`Critical · <category>` / detail). For
+  /// events the classifier DOES recognise (e.g. a guiding StarLost), the
+  /// router's own core-stream subscription also pushes — the systemPush
+  /// content-signature dedup in [_dispatch]/here collapses the pair so the
+  /// operator still gets exactly one page.
+  ///
+  /// Respects the master push gate (the transport's `enabled` config) and the
+  /// matrix master `enabled` flag, mirroring the legacy bridge which honoured
+  /// `pushCriticalAlerts`.
+  void routeBridgeCriticalPush({
+    required String title,
+    required String body,
+    required String eventType,
+    required EventCategory eventCategory,
+  }) {
+    if (!_matrix.enabled) return;
+    final transport = _transports[NotificationTransportKind.systemPush];
+    if (transport is! SystemPushTransport) return;
+
+    // Cross-stream dedup: the classifier path keys the same phone push on its
+    // rendered (title + body). The operator only ever sees title + body, so a
+    // shared (title + body) signature is exactly what must not page twice.
+    if (_isDuplicatePush(title, body)) return;
+
+    transport.enqueueExplicit(
+      title: title,
+      body: body,
+      eventType: eventType,
+      eventCategory: eventCategory,
+    );
+  }
+
   /// Bridge for the in-sequence `NotificationNode`.
   ///
   /// The executor (Rust side) raises a `Custom` event whose data map
@@ -229,6 +293,33 @@ class NotificationRouter {
         body: body,
         severity: event.severity,
         explicitTransports: transports,
+      );
+      return;
+    }
+
+    // P1-11 — OTA "update available" is an operator-driven system event the
+    // shared classifier deliberately does not route to a notification
+    // category. The (now demoted) PushNotificationService used to surface it
+    // as a phone push from its own subscription; since that subscription is
+    // gone, the router preserves the push here so paired phones still learn a
+    // new build is available. Routed as `custom` with explicit in-app +
+    // systemPush transports so it does not depend on the user's `custom`
+    // matrix wiring.
+    if (event.category == EventCategory.system &&
+        event.eventType == 'UpdateAvailable') {
+      final latest =
+          (event.data['latestVersion'] as String?) ?? 'a new version';
+      final current =
+          (event.data['currentVersion'] as String?) ?? 'the current build';
+      routeNotificationNode(
+        title: 'Nightshade $latest available',
+        body:
+            'Open Settings > Updates to install the new build (currently on $current).',
+        severity: EventSeverity.info,
+        explicitTransports: const [
+          NotificationTransportKind.inApp,
+          NotificationTransportKind.systemPush,
+        ],
       );
       return;
     }
@@ -316,6 +407,17 @@ class NotificationRouter {
     String title,
     String body,
   ) {
+    // Cross-stream de-duplication for the single systemPush producer: if an
+    // identical phone push (same category + title + body) was emitted within
+    // the dedupe window, suppress this one. This collapses the case where the
+    // router's own classifier path and the dashboard bridge's explicit path
+    // converge on the same backend event. Other transports (in-app, email,
+    // webhooks, …) are not deduped here — each has its own delivery semantics
+    // and an at-idle external alert must not be swallowed by a UI repeat.
+    if (transport.kind == NotificationTransportKind.systemPush) {
+      if (_isDuplicatePush(title, body)) return;
+    }
+
     // Fire and forget — the transport's own timeout caps the wait. We
     // record the result so the settings UI can show the latest status.
     Future.microtask(() async {
@@ -333,6 +435,23 @@ class NotificationRouter {
         );
       }
     });
+  }
+
+  /// True if an identical phone push (same rendered title + body) was emitted
+  /// within [_pushDedupeWindow]. Records the signature when not a duplicate so
+  /// the next identical push inside the window is suppressed. This is the one
+  /// place the single systemPush producer collapses its two converging inputs
+  /// (the classifier core-stream path and the dashboard-bridge explicit path)
+  /// keyed on the copy the operator actually sees.
+  bool _isDuplicatePush(String title, String body) {
+    final now = DateTime.now();
+    _recentPushSignatures
+        .removeWhere((_, when) => now.difference(when) > _pushDedupeWindow);
+    final signature = '$title|$body';
+    final last = _recentPushSignatures[signature];
+    if (last != null && now.difference(last) < _pushDedupeWindow) return true;
+    _recentPushSignatures[signature] = now;
+    return false;
   }
 
   // ----- Default templates ------------------------------------------------

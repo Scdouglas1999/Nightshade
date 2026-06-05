@@ -8,15 +8,24 @@
 //   * PushNotificationService._eventToNotification / _handle*Event
 //   * (bridge-typed) run_dashboard isCriticalEvent / _toDashboardEvent
 //
-// The first two operate on the core [NightshadeEvent] (string `eventType`
-// + `data` map). They are unified here so the router and the mobile-push
-// service classify EXACTLY the same way — a per-event mobile toggle and a
-// router rule can never disagree about what an event *is* again.
+// The first two operated on the core [NightshadeEvent] (string `eventType`
+// + `data` map). They are unified here as the ONE classifier.
+//
+// Architecture-unification, Subsystem 3 (collapsed): the mobile-push feed no
+// longer classifies at all — [PushNotificationService] is now a pure
+// broadcaster and the [NotificationRouter] is the single producer of every
+// transport (in-app, mobile push, and the external ones). The router is the
+// sole caller of this classifier; the per-category mobile-push toggle now
+// lives in [SystemPushTransport] keyed off the SAME category this classifier
+// assigns, so a routing rule and a push toggle can never disagree about what
+// an event *is*.
 //
 // The dashboard bridge runs on the freezed bridge-union event (a different
 // representation that carries richer typed payloads) and stays in its own
-// file; it derives criticality from [NotificationCategory.isCritical] via
-// the shared matrix so the two never drift on *which* events are critical.
+// file; it forwards only the criticals this classifier does NOT route (e.g.
+// generic system errors) into the router, and derives criticality from
+// [NotificationCategory.isCritical] via the shared matrix so the two never
+// drift on *which* events are critical.
 //
 // This classifier is intentionally pure and side-effect free.
 

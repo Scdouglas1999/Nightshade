@@ -6,7 +6,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
+import '../models/backend/event_types.dart' show EventSeverity;
+import '../providers/notification_router_provider.dart';
 import '../providers/settings_provider.dart';
+import 'notification/notification_router.dart';
 
 /// Plays a short audible alert via the platform's built-in beep channel.
 ///
@@ -128,6 +131,18 @@ class NotificationService {
       unawaited(_playAlertSound());
     }
 
+    // Architecture-unification, Subsystem 3: re-point this legacy service
+    // through the single NotificationRouter so its callers (imaging save /
+    // calibration failures, device-reconnect, meridian-flip) fan out to the
+    // unified transport set (in-app + the configurable external transports,
+    // and mobile push when the user routes `custom` there) instead of only
+    // the two AppSettings-stored webhooks below. The webhook + sound path is
+    // preserved for backward compatibility so nothing that worked before goes
+    // dark; the router adds the new transports on top. Only available when
+    // constructed with a Riverpod `Ref` (the `.testing` constructor has none,
+    // and the webhook/sound assertions there are unaffected).
+    _forwardToRouter(event: event, title: title, message: message);
+
     final results = await Future.wait([
       _sendDiscordNotification(title, message, event, settings),
       _sendPushoverNotification(title, message, priority, settings),
@@ -203,6 +218,44 @@ class NotificationService {
       title: title,
       message: message,
       priority: priority,
+    );
+  }
+
+  /// Forward a legacy notification through the unified [NotificationRouter].
+  ///
+  /// Routed as the `custom` category with the already-rendered title/message
+  /// so the operator's `custom` transport wiring (in-app + any external
+  /// transports / mobile push they opted in) applies. We do NOT re-map to a
+  /// finer category (e.g. sequenceCompleted): the router's own backend
+  /// event-stream subscription already classifies and pushes those real
+  /// events, so re-mapping here would double-fire systemPush for the same
+  /// milestone. `custom` defaults to in-app only, so this strictly ADDS to —
+  /// never duplicates — the classifier path while still flowing through the
+  /// single router producer.
+  void _forwardToRouter({
+    required NotificationEvent event,
+    required String title,
+    required String message,
+  }) {
+    final ref = _ref;
+    if (ref == null) return; // `.testing` has no Ref; nothing to forward to.
+    final NotificationRouter router;
+    try {
+      router = ref.read(notificationRouterProvider);
+    } catch (e) {
+      // The router provider is unavailable (e.g. a minimal test container
+      // without the notification graph). Surface, don't swallow — but never
+      // break the legacy webhook/sound path on account of it.
+      developer.log('[Notification] Router forward skipped: $e',
+          name: 'NotificationService', level: 900);
+      return;
+    }
+    router.routeNotificationNode(
+      title: title,
+      body: message,
+      severity: event == NotificationEvent.error
+          ? EventSeverity.error
+          : EventSeverity.info,
     );
   }
 

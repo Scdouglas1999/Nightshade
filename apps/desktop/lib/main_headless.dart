@@ -217,6 +217,29 @@ void main(List<String> args) async {
       );
     }
 
+    // Architecture-unification, Subsystem 3: eager-mount the
+    // NotificationRouter so the external transports (Discord, email, Telegram,
+    // Pushover, MQTT, webhook) and the in-app/mobile-push fan-out fire for any
+    // routed backend event even with no sequence running. On a Pi-hosted
+    // headless server there is no widget tree to lazily build the router, so
+    // without this read the router never attached its event subscription and
+    // every external alert was dead. Push delivery to phones is wired
+    // separately above (setPushNotificationStream); this read powers the
+    // configurable external transports that the GUI shell mounts via its own
+    // background-services bootstrap.
+    try {
+      container.read(notificationRouterProvider);
+      runtimeLogger.info(
+        'Notification router mounted (external transports active)',
+        source: _headlessLogSource,
+      );
+    } catch (e, st) {
+      runtimeLogger.error(
+        'Failed to mount notification router: $e\n$st',
+        source: _headlessLogSource,
+      );
+    }
+
     // P0-6: wire the disk-space watchdog. In GUI mode the sequencer
     // controller subscribes to this stream and pauses on blocking severity;
     // in headless mode nothing was consuming it, so the rig would keep

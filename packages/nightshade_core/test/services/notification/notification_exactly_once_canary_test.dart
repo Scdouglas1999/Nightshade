@@ -114,6 +114,38 @@ final _criticalCases = <String, ({NightshadeEvent event, NotificationCategory ca
   ),
 };
 
+/// A push config with EVERY per-event toggle enabled. The canary asserts that
+/// each critical alert "fires exactly once, honoring its config toggle"; to
+/// prove the fire path we enable the toggle (some default OFF, e.g.
+/// equipmentDisconnected, so the operator opts in). The "honours the toggle"
+/// direction is proved separately by the toggle-suppression test.
+const _allTogglesOn = PushNotificationConfig(
+  enabled: true,
+  notifySequenceCompleted: true,
+  notifySequenceFailed: true,
+  notifyMeridianFlip: true,
+  notifyWeatherUnsafe: true,
+  notifyGuidingLost: true,
+  notifyExposureFailed: true,
+  notifyAutofocusFailed: true,
+  notifyEquipmentDisconnected: true,
+);
+
+/// A routing matrix where every category routes to [transports]. Lets a test
+/// prove that an arbitrary critical event reaches a specific transport set.
+NotificationRoutingMatrix _matrixRoutingAllTo(
+    List<NotificationTransportKind> transports) {
+  final base = NotificationRoutingMatrix.defaults();
+  var matrix = base;
+  for (final c in NotificationCategory.values) {
+    matrix = matrix.withRule(
+      c,
+      base.ruleFor(c).copyWith(transports: transports),
+    );
+  }
+  return matrix;
+}
+
 void main() {
   group('exactly-once classifier contract', () {
     test('every critical canary event classifies to its critical category',
@@ -143,13 +175,13 @@ void main() {
       bool pushEnabled = true,
       NotificationRoutingMatrix? matrix,
     }) {
+      // Post-collapse: PushNotificationService is a pure broadcaster with no
+      // event subscription of its own — the router's SystemPushTransport is
+      // the ONLY producer. There is no start()/stop() and no eventStream; the
+      // collapse means the router path is the single feed by construction.
       final push = PushNotificationService(
-        eventStream: const Stream<NightshadeEvent>.empty(),
-        config: PushNotificationConfig(enabled: pushEnabled),
+        config: _allTogglesOn.copyWith(enabled: pushEnabled),
       );
-      // We do NOT call push.start(): in this test the router's
-      // SystemPushTransport is the only producer, so we can prove the
-      // router path fires exactly once with no parallel feed.
       final inApp = _RecordingTransport(NotificationTransportKind.inApp);
       final router = NotificationRouter(
         transports: [inApp, SystemPushTransport(push)],
@@ -238,11 +270,189 @@ void main() {
     });
   });
 
+  group('eager-mount + collapsed feed: exactly-once with a single producer',
+      () {
+    // After the collapse the router is eagerly mounted (attached to the
+    // backend event stream at app start) and is the ONLY systemPush producer
+    // — PushNotificationService no longer subscribes to anything. These tests
+    // pin that, with NO sequence running (the router fires off the raw event
+    // stream alone), each critical event still produces exactly one push, AND
+    // that the configurable external transports fire at idle (the bug the
+    // eager-mount fixes: external alerts were dead when no UI surface had
+    // lazily built the router).
+
+    test(
+        'with the router EAGERLY MOUNTED and ONLY the broadcaster live, each '
+        'critical event fires exactly one push and one external transport send',
+        () async {
+      for (final entry in _criticalCases.entries) {
+        final push = PushNotificationService(config: _allTogglesOn);
+        final inApp = _RecordingTransport(NotificationTransportKind.inApp);
+        // A stand-in external transport (Discord/email/telegram/… all behave
+        // identically from the router's perspective). Route every category to
+        // it so we can prove external delivery fires at idle.
+        final external = _RecordingTransport(NotificationTransportKind.discord);
+        final matrix = _matrixRoutingAllTo(const [
+          NotificationTransportKind.inApp,
+          NotificationTransportKind.systemPush,
+          NotificationTransportKind.discord,
+        ]);
+        final router = NotificationRouter(
+          transports: [inApp, SystemPushTransport(push), external],
+          matrix: matrix,
+        );
+        final pushes = <PushNotification>[];
+        final sub = push.notifications.listen(pushes.add);
+
+        // Eager-mount: attach BEFORE any event, no sequence active.
+        router.attachEventStream(Stream.value(entry.value.event));
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+
+        expect(pushes, hasLength(1),
+            reason: '${entry.key}: exactly one mobile push (single producer)');
+        expect(pushes.first.priority, PushNotificationPriority.critical);
+        expect(
+          external.sentCategories.where((c) => c == entry.value.category),
+          hasLength(1),
+          reason: '${entry.key}: external transport must fire at idle '
+              '(no sequence running)',
+        );
+
+        await sub.cancel();
+        await router.dispose();
+        push.dispose();
+      }
+    });
+
+    test(
+        'a previously-DEAD external transport fires for an at-idle '
+        'weather-unsafe with no sequence running', () async {
+      // Direct regression for "external transports fire even with no sequence
+      // running". Before eager-mount the router only existed once a UI surface
+      // built it, so an idle weather-unsafe abort never reached Discord/email.
+      final push =
+          PushNotificationService(config: const PushNotificationConfig());
+      final external = _RecordingTransport(NotificationTransportKind.telegram);
+      final matrix = NotificationRoutingMatrix.defaults().withRule(
+        NotificationCategory.weatherUnsafe,
+        NotificationRoutingMatrix.defaults()
+            .ruleFor(NotificationCategory.weatherUnsafe)
+            .copyWith(transports: const [
+          NotificationTransportKind.inApp,
+          NotificationTransportKind.systemPush,
+          NotificationTransportKind.telegram,
+        ]),
+      );
+      final router = NotificationRouter(
+        transports: [
+          _RecordingTransport(NotificationTransportKind.inApp),
+          SystemPushTransport(push),
+          external,
+        ],
+        matrix: matrix,
+      );
+
+      router.attachEventStream(
+        Stream.value(_criticalCases['weatherUnsafe']!.event),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+
+      expect(
+        external.sentCategories,
+        [NotificationCategory.weatherUnsafe],
+        reason: 'idle weather-unsafe must reach the external transport',
+      );
+
+      await router.dispose();
+      push.dispose();
+    });
+
+    test(
+        'the dashboard-bridge explicit push and the classifier push for the '
+        'SAME alert collapse to exactly one (cross-stream dedup)', () async {
+      // The router has two converging systemPush inputs: its own classifier
+      // subscription (core stream) and routeBridgeCriticalPush (the dashboard
+      // bridge's bridge-stream path). For an event BOTH recognise, the
+      // content-signature dedup must yield exactly one phone push.
+      final push =
+          PushNotificationService(config: const PushNotificationConfig());
+      final router = NotificationRouter(
+        transports: [
+          _RecordingTransport(NotificationTransportKind.inApp),
+          SystemPushTransport(push),
+        ],
+        matrix: NotificationRoutingMatrix.defaults(),
+      );
+      final pushes = <PushNotification>[];
+      final sub = push.notifications.listen(pushes.add);
+
+      // The bridge fires its explicit push for the same weather-unsafe alert
+      // the classifier path will also see. Use the SAME rendered copy the
+      // weatherUnsafe template produces so the signatures collide.
+      router.attachEventStream(
+        Stream.value(_criticalCases['weatherUnsafe']!.event),
+      );
+      router.routeBridgeCriticalPush(
+        title: 'Weather unsafe',
+        body: 'Safety monitor reports unsafe conditions.',
+        eventType: 'WeatherUnsafe',
+        eventCategory: EventCategory.safety,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+
+      expect(pushes, hasLength(1),
+          reason: 'classifier + bridge paths must collapse to one push');
+
+      await sub.cancel();
+      await router.dispose();
+      push.dispose();
+    });
+
+    test(
+        'the dashboard-bridge push for an UNCLASSIFIED critical event (system '
+        'error) still fires exactly once at critical priority', () async {
+      // The bridge covers events the classifier does NOT push (generic system
+      // errors). With no classifier push to dedup against, the bridge path
+      // alone must page the operator exactly once.
+      final push =
+          PushNotificationService(config: const PushNotificationConfig());
+      final router = NotificationRouter(
+        transports: [
+          _RecordingTransport(NotificationTransportKind.inApp),
+          SystemPushTransport(push),
+        ],
+        matrix: NotificationRoutingMatrix.defaults(),
+      );
+      final pushes = <PushNotification>[];
+      final sub = push.notifications.listen(pushes.add);
+
+      // A generic system error: the classifier returns null for it (only
+      // "disk" is mapped under system), so only the bridge path fires.
+      router.attachEventStream(Stream.value(_evt(
+          EventCategory.system, 'Error', EventSeverity.error,
+          {'message': 'FITS save failed'})));
+      router.routeBridgeCriticalPush(
+        title: 'Critical · System',
+        body: 'FITS save failed',
+        eventType: 'System error',
+        eventCategory: EventCategory.system,
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+
+      expect(pushes, hasLength(1));
+      expect(pushes.first.priority, PushNotificationPriority.critical);
+      expect(pushes.first.title, 'Critical · System');
+
+      await sub.cancel();
+      await router.dispose();
+      push.dispose();
+    });
+  });
+
   group('non-critical events do NOT escalate to mobile push by default', () {
     test('a frameCaptured event fires in-app only, never systemPush',
         () async {
       final push = PushNotificationService(
-        eventStream: const Stream<NightshadeEvent>.empty(),
         config: const PushNotificationConfig(),
       );
       final inApp = _RecordingTransport(NotificationTransportKind.inApp);

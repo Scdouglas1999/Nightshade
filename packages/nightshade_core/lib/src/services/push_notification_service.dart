@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:developer' as developer;
+
 import '../models/backend/event_types.dart';
-import '../models/notification/notification_categories.dart';
-import 'notification/event_classifier.dart';
 
 /// Priority level for push notifications sent to mobile devices
 enum PushNotificationPriority {
@@ -48,7 +46,13 @@ class PushNotification {
       };
 }
 
-/// Configuration for which events should generate push notifications
+/// Configuration for which events should generate push notifications.
+///
+/// This is the SINGLE config store for the mobile-push (systemPush) feed.
+/// The per-event toggles are consulted by [SystemPushTransport] (the one
+/// systemPush producer after the architecture-unification collapse) — see
+/// [allowsCategory]. `enabled` is the master gate that suppresses every
+/// phone push regardless of per-event toggles.
 class PushNotificationConfig {
   final bool enabled;
   final bool notifySequenceCompleted;
@@ -103,24 +107,29 @@ class PushNotificationConfig {
   }
 }
 
-/// Service that filters backend events and creates push notifications for mobile devices.
+/// Mobile-push output broadcaster.
 ///
-/// This service subscribes to the backend event stream, identifies critical events,
-/// and emits PushNotification objects via its own stream. The provider layer is
-/// responsible for broadcasting these to connected WebSocket clients.
+/// Architecture-unification, Subsystem 3 (collapsed): this service NO LONGER
+/// owns its own event-stream subscription or any event->notification
+/// classification. The [NotificationRouter] is now the single producer of
+/// mobile pushes — its [SystemPushTransport] calls [enqueue] for every
+/// systemPush-routed notification. This service's only remaining job is to
+/// broadcast those [PushNotification]s onto its stream, which the embedded
+/// web server fans out to paired phones over WebSocket.
+///
+/// The [PushNotificationConfig] lives here because it is the systemPush
+/// feed's config: [SystemPushTransport] reads it (via [config]) to apply the
+/// per-event toggles and the master `enabled` gate before enqueuing. Keeping
+/// it on the broadcaster keeps one config store for the one feed.
 class PushNotificationService {
-  final Stream<NightshadeEvent> _eventStream;
   PushNotificationConfig _config;
 
-  StreamSubscription<NightshadeEvent>? _subscription;
   final StreamController<PushNotification> _notificationController =
       StreamController<PushNotification>.broadcast();
 
   PushNotificationService({
-    required Stream<NightshadeEvent> eventStream,
     PushNotificationConfig config = const PushNotificationConfig(),
-  })  : _eventStream = eventStream,
-        _config = config;
+  }) : _config = config;
 
   /// Stream of push notifications to broadcast to mobile clients
   Stream<PushNotification> get notifications => _notificationController.stream;
@@ -128,62 +137,33 @@ class PushNotificationService {
   /// Current configuration
   PushNotificationConfig get config => _config;
 
-  /// Update configuration
+  /// Update configuration. No subscription is started/stopped any more — the
+  /// router is the sole producer — so this simply swaps the gating config the
+  /// transport reads on its next enqueue.
   void updateConfig(PushNotificationConfig config) {
     _config = config;
-    if (config.enabled && _subscription == null) {
-      start();
-    } else if (!config.enabled && _subscription != null) {
-      stop();
-    }
   }
 
-  /// Start listening to the event stream
-  void start() {
-    if (!_config.enabled) return;
-    _subscription?.cancel();
-    _subscription = _eventStream.listen(
-      _handleEvent,
-      onError: (error) {
-        developer.log(
-            '[PushNotificationService] Event stream error: $error',
-            name: 'PushNotificationService',
-            level: 1000,
-            error: error);
-      },
-    );
-    developer.log('[PushNotificationService] Started listening for events',
-        name: 'PushNotificationService', level: 800);
-  }
-
-  /// Stop listening to the event stream
-  void stop() {
-    _subscription?.cancel();
-    _subscription = null;
-    developer.log('[PushNotificationService] Stopped',
-        name: 'PushNotificationService', level: 800);
-  }
-
-  /// Inject a push notification that did NOT originate from the backend
-  /// event stream. Used by the Run Dashboard critical-events bridge to
-  /// dispatch a high-priority push when the user has enabled
-  /// `pushCriticalAlerts` in settings.
+  /// Broadcast a single push to paired phones.
   ///
-  /// Why a separate path: [_handleEvent] only fires for events the service
-  /// recognises via [_eventToNotification]; many critical events flagged by
-  /// `bridge_event.isCriticalEvent` (e.g. equipment errors, FITS save
-  /// failures, etc.) don't match those handlers. The bridge knows the full
-  /// criticality classification and explicitly forwards them here. The
-  /// `enabled` gate still applies — if the user has disabled push entirely,
-  /// nothing is broadcast.
+  /// Called only by [SystemPushTransport]. The master `enabled` gate is
+  /// enforced here so that disabling push entirely swallows every phone push
+  /// regardless of which path enqueued it.
+  void enqueue(PushNotification notification) {
+    if (!_config.enabled) return;
+    _notificationController.add(notification);
+  }
+
+  /// Convenience used by the Run Dashboard critical-events bridge's legacy
+  /// path and by callers that already have rendered copy. Builds a
+  /// critical-priority push and broadcasts it (subject to the master gate).
   void enqueueCriticalNotification({
     required String title,
     required String body,
     required String eventType,
     required EventCategory category,
   }) {
-    if (!_config.enabled) return;
-    _notificationController.add(PushNotification(
+    enqueue(PushNotification(
       title: title,
       body: body,
       priority: PushNotificationPriority.critical,
@@ -195,7 +175,7 @@ class PushNotificationService {
 
   /// Emit a test push notification
   void sendTestNotification() {
-    _notificationController.add(PushNotification(
+    enqueue(PushNotification(
       title: 'Test Notification',
       body:
           'Push notifications are working! This is a test from Nightshade.',
@@ -206,223 +186,8 @@ class PushNotificationService {
     ));
   }
 
-  /// Process an event and emit a push notification if it matches the config
-  void _handleEvent(NightshadeEvent event) {
-    if (!_config.enabled) return;
-
-    final notification = _eventToNotification(event);
-    if (notification != null) {
-      _notificationController.add(notification);
-      developer.log(
-          '[PushNotificationService] Push notification: ${notification.title}',
-          name: 'PushNotificationService',
-          level: 800);
-    }
-  }
-
-  /// Convert an event to a push notification, or null if it should be skipped.
-  ///
-  /// Classification is delegated to the shared [NotificationEventClassifier]
-  /// (the same one [NotificationRouter] uses) so the router and the mobile
-  /// push feed can never disagree about what an event *is*. This service
-  /// then applies its own per-event-type [PushNotificationConfig] toggle,
-  /// priority, and copy on top of that classification — preserving exactly
-  /// the subset of events it historically pushed.
-  PushNotification? _eventToNotification(NightshadeEvent event) {
-    // P1-11 — OTA update is a system event the shared classifier does not
-    // route (it is operator-driven, not a notification category). Handle it
-    // first so it still surfaces as a phone push.
-    if (event.category == EventCategory.system &&
-        event.eventType == 'UpdateAvailable') {
-      final latest = event.data['latestVersion'] as String? ?? 'a new version';
-      final current =
-          event.data['currentVersion'] as String? ?? 'the current build';
-      return PushNotification(
-        title: 'Nightshade $latest available',
-        body:
-            'Open Settings > Updates to install the new build (currently on $current).',
-        priority: PushNotificationPriority.normal,
-        eventType: event.eventType,
-        category: event.category,
-        timestamp: DateTime.now(),
-      );
-    }
-
-    final classified = NotificationEventClassifier.classify(event);
-    if (classified == null) return null;
-
-    final spec = _pushSpecFor(classified.category);
-    if (spec == null) return null; // category this feed doesn't push
-    if (!spec.enabled(_config)) return null; // per-event toggle off
-
-    // A folded category (e.g. guidingLost = StarLost + Disconnected) may
-    // carry an eventType-specific priority/title/body override.
-    final override = spec.override?.call(event);
-
-    return PushNotification(
-      title: override?.title ?? spec.title,
-      body: override?.body ?? spec.body(event),
-      priority: override?.priority ?? spec.priority,
-      eventType: event.eventType,
-      category: event.category,
-      timestamp: DateTime.now(),
-    );
-  }
-
-  /// Per-category push spec: the toggle gate, priority, title, and body
-  /// builder for each [NotificationCategory] this mobile feed escalates.
-  /// Returns `null` for categories the mobile feed intentionally does NOT
-  /// push (matching the historical [PushNotificationService] coverage).
-  _PushSpec? _pushSpecFor(NotificationCategory category) {
-    switch (category) {
-      case NotificationCategory.sequenceCompleted:
-        return _PushSpec(
-          enabled: (c) => c.notifySequenceCompleted,
-          priority: PushNotificationPriority.normal,
-          title: 'Sequence Complete',
-          body: (_) => 'Your imaging sequence has finished successfully.',
-        );
-      case NotificationCategory.sequenceFailed:
-        // The classifier folds both `Error` and `Stopped` into
-        // sequenceFailed. Preserve the original per-eventType copy +
-        // priority (Error = high w/ message, Stopped = normal).
-        return _PushSpec(
-          enabled: (c) => c.notifySequenceFailed,
-          priority: PushNotificationPriority.high,
-          title: 'Sequence Error',
-          body: (e) => 'Sequence encountered an error: '
-              '${e.data['message'] as String? ?? 'Unknown error'}',
-          override: (e) => e.eventType == 'Stopped'
-              ? const _PushOverride(
-                  priority: PushNotificationPriority.normal,
-                  title: 'Sequence Stopped',
-                  body: 'The imaging sequence has been stopped.',
-                )
-              : null,
-        );
-      case NotificationCategory.targetCompleted:
-        return _PushSpec(
-          enabled: (c) => c.notifySequenceCompleted,
-          priority: PushNotificationPriority.low,
-          title: 'Target Complete',
-          body: (e) =>
-              'Finished imaging target: '
-              '${e.data['target_name'] as String? ?? 'Unknown target'}',
-        );
-      case NotificationCategory.autofocusFailed:
-        return _PushSpec(
-          enabled: (c) => c.notifyAutofocusFailed,
-          priority: PushNotificationPriority.high,
-          title: 'Autofocus Failed',
-          body: (_) => 'Autofocus did not complete successfully.',
-        );
-      case NotificationCategory.meridianFlipPerformed:
-        return _PushSpec(
-          enabled: (c) => c.notifyMeridianFlip,
-          priority: PushNotificationPriority.normal,
-          title: 'Meridian Flip',
-          body: (e) =>
-              e.data['detail'] as String? ?? 'Performing meridian flip',
-        );
-      case NotificationCategory.exposureFailed:
-        return _PushSpec(
-          enabled: (c) => c.notifyExposureFailed,
-          priority: PushNotificationPriority.high,
-          title: 'Exposure Failed',
-          body: (e) => 'Camera exposure failed: '
-              '${e.data['error'] as String? ?? e.data['reason'] as String? ?? 'Unknown error'}',
-        );
-      case NotificationCategory.guidingLost:
-        // The classifier folds StarLost + Disconnected into guidingLost.
-        // Preserve the original priority split (StarLost = critical,
-        // Disconnected = high) and copy.
-        return _PushSpec(
-          enabled: (c) => c.notifyGuidingLost,
-          priority: PushNotificationPriority.critical,
-          title: 'Guiding Lost',
-          body: (_) => 'Guide star has been lost. Guiding has stopped.',
-          override: (e) => e.eventType == 'Disconnected'
-              ? const _PushOverride(
-                  priority: PushNotificationPriority.high,
-                  title: 'Guider Disconnected',
-                  body: 'PHD2 guiding has disconnected.',
-                )
-              : null,
-        );
-      case NotificationCategory.weatherUnsafe:
-        return _PushSpec(
-          enabled: (c) => c.notifyWeatherUnsafe,
-          priority: PushNotificationPriority.critical,
-          title: 'Weather Unsafe',
-          body: (_) => 'Safety monitor reports unsafe conditions. '
-              'The mount may be parked to protect equipment.',
-        );
-      case NotificationCategory.equipmentDisconnected:
-        // Classifier folds Disconnected + Error into equipmentDisconnected.
-        return _PushSpec(
-          enabled: (c) => c.notifyEquipmentDisconnected,
-          priority: PushNotificationPriority.high,
-          title: 'Device Disconnected',
-          body: (e) =>
-              '${e.data['device_type'] as String? ?? 'Unknown'} device '
-              'disconnected: ${e.data['device_id'] as String? ?? 'Unknown'}',
-          override: (e) => e.eventType == 'Error'
-              ? _PushOverride(
-                  priority: PushNotificationPriority.high,
-                  title: 'Equipment Error',
-                  body: '${e.data['device_type'] as String? ?? 'Unknown'} '
-                      'error: ${e.data['message'] as String? ?? 'Unknown error'}',
-                )
-              : null,
-        );
-      // Categories the mobile push feed intentionally does NOT escalate
-      // (they surface in-app only): sequence start/pause/resume, target
-      // start, frame captured/rejected, trigger fired, recovery lifecycle,
-      // weather-safe-again, cloud, disk, autofocus-completed, etc.
-      default:
-        return null;
-    }
-  }
-
   /// Dispose of resources
   void dispose() {
-    _subscription?.cancel();
-    _subscription = null;
     _notificationController.close();
   }
-}
-
-/// How a single [NotificationCategory] is escalated to a mobile push: which
-/// config toggle gates it, its default priority, and the title/body copy.
-/// The [override] callback handles folded categories whose individual
-/// eventTypes need different priority/copy (e.g. guidingLost covers both a
-/// critical StarLost and a high-priority guider Disconnected).
-class _PushSpec {
-  final bool Function(PushNotificationConfig) enabled;
-  final PushNotificationPriority priority;
-  final String title;
-  final String Function(NightshadeEvent) body;
-  final _PushOverride? Function(NightshadeEvent)? override;
-
-  const _PushSpec({
-    required this.enabled,
-    required this.priority,
-    required this.title,
-    required this.body,
-    this.override,
-  });
-}
-
-/// A per-eventType override of the priority/title/body within a folded
-/// [NotificationCategory].
-class _PushOverride {
-  final PushNotificationPriority priority;
-  final String title;
-  final String body;
-
-  const _PushOverride({
-    required this.priority,
-    required this.title,
-    required this.body,
-  });
 }

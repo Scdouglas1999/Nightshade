@@ -578,6 +578,60 @@ EventCategory _bridgeCategoryToCore(
   }
 }
 
+/// True when the router's own backend event-stream classifier already routes
+/// this event to systemPush — i.e. the eager-mounted [NotificationRouter] will
+/// push it on its own from the core stream. The dashboard bridge must NOT also
+/// push those, or the operator's phone pages twice for one alert.
+///
+/// This mirrors exactly the `isCriticalEvent` payload variants that the shared
+/// [NotificationEventClassifier] maps to a systemPush-by-default category:
+/// exposure-failed, weather-unsafe / emergency-stop, disk-low, sequencer
+/// error / stop, and recovery-gave-up. The remaining critical events the
+/// dashboard escalates (notably generic system errors / FITS save failures,
+/// which the classifier returns null for) are NOT covered by the router, so
+/// the bridge still forwards those — that is the gap this bridge exists to
+/// fill. The router's content-signature dedup is a backstop; this predicate is
+/// the primary, intent-level guard so the two paths never both page.
+bool _routerClassifierAlreadyPushes(bridge_event.NightshadeEvent event) {
+  final payload = event.payload;
+  return switch (payload) {
+    bridge_event.EventPayload_Imaging(field0: final v) => switch (v) {
+        bridge_event.ImagingEvent_ExposureFailed() => true,
+        bridge_event.ImagingEvent_ExposureFailedOld() => true,
+        _ => false,
+      },
+    bridge_event.EventPayload_Safety(field0: final v) => switch (v) {
+        bridge_event.SafetyEvent_WeatherUnsafe() => true,
+        bridge_event.SafetyEvent_EmergencyStop() => true,
+        _ => false,
+      },
+    bridge_event.EventPayload_System(field0: final v) => switch (v) {
+        // The classifier maps only "disk*" system events to a category; a
+        // generic SystemEvent.error classifies to null, so the bridge must
+        // still push it (that is the gap below).
+        bridge_event.SystemEvent_DiskSpaceLow() => true,
+        _ => false,
+      },
+    bridge_event.EventPayload_Sequencer(field0: final v) => switch (v) {
+        bridge_event.SequencerEvent_Error() => true,
+        bridge_event.SequencerEvent_Stopped() => true,
+        bridge_event.SequencerEvent_RecoveryGaveUp() => true,
+        _ => false,
+      },
+    // Guiding / equipment events only reach this bridge as critical when they
+    // carry critical severity (their normal error-severity StarLost /
+    // Disconnected are NOT `isCriticalEvent`, so the classifier alone pushes
+    // those). At critical severity the classifier only pushes the specific
+    // StarLost/Disconnected/Error eventTypes; any OTHER critical guiding/
+    // equipment event would classify to null and get no push. Rather than risk
+    // MISSING such a page (errors-are-a-feature: never drop an operator
+    // alert), we let the bridge forward these and rely on the router's
+    // content-signature dedup to collapse the rare matching-copy overlap. A
+    // possible duplicate is strictly safer than a missed critical page.
+    _ => false,
+  };
+}
+
 /// Side-effect provider: subscribes to the event history and routes
 /// critical events through the dashboard notifier, the in-app
 /// notification queue, the audible alert player, and the mobile push
@@ -656,20 +710,24 @@ final runDashboardCriticalEventsBridgeProvider = Provider<void>((ref) {
           }
         }
 
-        // Mobile push notification: forwarded via the existing push
-        // service so paired phones receive the alert as a separate
-        // high-priority WebSocket message. The push service applies its
-        // own per-event-type config gates; this synthetic path lets us
-        // forward criticality classifications the service's built-in
-        // handlers don't recognise (e.g. FITS save failures).
-        if (pushEnabled) {
-          final pushService = ref.read(pushNotificationServiceProvider);
-          pushService.enqueueCriticalNotification(
+        // Mobile push notification: forwarded through the NotificationRouter
+        // — the single systemPush producer after the architecture-unification
+        // collapse. The router's SystemPushTransport broadcasts to paired
+        // phones as a critical WebSocket message. This path covers criticality
+        // classifications the router's core-stream classifier does not push on
+        // its own (e.g. generic system errors / FITS save failures); for
+        // events the classifier DOES recognise, the router's systemPush
+        // content-signature dedup collapses this push and the classifier's
+        // into exactly one page. The router honours the master push gate, so
+        // the `pushEnabled` check here mirrors the user's `pushCriticalAlerts`
+        // preference (an extra, cheap short-circuit).
+        if (pushEnabled && !_routerClassifierAlreadyPushes(event)) {
+          final router = ref.read(notificationRouterProvider);
+          router.routeBridgeCriticalPush(
             title: 'Critical · ${dashboardEvent.category}',
             body: detail,
-            eventType:
-                bridge_event.nightshadeEventDisplayTitle(event),
-            category: _bridgeCategoryToCore(event.category),
+            eventType: bridge_event.nightshadeEventDisplayTitle(event),
+            eventCategory: _bridgeCategoryToCore(event.category),
           );
         }
       }

@@ -107,6 +107,17 @@ Future<void> _runBackgroundServices(
     // state over NetworkBackend and never connects a camera locally, so this
     // wiring lives only in the desktop bootstrap.
     container.read(cameraPresetsSeedOnConnectProvider);
+
+    // Architecture-unification, Subsystem 3: eager-mount the
+    // NotificationRouter. It is the single producer for ALL notification
+    // transports (in-app, mobile push, plus the external ones — Discord,
+    // email, Telegram, Pushover, MQTT, webhook). Reading it here attaches its
+    // backend event-stream subscription at app start, so those transports
+    // fire for any routed event even when no sequence is running (e.g. a
+    // weather-unsafe abort or equipment disconnect during idle). Without this
+    // eager read the router only existed once a UI surface that depends on it
+    // was built, so at-idle external alerts were silently dead.
+    container.read(notificationRouterProvider);
   } catch (e) {
     logger.error(
       'Background services failed to initialise',

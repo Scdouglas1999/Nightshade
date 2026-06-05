@@ -339,6 +339,15 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
           // Initialize mobile sequence hooks for background operation support
           ref.watch(mobileSequenceHooksProvider);
 
+          // Architecture-unification, Subsystem 3: eager-mount the
+          // NotificationRouter so the external transports (Discord, email,
+          // Telegram, Pushover, MQTT, webhook) configured on this device fire
+          // for routed events mirrored from the host over NetworkBackend —
+          // even when no sequence is running. Watching it here keeps its
+          // backend event-stream subscription alive for the lifetime of the
+          // connected companion shell.
+          ref.watch(notificationRouterProvider);
+
           // Wave 5E — wire the iOS Live Activity lifecycle controller. The
           // controller installs its own ref.listen() bindings on construction;
           // on non-iOS platforms it is a no-op so the watch is cheap.
