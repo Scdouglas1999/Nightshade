@@ -2291,6 +2291,12 @@ pub fn api_create_loop_node(
         iterations,
         condition: condition_enum,
         condition_value: None,
+        // Per-azimuth local-horizon mask is authored on the Dart side and
+        // round-trips through the node-definition JSON (deserialized into
+        // `LoopConfig` at runtime). It is `None` for nodes created through
+        // this constructor; the `#[serde(default)]` on the field means
+        // sequence JSON that omits it still loads.
+        horizon_profile: None,
     };
 
     let node = NodeDefinition {

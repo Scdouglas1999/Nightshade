@@ -5932,6 +5932,7 @@ mod tests {
                 iterations: Some(3),
                 condition: crate::LoopCondition::Count,
                 condition_value: None,
+                horizon_profile: None,
             }),
             enabled: true,
             children: vec![se_id.clone()],

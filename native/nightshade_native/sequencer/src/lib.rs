@@ -1683,6 +1683,22 @@ pub struct LoopConfig {
     pub iterations: Option<u32>,
     pub condition: LoopCondition,
     pub condition_value: Option<f64>,
+    /// Optional per-azimuth local-horizon mask (trees, roofline, buildings).
+    ///
+    /// When present and the condition is [`LoopCondition::AltitudeAbove`] /
+    /// [`LoopCondition::AltitudeBelow`], the flat `condition_value` altitude
+    /// floor is replaced by the horizon's altitude at the target's *current*
+    /// azimuth (whichever is higher). This makes
+    /// "loop until the target rises above the local horizon at its current
+    /// azimuth" work behind a tree/roofline instead of a single flat floor.
+    ///
+    /// Crosses the FFI boundary inside the node-definition JSON string (the
+    /// node config is serialized to JSON in the bridge and deserialized back
+    /// here), so this field needs no FRB regen. `#[serde(default)]` keeps
+    /// legacy sequence files — which omit it — deserializing to `None`, which
+    /// preserves the prior flat-floor-only behaviour.
+    #[serde(default)]
+    pub horizon_profile: Option<crate::scheduling::HorizonProfile>,
 }
 
 impl Default for LoopConfig {
@@ -1691,6 +1707,7 @@ impl Default for LoopConfig {
             iterations: Some(1),
             condition: LoopCondition::Count,
             condition_value: None,
+            horizon_profile: None,
         }
     }
 }
