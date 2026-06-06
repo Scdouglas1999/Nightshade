@@ -11,6 +11,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../services/finder_chart_service.dart';
+import '../../services/fov_presets_sync_service.dart';
 import '../../utils/plan_tonight_sequencer_helper.dart';
 import 'widgets/filter_sidebar.dart';
 import 'widgets/top_overlay.dart';
@@ -129,6 +130,10 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final selectedObject = ref.watch(selectedObjectProvider);
+
+    // Activate FOV-preset persistence: hydrate on first build, then write back
+    // any preset edits to durable storage. Kept alive for the screen's lifetime.
+    ref.watch(fovPresetsSyncProvider);
 
     // Sync mount state from equipment provider to planetarium mount position provider
     ref.listen<MountState>(mountStateProvider, (previous, next) {

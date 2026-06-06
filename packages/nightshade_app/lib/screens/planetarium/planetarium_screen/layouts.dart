@@ -87,6 +87,23 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
               ),
             ),
 
+            // Multi-rig FOV framing presets — interactive (drag / rotate).
+            // Mounted only while the FOV layer is toggled on.
+            if (_showFOV)
+              Positioned.fill(
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final viewState = ref.watch(skyViewStateProvider);
+                    return MultiFovOverlay(
+                      centerRaHours: viewState.centerRA,
+                      centerDecDeg: viewState.centerDec,
+                      fieldOfViewDeg: viewState.fieldOfView,
+                      viewRotationDeg: viewState.rotation,
+                    );
+                  },
+                ),
+              ),
+
             Positioned(
               top: 0,
               left: 0,
@@ -369,6 +386,26 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                           },
                         ),
                       ),
+
+                      // Multi-rig FOV framing presets — interactive (drag to
+                      // reposition, rotate handle to set position angle). Only
+                      // mounted while the FOV layer is toggled on, so it never
+                      // intercepts gestures otherwise.
+                      if (_showFOV)
+                        Positioned.fill(
+                          child: Consumer(
+                            builder: (context, ref, _) {
+                              final viewState =
+                                  ref.watch(skyViewStateProvider);
+                              return MultiFovOverlay(
+                                centerRaHours: viewState.centerRA,
+                                centerDecDeg: viewState.centerDec,
+                                fieldOfViewDeg: viewState.fieldOfView,
+                                viewRotationDeg: viewState.rotation,
+                              );
+                            },
+                          ),
+                        ),
 
                       Positioned(
                         top: 0,
