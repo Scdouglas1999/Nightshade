@@ -1,15 +1,36 @@
-# Captures README screenshots from a built Windows desktop app and headless web dashboard.
-# Requires: Release (or Debug) build at apps/desktop/build/windows/x64/runner/*/nightshade_desktop.exe
+# Captures README screenshots from a built Windows desktop app and the headless web dashboard.
+#
+# Requires a Release (or Debug) build at:
+#   apps/desktop/build/windows/x64/runner/<Configuration>/nightshade_desktop.exe
+#
+# IMPORTANT: run this from an interactive desktop session (a normal PowerShell window
+# you can see). The app is a GPU-rendered Flutter desktop app; launched from a
+# non-interactive/automation context it can come up as a blank white window. For
+# populated screens (live preview, guiding graphs, analytics), load a profile and
+# connect equipment or the ASCOM/Alpaca simulators first. The default theme is dark.
 #
 # Usage:
-#   .\scripts\capture-readme-screenshots.ps1
-#   .\scripts\capture-readme-screenshots.ps1 -Configuration Debug
+#   .\scripts\capture-readme-screenshots.ps1                 # build, then capture everything
+#   .\scripts\capture-readme-screenshots.ps1 -SkipBuild      # use the existing build
+#   .\scripts\capture-readme-screenshots.ps1 -Only dashboard,sequencer,planetarium
+#   .\scripts\capture-readme-screenshots.ps1 -SkipWeb        # skip the web dashboard shot
+#   .\scripts\capture-readme-screenshots.ps1 -NavTop 96 -NavRow 56   # tune sidebar geometry
+#
+# The 11 desktop shots map 1:1 to the side-nav order in
+# packages/nightshade_app/lib/screens/shell/shell_navigation.dart. If a row lands on
+# the wrong screen, nudge -NavTop / -NavRow and re-run the affected -Only subset.
 
 param(
     [ValidateSet('Release', 'Debug')]
     [string]$Configuration = 'Release',
     [switch]$SkipBuild,
-    [switch]$SkipWeb
+    [switch]$SkipWeb,
+    [string[]]$Only,
+    # Sidebar geometry, in window-relative pixels. Defaults match the expanded
+    # rail: first row ~96px below the top chrome, each row ~56px tall.
+    [int]$NavTop = 96,
+    [int]$NavRow = 56,
+    [int]$NavX = 110
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,13 +40,38 @@ $Exe = Join-Path $DesktopDir "build\windows\x64\runner\$Configuration\nightshade
 $OutDir = Join-Path $ProjectRoot 'assets\screenshots'
 $HeadlessLog = Join-Path $env:TEMP 'nightshade-headless-screenshot.log'
 
+# Side-nav order (desktop). Index = position in ShellNavigation.primaryDestinations.
+# File = the committed README screenshot it replaces. Settle = extra ms to let the
+# screen paint (GPU sky map, HiPS tiles, and radar tiles need longer).
+$Screens = @(
+    @{ Index = 0;  Name = 'dashboard';   File = 'desktop-dashboard.png'; Settle = 1500 },
+    @{ Index = 1;  Name = 'equipment';   File = 'equipment.png';         Settle = 1200 },
+    @{ Index = 2;  Name = 'imaging';     File = 'imaging.png';           Settle = 1500 },
+    @{ Index = 3;  Name = 'guiding';     File = 'guiding.png';           Settle = 1500 },
+    @{ Index = 4;  Name = 'sequencer';   File = 'sequencer.png';         Settle = 1200 },
+    @{ Index = 5;  Name = 'planetarium'; File = 'planetarium.png';       Settle = 3000 },
+    @{ Index = 6;  Name = 'framing';     File = 'framing.png';           Settle = 3500 },
+    @{ Index = 7;  Name = 'analytics';   File = 'analytics.png';         Settle = 1500 },
+    @{ Index = 8;  Name = 'flat-wizard'; File = 'flat-wizard.png';       Settle = 1200 },
+    @{ Index = 9;  Name = 'weather';     File = 'weather.png';           Settle = 3000 },
+    @{ Index = 10; Name = 'planner';     File = 'plan-tonight.png';      Settle = 1500 }
+)
+
+if ($Only) {
+    $wanted = $Only | ForEach-Object { $_.ToLowerInvariant() }
+    $Screens = $Screens | Where-Object { $wanted -contains $_.Name.ToLowerInvariant() }
+    if (-not $Screens) {
+        throw "No screens matched -Only $($Only -join ','). Valid names: dashboard, equipment, imaging, guiding, sequencer, planetarium, framing, analytics, flat-wizard, weather, planner."
+    }
+}
+
 if (-not $SkipBuild) {
     Write-Host '==> Building desktop app (NoRun, SkipFrb)...' -ForegroundColor Cyan
     & (Join-Path $ProjectRoot 'scripts\dev.ps1') -NoRun -SkipFrb
 }
 
 if (-not (Test-Path $Exe)) {
-    throw "Executable not found: $Exe"
+    throw "Executable not found: $Exe. Build first (drop -SkipBuild) or run 'melos run build:desktop:windows'."
 }
 
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
@@ -101,6 +147,24 @@ public static class WinCapture {
       bmp.Save(path, ImageFormat.Png);
     }
   }
+  // Mean luminance over a coarse pixel grid. Used to detect a blank/unrendered
+  // (near-white) window: the app's default theme is dark, so a bright mean means
+  // the frame never painted.
+  public static double MeanLuminance(string path) {
+    using (var bmp = new Bitmap(path)) {
+      double sum = 0; int n = 0;
+      int sx = Math.Max(1, bmp.Width / 64);
+      int sy = Math.Max(1, bmp.Height / 64);
+      for (int y = 0; y < bmp.Height; y += sy) {
+        for (int x = 0; x < bmp.Width; x += sx) {
+          var c = bmp.GetPixel(x, y);
+          sum += 0.299 * c.R + 0.587 * c.G + 0.114 * c.B;
+          n++;
+        }
+      }
+      return n > 0 ? sum / n : 0;
+    }
+  }
 }
 "@ -ReferencedAssemblies @($DrawingDll, $FormsDll)
 
@@ -151,22 +215,10 @@ function Click-SidebarIndex {
     [WinCapture]::SetForegroundWindow($Window) | Out-Null
     Start-Sleep -Milliseconds 300
     $rect = Get-WindowRect -Window $Window
-    $x = $rect.Left + 110
-    # Expanded nav rows are ~56px; title chrome ~96px before first item.
-    $y = $rect.Top + 96 + ($Index * 56)
+    $x = $rect.Left + $NavX
+    $y = $rect.Top + $NavTop + ($Index * $NavRow)
     [WinCapture]::Click($x, $y)
     Start-Sleep -Seconds 2
-}
-
-function Scroll-Sidebar {
-    param([IntPtr]$Window, [int]$Steps = 3)
-    $rect = Get-WindowRect -Window $Window
-    $x = $rect.Left + 110
-    $y = [int]($rect.Top + ($rect.Bottom - $rect.Top) * 0.45)
-    for ($i = 0; $i -lt $Steps; $i++) {
-        [WinCapture]::Wheel($x, $y, -240)
-    }
-    Start-Sleep -Milliseconds 400
 }
 
 function Dismiss-Overlays {
@@ -192,6 +244,22 @@ function Dismiss-WelcomeIfPresent {
     Start-Sleep -Seconds 2
 }
 
+$warnings = New-Object System.Collections.Generic.List[string]
+
+function Save-Screen {
+    param([IntPtr]$Window, [string]$File)
+    $path = Join-Path $OutDir $File
+    [WinCapture]::CaptureWindow($Window, $path)
+    $lum = [WinCapture]::MeanLuminance($path)
+    if ($lum -gt 235) {
+        $msg = "$File looks blank (mean luminance $([math]::Round($lum)) on a dark theme) - the window likely did not render. Run from an interactive desktop session."
+        Write-Warning $msg
+        $warnings.Add($File)
+    } else {
+        Write-Host ("  saved {0}  (luma {1})" -f $File, [math]::Round($lum)) -ForegroundColor Green
+    }
+}
+
 Write-Host '==> Launching Nightshade desktop...' -ForegroundColor Cyan
 $app = Start-Process -FilePath $Exe -WorkingDirectory (Split-Path $Exe) -PassThru
 try {
@@ -199,29 +267,17 @@ try {
     $hwnd = Get-AppWindowHandle -Process $proc
     Write-Host ("  window: pid={0} title='{1}'" -f $proc.Id, $proc.MainWindowTitle) -ForegroundColor DarkGray
     Start-Sleep -Seconds 4
+    # First-run welcome / tour can sit on top; clear it a couple of times.
     Dismiss-WelcomeIfPresent -Window $hwnd
     Dismiss-WelcomeIfPresent -Window $hwnd
 
-    Click-SidebarIndex -Window $hwnd -Index 0
-    Start-Sleep -Seconds 1
-    Dismiss-Overlays -Window $hwnd
-    $dash = Join-Path $OutDir 'desktop-dashboard.png'
-    [WinCapture]::CaptureWindow($hwnd, $dash)
-    Write-Host "  saved $dash" -ForegroundColor Green
-
-    Click-SidebarIndex -Window $hwnd -Index 4
-    Dismiss-Overlays -Window $hwnd
-    $seq = Join-Path $OutDir 'sequencer.png'
-    [WinCapture]::CaptureWindow($hwnd, $seq)
-    Write-Host "  saved $seq" -ForegroundColor Green
-
-    Click-SidebarIndex -Window $hwnd -Index 0
-    Start-Sleep -Seconds 1
-    Click-SidebarIndex -Window $hwnd -Index 10
-    Dismiss-Overlays -Window $hwnd
-    $plan = Join-Path $OutDir 'plan-tonight.png'
-    [WinCapture]::CaptureWindow($hwnd, $plan)
-    Write-Host "  saved $plan" -ForegroundColor Green
+    foreach ($screen in $Screens) {
+        Write-Host ("==> {0} (nav #{1})" -f $screen.Name, $screen.Index) -ForegroundColor Cyan
+        Click-SidebarIndex -Window $hwnd -Index $screen.Index
+        Dismiss-Overlays -Window $hwnd
+        Start-Sleep -Milliseconds $screen.Settle
+        Save-Screen -Window $hwnd -File $screen.File
+    }
 }
 finally {
     if (-not $app.HasExited) {
@@ -264,7 +320,7 @@ if (-not $SkipWeb) {
         if (-not (Test-Path $webOut)) {
             Write-Warning 'Web screenshot via Edge headless failed. Start headless manually, open http://127.0.0.1:8080/dashboard/, and save a PNG to assets/screenshots/web-dashboard.png.'
         } else {
-            Write-Host "  saved $webOut" -ForegroundColor Green
+            Write-Host "  saved web-dashboard.png" -ForegroundColor Green
         }
     }
     finally {
@@ -275,3 +331,7 @@ if (-not $SkipWeb) {
 }
 
 Write-Host '==> Done.' -ForegroundColor Cyan
+if ($warnings.Count -gt 0) {
+    Write-Warning ("{0} shot(s) looked blank: {1}. Re-run from an interactive desktop session; for live data, connect equipment or simulators first." -f $warnings.Count, ($warnings -join ', '))
+    exit 1
+}
