@@ -1,0 +1,3 @@
+# Benchmark run output is a fresh artifact each run, not source. The harness
+# (fixtures/, goldens/, src/, tools/, README) IS committed; results are not.
+results/
