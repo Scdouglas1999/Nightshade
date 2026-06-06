@@ -1,5 +1,15 @@
+import 'dart:math' as math;
+
 import '../astronomy/astronomy_calculations.dart';
 import '../celestial_object.dart';
+
+/// Minimum observable altitude (degrees) at a given compass azimuth, as
+/// imposed by the local skyline (trees, buildings, hills).
+///
+/// Returns 0 for an unobstructed direction. The planetarium package owns this
+/// lightweight contract so the scorer does not need to depend on the app's
+/// concrete horizon-profile model — callers adapt their profile to this shape.
+typedef HorizonMask = double Function(double azimuthDegrees);
 
 /// Scoring criteria weights for target prioritization
 class ScoringWeights {
@@ -134,6 +144,12 @@ class TargetScoringService {
   // Twilight info
   final TwilightTimes? twilight;
 
+  /// Local skyline mask: minimum observable altitude at each azimuth. When
+  /// supplied, visibility and "hours above minimum altitude" honor the
+  /// obstruction profile instead of assuming a flat horizon. A target whose
+  /// entire nightly track stays behind the skyline yields zero visible hours.
+  final HorizonMask? horizonMask;
+
   const TargetScoringService({
     required this.latitude,
     required this.longitude,
@@ -142,7 +158,16 @@ class TargetScoringService {
     this.moonPosition,
     this.moonIllumination = 0,
     this.twilight,
+    this.horizonMask,
   });
+
+  /// Effective minimum altitude at [azimuthDegrees]: the larger of the
+  /// caller-requested floor and the local skyline obstruction at that bearing.
+  double _effectiveMinAltitude(double requestedMin, double azimuthDegrees) {
+    final mask = horizonMask;
+    if (mask == null) return requestedMin;
+    return math.max(requestedMin, mask(azimuthDegrees));
+  }
 
   /// Score a single target
   TargetScore scoreTarget(CelestialObject target) {
@@ -269,9 +294,17 @@ class TargetScoringService {
 
     // Sample positions throughout the night at 15-minute intervals
     const sampleInterval = Duration(minutes: 15);
-    double peakAlt = -90;
-    double peakAz = 0;
-    DateTime peakTime = nightStart;
+
+    // Peak among samples that clear the (skyline-aware) minimum altitude.
+    double observablePeakAlt = -90;
+    double observablePeakAz = 0;
+    DateTime? observablePeakTime;
+    // Overall highest sample, used only as a diagnostic fallback when the
+    // target never becomes observable (e.g. always behind a hill).
+    double overallPeakAlt = -90;
+    double overallPeakAz = 0;
+    DateTime overallPeakTime = nightStart;
+
     double bestAirmass = double.infinity;
     int samplesAboveMin = 0;
     int totalSamples = 0;
@@ -287,21 +320,38 @@ class TargetScoringService {
       );
       final am = AstronomyCalculations.airmass(alt);
 
-      if (alt > peakAlt) {
-        peakAlt = alt;
-        peakAz = az;
-        peakTime = sampleTime;
+      if (alt > overallPeakAlt) {
+        overallPeakAlt = alt;
+        overallPeakAz = az;
+        overallPeakTime = sampleTime;
       }
-      if (am < bestAirmass) {
-        bestAirmass = am;
-      }
-      if (alt >= minAltitude) {
+
+      // A sample only counts as observable if it clears BOTH the requested
+      // minimum altitude and the local skyline at its azimuth.
+      final effectiveMin = _effectiveMinAltitude(minAltitude, az);
+      if (alt >= effectiveMin) {
         samplesAboveMin++;
+        if (alt > observablePeakAlt) {
+          observablePeakAlt = alt;
+          observablePeakAz = az;
+          observablePeakTime = sampleTime;
+        }
+        if (am < bestAirmass) {
+          bestAirmass = am;
+        }
       }
       totalSamples++;
 
       sampleTime = sampleTime.add(sampleInterval);
     }
+
+    // Report the observable peak when the target clears the horizon at any
+    // point; otherwise fall back to the overall highest point for diagnostics.
+    final bool everObservable = samplesAboveMin > 0;
+    final double peakAlt = everObservable ? observablePeakAlt : overallPeakAlt;
+    final double peakAz = everObservable ? observablePeakAz : overallPeakAz;
+    final DateTime peakTime =
+        everObservable ? observablePeakTime! : overallPeakTime;
 
     final hoursAboveMin = totalSamples > 0
         ? (samplesAboveMin * sampleInterval.inMinutes / 60.0)
@@ -879,16 +929,18 @@ class TargetScoringService {
 
 /// Quick helper methods for common checks
 extension TargetCheckExtensions on TargetScoringService {
-  /// Check if a target is currently observable (above horizon, reasonable altitude)
+  /// Check if a target is currently observable (above horizon, reasonable
+  /// altitude). When a [horizonMask] is configured the local skyline at the
+  /// target's current azimuth raises the effective minimum altitude.
   bool isObservable(CelestialObject target, {double minAltitude = 15}) {
-    final (alt, _) = AstronomyCalculations.objectAltAz(
+    final (alt, az) = AstronomyCalculations.objectAltAz(
       raDeg: target.coordinates.raDegrees,
       decDeg: target.coordinates.dec,
       dt: observationTime,
       latitudeDeg: latitude,
       longitudeDeg: longitude,
     );
-    return alt >= minAltitude;
+    return alt >= _effectiveMinAltitude(minAltitude, az);
   }
 
   /// Get moon distance in degrees

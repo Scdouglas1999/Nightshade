@@ -1,4 +1,7 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:io';
+
+import 'package:file_selector/file_selector.dart' as file_selector;
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 // The barrel's `HorizonProfile` is the scheduler's samples-based class;
@@ -309,8 +312,17 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                 }),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
+                      TextButton.icon(
+                        icon: Icon(LucideIcons.upload, size: 14,
+                            color: NightshadeColors.of(context).primary),
+                        label: Text('Import .hor / CSV',
+                            style: TextStyle(color: NightshadeColors.of(context).primary, fontSize: NightshadeTypography.fontSize12)),
+                        onPressed: _importHorizonFile,
+                      ),
                       TextButton.icon(
                         icon: Icon(LucideIcons.rotateCcw, size: 14,
                             color: NightshadeColors.of(context).primary),
@@ -371,6 +383,47 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
         );
       },
     );
+  }
+
+  /// Import a horizon obstruction profile from a Stellarium-style `.hor` file
+  /// or a CSV of `azimuth,altitude` pairs. The arbitrary samples are binned
+  /// onto the eight compass directions (highest altitude per sector wins so an
+  /// obstruction is never under-reported), then persisted.
+  Future<void> _importHorizonFile() async {
+    try {
+      final file = await file_selector.openFile(
+        acceptedTypeGroups: [
+          const file_selector.XTypeGroup(
+            label: 'Horizon profile (.hor / .csv / .txt)',
+            extensions: ['hor', 'csv', 'txt'],
+          ),
+        ],
+      );
+      if (file == null) return; // User cancelled.
+
+      final content = await File(file.path).readAsString();
+      final imported = LegacyHorizonProfile.parseHorizonText(content);
+
+      for (final dir in horizonDirections) {
+        _horizonControllers[dir]!.text =
+            imported.altitudeAt(dir).toStringAsFixed(0);
+      }
+      await ref
+          .read(appSettingsProvider.notifier)
+          .setHorizonProfileJson(imported.toJson());
+
+      if (mounted) {
+        context.showSuccessSnackBar('Horizon profile imported from ${file.name}');
+      }
+    } on FormatException catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Could not import horizon: ${e.message}');
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Could not import horizon file: $e');
+      }
+    }
   }
 
   void _updateHorizonProfile() {
