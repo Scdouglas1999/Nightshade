@@ -2,6 +2,13 @@
 
 import 'dart:math' as math;
 
+/// Signature for a body's apparent equatorial position (RA/Dec, degrees) at a
+/// given instant. Used by [AstronomyCalculations.calculateObjectVisibility] to
+/// track moving bodies (Sun/Moon/planets) across the night. Fixed catalog
+/// objects simply omit this callback and their J2000 RA/Dec is used directly.
+typedef EquatorialPositionAt = (double raDeg, double decDeg) Function(
+    DateTime dt);
+
 /// Comprehensive astronomy calculations for astrophotography planning
 class AstronomyCalculations {
   AstronomyCalculations._();
@@ -285,6 +292,111 @@ class AstronomyCalculations {
     if (ra < 0) ra += 360;
 
     return (ra, dec * _rad2deg);
+  }
+
+  // ============================================================================
+  // Precession & Nutation
+  // ============================================================================
+
+  /// Nutation in longitude and obliquity (degrees) for a given Julian Date.
+  ///
+  /// Uses the four dominant terms of the IAU 1980 nutation series (the 18.6-yr
+  /// lunar-node term plus the principal solar/lunar terms), accurate to within
+  /// roughly an arcsecond — far finer than the ~1-arcminute target of the
+  /// rise/set and grid work this feeds. Returns (dPsi, dEps) in degrees.
+  static (double dPsiDeg, double dEpsDeg) nutation(double jd) {
+    final t = (jd - _j2000) / 36525;
+
+    // Longitude of the ascending node of the Moon's mean orbit.
+    final omega = (125.04452 - 1934.136261 * t) * _deg2rad;
+    // Mean longitude of the Sun and the Moon.
+    final lSun = (280.4665 + 36000.7698 * t) * _deg2rad;
+    final lMoon = (218.3165 + 481267.8813 * t) * _deg2rad;
+
+    // Nutation in longitude (arcseconds).
+    final dPsiArcsec = -17.20 * math.sin(omega) -
+        1.32 * math.sin(2 * lSun) -
+        0.23 * math.sin(2 * lMoon) +
+        0.21 * math.sin(2 * omega);
+
+    // Nutation in obliquity (arcseconds).
+    final dEpsArcsec = 9.20 * math.cos(omega) +
+        0.57 * math.cos(2 * lSun) +
+        0.10 * math.cos(2 * lMoon) -
+        0.09 * math.cos(2 * omega);
+
+    return (dPsiArcsec / 3600.0, dEpsArcsec / 3600.0);
+  }
+
+  /// Mean obliquity of the ecliptic (degrees) for a Julian Date, per the
+  /// IAU 1980 polynomial (Meeus eq. 22.2).
+  static double meanObliquity(double jd) {
+    final t = (jd - _j2000) / 36525;
+    // Coefficients in arcseconds, expressed about epsilon0 = 23°26'21.448".
+    const eps0 = 23.0 + 26.0 / 60.0 + 21.448 / 3600.0;
+    return eps0 -
+        (46.8150 * t + 0.00059 * t * t - 0.001813 * t * t * t) / 3600.0;
+  }
+
+  /// Precess equatorial coordinates from J2000.0 to the equinox of [dt],
+  /// then apply nutation, yielding apparent RA/Dec referred to the true
+  /// equator and equinox of date.
+  ///
+  /// Uses the rigorous IAU 1976 precession angles (Lieske) followed by the
+  /// classic nutation rotation. Inputs and outputs are degrees. This is what
+  /// the coordinate grid and rise/set logic should use to place J2000 catalog
+  /// positions in the sky of the requested instant.
+  static (double raDeg, double decDeg) precessFromJ2000ToDate({
+    required double raDeg,
+    required double decDeg,
+    required DateTime dt,
+  }) {
+    final jd = julianDate(dt);
+    final t = (jd - _j2000) / 36525;
+
+    // IAU 1976 precession angles (arcseconds), accumulated since J2000.
+    final zeta =
+        (2306.2181 * t + 0.30188 * t * t + 0.017998 * t * t * t) / 3600.0 *
+            _deg2rad;
+    final z =
+        (2306.2181 * t + 1.09468 * t * t + 0.018203 * t * t * t) / 3600.0 *
+            _deg2rad;
+    final theta =
+        (2004.3109 * t - 0.42665 * t * t - 0.041833 * t * t * t) / 3600.0 *
+            _deg2rad;
+
+    final ra0 = raDeg * _deg2rad;
+    final dec0 = decDeg * _deg2rad;
+
+    // Precession rotation (Meeus eq. 21.4).
+    final a = math.cos(dec0) * math.sin(ra0 + zeta);
+    final b = math.cos(theta) * math.cos(dec0) * math.cos(ra0 + zeta) -
+        math.sin(theta) * math.sin(dec0);
+    final c = math.sin(theta) * math.cos(dec0) * math.cos(ra0 + zeta) +
+        math.cos(theta) * math.sin(dec0);
+
+    var raDate = math.atan2(a, b) + z;
+    final decDate = math.asin(c.clamp(-1.0, 1.0));
+
+    // Apply nutation (rotate by dPsi about the ecliptic pole, working in the
+    // equatorial frame via the standard first-order correction).
+    final (dPsi, dEps) = nutation(jd);
+    final eps = (meanObliquity(jd) + dEps) * _deg2rad;
+    final dPsiRad = dPsi * _deg2rad;
+    final dEpsRad = dEps * _deg2rad;
+
+    final dRa = (math.cos(eps) + math.sin(eps) * math.sin(raDate) * math.tan(decDate)) *
+            dPsiRad -
+        (math.cos(raDate) * math.tan(decDate)) * dEpsRad;
+    final dDec = (math.sin(eps) * math.cos(raDate)) * dPsiRad +
+        math.sin(raDate) * dEpsRad;
+
+    raDate += dRa;
+    var raOut = raDate * _rad2deg;
+    raOut = raOut % 360;
+    if (raOut < 0) raOut += 360;
+
+    return (raOut, (decDate + dDec) * _rad2deg);
   }
 
   // ============================================================================
@@ -744,7 +856,81 @@ class AstronomyCalculations {
   // Object Rise/Set/Transit Calculations
   // ============================================================================
 
-  /// Calculate rise, transit, and set times for an object
+  /// Apparent altitude (degrees, including refraction) of a body at [dt].
+  ///
+  /// [positionAt] supplies the body's RA/Dec; for a fixed object pass a closure
+  /// that ignores its argument and returns the constant J2000 (or precessed)
+  /// coordinates.
+  static double _apparentAltitudeOf(
+    DateTime dt,
+    EquatorialPositionAt positionAt,
+    double latitudeDeg,
+    double longitudeDeg,
+  ) {
+    final (ra, dec) = positionAt(dt);
+    final lst = localSiderealTime(dt, longitudeDeg);
+    final (trueAlt, _) = equatorialToHorizontal(
+      raDeg: ra,
+      decDeg: dec,
+      latitudeDeg: latitudeDeg,
+      lstHours: lst,
+    );
+    return trueToApparentAltitude(trueAlt);
+  }
+
+  /// Find the instant within [start, end] where the body's apparent altitude
+  /// crosses [targetAlt]. Requires the endpoints to straddle the target (their
+  /// `altitude - targetAlt` signs differ); returns null otherwise. Bisection
+  /// recomputes the body position each step, so it tracks moving bodies and
+  /// converges to well under one minute.
+  static DateTime? _refineAltitudeCrossing({
+    required DateTime start,
+    required DateTime end,
+    required double targetAlt,
+    required EquatorialPositionAt positionAt,
+    required double latitudeDeg,
+    required double longitudeDeg,
+  }) {
+    var t1 = start;
+    var t2 = end;
+    var d1 = _apparentAltitudeOf(t1, positionAt, latitudeDeg, longitudeDeg) -
+        targetAlt;
+    final d2 =
+        _apparentAltitudeOf(t2, positionAt, latitudeDeg, longitudeDeg) -
+            targetAlt;
+    if (d1.sign == d2.sign) return null;
+
+    while (t2.difference(t1).inSeconds.abs() > 1) {
+      final tMid = t1.add(
+          Duration(milliseconds: t2.difference(t1).inMilliseconds ~/ 2));
+      final dMid =
+          _apparentAltitudeOf(tMid, positionAt, latitudeDeg, longitudeDeg) -
+              targetAlt;
+      if (dMid == 0) return tMid;
+      if (dMid.sign == d1.sign) {
+        t1 = tMid;
+        d1 = dMid;
+      } else {
+        t2 = tMid;
+      }
+    }
+    return t1.add(Duration(milliseconds: t2.difference(t1).inMilliseconds ~/ 2));
+  }
+
+  /// Calculate rise, transit, and set times for an object.
+  ///
+  /// The window scanned is the local day of [date] from noon to the following
+  /// noon (the natural span for "tonight"). The algorithm samples apparent
+  /// altitude at a fine step, brackets each rise/set crossing, then bisects to
+  /// sub-minute accuracy. Transit is located by sampling for the altitude
+  /// maximum and refining it. All steps recompute the body's position via
+  /// [positionAt], so Sun/Moon/planets are handled correctly across the night;
+  /// fixed catalog objects omit [positionAt] and use their constant RA/Dec.
+  ///
+  /// [minAltitude] is the altitude that defines "up" for rise/set (default 0°,
+  /// i.e. the geometric horizon). [standardAltitude] overrides the altitude
+  /// actually used for the crossing search — pass e.g. -0.833° for the Sun/Moon
+  /// limb (refraction + semi-diameter). When omitted it follows [minAltitude].
   static ObjectVisibility calculateObjectVisibility({
     required double raDeg,
     required double decDeg,
@@ -752,78 +938,180 @@ class AstronomyCalculations {
     required double latitudeDeg,
     required double longitudeDeg,
     double minAltitude = 0,
+    double? standardAltitude,
+    EquatorialPositionAt? positionAt,
   }) {
     final localNoon = DateTime(date.year, date.month, date.day, 12);
+    final windowEnd = localNoon.add(const Duration(hours: 24));
+    final crossingAlt = standardAltitude ?? minAltitude;
 
-    // Check if object is circumpolar or never rises
-    final cosDec = math.cos(decDeg * _deg2rad);
-    final sinDec = math.sin(decDeg * _deg2rad);
-    final cosLat = math.cos(latitudeDeg * _deg2rad);
-    final sinLat = math.sin(latitudeDeg * _deg2rad);
-    final denominator = cosDec * cosLat;
+    // Position source: moving body or constant catalog coordinates.
+    final posAt = positionAt ?? ((DateTime _) => (raDeg, decDeg));
 
-    final transitAltitude =
-        (90 - (latitudeDeg - decDeg).abs()).clamp(-90.0, 90.0);
-
-    if (denominator.abs() < _epsilon) {
-      final aboveMin = transitAltitude >= minAltitude;
-      return ObjectVisibility(
-        riseTime: null,
-        transitTime: null,
-        setTime: null,
-        transitAltitude: transitAltitude,
-        isCircumpolar: aboveMin,
-        neverRises: !aboveMin,
-      );
+    // Sample altitude every 5 minutes across the window. A 5-min step is fine
+    // enough that even the Moon (~0.5°/hr in altitude near the horizon) cannot
+    // skip a crossing, while keeping the loop cheap.
+    const step = Duration(minutes: 5);
+    final samples = <(DateTime, double)>[];
+    for (var t = localNoon;
+        !t.isAfter(windowEnd);
+        t = t.add(step)) {
+      samples.add(
+          (t, _apparentAltitudeOf(t, posAt, latitudeDeg, longitudeDeg)));
     }
-
-    final cosH0 =
-        (math.sin(minAltitude * _deg2rad) - sinDec * sinLat) / denominator;
-
-    bool isCircumpolar = false;
-    bool neverRises = false;
-
-    if (cosH0 < -1) {
-      isCircumpolar = true;
-    } else if (cosH0 > 1) {
-      neverRises = true;
-    }
-
-    // Calculate transit time (when object crosses meridian)
-    DateTime? transitTime;
-
-    // Transit occurs when LST = RA
-    final lst0 = localSiderealTime(localNoon, longitudeDeg);
-    var hoursTillTransit = (raDeg / 15) - lst0;
-    if (hoursTillTransit < -12) hoursTillTransit += 24;
-    if (hoursTillTransit > 12) hoursTillTransit -= 24;
-
-    transitTime = localNoon.add(Duration(
-      seconds: (hoursTillTransit * 3600).round(),
-    ));
 
     DateTime? riseTime;
     DateTime? setTime;
+    DateTime? transitTime;
+    var maxAlt = -91.0;
+    var minSampledAlt = 91.0;
 
-    if (!isCircumpolar && !neverRises) {
-      // Calculate rise/set
-      final h0 = math.acos(cosH0) * _rad2deg / 15; // In hours
+    for (var i = 0; i < samples.length; i++) {
+      final (t, alt) = samples[i];
+      if (alt > maxAlt) {
+        maxAlt = alt;
+        transitTime = t;
+      }
+      if (alt < minSampledAlt) minSampledAlt = alt;
 
-      riseTime = transitTime.subtract(Duration(
-        seconds: (h0 * 3600).round(),
-      ));
-      setTime = transitTime.add(Duration(
-        seconds: (h0 * 3600).round(),
-      ));
+      if (i == 0) continue;
+      final (prevT, prevAlt) = samples[i - 1];
+
+      // Rising crossing.
+      if (riseTime == null && prevAlt < crossingAlt && alt >= crossingAlt) {
+        riseTime = _refineAltitudeCrossing(
+          start: prevT,
+          end: t,
+          targetAlt: crossingAlt,
+          positionAt: posAt,
+          latitudeDeg: latitudeDeg,
+          longitudeDeg: longitudeDeg,
+        );
+      }
+      // Setting crossing (prefer one after rise when both exist in window).
+      if (prevAlt >= crossingAlt && alt < crossingAlt) {
+        final candidate = _refineAltitudeCrossing(
+          start: prevT,
+          end: t,
+          targetAlt: crossingAlt,
+          positionAt: posAt,
+          latitudeDeg: latitudeDeg,
+          longitudeDeg: longitudeDeg,
+        );
+        if (candidate != null &&
+            (setTime == null ||
+                (riseTime != null && candidate.isAfter(riseTime)))) {
+          setTime = candidate;
+        }
+      }
     }
+
+    // Refine the transit by maximising apparent altitude in the interval
+    // bracketing the coarse peak sample (ternary search, sub-minute).
+    if (transitTime != null) {
+      transitTime = _refineTransit(
+        peak: transitTime,
+        step: step,
+        windowStart: localNoon,
+        windowEnd: windowEnd,
+        positionAt: posAt,
+        latitudeDeg: latitudeDeg,
+        longitudeDeg: longitudeDeg,
+      );
+    }
+
+    // Transit altitude from the precessed/peak position (not the lat/dec
+    // shortcut, which ignores both refraction and the body's motion).
+    final transitAltitude = transitTime != null
+        ? _apparentAltitudeOf(
+            transitTime, posAt, latitudeDeg, longitudeDeg)
+        : maxAlt;
+
+    final isCircumpolar =
+        riseTime == null && setTime == null && minSampledAlt >= crossingAlt;
+    final neverRises =
+        riseTime == null && setTime == null && maxAlt < crossingAlt;
 
     return ObjectVisibility(
       riseTime: riseTime,
-      transitTime: transitTime,
+      transitTime: neverRises ? null : transitTime,
       setTime: setTime,
       transitAltitude: transitAltitude,
       isCircumpolar: isCircumpolar,
       neverRises: neverRises,
+    );
+  }
+
+  /// Refine the meridian transit near a coarse [peak] sample by maximising
+  /// apparent altitude with a ternary search over the bracketing interval.
+  static DateTime _refineTransit({
+    required DateTime peak,
+    required Duration step,
+    required DateTime windowStart,
+    required DateTime windowEnd,
+    required EquatorialPositionAt positionAt,
+    required double latitudeDeg,
+    required double longitudeDeg,
+  }) {
+    var lo = peak.subtract(step);
+    if (lo.isBefore(windowStart)) lo = windowStart;
+    var hi = peak.add(step);
+    if (hi.isAfter(windowEnd)) hi = windowEnd;
+
+    double altAt(DateTime t) =>
+        _apparentAltitudeOf(t, positionAt, latitudeDeg, longitudeDeg);
+
+    while (hi.difference(lo).inSeconds > 1) {
+      final third = hi.difference(lo).inMilliseconds ~/ 3;
+      final m1 = lo.add(Duration(milliseconds: third));
+      final m2 = hi.subtract(Duration(milliseconds: third));
+      if (altAt(m1) < altAt(m2)) {
+        lo = m1;
+      } else {
+        hi = m2;
+      }
+    }
+    return lo.add(Duration(milliseconds: hi.difference(lo).inMilliseconds ~/ 2));
+  }
+
+  /// Sun rise/transit/set for the local day of [date], tracking the Sun's
+  /// motion and using the standard -0.833° limb altitude.
+  static ObjectVisibility calculateSunVisibility({
+    required DateTime date,
+    required double latitudeDeg,
+    required double longitudeDeg,
+  }) {
+    final (ra0, dec0) = sunPosition(date);
+    return calculateObjectVisibility(
+      raDeg: ra0,
+      decDeg: dec0,
+      date: date,
+      latitudeDeg: latitudeDeg,
+      longitudeDeg: longitudeDeg,
+      standardAltitude: _sunRiseSetAltitude,
+      positionAt: (dt) => sunPosition(dt),
+    );
+  }
+
+  /// Moon rise/transit/set for the local day of [date], tracking the Moon's
+  /// fast motion and using the approximate -0.7° limb altitude.
+  static ObjectVisibility calculateMoonVisibility({
+    required DateTime date,
+    required double latitudeDeg,
+    required double longitudeDeg,
+  }) {
+    final (ra0, dec0, _) = moonPosition(date);
+    return calculateObjectVisibility(
+      raDeg: ra0,
+      decDeg: dec0,
+      date: date,
+      latitudeDeg: latitudeDeg,
+      longitudeDeg: longitudeDeg,
+      standardAltitude: _moonRiseSetAltitude,
+      positionAt: (dt) {
+        final (ra, dec, _) = moonPosition(dt);
+        return (ra, dec);
+      },
     );
   }
 
