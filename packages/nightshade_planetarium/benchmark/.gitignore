@@ -1,3 +1,6 @@
 # Benchmark run output is a fresh artifact each run, not source. The harness
 # (fixtures/, goldens/, src/, tools/, README) IS committed; results are not.
-results/
+results/*
+# Exception: the pinned pre-feature baseline IS committed so optimization
+# passes can diff against the v1 starting point.
+!results/baseline_v1.json
