@@ -9,8 +9,6 @@ import '../../../widgets/help/field_help_copy.dart';
 import '../../../widgets/help/field_help_label.dart';
 import '../../../widgets/pill_tab.dart';
 
-part 'panel_widgets/quick_stat.dart';
-
 /// Builds an imaging-panel row label, optionally appending a [helpAffordance]
 /// when [helpId] is supplied.
 ///
@@ -65,13 +63,13 @@ class PanelTabs extends ConsumerWidget {
   });
 
   static const _tabs = [
-    (LucideIcons.camera, 'Capture'),
-    (LucideIcons.aperture, 'Camera'),
-    (LucideIcons.focus, 'Focus'),
-    (LucideIcons.crosshair, 'Guiding'),
-    (LucideIcons.compass, 'Mount'),
-    (LucideIcons.rotateCw, 'Rotator'),
-    (LucideIcons.layers, 'Stack'),
+    (NightshadeIcons.camera, 'Capture'),
+    (NightshadeIcons.aperture, 'Camera'),
+    (NightshadeIcons.focuser, 'Focus'),
+    (NightshadeIcons.crosshair, 'Guiding'),
+    (NightshadeIcons.compass, 'Mount'),
+    (NightshadeIcons.rotator, 'Rotator'),
+    (NightshadeIcons.layers, 'Stack'),
     (LucideIcons.sparkle, 'Annotations'),
   ];
 
@@ -201,7 +199,7 @@ class ControlSection extends StatelessWidget {
         Text(
           title,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             fontWeight: FontWeight.w600,
             color: colors.textMuted,
             letterSpacing: 0.5,
@@ -304,7 +302,7 @@ class _BigActionButtonState extends State<BigActionButton>
                         return Transform.rotate(
                           angle: _loadingController.value * 2 * math.pi,
                           child: Icon(
-                            LucideIcons.loader2,
+                            NightshadeIcons.loading,
                             size: 24,
                             color: primaryForeground.withValues(
                                 alpha: widget.isEnabled ? 1.0 : 0.5),
@@ -432,7 +430,7 @@ class _EditableCompactInputState extends State<EditableCompactInput> {
             ),
             decoration: BoxDecoration(
               color: widget.colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(
                 color:
                     _isEditing ? widget.colors.primary : widget.colors.border,
@@ -461,9 +459,7 @@ class _EditableCompactInputState extends State<EditableCompactInput> {
                         )
                       : Text(
                           widget.value,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
+                          style: NightshadeTypography.label.copyWith(
                             color: widget.colors.textPrimary,
                           ),
                         ),
@@ -472,7 +468,7 @@ class _EditableCompactInputState extends State<EditableCompactInput> {
                   Text(
                     widget.suffix!,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: widget.colors.textMuted,
                     ),
                   ),
@@ -518,13 +514,9 @@ class PanelSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: NightshadeTokens.spaceMd),
-        Container(
+        NightshadeCard(
           padding: const EdgeInsets.all(NightshadeTokens.panelSectionPadding),
-          decoration: BoxDecoration(
-            color: colors.surfaceAlt,
-            borderRadius: NightshadeTokens.borderRadiusButton,
-            border: Border.all(color: colors.border),
-          ),
+          borderRadius: NightshadeTokens.radiusButton,
           child: child,
         ),
       ],
@@ -583,7 +575,7 @@ class InputRow extends StatelessWidget {
                   child: Text(
                     value ?? '',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: colors.textPrimary,
                     ),
                   ),
@@ -650,7 +642,7 @@ class InputRowEditable extends StatelessWidget {
             child: TextField(
               controller: TextEditingController(text: value),
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textPrimary,
               ),
               decoration: InputDecoration(
@@ -660,7 +652,7 @@ class InputRowEditable extends StatelessWidget {
                 isDense: true,
                 suffixText: suffix,
                 suffixStyle: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   color: colors.textMuted,
                 ),
               ),
@@ -771,7 +763,7 @@ class SliderRowInteractive extends StatelessWidget {
             context,
             label: label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: isEnabled ? colors.textSecondary : colors.textMuted,
             ),
             helpId: helpId,
@@ -803,7 +795,7 @@ class SliderRowInteractive extends StatelessWidget {
             '${value.toStringAsFixed(1)}$suffix',
             textAlign: TextAlign.right,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontFeatures: const [FontFeature.tabularFigures()],
               color: isEnabled ? colors.textPrimary : colors.textMuted,
             ),
@@ -861,7 +853,7 @@ class _SmallButtonState extends State<SmallButton> {
                           alpha: NightshadeTokens.opacitySubtle,
                         )
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(color: primaryColor),
                 )
               : NightshadeDecorations.filledButton(
@@ -886,9 +878,7 @@ class _SmallButtonState extends State<SmallButton> {
               Flexible(
                 child: Text(
                   widget.label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                  style: NightshadeTypography.labelSm.copyWith(
                     color: widget.isOutline
                         ? primaryColor
                         : isEnabled
@@ -902,75 +892,6 @@ class _SmallButtonState extends State<SmallButton> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class QuickStatsPanel extends ConsumerWidget {
-  final NightshadeColors colors;
-
-  const QuickStatsPanel({super.key, required this.colors});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final cameraState = ref.watch(cameraStateProvider);
-    final guiderState = ref.watch(guiderStateProvider);
-    final lastStats = ref.watch(lastImageStatsProvider);
-
-    // Format temperature
-    String tempValue = '---';
-    if (cameraState.connectionState == DeviceConnectionState.connected) {
-      if (cameraState.temperature != null) {
-        tempValue = '${cameraState.temperature!.toStringAsFixed(1)}°C';
-      } else {
-        tempValue = 'N/A';
-      }
-    }
-
-    // Format RMS
-    String rmsValue = '---';
-    if (guiderState.connectionState == DeviceConnectionState.connected &&
-        guiderState.isGuiding &&
-        guiderState.rmsTotal != null) {
-      rmsValue = '${guiderState.rmsTotal!.toStringAsFixed(2)}"';
-    }
-
-    // Format HFR
-    String hfrValue = '---';
-    if (lastStats?.hfr != null) {
-      hfrValue = lastStats!.hfr!.toStringAsFixed(2);
-    }
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          _QuickStat(
-            icon: LucideIcons.thermometer,
-            label: 'Sensor',
-            value: tempValue,
-            colors: colors,
-          ),
-          const SizedBox(width: 24),
-          _QuickStat(
-            icon: LucideIcons.activity,
-            label: 'RMS',
-            value: rmsValue,
-            colors: colors,
-          ),
-          const SizedBox(width: 24),
-          _QuickStat(
-            icon: LucideIcons.target,
-            label: 'HFR',
-            value: hfrValue,
-            colors: colors,
-          ),
-        ],
       ),
     );
   }

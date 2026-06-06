@@ -190,13 +190,10 @@ class _FirstTimeOnboarding extends StatelessWidget {
             const SizedBox(height: 40),
 
             // Setup steps
-            Container(
+            NightshadeCard(
+              variant: CardVariant.standard,
+              borderRadius: NightshadeTokens.radiusInline8,
               padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colors.border),
-              ),
               child: Column(
                 children: [
                   _SetupStep(
@@ -279,11 +276,7 @@ class _SetupStep extends StatelessWidget {
           child: Center(
             child: Text(
               number,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: colors.primary,
-              ),
+              style: NightshadeTypography.labelStrong.copyWith(color: colors.primary),
             ),
           ),
         ),
@@ -292,7 +285,7 @@ class _SetupStep extends StatelessWidget {
           child: Text(
             text,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: NightshadeTypography.fontSize14,
               color: colors.textPrimary,
             ),
           ),
@@ -343,11 +336,7 @@ class _ProfileMismatchBanner extends ConsumerWidget {
               'Device Mismatch: The connected ${mismatches.join(", ")} '
               '${mismatches.length == 1 ? 'does' : 'do'} not match the '
               'assignments in the active profile "${activeProfile.name}".',
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.warning,
-                fontWeight: FontWeight.w500,
-              ),
+              style: NightshadeTypography.labelSm.copyWith(color: colors.warning),
             ),
           ),
           const SizedBox(width: 8),

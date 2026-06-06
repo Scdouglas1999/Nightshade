@@ -6,6 +6,8 @@ import '../models/settings/app_settings.dart';
 import '../models/sequence/sequence_models.dart' show ConditionsScoreWeights;
 import '../services/scheduler/sky_calculations.dart';
 import '../services/adaptive_swap_service.dart';
+import '../services/safe_rig_service.dart';
+import '../services/weather/weather_threshold_evaluator.dart';
 import 'imaging_provider.dart';
 import 'science_provider.dart';
 import 'weather_providers.dart';
@@ -13,6 +15,48 @@ import 'equipment_provider.dart';
 import 'settings_provider.dart';
 import 'ui_notification_provider.dart';
 import 'backend_provider.dart';
+
+/// How a [SafetyFailMode] resolves the "no usable safety/weather data"
+/// situation (no connected source on the Dart side; poll error on the Rust
+/// side).
+///
+/// Architecture-unification 2026-06-05 (Subsystem 2 step 1, cross-language
+/// parity). This is the Dart mirror of the Rust `NoDataResolution` enum in
+/// `native/nightshade_native/sequencer/src/lib.rs`. The two MUST agree on the
+/// same truth table; [noDataFailModeResolution] below is the single Dart
+/// definition and is pinned against the identical table by
+/// `test/services/weather/weather_fail_mode_parity_test.dart`, which
+/// cross-references the Rust test `safety_fail_mode_no_data_resolution_truth_table`.
+enum NoDataResolution {
+  /// Treat the absence of data as UNSAFE (fail closed). Dart pushes
+  /// `Some(true)`; Rust sets `weather_safe = false`.
+  unsafe,
+
+  /// Treat the absence of data as SAFE (fail open). Dart ABSTAINS (`null`)
+  /// rather than asserting SAFE — a permissive policy must never gag a
+  /// hardware-unsafe device — but the resolution row is "safe". Rust sets
+  /// `weather_safe = true`.
+  safe,
+
+  /// Preserve the prior reading and emit an operator warning (warn-only). Dart
+  /// ABSTAINS (`null`); Rust leaves `weather_safe` unchanged.
+  preserve,
+}
+
+/// The single Dart definition of how each [SafetyFailMode] resolves a no-data
+/// situation. Cross-language parity: mirrors the Rust
+/// `safety_fail_mode_no_data_resolution`. If you change a row here, change it in
+/// BOTH parity tests (Dart + Rust) or they will fail.
+NoDataResolution noDataFailModeResolution(SafetyFailMode mode) {
+  switch (mode) {
+    case SafetyFailMode.failClosed:
+      return NoDataResolution.unsafe;
+    case SafetyFailMode.failOpen:
+      return NoDataResolution.safe;
+    case SafetyFailMode.warnOnly:
+      return NoDataResolution.preserve;
+  }
+}
 
 /// Weather safety status for sequencer integration
 enum WeatherSafetyStatus {
@@ -149,6 +193,14 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   Timer? _adaptiveConditionsPushTimer;
   bool _resumeInFlight = false;
 
+  /// Latch ensuring the safe-the-rig enforcement fires exactly once per
+  /// unsafe episode. Set when we enforce on the safe -> unsafe transition;
+  /// cleared when conditions return to safe. Without it, every 5-minute
+  /// periodic re-evaluation while still unsafe would re-pause/re-park an
+  /// already-safed rig (and re-spam the critical notification).
+  bool _safeRigEnforced = false;
+  bool _enforceInFlight = false;
+
   /// Periodic re-evaluation interval (5 minutes)
   static const _evaluationInterval = Duration(minutes: 5);
   static const _parkBeforeDawnLeadTime = Duration(minutes: 30);
@@ -270,8 +322,14 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       finalStatus = WeatherSafetyStatus.safe;
       finalActions = WeatherSafetyActions.safe;
     } else if (useFailMode) {
-      switch (failMode) {
-        case SafetyFailMode.failClosed:
+      // Cross-language parity: the no-data fail-mode resolution comes from the
+      // SINGLE shared truth table ([noDataFailModeResolution], mirrored by the
+      // Rust `safety_fail_mode_no_data_resolution`). The UI status/actions are
+      // derived from that resolution so this screen-facing path and the
+      // executor-facing [_computePushedVerdict] cannot disagree about what each
+      // fail mode means.
+      switch (noDataFailModeResolution(failMode)) {
+        case NoDataResolution.unsafe:
           // Most conservative: treat unavailable data as unsafe, block operations.
           finalStatus = WeatherSafetyStatus.unsafe;
           finalActions = WeatherSafetyActions(
@@ -280,13 +338,14 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
             reason: failModeWarning,
           );
           break;
-        case SafetyFailMode.failOpen:
+        case NoDataResolution.safe:
           // Permissive: treat unavailable data as safe, allow operations to continue.
           finalStatus = WeatherSafetyStatus.safe;
           finalActions = WeatherSafetyActions.safe;
           break;
-        case SafetyFailMode.warnOnly:
-          // Permissive with notification: treat as safe but emit a UI warning.
+        case NoDataResolution.preserve:
+          // Warn-only: treat as safe for operations but emit a UI warning so the
+          // operator knows the safety data is missing.
           finalStatus = WeatherSafetyStatus.safe;
           finalActions = WeatherSafetyActions.safe;
           shouldShowFailModeWarning = true;
@@ -349,6 +408,38 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       });
     }
 
+    // Defense-in-depth (full-night audit 2026-06-04): push this verdict into
+    // the Rust executor so the in-sequencer `WeatherUnsafe` trigger reacts even
+    // on a rig with no hardware safety device. The Dart SafeRig enforcement
+    // above is the primary path; this is the redundant in-sequencer layer.
+    //
+    // Architecture-unification 2026-06-05 (Subsystem 2 steps 1+2): compute the
+    // pushed verdict from the NON-HARDWARE Dart sources only (API alert /
+    // hardware-weather thresholds / dawn) and ABSTAIN (`None`) when the operator
+    // has effectively opted out of weather-driven aborts. See
+    // [_computePushedVerdict] for the full rationale; in short:
+    //   * the safety-monitor component is excluded so it is evaluated ONCE (Rust
+    //     polls `safety_is_safe` and ORs it); folding it here too double-counted
+    //     it.
+    //   * disabled / snoozed / failOpen / warnOnly push `None`, never `false`.
+    //     Pushing `false` (SAFE) is only harmless today because Rust ORs it; if a
+    //     future refactor ever made Rust trust the verdict, a disabled toggle
+    //     asserting SAFE could suppress a hardware-unsafe abort. `None` makes the
+    //     channel strictly "add-unsafe-or-abstain" and closes that landmine.
+    unawaited(
+      _pushWeatherVerdict(
+        _computePushedVerdict(
+          weatherSettings: weatherSettings,
+          finalStatus: finalStatus,
+          failMode: failMode,
+          useFailMode: useFailMode,
+          apiWeatherSafe: apiWeatherSafe,
+          hardwareWeatherSafe: hardwareWeatherSafe,
+          dawnParkDue: dawnParkDue,
+        ),
+      ),
+    );
+
     if (previousStatus == WeatherSafetyStatus.unsafe &&
         finalStatus == WeatherSafetyStatus.safe &&
         weatherSettings.autoResumeEnabled) {
@@ -357,6 +448,65 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       // Why: if conditions re-degrade during the hold-off window we cancel
       // the pending resume so we don't unpark into renewed unsafe weather.
       _cancelPendingAutoResume();
+    }
+
+    // Enforce the computed safety actions on the hardware. Before this the
+    // actions were COMPUTED but never EXECUTED — every consumer was UI-only,
+    // so an unattended rig kept tracking/exposing into unsafe weather. We
+    // enforce on the *transition into* unsafe (latched once per episode) so
+    // the running sequence is paused, the mount parked, and the dome closed
+    // exactly once — not re-fired on every 5-minute re-evaluation while the
+    // weather stays bad.
+    if (finalStatus == WeatherSafetyStatus.unsafe) {
+      if (!_safeRigEnforced) {
+        _safeRigEnforced = true;
+        unawaited(_enforceSafetyActions(finalActions));
+      }
+    } else if (finalStatus == WeatherSafetyStatus.safe) {
+      // Episode over (or never started) — re-arm enforcement for the next one.
+      _safeRigEnforced = false;
+    }
+    // Snoozed: leave the latch as-is. A snooze means the operator explicitly
+    // suppressed enforcement; if it expires back to unsafe the latch state
+    // already reflects whether we enforced for this episode.
+  }
+
+  /// Execute the computed weather-safety actions on the hardware via the
+  /// shared [SafeRigService]. Idempotent enough to be safe even if the latch
+  /// were bypassed: SafeRig skips an already-parked mount / already-closed
+  /// dome. Fail-closed: SafeRig throws on partial failure and surfaces a
+  /// CRITICAL notification; we additionally log a warning banner here so the
+  /// operator sees the weather-safety framing.
+  Future<void> _enforceSafetyActions(WeatherSafetyActions actions) async {
+    if (_enforceInFlight) return;
+    _enforceInFlight = true;
+    try {
+      if (!actions.shouldPause &&
+          !actions.shouldPark &&
+          !actions.shouldCloseDome) {
+        return;
+      }
+      final safeRig = _ref.read(safeRigServiceProvider);
+      await safeRig.safeTheRig(
+        reason: actions.reason ?? 'Weather turned unsafe',
+        park: actions.shouldPark,
+        closeDome: actions.shouldCloseDome,
+        // Cover follows the dome decision: if conditions warrant closing the
+        // dome shutter they also warrant closing a flip-flat / cover.
+        closeCover: actions.shouldCloseDome,
+      );
+    } catch (e) {
+      // SafeRig already posted a CRITICAL notification with the per-step
+      // failures; add the weather-safety context so the operator knows what
+      // tripped it. Do not rethrow — the periodic evaluator must keep running.
+      if (!mounted) return;
+      _ref.read(uiNotificationProvider.notifier).showError(
+            'Weather safety enforcement did not fully complete: $e',
+            title: 'Weather Safety',
+            duration: const Duration(seconds: 15),
+          );
+    } finally {
+      _enforceInFlight = false;
     }
   }
 
@@ -439,6 +589,93 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
       if (!mounted) return;
       unawaited(_pushAdaptiveConditions());
     });
+  }
+
+  /// Compute the verdict pushed to the Rust executor's `WeatherUnsafe` trigger.
+  ///
+  /// Architecture-unification 2026-06-05 (Subsystem 2). Returns:
+  ///   * `null` (ABSTAIN) when the operator has effectively opted out of
+  ///     weather-driven aborts — safety disabled, currently snoozed, or the
+  ///     no-data fail-mode is permissive (failOpen / warnOnly). Abstaining
+  ///     leaves the Rust trigger to rely solely on its own hardware poll; it
+  ///     can never suppress a hardware-unsafe abort.
+  ///   * `Some(true)` (UNSAFE) when the NON-HARDWARE Dart sources — API alert,
+  ///     hardware-weather thresholds (humidity/wind/rain/cloud), or
+  ///     park-before-dawn — say unsafe, OR the fail-closed no-data path is
+  ///     active. The hardware **safety-monitor** component is deliberately
+  ///     EXCLUDED: Rust already polls `safety_is_safe` and ORs it in, so folding
+  ///     it here too would double-count the same device.
+  ///   * `Some(false)` (SAFE) when none of the above non-hardware sources are
+  ///     unsafe and the operator has NOT opted out.
+  ///
+  /// This is strictly safety-monotone: it only ever ADDS an unsafe assertion or
+  /// ABSTAINS — it never asserts SAFE in a situation where the previous code
+  /// would have asserted UNSAFE on a non-hardware source.
+  bool? _computePushedVerdict({
+    required WeatherSettings weatherSettings,
+    required WeatherSafetyStatus finalStatus,
+    required SafetyFailMode failMode,
+    required bool useFailMode,
+    required bool apiWeatherSafe,
+    required bool hardwareWeatherSafe,
+    required bool dawnParkDue,
+  }) {
+    // Opt-out cases ABSTAIN. `finalStatus == snoozed` covers an active snooze;
+    // we also abstain for an explicit just-issued snooze that has not yet been
+    // re-evaluated (the snooze() setter pushes status to snoozed directly).
+    if (!weatherSettings.weatherSafetyEnabled ||
+        finalStatus == WeatherSafetyStatus.snoozed) {
+      return null;
+    }
+
+    // No-data fail-mode: resolved through the SINGLE cross-language truth table
+    // ([noDataFailModeResolution], mirrored by the Rust
+    // `safety_fail_mode_no_data_resolution`). `unsafe` asserts UNSAFE (matches
+    // finalStatus); the permissive resolutions (`safe` / `preserve`) ABSTAIN
+    // rather than assert SAFE, so a permissive fail-mode can never suppress a
+    // hardware-unsafe abort.
+    if (useFailMode) {
+      switch (noDataFailModeResolution(failMode)) {
+        case NoDataResolution.unsafe:
+          return true;
+        case NoDataResolution.safe:
+        case NoDataResolution.preserve:
+          return null;
+      }
+    }
+
+    // Normal path: fold the non-hardware sources. The safety monitor is
+    // intentionally absent (Rust evaluates it once). `dawnParkDue` is folded so
+    // the park-before-dawn abort also reaches the in-sequencer trigger.
+    final nonHardwareUnsafe =
+        !apiWeatherSafe || !hardwareWeatherSafe || dawnParkDue;
+    return nonHardwareUnsafe;
+  }
+
+  /// Defense-in-depth (full-night audit 2026-06-04): forward the
+  /// weather-safety verdict to the Rust executor's `WeatherUnsafe` trigger.
+  ///
+  /// Pushed on every evaluation so the in-sequencer trigger has a current
+  /// verdict on its next tick, regardless of whether a hardware safety device
+  /// is connected. Best-effort like the cloud-motion push: the backend may be
+  /// disconnected (DisconnectedBackend throws), in which case there is no live
+  /// executor to inform and we swallow the error.
+  ///
+  /// `verdict` is `null` (abstain), `true` (unsafe) or `false` (safe) — see
+  /// [_computePushedVerdict]. The Rust side ORs `Some(true)` as an additional
+  /// unsafe source and treats `Some(false)` / `None` as non-asserting, so this
+  /// channel can only ever add-unsafe or abstain — it never weakens the
+  /// hardware gate.
+  Future<void> _pushWeatherVerdict(bool? verdict) async {
+    if (!mounted) return;
+    try {
+      final backend = _ref.read(backendProvider);
+      await backend.sequencerUpdateWeatherVerdict(unsafeOverride: verdict);
+    } catch (_) {
+      // No live executor to inform (e.g. backend disconnected). The verdict is
+      // re-pushed on the next evaluation; the Dart SafeRig path remains the
+      // primary enforcement layer.
+    }
   }
 
   Future<void> _pushCloudMotion() async {
@@ -594,26 +831,30 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     }
   }
 
-  /// Evaluate hardware weather device for safety
+  /// Evaluate hardware weather device for safety.
+  ///
+  /// Architecture-unification 2026-06-05 (Subsystem 2 step 3): the threshold
+  /// comparison logic now lives in the pure [WeatherThresholdEvaluator] so it
+  /// has one definition and is unit-testable in isolation. This method just
+  /// adapts the provider's [WeatherState] / [WeatherSettings] into the
+  /// evaluator's plain inputs.
   bool _evaluateHardwareWeather(WeatherState weatherState) {
     final settings = _ref.read(weatherSettingsProvider);
-    // Check various weather metrics if available
-    if (weatherState.humidity != null &&
-        weatherState.humidity! > settings.maxHumidityPercent) {
-      return false; // Too humid
-    }
-    if (weatherState.windSpeed != null &&
-        weatherState.windSpeed! > settings.maxWindSpeedKph) {
-      return false; // Too windy
-    }
-    if (weatherState.rainRate != null && weatherState.rainRate! > 0) {
-      return false; // Any rain is unsafe
-    }
-    if (weatherState.cloudCover != null &&
-        weatherState.cloudCover! > settings.maxCloudCoverPercent) {
-      return false; // Too cloudy
-    }
-    return true;
+    const evaluator = WeatherThresholdEvaluator();
+    final result = evaluator.evaluate(
+      WeatherReading(
+        humidityPercent: weatherState.humidity,
+        windSpeedKph: weatherState.windSpeed,
+        rainRate: weatherState.rainRate,
+        cloudCoverPercent: weatherState.cloudCover,
+      ),
+      WeatherThresholds(
+        maxHumidityPercent: settings.maxHumidityPercent,
+        maxWindSpeedKph: settings.maxWindSpeedKph,
+        maxCloudCoverPercent: settings.maxCloudCoverPercent,
+      ),
+    );
+    return result.isSafe;
   }
 
   /// Determine if dome should be closed

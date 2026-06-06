@@ -35,7 +35,7 @@ class _WebDashboardButtonState extends ConsumerState<_WebDashboardButton> {
                   );
                 }
               : null,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: NightshadeTokens.borderRadiusInline4,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -43,13 +43,13 @@ class _WebDashboardButtonState extends ConsumerState<_WebDashboardButton> {
               color: _isHovered && webState.isRunning
                   ? widget.colors.surfaceAlt
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: NightshadeTokens.borderRadiusInline4,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  LucideIcons.globe,
+                  NightshadeIcons.globe,
                   size: 12,
                   color: webState.isRunning && webState.dashboardAvailable
                       ? widget.colors.primary
@@ -59,7 +59,7 @@ class _WebDashboardButtonState extends ConsumerState<_WebDashboardButton> {
                 Text(
                   'Dashboard',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: webState.isRunning && webState.dashboardAvailable
                         ? widget.colors.textSecondary
                         : widget.colors.textMuted,

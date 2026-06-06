@@ -256,7 +256,7 @@ class _LivePreviewCard extends StatelessWidget {
       padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
       decoration: NightshadeDecorations.tintedBadge(
         colors.info,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -270,7 +270,7 @@ class _LivePreviewCard extends StatelessWidget {
                 Text(
                   'What this will do at sequence start',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
@@ -282,7 +282,7 @@ class _LivePreviewCard extends StatelessWidget {
                     child: Text(
                       '• $line',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: colors.textSecondary,
                         height: 1.35,
                       ),

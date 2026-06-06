@@ -35,16 +35,12 @@ class BatchOperationsToolbar extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: NightshadeDecorations.statusChip(
               colors.primary,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
               bordered: false,
             ),
             child: Text(
               '$count selected',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: colors.primary,
-              ),
+              style: NightshadeTypography.h6.copyWith(color: colors.primary),
             ),
           ),
 
@@ -212,7 +208,7 @@ class _ToolbarButton extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: isEnabled ? onPressed : null,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
@@ -228,13 +224,9 @@ class _ToolbarButton extends StatelessWidget {
                 const SizedBox(width: 4),
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
-                    color: isEnabled
+                  style: NightshadeTypography.labelQuiet.copyWith(color: isEnabled
                         ? effectiveColor
-                        : colors.textMuted.withValues(alpha: 0.4),
-                  ),
+                        : colors.textMuted.withValues(alpha: 0.4)),
                 ),
               ],
             ),

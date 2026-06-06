@@ -82,7 +82,7 @@ class _ImportSummaryDialogState extends State<ImportSummaryDialog> {
     );
     return Dialog(
       backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       child: SizedBox(
         width: dialogSize.width,
         height: dialogSize.height,
@@ -170,16 +170,12 @@ class _Header extends StatelessWidget {
               children: [
                 Text(
                   'Import Sequence — ${result.sourceFormat.displayName}',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   '${result.totalNodes} source nodes parsed',
-                  style: TextStyle(fontSize: 12, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
                 ),
               ],
             ),
@@ -189,7 +185,7 @@ class _Header extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: NightshadeDecorations.statusChip(
                 colors.warning,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -198,10 +194,7 @@ class _Header extends StatelessWidget {
                       size: 12, color: colors.warning),
                   const SizedBox(width: 4),
                   Text('Force import',
-                      style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: colors.warning)),
+                      style: NightshadeTypography.labelStrongSm.copyWith(color: colors.warning)),
                 ],
               ),
             ),
@@ -222,20 +215,17 @@ class _NameField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Sequence name',
-            style: TextStyle(
-                fontSize: 12,
-                color: colors.textMuted,
-                fontWeight: FontWeight.w600)),
+            style: NightshadeTypography.h6.copyWith(color: colors.textMuted)),
         const SizedBox(height: 6),
         TextField(
           controller: controller,
           style: TextStyle(color: colors.textPrimary),
           decoration: InputDecoration(
             border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 borderSide: BorderSide(color: colors.border)),
             enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 borderSide: BorderSide(color: colors.border)),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -296,21 +286,18 @@ class _Pill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: NightshadeDecorations.iconChip(
         color,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         borderAlpha: 0.4,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(label,
-              style: TextStyle(
-                  fontSize: 11,
-                  color: color,
-                  fontWeight: FontWeight.w600)),
+              style: NightshadeTypography.labelStrongSm.copyWith(color: color)),
           const SizedBox(width: 6),
           Text(value,
               style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   color: color,
                   fontWeight: FontWeight.w700)),
         ],
@@ -328,14 +315,14 @@ class _MappingTable extends StatelessWidget {
   Widget build(BuildContext context) {
     if (rows.isEmpty) {
       return Text('No mappings were recorded.',
-          style: TextStyle(fontSize: 12, color: colors.textMuted));
+          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted));
     }
     final headerStyle = TextStyle(
-      fontSize: 11,
+      fontSize: NightshadeTypography.fontSize11,
       color: colors.textMuted,
       fontWeight: FontWeight.w700,
     );
-    final cellStyle = TextStyle(fontSize: 12, color: colors.textSecondary);
+    final cellStyle = TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary);
     final droppedCellStyle = cellStyle.copyWith(
       color: colors.textMuted,
       fontStyle: FontStyle.italic,
@@ -344,15 +331,12 @@ class _MappingTable extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Mapping',
-            style: TextStyle(
-                fontSize: 12,
-                color: colors.textMuted,
-                fontWeight: FontWeight.w600)),
+            style: NightshadeTypography.h6.copyWith(color: colors.textMuted)),
         const SizedBox(height: 6),
         Container(
           decoration: BoxDecoration(
             border: Border.all(color: colors.border),
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           ),
           clipBehavior: Clip.antiAlias,
           child: SingleChildScrollView(
@@ -405,10 +389,7 @@ class _DroppedSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('Dropped (${dropped.length})',
-            style: TextStyle(
-                fontSize: 12,
-                color: colors.textMuted,
-                fontWeight: FontWeight.w600)),
+            style: NightshadeTypography.h6.copyWith(color: colors.textMuted)),
         const SizedBox(height: 6),
         for (final d in dropped)
           Padding(
@@ -421,7 +402,7 @@ class _DroppedSection extends StatelessWidget {
                   child: Text(
                     '${d.sourceType} — ${d.name} (${_reasonLabel(d.reason)})',
                     style: TextStyle(
-                        fontSize: 12, color: colors.textSecondary),
+                        fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
                   ),
                 ),
               ],
@@ -471,7 +452,7 @@ class _UnsupportedSection extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 2),
             child: Text('• ${u.sourceType} — ${u.name}',
                 style:
-                    TextStyle(fontSize: 12, color: colors.textSecondary)),
+                    TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary)),
           ),
       ],
     );
@@ -494,10 +475,7 @@ class _DestinationPicker extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('After import',
-            style: TextStyle(
-                fontSize: 12,
-                color: colors.textMuted,
-                fontWeight: FontWeight.w600)),
+            style: NightshadeTypography.h6.copyWith(color: colors.textMuted)),
         const SizedBox(height: 6),
         RadioListTile<ImportDestination>(
           dense: true,
@@ -509,7 +487,7 @@ class _DestinationPicker extends StatelessWidget {
           },
           title: Text('Open in editor (save + load)',
               style:
-                  TextStyle(fontSize: 13, color: colors.textPrimary)),
+                  TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary)),
         ),
         RadioListTile<ImportDestination>(
           dense: true,
@@ -521,7 +499,7 @@ class _DestinationPicker extends StatelessWidget {
           },
           title: Text('Save to library (do not open)',
               style:
-                  TextStyle(fontSize: 13, color: colors.textPrimary)),
+                  TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary)),
         ),
       ],
     );

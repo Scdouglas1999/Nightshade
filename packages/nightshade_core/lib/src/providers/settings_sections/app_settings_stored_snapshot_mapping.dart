@@ -1,5 +1,39 @@
 part of '../settings_provider.dart';
 
+/// P1 — Observer-location "unset" detection.
+///
+/// Latitude/longitude/elevation default to 0.0 when the user has never
+/// entered a location (the DB seed and every loader fall back to 0.0). The
+/// point (0°, 0°) is in the Gulf of Guinea — a perfectly valid coordinate,
+/// but in practice it is the unmistakable signature of "never configured".
+/// A whole night planned for that point (rise/set times, moon separation,
+/// meridian flips, FITS SITELAT/SITELONG) is silently wrong.
+///
+/// This extension exposes a loud, model-level signal so pre-flight / Smart
+/// Night / scheduler code can block (or warn) before computing a night for
+/// coordinates the user never actually set. It deliberately lives at the
+/// model level (no UI here) so every consumer shares one definition of
+/// "location not set".
+extension LocationUnsetDetection on AppSettingsState {
+  /// Tolerance (in degrees) around the null island within which we treat the
+  /// coordinate as unset rather than a deliberate (0,0) choice. ~1.1 km at the
+  /// equator — far tighter than any real observing site a user would pick on
+  /// purpose, but wide enough to absorb float round-trips through the DAO's
+  /// string storage.
+  static const double _unsetEpsilonDeg = 0.01;
+
+  /// True when the observer latitude AND longitude are both effectively zero,
+  /// i.e. the user has never set a real location. Elevation is ignored on
+  /// purpose: many valid sites are at (or near) sea level, so a 0 m elevation
+  /// alone must NOT mark the location unset.
+  bool get isLocationUnset =>
+      latitude.abs() < _unsetEpsilonDeg && longitude.abs() < _unsetEpsilonDeg;
+
+  /// Convenience inverse of [isLocationUnset] for readability at call sites
+  /// that gate on a *configured* location.
+  bool get isLocationSet => !isLocationUnset;
+}
+
 extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
   AppSettingsState _settingsFromStoredMap(Map<String, String> allSettings) {
     return AppSettingsState(

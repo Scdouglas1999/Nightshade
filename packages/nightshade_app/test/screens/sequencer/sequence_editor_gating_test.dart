@@ -185,7 +185,7 @@ void main() {
           category: ValidationCategory.targets,
           title: 'No target',
           description: 'Add at least one target.',
-          resolutionHint: 'Tap "Add Target" in the Targets tab.',
+          resolutionHint: 'Add a Target Group node with coordinates.',
         ),
         ValidationIssue(
           severity: ValidationSeverity.warning,
@@ -225,7 +225,7 @@ void main() {
       expect(find.text('Targets'), findsOneWidget);
       expect(find.text('Equipment'), findsOneWidget);
       // Resolution hint renders.
-      expect(find.text('Tap "Add Target" in the Targets tab.'),
+      expect(find.text('Add a Target Group node with coordinates.'),
           findsOneWidget);
 
       // Force button returns true when tapped — used by the save-file

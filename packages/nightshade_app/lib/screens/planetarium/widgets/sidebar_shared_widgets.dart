@@ -48,12 +48,12 @@ class InfoRow extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
           ),
           Text(
             value,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w500,
               color: valueColor ?? colors.textPrimary,
               fontFeatures: const [ui.FontFeature.tabularFigures()],
@@ -83,13 +83,8 @@ class InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -99,18 +94,14 @@ class InfoCard extends StatelessWidget {
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: color.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Icon(icon, size: 14, color: color),
               ),
               const SizedBox(width: 10),
               Text(
                 title,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -146,7 +137,7 @@ class TwilightRow extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: isPrimary ? colors.textPrimary : colors.textSecondary,
               fontWeight: isPrimary ? FontWeight.w500 : FontWeight.normal,
             ),
@@ -154,7 +145,7 @@ class TwilightRow extends StatelessWidget {
           Text(
             time,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: isPrimary ? FontWeight.w600 : FontWeight.w500,
               color: isPrimary ? colors.primary : colors.textPrimary,
               fontFeatures: const [ui.FontFeature.tabularFigures()],
@@ -185,13 +176,8 @@ class DarknessCard extends StatelessWidget {
     final hours = duration.inHours;
     final minutes = duration.inMinutes % 60;
 
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         children: [
           Row(
@@ -200,9 +186,9 @@ class DarknessCard extends StatelessWidget {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: colors.primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
-                child: Icon(LucideIcons.moon, size: 16, color: colors.primary),
+                child: Icon(NightshadeIcons.moon, size: 16, color: colors.primary),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -212,7 +198,7 @@ class DarknessCard extends StatelessWidget {
                     Text(
                       'Total Darkness',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: colors.textMuted,
                       ),
                     ),
@@ -220,7 +206,7 @@ class DarknessCard extends StatelessWidget {
                     Text(
                       '${hours}h ${minutes.toString().padLeft(2, '0')}m',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: NightshadeTypography.fontSize20,
                         fontWeight: FontWeight.bold,
                         color: colors.primary,
                         fontFeatures: const [ui.FontFeature.tabularFigures()],
@@ -236,7 +222,7 @@ class DarknessCard extends StatelessWidget {
             height: 4,
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(2),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
             ),
             child: Row(
               children: [
@@ -245,7 +231,7 @@ class DarknessCard extends StatelessWidget {
                   child: Container(
                     decoration: BoxDecoration(
                       color: colors.primary,
-                      borderRadius: BorderRadius.circular(2),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
                     ),
                   ),
                 ),
@@ -263,11 +249,11 @@ class DarknessCard extends StatelessWidget {
             children: [
               Text(
                 'Astro Dusk: ${DateFormat('HH:mm').format(twilight.astronomicalDusk!.toLocal())}',
-                style: TextStyle(fontSize: 10, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
               ),
               Text(
                 'Astro Dawn: ${DateFormat('HH:mm').format(twilight.astronomicalDawn!.toLocal())}',
-                style: TextStyle(fontSize: 10, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
               ),
             ],
           ),
@@ -323,7 +309,7 @@ class _TargetCardState extends State<TargetCard> {
             color: _isHovered
                 ? widget.colors.surfaceAlt
                 : widget.colors.background,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(
               color: _isHovered
                   ? widget.colors.primary.withValues(alpha: 0.5)
@@ -343,11 +329,7 @@ class _TargetCardState extends State<TargetCard> {
                             widget.name,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: widget.colors.textPrimary,
-                            ),
+                            style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -359,7 +341,7 @@ class _TargetCardState extends State<TargetCard> {
                             decoration: BoxDecoration(
                               color:
                                   widget.colors.primary.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                             ),
                             constraints: const BoxConstraints(maxWidth: 72),
                             child: Text(
@@ -367,7 +349,7 @@ class _TargetCardState extends State<TargetCard> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: NightshadeTypography.fontSize10,
                                 fontWeight: FontWeight.w600,
                                 color: widget.colors.primary,
                               ),
@@ -382,7 +364,7 @@ class _TargetCardState extends State<TargetCard> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: widget.colors.textMuted,
                       ),
                     ),
@@ -399,7 +381,7 @@ class _TargetCardState extends State<TargetCard> {
                       Tooltip(
                         message: 'Frame target',
                         child: IconButton(
-                          icon: const Icon(LucideIcons.frame, size: 15),
+                          icon: const Icon(NightshadeIcons.frame, size: 15),
                           color: widget.colors.primary,
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints.tightFor(
@@ -432,16 +414,12 @@ class _TargetCardState extends State<TargetCard> {
                 children: [
                   Text(
                     widget.altitude,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: widget.colors.success,
-                    ),
+                    style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.success),
                   ),
                   Text(
                     widget.transit,
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                       color: widget.colors.textMuted,
                     ),
                   ),

@@ -63,7 +63,7 @@ class _MpcExportPanelState extends ConsumerState<MpcExportPanel> {
                   Text(
                     '${_selectedIds.length} selected',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: widget.colors.primary,
                       fontWeight: FontWeight.w500,
                     ),
@@ -74,7 +74,7 @@ class _MpcExportPanelState extends ConsumerState<MpcExportPanel> {
             Text(
               'Select observations to include in MPC 80-column format report',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: widget.colors.textMuted,
               ),
             ),
@@ -85,7 +85,7 @@ class _MpcExportPanelState extends ConsumerState<MpcExportPanel> {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: widget.colors.error.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                   border: Border.all(
                     color: widget.colors.error.withValues(alpha: 0.3),
                   ),
@@ -103,7 +103,7 @@ class _MpcExportPanelState extends ConsumerState<MpcExportPanel> {
                         'Set your 3-character MPC observatory code in '
                         'Settings > Science > MPC before exporting.',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: widget.colors.error,
                         ),
                       ),
@@ -206,7 +206,7 @@ class _MpcExportPanelState extends ConsumerState<MpcExportPanel> {
               Text(
                 'Exported: $_lastExportPath',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   color: widget.colors.textMuted,
                 ),
                 maxLines: 1,
@@ -336,9 +336,7 @@ class _ObservationGroupTile extends StatelessWidget {
             Expanded(
               child: Text(
                 group.displayName,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.h6.copyWith(
                   color: colors.textPrimary,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -350,18 +348,18 @@ class _ObservationGroupTile extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: NightshadeDecorations.statusChip(
                   colors.success,
-                  borderRadius: BorderRadius.circular(3),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
                   bordered: false,
                 ),
                 child: Text(
                   'Known',
-                  style: TextStyle(fontSize: 9, color: colors.success),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.success),
                 ),
               ),
             const SizedBox(width: 8),
             Text(
               '${group.observations.length} obs',
-              style: TextStyle(fontSize: 10, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
             ),
             if (group.nightCount > 1) ...[
               const SizedBox(width: 6),
@@ -369,13 +367,13 @@ class _ObservationGroupTile extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: NightshadeDecorations.statusChip(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(3),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
                   bordered: false,
                 ),
                 child: Text(
                   '${group.nightCount} nights',
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: NightshadeTypography.fontSize9,
                     color: colors.primary,
                     fontWeight: FontWeight.w500,
                   ),
@@ -385,7 +383,7 @@ class _ObservationGroupTile extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               '${(group.averageConfidence * 100).toStringAsFixed(0)}%',
-              style: TextStyle(fontSize: 10, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
             ),
           ],
         ),
@@ -410,7 +408,7 @@ class _ObservationGroupTile extends StatelessWidget {
                     child: Text(
                       _formatTimestamp(obs.timestamp),
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: colors.textSecondary,
                         fontFeatures: const [FontFeature.tabularFigures()],
                       ),
@@ -419,7 +417,7 @@ class _ObservationGroupTile extends StatelessWidget {
                   Text(
                     _formatRaBrief(obs.raDegrees),
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                       color: colors.textMuted,
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
@@ -428,7 +426,7 @@ class _ObservationGroupTile extends StatelessWidget {
                   Text(
                     _formatDecBrief(obs.decDegrees),
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                       color: colors.textMuted,
                       fontFeatures: const [FontFeature.tabularFigures()],
                     ),
@@ -436,7 +434,7 @@ class _ObservationGroupTile extends StatelessWidget {
                   const SizedBox(width: 8),
                   Text(
                     '${obs.motionArcsecPerMinute.toStringAsFixed(1)}"/m',
-                    style: TextStyle(fontSize: 10, color: colors.textMuted),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                   ),
                 ],
               ),
@@ -501,7 +499,7 @@ class _SmallActionButton extends StatelessWidget {
           color: isDisabled
               ? colors.surfaceAlt.withValues(alpha: 0.5)
               : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
           border: Border.all(
             color: isDisabled
                 ? colors.border.withValues(alpha: 0.3)
@@ -511,7 +509,7 @@ class _SmallActionButton extends StatelessWidget {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             fontWeight: FontWeight.w500,
             color: isDisabled ? colors.textMuted : colors.textSecondary,
           ),

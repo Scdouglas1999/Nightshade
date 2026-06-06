@@ -191,7 +191,7 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
         ),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.border),
         ),
         child: Row(
@@ -207,7 +207,7 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
               child: Text(
                 'Tip: Start with a Target Header',
                 style: TextStyle(
-                  fontSize: isMobile ? 11 : 12,
+                  fontSize: isMobile ? NightshadeTypography.fontSize11 : NightshadeTypography.fontSize12,
                   color: colors.textSecondary,
                 ),
                 softWrap: false,

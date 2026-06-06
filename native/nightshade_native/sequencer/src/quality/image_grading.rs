@@ -89,6 +89,7 @@ impl ImageQualityCheck {
             || self.eccentricity_threshold.is_some()
             || self.star_count_min.is_some()
     }
+
 }
 
 /// Outcome of grading a single frame.
@@ -366,21 +367,77 @@ mod tests {
     }
 
     #[test]
-    fn eccentricity_check() {
+    fn elongated_frame_above_threshold_is_rejected() {
+        // The capture pipeline now measures per-frame eccentricity from star
+        // shape moments, so a trailed frame above the configured threshold
+        // must be culled. This is the gate that was previously un-fireable.
         let check = ImageQualityCheck {
             eccentricity_threshold: Some(0.7),
             ..Default::default()
         };
         let metrics = FrameMetrics {
+            hfr: Some(2.4),
             eccentricity: Some(0.85),
-            ..Default::default()
+            star_count: Some(150),
         };
         match grade_frame(&check, &metrics, None) {
-            FrameGrade::Reject { reason, .. } => {
-                assert!(reason.contains("eccentricity"));
+            FrameGrade::Reject {
+                reason,
+                eccentricity,
+                ..
+            } => {
+                assert!(reason.contains("eccentricity"), "reason: {reason}");
+                assert_eq!(eccentricity, Some(0.85));
             }
-            other => panic!("expected Reject, got {:?}", other),
+            other => panic!("expected Reject for trailed frame, got {:?}", other),
         }
+    }
+
+    #[test]
+    fn round_frame_passes_eccentricity_gate() {
+        let check = ImageQualityCheck {
+            eccentricity_threshold: Some(0.7),
+            ..Default::default()
+        };
+        // A well-guided round frame (low ecc) must pass.
+        let metrics = FrameMetrics {
+            hfr: Some(2.1),
+            eccentricity: Some(0.18),
+            star_count: Some(220),
+        };
+        assert_eq!(grade_frame(&check, &metrics, None), FrameGrade::Pass);
+        // Exact threshold passes (strict > comparison).
+        let metrics_exact = FrameMetrics {
+            eccentricity: Some(0.7),
+            ..Default::default()
+        };
+        assert_eq!(
+            grade_frame(&check, &metrics_exact, None),
+            FrameGrade::Pass,
+            "exact threshold should pass (strict > comparison)"
+        );
+    }
+
+    #[test]
+    fn unmeasured_eccentricity_does_not_reject() {
+        // Honest-absence path: when no stars (or too few reliable stars) were
+        // available, the detector reports None. The gate must NOT reject on
+        // no evidence — None is "unknown", not "bad". (The HFR / star-count
+        // gates cover the genuinely-empty-frame case.)
+        let check = ImageQualityCheck {
+            eccentricity_threshold: Some(0.5),
+            ..Default::default()
+        };
+        let metrics = FrameMetrics {
+            hfr: Some(2.5),
+            eccentricity: None,
+            star_count: Some(120),
+        };
+        assert_eq!(
+            grade_frame(&check, &metrics, None),
+            FrameGrade::Pass,
+            "an unmeasured eccentricity must not produce a no-evidence reject"
+        );
     }
 
     #[test]

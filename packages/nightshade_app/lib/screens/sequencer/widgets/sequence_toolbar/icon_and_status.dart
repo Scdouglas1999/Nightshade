@@ -42,7 +42,7 @@ class _ToolbarIconButtonState extends State<_ToolbarIconButton> {
               color: _isHovered && !isDisabled
                   ? widget.colors.surfaceAlt
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             ),
             child: Icon(
               widget.icon,
@@ -137,7 +137,7 @@ class _StatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: NightshadeDecorations.emphasisSurface(
         badgeColor,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -149,11 +149,7 @@ class _StatusBadge extends StatelessWidget {
           const SizedBox(width: 6),
           Text(
             label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: badgeColor,
-            ),
+            style: NightshadeTypography.labelStrongSm.copyWith(color: badgeColor),
           ),
         ],
       ),

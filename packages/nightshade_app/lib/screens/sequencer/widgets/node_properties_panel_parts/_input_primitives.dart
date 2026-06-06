@@ -23,17 +23,13 @@ class _QuickTimeButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             border: Border.all(color: colors.border),
           ),
           alignment: Alignment.center,
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: colors.textSecondary,
-            ),
+            style: NightshadeTypography.labelQuiet.copyWith(color: colors.textSecondary),
           ),
         ),
       ),
@@ -118,7 +114,7 @@ class _NodeTypeBadge extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
@@ -128,7 +124,7 @@ class _NodeTypeBadge extends StatelessWidget {
             height: 40,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Icon(_getIcon(), size: 20, color: color),
           ),
@@ -139,16 +135,12 @@ class _NodeTypeBadge extends StatelessWidget {
               children: [
                 Text(
                   node.nodeType,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                 ),
                 Text(
                   node.category.name.toUpperCase(),
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     fontWeight: FontWeight.w600,
                     color: color,
                     letterSpacing: 0.5,
@@ -186,7 +178,7 @@ class _PropertyField extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w600,
               color: colors.textSecondary,
               letterSpacing: 0.3,
@@ -248,7 +240,7 @@ class _TextInputState extends State<_TextInput> {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: widget.colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: widget.colors.border),
       ),
       child: TextField(
@@ -257,13 +249,13 @@ class _TextInputState extends State<_TextInput> {
         maxLines: widget.maxLines ?? 1,
         minLines: widget.maxLines != null ? 1 : null,
         style: TextStyle(
-          fontSize: 13,
+          fontSize: NightshadeTypography.fontSize13,
           color: widget.colors.textPrimary,
         ),
         decoration: InputDecoration(
           hintText: widget.hint,
           hintStyle: TextStyle(
-            fontSize: 13,
+            fontSize: NightshadeTypography.fontSize13,
             color: widget.colors.textMuted,
           ),
           border: InputBorder.none,
@@ -358,7 +350,7 @@ class _NumberInputState extends State<_NumberInput> {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: widget.colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: widget.colors.border),
       ),
       child: Row(
@@ -383,7 +375,7 @@ class _NumberInputState extends State<_NumberInput> {
                 }
               },
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: widget.colors.textPrimary,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
@@ -398,7 +390,7 @@ class _NumberInputState extends State<_NumberInput> {
             Text(
               widget.suffix!,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: widget.colors.textMuted,
               ),
             ),
@@ -480,7 +472,7 @@ class _Dropdown<T> extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: DropdownButtonHideUnderline(
@@ -494,7 +486,7 @@ class _Dropdown<T> extends StatelessWidget {
           ),
           dropdownColor: colors.surface,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: NightshadeTypography.fontSize13,
             color: colors.textPrimary,
           ),
           items: items.map((item) {
@@ -546,7 +538,7 @@ class _DangerButtonState extends State<_DangerButton> {
             color: _isHovered
                 ? widget.colors.error.withValues(alpha: 0.1)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(
               color: _isHovered ? widget.colors.error : widget.colors.border,
             ),
@@ -564,13 +556,9 @@ class _DangerButtonState extends State<_DangerButton> {
               const SizedBox(width: 8),
               Text(
                 widget.label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: _isHovered
+                style: NightshadeTypography.labelSm.copyWith(color: _isHovered
                       ? widget.colors.error
-                      : widget.colors.textSecondary,
-                ),
+                      : widget.colors.textSecondary),
               ),
             ],
           ),

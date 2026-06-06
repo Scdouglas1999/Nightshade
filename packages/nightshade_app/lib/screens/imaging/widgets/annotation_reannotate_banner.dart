@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -26,13 +25,13 @@ class ReAnnotateSuggestionBanner extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: NightshadeDecorations.statusChip(
         colors.success,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            LucideIcons.sparkles,
+            NightshadeIcons.sparkle,
             size: 16,
             color: foreground,
           ),
@@ -41,11 +40,7 @@ class ReAnnotateSuggestionBanner extends ConsumerWidget {
             child: Text(
               'Image quality improved ${suggestion.improvementPercent.toStringAsFixed(0)}% - '
               're-annotate to find more objects?',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
+              style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
             ),
           ),
           const SizedBox(width: 8),
@@ -55,20 +50,16 @@ class ReAnnotateSuggestionBanner extends ConsumerWidget {
                   const ReAnnotateSuggestion.none();
               ref.read(annotationServiceProvider).reAnnotate();
             },
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: NightshadeDecorations.tintedBadge(
                 colors.success,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
               child: Text(
                 'Re-annotate',
-                style: TextStyle(
-                  color: foreground,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: foreground),
               ),
             ),
           ),
@@ -78,11 +69,11 @@ class ReAnnotateSuggestionBanner extends ConsumerWidget {
               ref.read(reAnnotateSuggestionProvider.notifier).state =
                   const ReAnnotateSuggestion.none();
             },
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             child: Padding(
               padding: const EdgeInsets.all(4),
               child: Icon(
-                LucideIcons.x,
+                NightshadeIcons.close,
                 size: 14,
                 color: colors.textSecondary,
               ),

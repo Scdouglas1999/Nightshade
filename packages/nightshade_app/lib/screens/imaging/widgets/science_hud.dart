@@ -32,7 +32,7 @@ class ScienceHudPanel extends ConsumerWidget {
       width: double.infinity,
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Padding(
@@ -43,22 +43,18 @@ class ScienceHudPanel extends ConsumerWidget {
           children: [
             Row(
               children: [
-                Icon(LucideIcons.flaskConical, size: 15, color: colors.primary),
+                Icon(NightshadeIcons.science, size: 15, color: colors.primary),
                 const SizedBox(width: 8),
                 Text(
                   'Science HUD',
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                  ),
+                  style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                 ),
                 const Spacer(),
                 Text(
                   'Informational only',
                   style: TextStyle(
                     color: colors.textMuted,
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                   ),
                 ),
               ],
@@ -158,7 +154,7 @@ class ScienceHudPanel extends ConsumerWidget {
               'Overlay layers',
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
               ),
             ),
             const SizedBox(height: 8),
@@ -251,19 +247,19 @@ class ScienceHudPanel extends ConsumerWidget {
               'Differential photometry',
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
               ),
             ),
             const SizedBox(height: 6),
             if (selectedObject != null)
               Text(
                 'Selected: ${selectedObject.commonName ?? selectedObject.name}',
-                style: TextStyle(color: colors.textPrimary, fontSize: 11),
+                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize11),
               )
             else
               Text(
                 'Click an annotated object to select it.',
-                style: TextStyle(color: colors.textMuted, fontSize: 11),
+                style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
               ),
             const SizedBox(height: 8),
             Row(
@@ -350,11 +346,11 @@ class ScienceHudPanel extends ConsumerWidget {
             const SizedBox(height: 6),
             Text(
               'Target: ${photometryTarget?.label ?? 'auto-target'}',
-              style: TextStyle(color: colors.textMuted, fontSize: 10),
+              style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize10),
             ),
             Text(
               'Comparisons: ${comparisonAnchors.isEmpty ? 'auto' : comparisonAnchors.length}',
-              style: TextStyle(color: colors.textMuted, fontSize: 10),
+              style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize10),
             ),
             const SizedBox(height: 8),
             SizedBox(
@@ -426,7 +422,7 @@ class _FeatureToggle extends StatelessWidget {
               title,
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
               ),
             ),
           ),
@@ -558,7 +554,7 @@ class _OfferTile extends StatelessWidget {
         padding: const EdgeInsets.all(8),
         decoration: NightshadeDecorations.emphasisSurface(
           colors.info,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -572,18 +568,14 @@ class _OfferTile extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 11,
-                    ),
+                    style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     body,
                     style: TextStyle(
                       color: colors.textSecondary,
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                       height: 1.3,
                     ),
                   ),
@@ -638,14 +630,14 @@ class _TransparencyUnlockProgress extends ConsumerWidget {
         children: [
           Row(
             children: [
-              Icon(LucideIcons.cloud, size: 11, color: colors.textMuted),
+              Icon(NightshadeIcons.cloud, size: 11, color: colors.textMuted),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
                   'Transparency unlocks at $calibrated / $target calibrated frames',
                   style: TextStyle(
                     color: colors.textMuted,
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                   ),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
@@ -655,7 +647,7 @@ class _TransparencyUnlockProgress extends ConsumerWidget {
           ),
           const SizedBox(height: 4),
           ClipRRect(
-            borderRadius: BorderRadius.circular(3),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
             child: LinearProgressIndicator(
               value: ratio,
               minHeight: 4,
@@ -687,25 +679,25 @@ class _OverlayChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(5),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: active
             ? NightshadeDecorations.selectedSurface(
                 colors.primary,
-                borderRadius: BorderRadius.circular(5),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
                 fillAlpha: 0.2,
               )
             : BoxDecoration(
                 color: colors.surfaceAlt,
                 border: Border.all(color: colors.border),
-                borderRadius: BorderRadius.circular(5),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
               ),
         child: Text(
           label,
           style: TextStyle(
             color: active ? colors.primary : colors.textSecondary,
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             fontWeight: active ? FontWeight.w600 : FontWeight.w400,
           ),
         ),

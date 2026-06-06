@@ -240,7 +240,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                         config.sequenceInterval,
                       ),
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: colors.textMuted,
                       ),
                     ),
@@ -265,7 +265,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                         config.backupInterval,
                       ),
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: colors.textMuted,
                       ),
                     ),
@@ -309,7 +309,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                         Text(
                           'Unsaved changes pending',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: NightshadeTypography.fontSize12,
                             color: colors.warning,
                           ),
                         ),
@@ -319,7 +319,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                     Text(
                       'All changes saved',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: colors.textMuted,
                       ),
                     ),

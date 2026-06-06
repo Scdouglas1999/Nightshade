@@ -189,7 +189,7 @@ class _SortBar extends StatelessWidget {
           Text(
             '$totalCount target${totalCount == 1 ? '' : 's'}',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textMuted,
               letterSpacing: 0.4,
             ),
@@ -207,7 +207,7 @@ class _SortBar extends StatelessWidget {
               child: DropdownButton<ProgressSort>(
                 value: sort,
                 isDense: true,
-                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
                 dropdownColor: colors.surface,
                 iconSize: 14,
                 items: const [
@@ -260,16 +260,13 @@ class _ProgressRow extends StatelessWidget {
     final framesLabel =
         '${progress.totalCapturedFrames} / ${progress.totalGoalFrames}';
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: NightshadeTokens.borderRadiusLg,
-        border: Border.all(color: colors.border),
-      ),
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusLg,
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           onTap: onToggleExpand,
           child: Padding(
             padding: NightshadeTokens.cardPadding,
@@ -286,9 +283,7 @@ class _ProgressRow extends StatelessWidget {
                         children: [
                           Text(
                             progress.targetName,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
+                            style: NightshadeTypography.h5.copyWith(
                               color: colors.textPrimary,
                             ),
                           ),
@@ -298,7 +293,7 @@ class _ProgressRow extends StatelessWidget {
                               child: Text(
                                 'No integration goals set',
                                 style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: NightshadeTypography.fontSize11,
                                   color: colors.textMuted,
                                 ),
                               ),
@@ -309,7 +304,7 @@ class _ProgressRow extends StatelessWidget {
                               child: Text(
                                 'No frames captured yet',
                                 style: TextStyle(
-                                  fontSize: 11,
+                                  fontSize: NightshadeTypography.fontSize11,
                                   color: colors.textMuted,
                                 ),
                               ),
@@ -344,7 +339,7 @@ class _ProgressRow extends StatelessWidget {
                                   textAlign: TextAlign.right,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    fontSize: 12,
+                                    fontSize: NightshadeTypography.fontSize12,
                                     color: colors.textSecondary,
                                     fontFeatures: const [
                                       FontFeature.tabularFigures(),
@@ -360,7 +355,7 @@ class _ProgressRow extends StatelessWidget {
                                   textAlign: TextAlign.right,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    fontSize: 12,
+                                    fontSize: NightshadeTypography.fontSize12,
                                     color: colors.textSecondary,
                                     fontFeatures: const [
                                       FontFeature.tabularFigures(),
@@ -376,7 +371,7 @@ class _ProgressRow extends StatelessWidget {
                                   textAlign: TextAlign.right,
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
-                                    fontSize: 12,
+                                    fontSize: NightshadeTypography.fontSize12,
                                     color: colors.textMuted,
                                   ),
                                 ),
@@ -483,11 +478,11 @@ class _ProgressBar extends StatelessWidget {
           height: 16,
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(color: colors.border),
           ),
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             child: Align(
               alignment: Alignment.centerLeft,
               child: FractionallySizedBox(
@@ -502,7 +497,7 @@ class _ProgressBar extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: FontWeight.w700,
             color: colors.textPrimary,
             fontFeatures: const [FontFeature.tabularFigures()],
@@ -533,7 +528,7 @@ class _PerFilterTable extends StatelessWidget {
           'No integration goals are defined for this target. Add filter '
           'goals in the Target Queue tab to start tracking progress.',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             color: colors.textSecondary,
             height: 1.4,
           ),
@@ -548,7 +543,7 @@ class _PerFilterTable extends StatelessWidget {
             Text(
               'Per filter',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w700,
                 color: colors.textMuted,
                 letterSpacing: 0.5,
@@ -558,7 +553,7 @@ class _PerFilterTable extends StatelessWidget {
             Text(
               'Total frames $totalFramesLabel',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
@@ -592,9 +587,7 @@ class _FilterProgressRow extends StatelessWidget {
           child: Text(
             filter.filter,
             overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
+            style: NightshadeTypography.h6.copyWith(
               color: colors.textPrimary,
             ),
           ),
@@ -616,7 +609,7 @@ class _FilterProgressRow extends StatelessWidget {
             textAlign: TextAlign.right,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textSecondary,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
@@ -648,9 +641,7 @@ class _ProgressEmptyState extends StatelessWidget {
             const SizedBox(height: NightshadeTokens.spaceLg),
             Text(
               'No imaging history yet',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+              style: NightshadeTypography.h4.copyWith(
                 color: colors.textPrimary,
               ),
             ),
@@ -661,7 +652,7 @@ class _ProgressEmptyState extends StatelessWidget {
               'pace.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: colors.textSecondary,
                 height: 1.4,
               ),
@@ -700,9 +691,7 @@ class _ProgressErrorState extends StatelessWidget {
             const SizedBox(height: NightshadeTokens.spaceLg),
             Text(
               'Failed to load progress',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+              style: NightshadeTypography.h4.copyWith(
                 color: colors.textPrimary,
               ),
             ),
@@ -711,7 +700,7 @@ class _ProgressErrorState extends StatelessWidget {
               error.toString(),
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textSecondary,
               ),
             ),

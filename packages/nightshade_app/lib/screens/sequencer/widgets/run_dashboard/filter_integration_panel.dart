@@ -27,6 +27,8 @@ class RunDashboardFilterIntegration extends ConsumerWidget {
     final filterNames = <String>{
       ...totals.goalSecs.keys,
       ...totals.integrationSecs.keys,
+      ...totals.totalAcquiredSecs.keys,
+      if (totals.inFlightFilter != null) totals.inFlightFilter!,
     }.toList();
     filterNames.sort((a, b) {
       final ia = preferred.indexOf(a);
@@ -50,7 +52,7 @@ class RunDashboardFilterIntegration extends ConsumerWidget {
                 child: Text(
                   'PER-FILTER INTEGRATION',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.6,
                     color: colors.textMuted,
@@ -68,7 +70,7 @@ class RunDashboardFilterIntegration extends ConsumerWidget {
               child: Text(
                 'No exposures configured.',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textMuted,
                 ),
               ),
@@ -81,6 +83,10 @@ class RunDashboardFilterIntegration extends ConsumerWidget {
                   name: f,
                   acquired: totals.integrationSecs[f] ?? 0.0,
                   goal: totals.goalSecs[f] ?? 0.0,
+                  rejected: totals.rejectedSecsFor(f),
+                  inFlight: totals.inFlightFilter == f
+                      ? totals.inFlightElapsedSecs
+                      : 0.0,
                 ),
                 if (f != filterNames.last)
                   const SizedBox(height: NightshadeTokens.spaceSm),
@@ -95,14 +101,24 @@ class RunDashboardFilterIntegration extends ConsumerWidget {
 class _FilterRow extends StatelessWidget {
   final NightshadeColors colors;
   final String name;
+
+  /// Accepted (usable) integration seconds.
   final double acquired;
   final double goal;
+
+  /// Rejected integration seconds (total acquired minus accepted).
+  final double rejected;
+
+  /// In-flight exposure elapsed seconds for this filter (0 if not current).
+  final double inFlight;
 
   const _FilterRow({
     required this.colors,
     required this.name,
     required this.acquired,
     required this.goal,
+    this.rejected = 0.0,
+    this.inFlight = 0.0,
   });
 
   Color _bandColor(String f, NightshadeColors c) {
@@ -135,8 +151,13 @@ class _FilterRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = _bandColor(name, colors);
-    final fraction =
+    // The accepted bar measures usable signal; the in-flight overlay extends
+    // it by the current exposure's elapsed time so integration ticks up live
+    // (the sub isn't accepted until written, so it's drawn as a lighter cap).
+    final acceptedFraction =
         goal > 0 ? (acquired / goal).clamp(0.0, 1.0) : 0.0;
+    final liveFraction =
+        goal > 0 ? ((acquired + inFlight) / goal).clamp(0.0, 1.0) : 0.0;
     final acquiredStr = formatSeconds(acquired);
     final goalStr = goal > 0 ? formatSeconds(goal) : '—';
 
@@ -157,6 +178,22 @@ class _FilterRow extends StatelessWidget {
         overflow: TextOverflow.ellipsis,
       );
 
+      // Secondary line: how much was rejected (spent-but-unusable). Only
+      // shown when there's a non-trivial gap so a clean filter stays quiet.
+      final hasRejected = rejected >= 1.0;
+      final rejectedText = hasRejected
+          ? Text(
+              '−${formatSeconds(rejected)} rejected',
+              textAlign: stacked ? TextAlign.left : TextAlign.right,
+              style: NightshadeTypography.withTabular(
+                NightshadeTypography.captionSm.copyWith(
+                  color: colors.warning,
+                ),
+              ),
+              overflow: TextOverflow.ellipsis,
+            )
+          : null;
+
       final swatch = Container(
         width: 18,
         height: 18,
@@ -169,7 +206,7 @@ class _FilterRow extends StatelessWidget {
         child: Text(
           name.length > 3 ? name.substring(0, 3) : name,
           style: TextStyle(
-            fontSize: 9,
+            fontSize: NightshadeTypography.fontSize9,
             fontWeight: FontWeight.w700,
             color: color,
           ),
@@ -186,8 +223,22 @@ class _FilterRow extends StatelessWidget {
                   BorderRadius.circular(NightshadeTokens.radiusXs),
             ),
           ),
+          // In-flight cap: the live extension beyond accepted, drawn lighter
+          // so it reads as "in progress, not yet banked."
+          if (liveFraction > acceptedFraction)
+            FractionallySizedBox(
+              widthFactor: liveFraction,
+              child: Container(
+                height: 12,
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.45),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusXs),
+                ),
+              ),
+            ),
           FractionallySizedBox(
-            widthFactor: fraction,
+            widthFactor: acceptedFraction,
             child: Container(
               height: 12,
               decoration: BoxDecoration(
@@ -213,9 +264,22 @@ class _FilterRow extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             bar,
+            if (rejectedText != null) ...[
+              const SizedBox(height: 2),
+              rejectedText,
+            ],
           ],
         );
       }
+
+      final amountColumn = Column(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          amountText,
+          if (rejectedText != null) rejectedText,
+        ],
+      );
 
       return Row(
         children: [
@@ -228,7 +292,7 @@ class _FilterRow extends StatelessWidget {
           Flexible(
             child: ConstrainedBox(
               constraints: const BoxConstraints(minWidth: 60, maxWidth: 110),
-              child: amountText,
+              child: amountColumn,
             ),
           ),
         ],

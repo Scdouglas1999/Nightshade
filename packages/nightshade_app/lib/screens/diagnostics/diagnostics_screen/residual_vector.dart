@@ -22,16 +22,12 @@ class _ResidualVectorCard extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 'Astrometric Residuals',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
               ),
               const Spacer(),
               Text(
                 '${residuals.length} vectors',
-                style: TextStyle(fontSize: 11, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
               ),
             ],
           ),
@@ -120,16 +116,12 @@ class _StatChip extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 10, color: colors.textMuted),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
         ),
         const SizedBox(height: 2),
         Text(
           value,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
         ),
       ],
     );

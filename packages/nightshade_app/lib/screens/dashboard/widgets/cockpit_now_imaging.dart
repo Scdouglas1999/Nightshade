@@ -42,7 +42,7 @@ class CockpitNowImaging extends ConsumerWidget {
               child: Text(
                 'No active target — load a sequence to begin.',
                 style: TextStyle(
-                  fontSize: 12.5,
+                  fontSize: NightshadeTypography.fontSize12_5,
                   fontWeight: FontWeight.w600,
                   color: colors.textSecondary,
                 ),
@@ -63,11 +63,8 @@ class CockpitNowImaging extends ConsumerWidget {
     final altText = sky != null
         ? '${sky.altitudeDeg.toStringAsFixed(1)}°'
         : (hasLocation ? '—' : 'set location');
-    final altColor = sky == null
-        ? colors.textMuted
-        : sky.altitudeDeg < 30
-            ? colors.warning
-            : colors.success;
+    final altColor =
+        sky == null ? colors.textMuted : _altitudeColor(sky, colors);
 
     final setLabel = sky == null
         ? 'To set'
@@ -116,6 +113,22 @@ class CockpitNowImaging extends ConsumerWidget {
   }
 }
 
+/// Grade the target's altitude against the *effective horizon* the rest of
+/// the dashboard uses (`sky.horizonDeg`) instead of a hardcoded 30°. Below the
+/// horizon the target is unobservable (error); within a margin above it the
+/// target is low and degrading (warning); comfortably above it is good. The
+/// 15° margin is clamped so a high obstruction horizon (e.g. 40°) still leaves
+/// a sensible "low" band rather than collapsing warning/success together.
+Color _altitudeColor(RunDashboardSkyStats sky, NightshadeColors colors) {
+  final horizon = sky.horizonDeg;
+  if (sky.altitudeDeg <= horizon) return colors.error;
+  final margin = (90.0 - horizon) * 0.25 < 15.0
+      ? (90.0 - horizon) * 0.25
+      : 15.0;
+  if (sky.altitudeDeg < horizon + margin) return colors.warning;
+  return colors.success;
+}
+
 class _Identity extends StatelessWidget {
   final NightshadeColors colors;
   final TargetHeaderNode target;
@@ -133,7 +146,7 @@ class _Identity extends StatelessWidget {
           child: Text(
             target.displayName,
             style: TextStyle(
-              fontSize: 16,
+              fontSize: NightshadeTypography.fontSize16,
               fontWeight: FontWeight.w700,
               color: colors.textPrimary,
             ),
@@ -191,7 +204,7 @@ class _StatChip extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 9.5,
+                fontSize: NightshadeTypography.fontSize9_5,
                 color: colors.textMuted,
                 letterSpacing: 0.3,
                 fontWeight: FontWeight.w600,
@@ -204,7 +217,7 @@ class _StatChip extends StatelessWidget {
           value,
           style: NightshadeTypography.withTabular(
             TextStyle(
-              fontSize: 15,
+              fontSize: NightshadeTypography.fontSize15,
               fontWeight: FontWeight.w700,
               color: valueColor ?? colors.textPrimary,
             ),
@@ -254,7 +267,7 @@ class _FrameChip extends ConsumerWidget {
               Text(
                 'This frame',
                 style: TextStyle(
-                  fontSize: 9.5,
+                  fontSize: NightshadeTypography.fontSize9_5,
                   color: colors.textMuted,
                   letterSpacing: 0.3,
                   fontWeight: FontWeight.w600,
@@ -267,7 +280,7 @@ class _FrameChip extends ConsumerWidget {
             valueText,
             style: NightshadeTypography.withTabular(
               TextStyle(
-                fontSize: 15,
+                fontSize: NightshadeTypography.fontSize15,
                 fontWeight: FontWeight.w700,
                 color: valueColor,
               ),
@@ -312,7 +325,7 @@ class _SequenceChip extends ConsumerWidget {
             Text(
               'Sequence',
               style: TextStyle(
-                fontSize: 9.5,
+                fontSize: NightshadeTypography.fontSize9_5,
                 color: colors.textMuted,
                 letterSpacing: 0.3,
                 fontWeight: FontWeight.w600,
@@ -330,7 +343,7 @@ class _SequenceChip extends ConsumerWidget {
               '${seq.completedExposures}/${seq.totalExposures}',
               style: NightshadeTypography.withTabular(
                 TextStyle(
-                  fontSize: 15,
+                  fontSize: NightshadeTypography.fontSize15,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                 ),
@@ -340,9 +353,7 @@ class _SequenceChip extends ConsumerWidget {
             Text(
               '${(seq.progressPercent * 100).toStringAsFixed(0)}%',
               style: NightshadeTypography.withTabular(
-                TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+                NightshadeTypography.labelStrongSm.copyWith(
                   color: colors.primary,
                 ),
               ),
@@ -352,7 +363,7 @@ class _SequenceChip extends ConsumerWidget {
               Text(
                 '~${formatSeconds(seq.estimatedRemainingSecs!)}',
                 style: NightshadeTypography.withTabular(
-                  TextStyle(fontSize: 11, color: colors.textMuted),
+                  TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                 ),
               ),
             ],

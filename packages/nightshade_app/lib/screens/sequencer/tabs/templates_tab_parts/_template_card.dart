@@ -141,7 +141,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
           duration: const Duration(milliseconds: 200),
           decoration: BoxDecoration(
             color: widget.colors.surface,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(
               color: _isHovered
                   ? templateColor.withValues(alpha: 0.6)
@@ -152,7 +152,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
           ),
           child: InkWell(
             onTap: canEdit ? () => _useTemplate(context) : null,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -166,7 +166,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                         height: 48,
                         decoration: NightshadeDecorations.tintedBadge(
                           templateColor,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                         ),
                         child: Icon(
                           _getTemplateIcon(),
@@ -217,7 +217,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                   Text(
                     widget.template.name,
                     style: TextStyle(
-                      fontSize: 16,
+                      fontSize: NightshadeTypography.fontSize16,
                       fontWeight: FontWeight.w700,
                       color: widget.colors.textPrimary,
                     ),
@@ -234,7 +234,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                           ? 'No description'
                           : widget.template.description,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: widget.colors.textSecondary,
                         height: 1.5,
                       ),
@@ -257,7 +257,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                           Text(
                             '${widget.template.nodes.length} nodes',
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: NightshadeTypography.fontSize11,
                               color: widget.colors.textMuted,
                             ),
                           ),
@@ -272,7 +272,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                           Text(
                             DateFormat.yMd().format(widget.template.createdAt),
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: NightshadeTypography.fontSize11,
                               color: widget.colors.textMuted,
                             ),
                           ),
@@ -290,7 +290,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                               horizontal: 12, vertical: 6),
                           decoration: BoxDecoration(
                             color: templateColor,
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -300,11 +300,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                               const SizedBox(width: 6),
                               Text(
                                 'Use',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  color: onPrimary,
-                                ),
+                                style: NightshadeTypography.labelStrongSm.copyWith(color: onPrimary),
                               ),
                             ],
                           ),
@@ -345,7 +341,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: widget.colors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
         title: Row(
           children: [
             Icon(LucideIcons.target, size: 20, color: widget.colors.warning),
@@ -595,7 +591,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: widget.colors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
         title: Text(
           'Delete Template',
           style: TextStyle(color: widget.colors.textPrimary),
@@ -707,10 +703,10 @@ class _SmallIconButtonState extends State<_SmallIconButton> {
               color: !disabled && _isHovered
                   ? NightshadeDecorations.tintedBadge(
                       color,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                     ).color
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             ),
             child: Icon(
               widget.icon,

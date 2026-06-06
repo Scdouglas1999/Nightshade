@@ -89,7 +89,7 @@ class _AdaptiveExposureSettingsState
                 Text(
                   'Adaptive Exposure (Sky-Brightness)',
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: NightshadeTypography.fontSize16,
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
@@ -102,7 +102,7 @@ class _AdaptiveExposureSettingsState
                   'the reference, so SNR stays roughly constant across changing conditions. '
                   'Per-ExposureNode overrides always win at runtime; this page sets the '
                   'default applied to nodes without their own block.',
-              style: TextStyle(fontSize: 12, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
             ),
             const SizedBox(height: NightshadeTokens.spaceLg),
 
@@ -112,11 +112,7 @@ class _AdaptiveExposureSettingsState
                 Expanded(
                   child: Text(
                     'Enable global default',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                   ),
                 ),
                 SettingsSwitch(
@@ -210,7 +206,7 @@ class _AdaptiveExposureSettingsState
                 padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
                 decoration: NightshadeDecorations.tintedBadge(
                   colors.info,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,7 +221,7 @@ class _AdaptiveExposureSettingsState
                             'SNR roughly constant. Per-filter overrides are respected; the '
                             'global min/max clamp prevents runaway exposures.',
                         style: TextStyle(
-                            fontSize: 12, color: colors.textSecondary),
+                            fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
                       ),
                     ),
                   ],
@@ -259,23 +255,19 @@ class _LabeledTextField extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: 4),
         TextField(
           controller: controller,
-          style: TextStyle(fontSize: 13, color: colors.textPrimary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
           decoration: InputDecoration(
             isDense: true,
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             border: OutlineInputBorder(
               borderSide: BorderSide(color: colors.border),
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
           ),
           keyboardType: keyboardType,
@@ -309,7 +301,7 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
         padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
         decoration: NightshadeDecorations.tintedBadge(
           colors.warning,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         ),
         child: Row(
           children: [
@@ -320,7 +312,7 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
               child: Text(
                 'No filter wheel on active profile — adaptive applies to every '
                     'capture (mono camera assumption).',
-                style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
               ),
             ),
           ],
@@ -340,17 +332,13 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
       children: [
         Text(
           'Per-filter overrides',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: NightshadeTokens.spaceXs),
         Text(
           'Empty rows inherit the global enable + clamp. Enable a filter to opt it '
               'into adaptive exposure; set min/max to override the global clamps.',
-          style: TextStyle(fontSize: 11, color: colors.textMuted),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),
         ...filterNames.map((filter) => _filterRow(filter, enabledMap, minMap, maxMap)),
@@ -375,7 +363,7 @@ class _PerFilterEditorState extends ConsumerState<_PerFilterEditor> {
             child: Text(
               filter,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textPrimary,
                 fontFamily: 'monospace',
               ),
@@ -477,11 +465,11 @@ class _OverrideFieldState extends State<_OverrideField> {
   Widget build(BuildContext context) {
     return TextField(
       controller: _controller,
-      style: TextStyle(fontSize: 12, color: NightshadeColors.of(context).textPrimary),
+      style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: NightshadeColors.of(context).textPrimary),
       decoration: InputDecoration(
         labelText: widget.label,
         labelStyle:
-            TextStyle(fontSize: 10, color: NightshadeColors.of(context).textMuted),
+            TextStyle(fontSize: NightshadeTypography.fontSize10, color: NightshadeColors.of(context).textMuted),
         isDense: true,
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 8, vertical: 6),

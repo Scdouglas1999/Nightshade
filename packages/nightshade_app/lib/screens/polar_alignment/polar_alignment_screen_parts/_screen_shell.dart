@@ -13,12 +13,12 @@ extension _ScreenShell on _PolarAlignmentScreenState {
         ButtonSegment(
           value: PolarAlignmentMode.threePoint,
           label: Text('TPPA'),
-          icon: Icon(LucideIcons.target, size: 14),
+          icon: Icon(NightshadeIcons.target, size: 14),
         ),
         ButtonSegment(
           value: PolarAlignmentMode.allSky,
           label: Text('All-Sky'),
-          icon: Icon(LucideIcons.globe, size: 14),
+          icon: Icon(NightshadeIcons.globe, size: 14),
         ),
       ],
       selected: {ui.mode},
@@ -29,7 +29,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
 
     final historyButton = NightshadeButton(
       label: 'History',
-      icon: LucideIcons.history,
+      icon: NightshadeIcons.history,
       variant:
           ui.showHistoryPanel ? ButtonVariant.primary : ButtonVariant.ghost,
       size: ButtonSize.small,
@@ -37,7 +37,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
     );
 
     final backButton = IconButton(
-      icon: Icon(LucideIcons.arrowLeft, color: colors.textPrimary),
+      icon: Icon(NightshadeIcons.arrowLeft, color: colors.textPrimary),
       onPressed: isRunning
           ? null
           : () {
@@ -53,7 +53,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
     final titleBlock = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(LucideIcons.compass, color: colors.primary, size: 24),
+        Icon(NightshadeIcons.compass, color: colors.primary, size: 24),
         const SizedBox(width: 12),
         Flexible(
           child: Column(
@@ -63,17 +63,13 @@ extension _ScreenShell on _PolarAlignmentScreenState {
               Text(
                 'Polar Alignment',
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
               ),
               Text(
                 ui.mode.displayName,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textMuted,
                 ),
               ),
@@ -147,7 +143,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
     return Row(
       children: [
         _StatusChip(
-          icon: LucideIcons.camera,
+          icon: NightshadeIcons.camera,
           label: 'Camera',
           isConnected:
               cameraState.connectionState == DeviceConnectionState.connected,
@@ -155,7 +151,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
         ),
         const SizedBox(width: 8),
         _StatusChip(
-          icon: LucideIcons.move,
+          icon: NightshadeIcons.move,
           label: 'Mount',
           isConnected:
               mountState.connectionState == DeviceConnectionState.connected,
@@ -205,7 +201,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
           child: Text(
             state.statusMessage,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
             ),
             overflow: TextOverflow.ellipsis,
@@ -238,7 +234,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
                 child: NightshadeButton(
                   key: PolarAlignmentTutorialKeys.startBtn,
                   label: 'Start Alignment',
-                  icon: LucideIcons.play,
+                  icon: NightshadeIcons.play,
                   variant: ButtonVariant.primary,
                   onPressed: equipmentReady ? _startAlignment : null,
                 ),
@@ -251,7 +247,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
             wrapButton(
               NightshadeButton(
                 label: 'Stop',
-                icon: LucideIcons.square,
+                icon: NightshadeIcons.stop,
                 variant: ButtonVariant.destructive,
                 size: ButtonSize.small,
                 onPressed: _stopAlignment,
@@ -264,7 +260,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
             wrapButton(
               NightshadeButton(
                 label: 'Stop',
-                icon: LucideIcons.square,
+                icon: NightshadeIcons.stop,
                 variant: ButtonVariant.destructive,
                 size: ButtonSize.small,
                 onPressed: _stopAlignment,
@@ -275,7 +271,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
             wrapButton(
               NightshadeButton(
                 label: 'Done',
-                icon: LucideIcons.check,
+                icon: NightshadeIcons.check,
                 variant: ButtonVariant.primary,
                 onPressed: _completeAlignment,
               ),
@@ -288,7 +284,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
             wrapButton(
               NightshadeButton(
                 label: 'Restart',
-                icon: LucideIcons.rotateCcw,
+                icon: NightshadeIcons.undo,
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
                 onPressed: _resetAlignment,
@@ -299,7 +295,7 @@ extension _ScreenShell on _PolarAlignmentScreenState {
             wrapButton(
               NightshadeButton(
                 label: 'Done',
-                icon: LucideIcons.check,
+                icon: NightshadeIcons.check,
                 variant: ButtonVariant.primary,
                 onPressed: () {
                   if (context.canPop()) {

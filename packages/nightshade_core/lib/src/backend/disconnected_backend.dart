@@ -639,6 +639,11 @@ class DisconnectedBackend
   }
 
   @override
+  Future<void> sequencerUpdateWeatherVerdict({bool? unsafeOverride}) async {
+    _throwNotConnected();
+  }
+
+  @override
   Future<String?> sequencerGetCloudMotionJson() async {
     _throwNotConnected();
   }

@@ -61,6 +61,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/imaging/imaging_screen.dart';
+import 'package:nightshade_app/screens/imaging/widgets/imaging_bottom_banner.dart';
 import 'package:nightshade_app/screens/imaging/widgets/live_preview_area.dart';
 import 'package:nightshade_app/screens/imaging/widgets/panel_widgets.dart';
 import 'package:nightshade_app/widgets/filter_wheel_selector.dart';
@@ -159,12 +160,12 @@ void main() {
             'Desktop layout is provided by AdaptivePanelLayout (resizable '
             'split) now that ResizablePanel has been removed.');
     expect(find.byType(ResizablePanel), findsNothing);
-    // Desktop keeps the bottom control panel (QuickStatsPanel only renders
-    // there), proving we took the non-phone primary branch.
-    expect(find.byType(QuickStatsPanel), findsOneWidget,
+    // Desktop keeps the thin bottom control banner (only rendered on the
+    // non-phone primary branch), proving we took that branch.
+    expect(find.byType(ImagingBottomBanner), findsOneWidget,
         reason:
-            'The desktop primary column keeps the capped bottom control '
-            'panel with its Stats section.');
+            'The desktop primary column keeps the thin bottom control banner '
+            '(Snapshot/Loop + duration + filters + stats + display).');
   });
 
   testWidgets('renders_without_throwing: default MockBackend pump is exception-free',
@@ -241,7 +242,7 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    final disconnectedBtn = tester.widget<BigActionButton>(
+    final disconnectedBtn = tester.widget<SmallButton>(
       find.byKey(ImagingTutorialKeys.snapshotBtn),
     );
     expect(disconnectedBtn.isEnabled, isFalse,
@@ -283,7 +284,7 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    final snapshotBtn = tester.widget<BigActionButton>(
+    final snapshotBtn = tester.widget<SmallButton>(
       find.byKey(ImagingTutorialKeys.snapshotBtn),
     );
     expect(snapshotBtn.isEnabled, isTrue,
@@ -291,7 +292,7 @@ void main() {
             'Snapshot button must be enabled when cameraStateProvider reports '
             'connected and no capture is in-flight.');
 
-    final loopBtn = tester.widget<BigActionButton>(
+    final loopBtn = tester.widget<SmallButton>(
       find.byKey(ImagingTutorialKeys.loopBtn),
     );
     expect(loopBtn.isEnabled, isTrue,
@@ -371,10 +372,11 @@ void main() {
   });
 
   testWidgets(
-      'camera_temperature_displays_when_connected: QuickStatsPanel formats '
-      'cameraStateProvider.temperature as "X.X°C"', (tester) async {
+      'camera_temperature_displays_when_connected: the bottom banner stats '
+      'readout formats cameraStateProvider.temperature as "X.X°C"',
+      (tester) async {
     _swallowKnownOverflows();
-    // QuickStatsPanel renders '---' when disconnected, 'N/A' when
+    // The banner's stats readout renders '---' when disconnected, 'N/A' when
     // connected without a temperature reading, and 'X.X°C' when both
     // are present. We exercise the happy path: connected + 17.3°C →
     // visible "17.3°C". Why a non-trivial decimal: 0.0 would round-
@@ -399,15 +401,16 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    expect(find.byType(QuickStatsPanel), findsOneWidget,
+    expect(find.byKey(ImagingTutorialKeys.statsPanel), findsOneWidget,
         reason:
-            'QuickStatsPanel is rendered only when the desktop control panel '
-            'is wide enough to fit it; 1600x900 should clear that threshold.');
+            'The banner stats readout renders only when the desktop control '
+            'banner is wide enough to fit it; 1600x900 should clear that '
+            'threshold.');
     expect(find.text('17.3°C'), findsOneWidget,
         reason:
             'The connected camera temperature must surface in the sensor '
             'stat readout — a missing match means the cameraStateProvider '
-            '→ QuickStatsPanel binding has drifted.');
+            '→ banner stats binding has drifted.');
   });
 
   testWidgets(

@@ -43,6 +43,31 @@ mixin _$RadarFrame {
   /// Opacity for animation blending (0.0-1.0)
   double get opacity => throw _privateConstructorUsedError;
 
+  /// Per-cell radar intensity field over the frame's geographic bounds, in
+  /// row-major order (outer list = rows running NORTH→SOUTH, inner list =
+  /// columns running WEST→EAST), each value normalised to 0.0–1.0.
+  ///
+  /// This is the real spatial radar signal decoded from the provider's tiles
+  /// (the reflectivity colormap mapped to intensity per pixel, downsampled to
+  /// this grid). When present and non-empty it lets the cloud-motion analyzer
+  /// track a genuine cloud centroid that MOVES between frames, instead of the
+  /// single uniform [opacity] box that carries no spatial structure.
+  ///
+  /// The grid spans exactly [north]..[south] (rows) and [west]..[east]
+  /// (columns); cell (r, c) covers the geographic sub-rectangle obtained by
+  /// linearly interpolating those bounds. Null when the provider could not
+  /// decode per-cell data (e.g. a tile-less WMS layer or a fetch/decode
+  /// failure) — the analyzer then treats the frame as having no spatial data
+  /// and reports its honest unavailable reason rather than fabricating motion.
+  List<List<double>>? get intensityGrid => throw _privateConstructorUsedError;
+
+  /// True when this frame was produced but carries no usable radar signal
+  /// (the tile fetch or decode failed). Such a frame is emitted — rather than
+  /// silently dropped — so the analyzer/UI can report an honest "no spatial
+  /// radar data" state instead of acting on a fabricated uniform field. A
+  /// no-data frame never contributes density to the analysis.
+  bool get isNoData => throw _privateConstructorUsedError;
+
   /// True if this is a forecast frame vs historical
   bool get isForecast => throw _privateConstructorUsedError;
 
@@ -76,6 +101,8 @@ abstract class $RadarFrameCopyWith<$Res> {
       double east,
       double west,
       double opacity,
+      List<List<double>>? intensityGrid,
+      bool isNoData,
       bool isForecast,
       RadarTileType tileType,
       String? wmsLayers,
@@ -102,6 +129,8 @@ class _$RadarFrameCopyWithImpl<$Res, $Val extends RadarFrame>
     Object? east = null,
     Object? west = null,
     Object? opacity = null,
+    Object? intensityGrid = freezed,
+    Object? isNoData = null,
     Object? isForecast = null,
     Object? tileType = null,
     Object? wmsLayers = freezed,
@@ -136,6 +165,14 @@ class _$RadarFrameCopyWithImpl<$Res, $Val extends RadarFrame>
           ? _value.opacity
           : opacity // ignore: cast_nullable_to_non_nullable
               as double,
+      intensityGrid: freezed == intensityGrid
+          ? _value.intensityGrid
+          : intensityGrid // ignore: cast_nullable_to_non_nullable
+              as List<List<double>>?,
+      isNoData: null == isNoData
+          ? _value.isNoData
+          : isNoData // ignore: cast_nullable_to_non_nullable
+              as bool,
       isForecast: null == isForecast
           ? _value.isForecast
           : isForecast // ignore: cast_nullable_to_non_nullable
@@ -172,6 +209,8 @@ abstract class _$$RadarFrameImplCopyWith<$Res>
       double east,
       double west,
       double opacity,
+      List<List<double>>? intensityGrid,
+      bool isNoData,
       bool isForecast,
       RadarTileType tileType,
       String? wmsLayers,
@@ -196,6 +235,8 @@ class __$$RadarFrameImplCopyWithImpl<$Res>
     Object? east = null,
     Object? west = null,
     Object? opacity = null,
+    Object? intensityGrid = freezed,
+    Object? isNoData = null,
     Object? isForecast = null,
     Object? tileType = null,
     Object? wmsLayers = freezed,
@@ -230,6 +271,14 @@ class __$$RadarFrameImplCopyWithImpl<$Res>
           ? _value.opacity
           : opacity // ignore: cast_nullable_to_non_nullable
               as double,
+      intensityGrid: freezed == intensityGrid
+          ? _value._intensityGrid
+          : intensityGrid // ignore: cast_nullable_to_non_nullable
+              as List<List<double>>?,
+      isNoData: null == isNoData
+          ? _value.isNoData
+          : isNoData // ignore: cast_nullable_to_non_nullable
+              as bool,
       isForecast: null == isForecast
           ? _value.isForecast
           : isForecast // ignore: cast_nullable_to_non_nullable
@@ -261,11 +310,14 @@ class _$RadarFrameImpl implements _RadarFrame {
       required this.east,
       required this.west,
       this.opacity = 1.0,
+      final List<List<double>>? intensityGrid,
+      this.isNoData = false,
       this.isForecast = false,
       this.tileType = RadarTileType.xyz,
       this.wmsLayers,
       final Map<String, String>? wmsAdditionalOptions})
-      : _wmsAdditionalOptions = wmsAdditionalOptions;
+      : _intensityGrid = intensityGrid,
+        _wmsAdditionalOptions = wmsAdditionalOptions;
 
   factory _$RadarFrameImpl.fromJson(Map<String, dynamic> json) =>
       _$$RadarFrameImplFromJson(json);
@@ -301,6 +353,58 @@ class _$RadarFrameImpl implements _RadarFrame {
   @JsonKey()
   final double opacity;
 
+  /// Per-cell radar intensity field over the frame's geographic bounds, in
+  /// row-major order (outer list = rows running NORTH→SOUTH, inner list =
+  /// columns running WEST→EAST), each value normalised to 0.0–1.0.
+  ///
+  /// This is the real spatial radar signal decoded from the provider's tiles
+  /// (the reflectivity colormap mapped to intensity per pixel, downsampled to
+  /// this grid). When present and non-empty it lets the cloud-motion analyzer
+  /// track a genuine cloud centroid that MOVES between frames, instead of the
+  /// single uniform [opacity] box that carries no spatial structure.
+  ///
+  /// The grid spans exactly [north]..[south] (rows) and [west]..[east]
+  /// (columns); cell (r, c) covers the geographic sub-rectangle obtained by
+  /// linearly interpolating those bounds. Null when the provider could not
+  /// decode per-cell data (e.g. a tile-less WMS layer or a fetch/decode
+  /// failure) — the analyzer then treats the frame as having no spatial data
+  /// and reports its honest unavailable reason rather than fabricating motion.
+  final List<List<double>>? _intensityGrid;
+
+  /// Per-cell radar intensity field over the frame's geographic bounds, in
+  /// row-major order (outer list = rows running NORTH→SOUTH, inner list =
+  /// columns running WEST→EAST), each value normalised to 0.0–1.0.
+  ///
+  /// This is the real spatial radar signal decoded from the provider's tiles
+  /// (the reflectivity colormap mapped to intensity per pixel, downsampled to
+  /// this grid). When present and non-empty it lets the cloud-motion analyzer
+  /// track a genuine cloud centroid that MOVES between frames, instead of the
+  /// single uniform [opacity] box that carries no spatial structure.
+  ///
+  /// The grid spans exactly [north]..[south] (rows) and [west]..[east]
+  /// (columns); cell (r, c) covers the geographic sub-rectangle obtained by
+  /// linearly interpolating those bounds. Null when the provider could not
+  /// decode per-cell data (e.g. a tile-less WMS layer or a fetch/decode
+  /// failure) — the analyzer then treats the frame as having no spatial data
+  /// and reports its honest unavailable reason rather than fabricating motion.
+  @override
+  List<List<double>>? get intensityGrid {
+    final value = _intensityGrid;
+    if (value == null) return null;
+    if (_intensityGrid is EqualUnmodifiableListView) return _intensityGrid;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  /// True when this frame was produced but carries no usable radar signal
+  /// (the tile fetch or decode failed). Such a frame is emitted — rather than
+  /// silently dropped — so the analyzer/UI can report an honest "no spatial
+  /// radar data" state instead of acting on a fabricated uniform field. A
+  /// no-data frame never contributes density to the analysis.
+  @override
+  @JsonKey()
+  final bool isNoData;
+
   /// True if this is a forecast frame vs historical
   @override
   @JsonKey()
@@ -331,7 +435,7 @@ class _$RadarFrameImpl implements _RadarFrame {
 
   @override
   String toString() {
-    return 'RadarFrame(timestamp: $timestamp, tileUrlTemplate: $tileUrlTemplate, north: $north, south: $south, east: $east, west: $west, opacity: $opacity, isForecast: $isForecast, tileType: $tileType, wmsLayers: $wmsLayers, wmsAdditionalOptions: $wmsAdditionalOptions)';
+    return 'RadarFrame(timestamp: $timestamp, tileUrlTemplate: $tileUrlTemplate, north: $north, south: $south, east: $east, west: $west, opacity: $opacity, intensityGrid: $intensityGrid, isNoData: $isNoData, isForecast: $isForecast, tileType: $tileType, wmsLayers: $wmsLayers, wmsAdditionalOptions: $wmsAdditionalOptions)';
   }
 
   @override
@@ -348,6 +452,10 @@ class _$RadarFrameImpl implements _RadarFrame {
             (identical(other.east, east) || other.east == east) &&
             (identical(other.west, west) || other.west == west) &&
             (identical(other.opacity, opacity) || other.opacity == opacity) &&
+            const DeepCollectionEquality()
+                .equals(other._intensityGrid, _intensityGrid) &&
+            (identical(other.isNoData, isNoData) ||
+                other.isNoData == isNoData) &&
             (identical(other.isForecast, isForecast) ||
                 other.isForecast == isForecast) &&
             (identical(other.tileType, tileType) ||
@@ -369,6 +477,8 @@ class _$RadarFrameImpl implements _RadarFrame {
       east,
       west,
       opacity,
+      const DeepCollectionEquality().hash(_intensityGrid),
+      isNoData,
       isForecast,
       tileType,
       wmsLayers,
@@ -397,6 +507,8 @@ abstract class _RadarFrame implements RadarFrame {
       required final double east,
       required final double west,
       final double opacity,
+      final List<List<double>>? intensityGrid,
+      final bool isNoData,
       final bool isForecast,
       final RadarTileType tileType,
       final String? wmsLayers,
@@ -435,6 +547,33 @@ abstract class _RadarFrame implements RadarFrame {
 
   /// Opacity for animation blending (0.0-1.0)
   double get opacity;
+  @override
+
+  /// Per-cell radar intensity field over the frame's geographic bounds, in
+  /// row-major order (outer list = rows running NORTH→SOUTH, inner list =
+  /// columns running WEST→EAST), each value normalised to 0.0–1.0.
+  ///
+  /// This is the real spatial radar signal decoded from the provider's tiles
+  /// (the reflectivity colormap mapped to intensity per pixel, downsampled to
+  /// this grid). When present and non-empty it lets the cloud-motion analyzer
+  /// track a genuine cloud centroid that MOVES between frames, instead of the
+  /// single uniform [opacity] box that carries no spatial structure.
+  ///
+  /// The grid spans exactly [north]..[south] (rows) and [west]..[east]
+  /// (columns); cell (r, c) covers the geographic sub-rectangle obtained by
+  /// linearly interpolating those bounds. Null when the provider could not
+  /// decode per-cell data (e.g. a tile-less WMS layer or a fetch/decode
+  /// failure) — the analyzer then treats the frame as having no spatial data
+  /// and reports its honest unavailable reason rather than fabricating motion.
+  List<List<double>>? get intensityGrid;
+  @override
+
+  /// True when this frame was produced but carries no usable radar signal
+  /// (the tile fetch or decode failed). Such a frame is emitted — rather than
+  /// silently dropped — so the analyzer/UI can report an honest "no spatial
+  /// radar data" state instead of acting on a fabricated uniform field. A
+  /// no-data frame never contributes density to the analysis.
+  bool get isNoData;
   @override
 
   /// True if this is a forecast frame vs historical

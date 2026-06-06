@@ -100,7 +100,7 @@ class ScienceStatusBanner extends ConsumerWidget {
       decoration: BoxDecoration(
         color: style.background,
         border: Border.all(color: style.border),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         children: [
@@ -118,7 +118,7 @@ class ScienceStatusBanner extends ConsumerWidget {
                   headline,
                   style: TextStyle(
                     color: style.accent,
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w700,
                   ),
                 ),
@@ -131,7 +131,7 @@ class ScienceStatusBanner extends ConsumerWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         color: colors.textSecondary,
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         height: 1.3,
                       ),
                     ),

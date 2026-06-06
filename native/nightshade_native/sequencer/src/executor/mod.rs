@@ -54,11 +54,108 @@ use tokio::sync::{broadcast, mpsc, RwLock};
 const RECOVERY_NODE_TRIGGER_PREFIX: &str = "recovery_node:";
 const DEFAULT_SAFETY_CHECK_INTERVAL_SECS: u64 = 30;
 
+/// Default staleness window for the Dart weather verdict (Subsystem 2 step 3).
+/// The Dart side pushes the verdict on every 5-minute periodic evaluation plus
+/// on every alert/snooze change; 6 minutes gives the periodic push a full cycle
+/// of slack before a missed push is treated as a dead feed.
+const DEFAULT_WEATHER_VERDICT_STALENESS_SECS: u64 = 360;
+
 fn effective_safety_check_interval_secs(value: u64) -> u64 {
     if value == 0 {
         DEFAULT_SAFETY_CHECK_INTERVAL_SECS
     } else {
         value.clamp(5, 3600)
+    }
+}
+
+/// Resolve the effective weather-verdict staleness window. `0` => the default;
+/// otherwise clamped to a sane floor (the safety poll cadence) so a tiny
+/// misconfiguration cannot make a still-fresh verdict warn every tick, and an
+/// upper bound so a typo cannot disable the observability entirely.
+fn effective_weather_verdict_staleness_secs(value: u64) -> u64 {
+    if value == 0 {
+        DEFAULT_WEATHER_VERDICT_STALENESS_SECS
+    } else {
+        value.clamp(30, 86_400)
+    }
+}
+
+/// Subsystem 2 step 3 (stale-verdict observability): build the loud
+/// "verdict feed stale; holding paused fail-closed" warning that the safety
+/// poll emits when a `Some(true)`=UNSAFE Dart verdict has not been refreshed
+/// within the staleness window.
+///
+/// Returns `Some(message)` ONLY on the rising edge (stale-and-unsafe AND not
+/// already warned), advancing `*already_warned` to `true` so a dead feed does
+/// not flood the event stream every poll. When the condition clears it re-arms
+/// the latch (so a recovered-then-re-degraded feed warns again) and returns
+/// `None`. This is pure observability — it NEVER touches or clears the verdict.
+///
+/// Factored out so the emission decision (gate + rate-limit + message) is
+/// unit-testable without spinning up the full executor task; the loop calls it
+/// and just forwards any returned message as an `ExecutorEvent::Error`.
+fn weather_verdict_stale_warning(
+    stale_unsafe: bool,
+    staleness_secs: u64,
+    already_warned: &mut bool,
+) -> Option<String> {
+    if stale_unsafe {
+        if *already_warned {
+            return None;
+        }
+        *already_warned = true;
+        Some(format!(
+            "Weather verdict feed stale ({}s without a refresh); holding the \
+             sequence paused fail-closed. The last Dart weather verdict was \
+             UNSAFE and has not been refreshed — the hold will continue until a \
+             fresh verdict arrives. Operator attention required.",
+            staleness_secs
+        ))
+    } else {
+        // Fresh (or no-longer-unsafe) verdict — re-arm so a future stale-unsafe
+        // episode warns again.
+        *already_warned = false;
+        None
+    }
+}
+
+/// How a [`SafetyFailMode`] resolves the "no usable safety/weather data"
+/// situation (poll error on the Rust side, no connected source on the Dart
+/// side). This is the SINGLE cross-language truth table for the fail-mode
+/// semantics — both the Rust safety poll below and the Dart weather-safety
+/// verdict (`weather_safety_provider.dart` `noDataFailModeResolution`) must
+/// agree on it.
+///
+/// Architecture-unification 2026-06-05 (Subsystem 2 step 1, cross-language
+/// parity): extracted so the two implementations cannot drift. The Dart side
+/// mirrors this enum as `NoDataResolution` and is pinned against the identical
+/// table by `weather_fail_mode_parity_test.dart`; the Rust side is pinned by
+/// `safety_fail_mode_no_data_resolution_truth_table` in this module. If you
+/// change a row here, change it in BOTH tests or they will fail.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NoDataResolution {
+    /// Treat the absence of data as UNSAFE (fail closed). The Rust poll sets
+    /// `weather_safe = false`; the Dart verdict pushes `Some(true)` (unsafe).
+    Unsafe,
+    /// Treat the absence of data as SAFE (fail open). The Rust poll sets
+    /// `weather_safe = true`; the Dart verdict ABSTAINS (`None`) rather than
+    /// asserting SAFE, so a permissive Dart policy can never gag a
+    /// hardware-unsafe device — but the resolution row is still "safe".
+    Safe,
+    /// Preserve the prior reading and emit an operator warning (warn-only).
+    /// The Rust poll leaves `weather_safe` unchanged; the Dart verdict
+    /// ABSTAINS (`None`).
+    Preserve,
+}
+
+/// The single cross-language definition of how each [`SafetyFailMode`] resolves
+/// a no-data / poll-error situation. See [`NoDataResolution`] for the contract
+/// and the two tests that pin this table on each side.
+pub fn safety_fail_mode_no_data_resolution(mode: SafetyFailMode) -> NoDataResolution {
+    match mode {
+        SafetyFailMode::FailClosed => NoDataResolution::Unsafe,
+        SafetyFailMode::FailOpen => NoDataResolution::Safe,
+        SafetyFailMode::WarnOnly => NoDataResolution::Preserve,
     }
 }
 
@@ -164,6 +261,15 @@ pub struct RuntimeConfig {
     /// still ticks every second; only expensive safety/weather driver calls
     /// are throttled by this interval.
     pub safety_check_interval_secs: u64,
+    /// Architecture-unification 2026-06-05 (Subsystem 2 step 3 — stale-verdict
+    /// observability): how long (seconds) a pushed `Some(true)` (UNSAFE) Dart
+    /// weather verdict may go un-refreshed before the safety poll emits a loud
+    /// "verdict feed stale; holding paused fail-closed" warning. The unsafe
+    /// verdict is NEVER auto-cleared on staleness — this only governs WHEN the
+    /// indefinite hold stops being silent. `0` falls back to
+    /// [`DEFAULT_WEATHER_VERDICT_STALENESS_SECS`]; otherwise clamped to a sane
+    /// floor so a misconfiguration cannot make every tick warn.
+    pub weather_verdict_staleness_secs: u64,
     /// Wave 1.5 Pack A: user override for the standard `AutofocusInterval`
     /// trigger's `every_n_frames`. The Rust default is 25 frames, which is
     /// wildly wrong for both very-short (5 s) and very-long (5 min) subs —
@@ -441,6 +547,21 @@ pub enum ExecutorCommand {
     /// None` when the Dart composer has insufficient data.
     UpdateConditionsScore {
         score: Option<crate::scheduling::ConditionsScore>,
+    },
+    /// Full-night audit 2026-06-04 (defense-in-depth) — push the Dart-side
+    /// `weatherSafetyProvider` overall verdict into the executor's trigger
+    /// state. The hardware `safety_is_safe` poll only knows what a connected
+    /// safety/weather device reports; a rig WITHOUT such a device never aborts
+    /// via the in-sequencer `WeatherUnsafe` trigger even when the Dart side
+    /// computed UNSAFE from the user's configured thresholds + API/cloud
+    /// sources. This carries that verdict so the trigger has a redundant
+    /// non-hardware unsafe source. `unsafe_override = Some(true)` => Dart
+    /// computed UNSAFE; `Some(false)` => Dart computed SAFE; `None` => Dart
+    /// abstains (provider disabled / no data) and this layer is inert. Folded
+    /// as an OR-of-unsafe into `weather_safe` evaluation — it can only make the
+    /// rig safer, never less safe than the hardware verdict.
+    UpdateWeatherVerdict {
+        unsafe_override: Option<bool>,
     },
 }
 
@@ -812,6 +933,10 @@ fn build_trigger_autofocus_context(
     crate::instructions::InstructionContext {
         target_ra,
         target_dec,
+        // Trigger-initiated recenter does not move the rotator; rotation is a
+        // CenterTarget concern driven from the TargetHeader. None here keeps
+        // the trigger recenter path rotation-agnostic.
+        target_rotation: None,
         target_name,
         current_filter,
         current_binning: crate::Binning::One,
@@ -836,6 +961,11 @@ fn build_trigger_autofocus_context(
         // `None` because they exercise the build helper in isolation.
         event_tx,
         recovery_request_tx: None,
+        // Trigger-initiated work is not wrapped by the node-runtime retry path,
+        // so this flag is a standalone fresh Arc here.
+        device_disconnect_recovery_pending: std::sync::Arc::new(
+            std::sync::atomic::AtomicBool::new(false),
+        ),
         // Wave 3 Image Grading: trigger-initiated autofocus does not save
         // FITS frames itself, so empty defaults are honest here. If trigger
         // code ever calls save_fits in the future these would need to be
@@ -1057,36 +1187,102 @@ pub(crate) fn alt_az_to_ra_dec(
 /// right "try again" gesture. Future patches can expand each arm with
 /// fully-blown recovery flows (e.g. re-slew + re-solve + re-acquire) when
 /// the relevant context plumbing arrives.
-async fn run_recovery_attempt(
+/// Actively re-acquire the guide star after a `GuideStarLost` event.
+///
+/// The previous implementation only *queried* `is_guiding` and reported
+/// success/failure — it never told the guider to find a star again, so once a
+/// star was lost the recovery could only ever succeed if the guider happened to
+/// re-lock on its own. This mirrors the verified lock-on logic in
+/// `execute_start_guiding`: it issues `guider_start` (which, for PHD2, performs
+/// auto-select + calibrate-if-needed + guide, i.e. a real re-acquisition) and
+/// then polls `guider_get_status` until guiding is confirmed within a bounded
+/// deadline. Fails closed (returns `AttemptOutcome::Failed`) on start error or
+/// if the lock never re-establishes — the recovery driver then escalates per
+/// the configured retry policy rather than silently resuming exposures on an
+/// unguided mount.
+pub(crate) async fn recover_guide_star(
+    device_ops: &SharedDeviceOps,
+) -> crate::recovery::AttemptOutcome {
+    use crate::recovery::AttemptOutcome;
+
+    // Re-acquisition settle parameters. These mirror the conservative defaults
+    // used by the guiding settle path: lock within 2 px, hold for 10 s, give up
+    // after 120 s. A re-acquire that can't settle within 120 s is a genuine
+    // failure the operator's retry policy should handle, not something to wait
+    // on indefinitely while the target drifts.
+    const REACQUIRE_SETTLE_PIXELS: f64 = 2.0;
+    const REACQUIRE_SETTLE_TIME_SECS: f64 = 10.0;
+    const REACQUIRE_SETTLE_TIMEOUT_SECS: f64 = 120.0;
+    const POLL_INTERVAL: std::time::Duration = std::time::Duration::from_secs(2);
+
+    // Fast-path: maybe the guider already recovered on its own during the
+    // recovery wait window. Issuing guider_start when already guiding can force
+    // an unnecessary re-calibration on some setups, so honour an existing lock.
+    if let Ok(status) = device_ops.guider_get_status().await {
+        if status.is_guiding {
+            return AttemptOutcome::Succeeded;
+        }
+    }
+
+    // Issue a real re-acquisition. guider_start re-selects a guide star and
+    // (re)starts guiding; it can return Ok before the lock is truly settled, so
+    // we verify below.
+    if let Err(e) = device_ops
+        .guider_start(
+            REACQUIRE_SETTLE_PIXELS,
+            REACQUIRE_SETTLE_TIME_SECS,
+            REACQUIRE_SETTLE_TIMEOUT_SECS,
+        )
+        .await
+    {
+        return AttemptOutcome::Failed {
+            message: format!("Guide-star re-acquisition (guider_start) failed: {}", e),
+        };
+    }
+
+    let deadline = tokio::time::Instant::now()
+        + std::time::Duration::from_secs_f64(REACQUIRE_SETTLE_TIMEOUT_SECS);
+    while tokio::time::Instant::now() < deadline {
+        match device_ops.guider_get_status().await {
+            Ok(status) if status.is_guiding => {
+                tracing::info!(
+                    "Guide star re-acquired: guiding active (RMS total={:.2}\")",
+                    status.rms_total
+                );
+                return AttemptOutcome::Succeeded;
+            }
+            Ok(_) => {
+                // Still settling; keep polling until the deadline.
+            }
+            Err(e) => {
+                // Transient status-read failure (e.g. PHD2 mid-calibration);
+                // keep polling rather than aborting on a single bad read.
+                tracing::warn!("Guide re-acquire status poll failed: {}", e);
+            }
+        }
+        tokio::time::sleep(POLL_INTERVAL).await;
+    }
+
+    AttemptOutcome::Failed {
+        message: format!(
+            "Guide star did not re-lock within {:.0}s of re-acquisition",
+            REACQUIRE_SETTLE_TIMEOUT_SECS
+        ),
+    }
+}
+
+pub(crate) async fn run_recovery_attempt(
     cause: &crate::recovery::RecoveryCause,
     device_ops: &SharedDeviceOps,
     mount_id: Option<&str>,
     device_ids: &[String],
-    _trigger_manager: &Arc<RwLock<TriggerManager>>,
+    trigger_manager: &Arc<RwLock<TriggerManager>>,
 ) -> crate::recovery::AttemptOutcome {
     use crate::recovery::AttemptOutcome;
     use crate::recovery::RecoveryCause;
 
     match cause {
-        RecoveryCause::GuideStarLost => {
-            // Ask the guider whether it has re-acquired. If the guider
-            // reports `is_guiding == true`, the star is back; otherwise
-            // the wait period elapsed and we should try again.
-            match device_ops.guider_get_status().await {
-                Ok(status) => {
-                    if status.is_guiding {
-                        AttemptOutcome::Succeeded
-                    } else {
-                        AttemptOutcome::Failed {
-                            message: "Guider still reports star lost".to_string(),
-                        }
-                    }
-                }
-                Err(e) => AttemptOutcome::Failed {
-                    message: format!("Guider status query failed: {}", e),
-                },
-            }
-        }
+        RecoveryCause::GuideStarLost => recover_guide_star(device_ops).await,
         RecoveryCause::MountTrackingLost => match mount_id {
             Some(id) => match device_ops.mount_is_tracking(id).await {
                 Ok(true) => AttemptOutcome::Succeeded,
@@ -1120,15 +1316,41 @@ async fn run_recovery_attempt(
                 message: "No mount is configured; cannot recover tracking".to_string(),
             },
         },
-        RecoveryCause::WeatherUnsafe => match device_ops.safety_is_safe(None).await {
-            Ok(true) => AttemptOutcome::Succeeded,
-            Ok(false) => AttemptOutcome::Failed {
-                message: "Weather still unsafe".to_string(),
-            },
-            Err(e) => AttemptOutcome::Failed {
-                message: format!("Weather poll failed: {}", e),
-            },
-        },
+        RecoveryCause::WeatherUnsafe => {
+            // Fail-closed recovery gate (architecture-unification 2026-06-05,
+            // Subsystem 2 step 4). A weather abort can be tripped by EITHER the
+            // hardware safety device (`safety_is_safe`) OR the Dart-side verdict
+            // (API alert / configured threshold / park-before-dawn), ORed in
+            // `triggers.rs:535`. The old re-check polled ONLY the hardware boolean,
+            // so a Dart-threshold-only abort (hardware reads safe, but the API
+            // says a storm is overhead) was declared "recovered" the instant the
+            // hardware poll returned safe → premature resume into API-unsafe
+            // weather. We now require BOTH sources to be clear before resuming:
+            // the hardware poll must read safe AND the Dart verdict must not be
+            // `Some(true)` (still-unsafe). `Some(false)` (Dart explicitly safe)
+            // and `None` (Dart abstains) both permit resume — they cannot pin the
+            // sequence paused, so this only adds-unsafe and never weakens the gate.
+            let verdict_unsafe = {
+                let state = trigger_manager.read().await.state();
+                let guard = state.read().await;
+                guard.weather_verdict_unsafe == Some(true)
+            };
+            if verdict_unsafe {
+                AttemptOutcome::Failed {
+                    message: "Weather still unsafe (Dart verdict reports unsafe)".to_string(),
+                }
+            } else {
+                match device_ops.safety_is_safe(None).await {
+                    Ok(true) => AttemptOutcome::Succeeded,
+                    Ok(false) => AttemptOutcome::Failed {
+                        message: "Weather still unsafe".to_string(),
+                    },
+                    Err(e) => AttemptOutcome::Failed {
+                        message: format!("Weather poll failed: {}", e),
+                    },
+                }
+            }
+        }
         RecoveryCause::FocusDriftCritical => {
             // Focus-drift recovery for now is "wait it out" — the next
             // periodic autofocus (already managed by the AutofocusInterval
@@ -1473,12 +1695,17 @@ impl SequenceExecutor {
             if nightshade_imaging::detect_astap_catalog(None, None).is_none() {
                 tracing::warn!(
                     "Plate-solve preflight: a solver is installed but no ASTAP star catalog was \
-                     detected. If ASTAP is your solver, centering will fail until a catalog \
-                     (e.g. the G18/H18/V17 .290 files) is installed."
+                     detected. ASTAP needs a star database installed separately from astap.exe."
                 );
+                // This is a setup issue, not a crash — but it WILL break every
+                // target centering, so surface it clearly and tell the operator
+                // exactly how to fix it before the night is wasted.
                 let _ = self.event_tx.send(ExecutorEvent::Error {
-                    message: "Plate-solve preflight: no ASTAP star catalog detected. If ASTAP \
-                              is your solver, install its catalog or centering will fail mid-run."
+                    message: "Plate-solve setup: no ASTAP star database found. ASTAP needs a star \
+                              catalog installed separately from astap.exe — download one (e.g. the \
+                              D80 or H18 .290 database) and put it next to astap.exe, or set its \
+                              folder in Settings → Plate Solving. Until then, target centering in \
+                              this sequence will fail."
                         .to_string(),
                 });
             }
@@ -1687,6 +1914,13 @@ impl SequenceExecutor {
         // executor and the streaming-checkpoint task so they cannot diverge
         // (info_cache must be consistent for `has_recoverable_checkpoint`).
         let streaming_checkpoint_manager: Option<Arc<crate::checkpoint::CheckpointManager>> =
+            self.checkpoint_manager.clone();
+        // Separate Arc clone for the terminal completion handler. On normal
+        // completion we mark the checkpoint inactive so the next launch does
+        // NOT show a stale "resume?" banner. `streaming_checkpoint_manager`
+        // above is moved into the streaming-checkpoint task, so the completion
+        // path needs its own handle to the *same* manager (shared info_cache).
+        let completion_checkpoint_manager: Option<Arc<crate::checkpoint::CheckpointManager>> =
             self.checkpoint_manager.clone();
         let streaming_sequence = self.sequence.clone();
         let streaming_camera_id = self.camera_id.clone();
@@ -2653,6 +2887,27 @@ impl SequenceExecutor {
                                     what: "conditions_score".to_string(),
                                 });
                             }
+                            ExecutorCommand::UpdateWeatherVerdict { unsafe_override } => {
+                                // Full-night audit 2026-06-04 (defense-in-depth) —
+                                // fold the Dart-side weather-safety verdict into the
+                                // trigger state so the in-sequencer `WeatherUnsafe`
+                                // trigger reacts even on rigs without a hardware
+                                // safety device. The evaluator ORs this with the
+                                // hardware `weather_safe` reading (never less safe).
+                                {
+                                    let manager = trigger_manager.read().await;
+                                    let state_lock = manager.state();
+                                    let mut state = state_lock.write().await;
+                                    state.update_weather_verdict(unsafe_override);
+                                }
+                                tracing::debug!(
+                                    "Runtime weather verdict updated: unsafe_override={:?}",
+                                    unsafe_override
+                                );
+                                let _ = event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
+                                    what: "weather_verdict".to_string(),
+                                });
+                            }
                             ExecutorCommand::UpdateRecoveryConfig { config } => {
                                 // Wave 4 Recovery Mode — push the user's
                                 // tunable defaults through the shared Arc.
@@ -3354,14 +3609,27 @@ impl SequenceExecutor {
                             if !aborted_by_user {
                                 recovery_driver_gave_up.store(true, Ordering::Relaxed);
 
-                                if let Some(mount_id) = &recovery_driver_mount_id {
-                                    let park = crate::device_ops::try_park_with_retry(
-                                        &recovery_driver_device_ops,
-                                        mount_id,
-                                        2,
-                                        2.0,
-                                    )
-                                    .await;
+                                // Single source of truth for the park → close
+                                // cover → close dome safe-state sweep
+                                // (`device_ops::park_and_close_safe_state`).
+                                // The give-up path historically used 2 park
+                                // retries with a 2s delay; pass those through so
+                                // this consolidation changes no behaviour. Each
+                                // call site still emits its own operator-facing
+                                // wording from the returned outcome.
+                                let outcome = crate::device_ops::park_and_close_safe_state(
+                                    &recovery_driver_device_ops,
+                                    recovery_driver_mount_id.as_deref(),
+                                    recovery_driver_cover_id.as_deref(),
+                                    recovery_driver_dome_id.as_deref(),
+                                    2,
+                                    2.0,
+                                )
+                                .await;
+
+                                if let (Some(mount_id), Some(park)) =
+                                    (&recovery_driver_mount_id, &outcome.park)
+                                {
                                     if park.success {
                                         tracing::info!(
                                             "[RECOVERY] Parked mount '{}' on give-up ({} attempt(s))",
@@ -3372,7 +3640,9 @@ impl SequenceExecutor {
                                         let msg = format!(
                                             "Recovery exhausted and the mount could not be parked ({}): {} — mount may be UNSAFE.",
                                             mount_id,
-                                            park.last_error.unwrap_or_else(|| "unknown".to_string())
+                                            park.last_error
+                                                .clone()
+                                                .unwrap_or_else(|| "unknown".to_string())
                                         );
                                         tracing::error!("[RECOVERY] {}", msg);
                                         let _ = recovery_driver_event_tx
@@ -3380,35 +3650,27 @@ impl SequenceExecutor {
                                     }
                                 }
 
-                                // Close the flat-panel cover, then the dome
-                                // shutter, so the optics are protected and the
-                                // scope isn't left exposed under an open roof.
-                                if let Some(cover_id) = &recovery_driver_cover_id {
-                                    if let Err(e) = recovery_driver_device_ops
-                                        .cover_calibrator_close_cover(cover_id)
-                                        .await
-                                    {
-                                        let msg = format!(
-                                            "Recovery give-up: failed to close cover '{}': {}",
-                                            cover_id, e
-                                        );
-                                        tracing::error!("[RECOVERY] {}", msg);
-                                        let _ = recovery_driver_event_tx
-                                            .send(ExecutorEvent::Error { message: msg });
-                                    }
+                                if let (Some(cover_id), Some(e)) =
+                                    (&recovery_driver_cover_id, &outcome.cover_close_error)
+                                {
+                                    let msg = format!(
+                                        "Recovery give-up: failed to close cover '{}': {}",
+                                        cover_id, e
+                                    );
+                                    tracing::error!("[RECOVERY] {}", msg);
+                                    let _ = recovery_driver_event_tx
+                                        .send(ExecutorEvent::Error { message: msg });
                                 }
-                                if let Some(dome_id) = &recovery_driver_dome_id {
-                                    if let Err(e) =
-                                        recovery_driver_device_ops.dome_close(dome_id).await
-                                    {
-                                        let msg = format!(
-                                            "Recovery give-up: failed to close dome '{}': {} — scope may be exposed.",
-                                            dome_id, e
-                                        );
-                                        tracing::error!("[RECOVERY] {}", msg);
-                                        let _ = recovery_driver_event_tx
-                                            .send(ExecutorEvent::Error { message: msg });
-                                    }
+                                if let (Some(dome_id), Some(e)) =
+                                    (&recovery_driver_dome_id, &outcome.dome_close_error)
+                                {
+                                    let msg = format!(
+                                        "Recovery give-up: failed to close dome '{}': {} — scope may be exposed.",
+                                        dome_id, e
+                                    );
+                                    tracing::error!("[RECOVERY] {}", msg);
+                                    let _ = recovery_driver_event_tx
+                                        .send(ExecutorEvent::Error { message: msg });
                                 }
                             }
 
@@ -3471,6 +3733,14 @@ impl SequenceExecutor {
                     let mut safety_poll_last_was_error = false;
                     let mut last_safety_poll_at: Option<std::time::Instant> = None;
 
+                    // Subsystem 2 step 3 (stale-verdict observability): rate-limit
+                    // latch for the "weather verdict feed stale; holding paused
+                    // fail-closed" warning. Set true after we emit the warning so a
+                    // dead Dart feed does not flood the event stream every poll;
+                    // cleared the moment a fresh verdict push lands (detected via
+                    // the verdict-staleness predicate returning false again).
+                    let mut verdict_stale_warned = false;
+
                     // Trust-patch §1: rate-limit sentinel for the
                     // "AltitudeLimit cannot evaluate because location is not
                     // configured" warning. Set once per session on first
@@ -3513,7 +3783,11 @@ impl SequenceExecutor {
                             break;
                         }
 
-                        let (current_safety_fail_mode, safety_check_interval) = {
+                        let (
+                            current_safety_fail_mode,
+                            safety_check_interval,
+                            verdict_staleness_secs,
+                        ) = {
                             let rc = runtime_config.read();
                             (
                                 rc.safety_fail_mode,
@@ -3521,6 +3795,9 @@ impl SequenceExecutor {
                                     effective_safety_check_interval_secs(
                                         rc.safety_check_interval_secs,
                                     ),
+                                ),
+                                effective_weather_verdict_staleness_secs(
+                                    rc.weather_verdict_staleness_secs,
                                 ),
                             )
                         };
@@ -3555,48 +3832,59 @@ impl SequenceExecutor {
                                     }
                                     Some(safe)
                                 }
-                                Err(e) => match current_safety_fail_mode {
-                                    SafetyFailMode::FailClosed => {
-                                        if !safety_poll_last_was_error {
-                                            tracing::warn!(
+                                Err(e) => {
+                                    // Cross-language parity (architecture-unification
+                                    // 2026-06-05): the fail-mode → no-data resolution is
+                                    // the SINGLE shared truth table in
+                                    // `crate::safety_fail_mode_no_data_resolution`, mirrored
+                                    // by the Dart `noDataFailModeResolution`. Do NOT inline a
+                                    // per-mode match here — it would let the two sides drift.
+                                    match safety_fail_mode_no_data_resolution(
+                                        current_safety_fail_mode,
+                                    ) {
+                                        NoDataResolution::Unsafe => {
+                                            if !safety_poll_last_was_error {
+                                                tracing::warn!(
                                         "Safety poll error: {} - treating as unsafe (FailClosed)",
                                         e
                                     );
-                                            safety_poll_last_was_error = true;
+                                                safety_poll_last_was_error = true;
+                                            }
+                                            Some(false)
                                         }
-                                        Some(false)
-                                    }
-                                    SafetyFailMode::FailOpen => {
-                                        if !safety_poll_last_was_error {
-                                            tracing::warn!(
+                                        NoDataResolution::Safe => {
+                                            if !safety_poll_last_was_error {
+                                                tracing::warn!(
                                             "Safety poll error: {} - treating as safe (FailOpen). \
                                          Sequence will continue. Do not use FailOpen for \
                                          unattended runs.",
                                             e
                                         );
-                                            safety_poll_last_was_error = true;
+                                                safety_poll_last_was_error = true;
+                                            }
+                                            Some(true)
                                         }
-                                        Some(true)
-                                    }
-                                    SafetyFailMode::WarnOnly => {
-                                        if !safety_poll_last_was_error {
-                                            tracing::warn!(
+                                        NoDataResolution::Preserve => {
+                                            if !safety_poll_last_was_error {
+                                                tracing::warn!(
                                                 "Safety poll error: {} - WarnOnly mode, leaving \
                                          weather_safe unchanged and emitting alert",
-                                                e
-                                            );
-                                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                                message: format!(
+                                                    e
+                                                );
+                                                let _ =
+                                                    event_tx_clone2.send(ExecutorEvent::Error {
+                                                        message: format!(
                                                 "Safety poll failed: {}. WarnOnly mode keeps the \
                                              previous safety state — operator attention required.",
                                                 e
                                             ),
-                                            });
-                                            safety_poll_last_was_error = true;
+                                                    });
+                                                safety_poll_last_was_error = true;
+                                            }
+                                            None
                                         }
-                                        None
                                     }
-                                },
+                                }
                             }
                         } else {
                             None
@@ -3621,6 +3909,12 @@ impl SequenceExecutor {
                             None
                         };
 
+                        // Subsystem 2 step 3 (stale-verdict observability): evaluated
+                        // on EVERY loop tick (not gated by should_poll_safety) so a
+                        // verdict that goes stale between safety polls is detected
+                        // promptly. Pure read; never mutates or clears the verdict.
+                        let verdict_stale_unsafe;
+
                         {
                             let manager = trigger_manager.read().await;
                             let trigger_state = manager.state();
@@ -3630,6 +3924,9 @@ impl SequenceExecutor {
                             if let Some(safe) = is_safe {
                                 state.weather_safe = safe;
                             }
+
+                            verdict_stale_unsafe =
+                                state.is_weather_verdict_stale_unsafe(verdict_staleness_secs);
 
                             if let Some(rms) = guiding_rms {
                                 state.update_guiding_rms(rms);
@@ -3792,6 +4089,27 @@ impl SequenceExecutor {
                             }
                         }
 
+                        // Subsystem 2 step 3 (stale-verdict observability): a pushed
+                        // Some(true)=UNSAFE verdict whose Dart feed has gone silent
+                        // is HELD fail-closed — the sequence stays paused, which is
+                        // the correct safe behaviour and is NOT cleared here. But an
+                        // indefinite hold must not be SILENT: when the unsafe verdict
+                        // is stale we emit ONE loud warning (rate-limited via the
+                        // latch) so the operator knows the hold is sustained by a dead
+                        // feed rather than fresh data. The latch clears as soon as a
+                        // fresh push lands (predicate returns false again), so a feed
+                        // that recovers and re-degrades will warn again. The gate +
+                        // rate-limit + message live in `weather_verdict_stale_warning`
+                        // so they are unit-tested without the full executor task.
+                        if let Some(msg) = weather_verdict_stale_warning(
+                            verdict_stale_unsafe,
+                            verdict_staleness_secs,
+                            &mut verdict_stale_warned,
+                        ) {
+                            tracing::warn!("{}", msg);
+                            let _ = event_tx_clone2.send(ExecutorEvent::Error { message: msg });
+                        }
+
                         if let Some(mount_id) = &trigger_action_context.mount_id {
                             let tracking_result =
                                 device_ops_for_triggers.mount_is_tracking(mount_id).await;
@@ -3894,16 +4212,46 @@ impl SequenceExecutor {
                             }
                         }
 
-                        if let Some(camera_id) = &trigger_action_context.camera_id {
-                            if let Ok(temp) = device_ops_for_triggers
-                                .camera_get_temperature(camera_id)
+                        // TemperatureShift refocus must key off a temperature
+                        // that actually tracks the optical train's thermal
+                        // expansion — i.e. the FOCUSER temperature probe (or an
+                        // ambient sensor). The cooled-CAMERA sensor temperature
+                        // is regulated to a fixed setpoint, so it never drifts;
+                        // feeding it here meant the trigger could never fire and
+                        // focus drifted soft over a full night. We now read the
+                        // focuser's temperature probe. `Ok(None)` means the
+                        // focuser has no probe — we deliberately do NOT fall back
+                        // to the regulated camera temperature (that would
+                        // resurrect the silent no-fire bug); the trigger simply
+                        // stays inert, which is the honest "no temperature source
+                        // available" outcome.
+                        if let Some(focuser_id) = &trigger_action_context.focuser_id {
+                            match device_ops_for_triggers
+                                .focuser_get_temperature(focuser_id)
                                 .await
                             {
-                                let manager = trigger_manager.read().await;
-                                let trigger_state = manager.state();
-                                let mut state = trigger_state.write().await;
-                                state.update_temperature(temp);
-                                tracing::trace!("Updated camera temperature: {:.1}°C", temp);
+                                Ok(Some(temp)) => {
+                                    let manager = trigger_manager.read().await;
+                                    let trigger_state = manager.state();
+                                    let mut state = trigger_state.write().await;
+                                    state.update_temperature(temp);
+                                    tracing::trace!("Updated focuser temperature: {:.1}°C", temp);
+                                }
+                                Ok(None) => {
+                                    tracing::trace!(
+                                        "Focuser '{}' reports no temperature probe; \
+                                         TemperatureShift trigger remains inert (no fallback \
+                                         to regulated camera temperature)",
+                                        focuser_id
+                                    );
+                                }
+                                Err(e) => {
+                                    tracing::warn!(
+                                        "Focuser temperature query failed: {} - leaving \
+                                         TemperatureShift trigger state unchanged",
+                                        e
+                                    );
+                                }
                             }
                         }
 
@@ -4134,19 +4482,51 @@ impl SequenceExecutor {
                                     // exactly; the helper exposes them as
                                     // parameters so a future config change can
                                     // tune them without touching the call sites.
-                                    if let Some(mount_id) = &trigger_action_context.mount_id {
+                                    // Single source of truth for the park →
+                                    // close cover → close dome safe-state sweep
+                                    // (`device_ops::park_and_close_safe_state`).
+                                    // ParkAndAbort historically used 1 park retry
+                                    // with a 2s delay; pass those through so this
+                                    // consolidation changes no behaviour. The
+                                    // returned outcome drives the same
+                                    // operator-facing error events as before.
+                                    if trigger_action_context.mount_id.is_some() {
                                         tracing::warn!(
                                             "ParkAndAbort: parking mount '{}' (max_retries=1, retry_delay=2s)",
-                                            mount_id
+                                            trigger_action_context.mount_id.as_deref().unwrap_or("?")
                                         );
-                                        let park_outcome = crate::device_ops::try_park_with_retry(
-                                            &device_ops_for_triggers,
-                                            mount_id,
-                                            1,
-                                            2.0,
-                                        )
-                                        .await;
-                                        if !park_outcome.success {
+                                    } else {
+                                        tracing::warn!(
+                                            "ParkAndAbort: no mount configured, cannot park"
+                                        );
+                                    }
+                                    if let Some(cover_id) =
+                                        &trigger_action_context.cover_calibrator_id
+                                    {
+                                        tracing::warn!(
+                                            "ParkAndAbort: closing cover '{}'",
+                                            cover_id
+                                        );
+                                    }
+                                    if let Some(dome_id) = &trigger_action_context.dome_id {
+                                        tracing::warn!(
+                                            "ParkAndAbort: closing dome shutter '{}'",
+                                            dome_id
+                                        );
+                                    }
+
+                                    let safe_state = crate::device_ops::park_and_close_safe_state(
+                                        &device_ops_for_triggers,
+                                        trigger_action_context.mount_id.as_deref(),
+                                        trigger_action_context.cover_calibrator_id.as_deref(),
+                                        trigger_action_context.dome_id.as_deref(),
+                                        1,
+                                        2.0,
+                                    )
+                                    .await;
+
+                                    match &safe_state.park {
+                                        Some(park_outcome) if !park_outcome.success => {
                                             // Surface the park-specific failure
                                             // in the event stream so the UI can
                                             // distinguish "couldn't park, mount
@@ -4159,16 +4539,40 @@ impl SequenceExecutor {
                                                     park_outcome.attempts_made,
                                                     park_outcome
                                                         .last_error
+                                                        .clone()
                                                         .unwrap_or_else(|| "unknown error".to_string()),
                                                 ),
                                             });
                                         }
-                                    } else {
-                                        tracing::warn!(
-                                            "ParkAndAbort: no mount configured, cannot park"
-                                        );
+                                        None => {
+                                            let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                                message: "ParkAndAbort fired but no mount is configured; the rig cannot be parked automatically.".to_string(),
+                                            });
+                                        }
+                                        _ => {}
+                                    }
+
+                                    if let (Some(cover_id), Some(e)) = (
+                                        &trigger_action_context.cover_calibrator_id,
+                                        &safe_state.cover_close_error,
+                                    ) {
                                         let _ = event_tx_clone2.send(ExecutorEvent::Error {
-                                            message: "ParkAndAbort fired but no mount is configured; the rig cannot be parked automatically.".to_string(),
+                                            message: format!(
+                                                "ParkAndAbort: failed to close cover '{}': {}. \
+                                                 Optics may be left exposed — manual intervention required.",
+                                                cover_id, e
+                                            ),
+                                        });
+                                    }
+                                    if let (Some(dome_id), Some(e)) =
+                                        (&trigger_action_context.dome_id, &safe_state.dome_close_error)
+                                    {
+                                        let _ = event_tx_clone2.send(ExecutorEvent::Error {
+                                            message: format!(
+                                                "ParkAndAbort: failed to close dome '{}': {} — \
+                                                 scope may be exposed under an open roof. Manual intervention required.",
+                                                dome_id, e
+                                            ),
                                         });
                                     }
 
@@ -5152,6 +5556,31 @@ impl SequenceExecutor {
 
                 match result {
                     NodeStatus::Success | NodeStatus::Skipped => {
+                        // Mark the checkpoint inactive on graceful completion.
+                        // Without this the on-disk checkpoint stays `is_active`
+                        // forever, so `has_recoverable_checkpoint()` keeps
+                        // returning true and the UI shows a stale "resume?"
+                        // banner after every successful night. We use
+                        // `mark_completed()` (not `clear()`) so the file is
+                        // preserved with `is_active=false` /
+                        // `executor_state=Completed` for the post-session report;
+                        // the next `start()` overwrites it. A failure to write is
+                        // logged loudly (it would silently reintroduce the stale
+                        // banner) but does not change the run's Success outcome.
+                        if let Some(mgr) = &completion_checkpoint_manager {
+                            if let Err(e) = mgr.mark_completed() {
+                                tracing::error!(
+                                    "Failed to mark checkpoint completed after a normal \
+                                     sequence finish: {} — a stale 'resume?' banner may \
+                                     appear on next launch",
+                                    e
+                                );
+                            } else {
+                                tracing::debug!(
+                                    "Checkpoint marked completed on normal sequence finish"
+                                );
+                            }
+                        }
                         let _ = event_tx.send(ExecutorEvent::SequenceCompleted);
                         // Wave 8 Replay Debug — terminal lifecycle decision.
                         emit_lifecycle_decision(
@@ -5248,6 +5677,9 @@ static EXECUTOR: std::sync::OnceLock<Arc<RwLock<SequenceExecutor>>> = std::sync:
 pub fn get_executor() -> &'static Arc<RwLock<SequenceExecutor>> {
     EXECUTOR.get_or_init(|| Arc::new(RwLock::new(SequenceExecutor::new())))
 }
+
+#[cfg(test)]
+mod scenario_sim_tests;
 
 #[cfg(test)]
 mod tests {
@@ -5395,6 +5827,95 @@ mod tests {
         assert_eq!(effective_safety_check_interval_secs(3), 5);
         assert_eq!(effective_safety_check_interval_secs(45), 45);
         assert_eq!(effective_safety_check_interval_secs(9999), 3600);
+    }
+
+    /// Architecture-unification 2026-06-05 (Subsystem 2 step 1 — CROSS-LANGUAGE
+    /// FAIL-MODE PARITY). This is one half of the pinned truth table; the Dart
+    /// half is `weather_fail_mode_parity_test.dart`. BOTH must encode the
+    /// identical rows:
+    ///
+    ///   FailClosed -> Unsafe  (Rust: weather_safe=false; Dart verdict: Some(true))
+    ///   FailOpen   -> Safe    (Rust: weather_safe=true;  Dart verdict: None/abstain)
+    ///   WarnOnly   -> Preserve(Rust: weather_safe unchanged; Dart verdict: None/abstain)
+    ///
+    /// The single shared definition is `safety_fail_mode_no_data_resolution`
+    /// (consumed by the executor safety poll). The Dart side mirrors it as
+    /// `noDataFailModeResolution`. If you change a row here, change it in the
+    /// Dart test too or the two implementations have silently drifted.
+    #[test]
+    fn safety_fail_mode_no_data_resolution_truth_table() {
+        assert_eq!(
+            safety_fail_mode_no_data_resolution(SafetyFailMode::FailClosed),
+            NoDataResolution::Unsafe,
+            "failClosed must resolve no-data as UNSAFE"
+        );
+        assert_eq!(
+            safety_fail_mode_no_data_resolution(SafetyFailMode::FailOpen),
+            NoDataResolution::Safe,
+            "failOpen must resolve no-data as SAFE"
+        );
+        assert_eq!(
+            safety_fail_mode_no_data_resolution(SafetyFailMode::WarnOnly),
+            NoDataResolution::Preserve,
+            "warnOnly must resolve no-data as PRESERVE (last reading wins)"
+        );
+    }
+
+    /// Subsystem 2 step 3: the weather-verdict staleness window resolver
+    /// defaults a `0` to the documented default and clamps non-zero values to a
+    /// sane floor/ceiling so a misconfiguration cannot make every tick warn or
+    /// disable the observability.
+    #[test]
+    fn weather_verdict_staleness_is_clamped_and_defaulted() {
+        assert_eq!(
+            effective_weather_verdict_staleness_secs(0),
+            DEFAULT_WEATHER_VERDICT_STALENESS_SECS
+        );
+        assert_eq!(effective_weather_verdict_staleness_secs(5), 30);
+        assert_eq!(effective_weather_verdict_staleness_secs(600), 600);
+        assert_eq!(effective_weather_verdict_staleness_secs(1_000_000), 86_400);
+    }
+
+    /// Subsystem 2 step 3: the stale-unsafe verdict warning EMITS on the rising
+    /// edge, is RATE-LIMITED while the feed stays stale, and RE-ARMS once a fresh
+    /// verdict clears the stale condition. This is the "emits the warning" half
+    /// of the stale-verdict requirement (the "stays unsafe / does NOT resume"
+    /// half is pinned by `triggers.rs`
+    /// `weather_verdict_stale_unsafe_stays_unsafe_and_is_detected`).
+    #[test]
+    fn weather_verdict_stale_warning_emits_once_then_rearms() {
+        let mut warned = false;
+
+        // Not stale -> no warning, latch stays disarmed.
+        assert!(weather_verdict_stale_warning(false, 360, &mut warned).is_none());
+        assert!(!warned);
+
+        // Rising edge (stale & unsafe) -> emit, latch arms, message carries the
+        // fail-closed framing + the staleness window.
+        let msg = weather_verdict_stale_warning(true, 360, &mut warned)
+            .expect("stale unsafe verdict must emit a warning on the rising edge");
+        assert!(warned, "latch must arm after emitting");
+        assert!(
+            msg.contains("stale") && msg.contains("paused") && msg.contains("360"),
+            "warning must name the stale fail-closed hold + the window: {msg}"
+        );
+
+        // Still stale -> rate-limited (no repeat while the feed stays dead).
+        assert!(
+            weather_verdict_stale_warning(true, 360, &mut warned).is_none(),
+            "a still-stale verdict must not re-warn every poll"
+        );
+        assert!(warned);
+
+        // Fresh / no-longer-unsafe -> re-arm, no warning.
+        assert!(weather_verdict_stale_warning(false, 360, &mut warned).is_none());
+        assert!(!warned, "latch must re-arm once the condition clears");
+
+        // A subsequent stale episode warns again (proves re-arm works).
+        assert!(
+            weather_verdict_stale_warning(true, 360, &mut warned).is_some(),
+            "a fresh stale episode after clearing must warn again"
+        );
     }
 
     #[test]
@@ -5745,6 +6266,7 @@ mod tests {
                 iterations: Some(3),
                 condition: crate::LoopCondition::Count,
                 condition_value: None,
+                horizon_profile: None,
             }),
             enabled: true,
             children: vec![se_id.clone()],
@@ -5932,6 +6454,88 @@ mod tests {
         assert_eq!(outcome, crate::recovery::AttemptOutcome::Succeeded);
     }
 
+    /// Architecture-unification 2026-06-05 (Subsystem 2 step 4): a weather
+    /// recovery MUST NOT clear/resume on a hardware-only re-poll while the
+    /// Dart-side verdict still reports unsafe (`weather_verdict_unsafe ==
+    /// Some(true)`). NullDeviceOps.safety_is_safe returns Ok(true) (hardware
+    /// reads safe), so the OLD code would have declared Succeeded and resumed
+    /// the sequence into API-unsafe weather. With the verdict gate the attempt
+    /// must Fail until the Dart verdict also clears.
+    #[test]
+    fn run_recovery_attempt_weather_unsafe_blocked_by_dart_verdict() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let device_ops: SharedDeviceOps = std::sync::Arc::new(crate::device_ops::NullDeviceOps);
+        let mgr = Arc::new(RwLock::new(TriggerManager::new()));
+        // Dart computed UNSAFE (API alert / threshold), even though the hardware
+        // boolean reads safe.
+        rt.block_on(async {
+            let state = mgr.read().await.state();
+            state.write().await.update_weather_verdict(Some(true));
+        });
+        let outcome = rt.block_on(async {
+            run_recovery_attempt(
+                &crate::recovery::RecoveryCause::WeatherUnsafe,
+                &device_ops,
+                None,
+                &[],
+                &mgr,
+            )
+            .await
+        });
+        match outcome {
+            crate::recovery::AttemptOutcome::Failed { message } => {
+                assert!(
+                    message.contains("Dart verdict"),
+                    "expected the Dart-verdict block message, got: {}",
+                    message
+                );
+            }
+            other => panic!(
+                "expected Failed (Dart verdict still unsafe), got {:?}",
+                other
+            ),
+        }
+    }
+
+    /// Sibling to the above: once the Dart verdict clears to `Some(false)`
+    /// (explicitly safe) the hardware poll is consulted again and a safe
+    /// hardware reading resumes the sequence. `None` (abstain) behaves the same
+    /// — neither pins the sequence paused, so the gate only adds-unsafe.
+    #[test]
+    fn run_recovery_attempt_weather_unsafe_resumes_when_verdict_clears() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let device_ops: SharedDeviceOps = std::sync::Arc::new(crate::device_ops::NullDeviceOps);
+        for verdict in [Some(false), None] {
+            let mgr = Arc::new(RwLock::new(TriggerManager::new()));
+            rt.block_on(async {
+                let state = mgr.read().await.state();
+                state.write().await.update_weather_verdict(verdict);
+            });
+            let outcome = rt.block_on(async {
+                run_recovery_attempt(
+                    &crate::recovery::RecoveryCause::WeatherUnsafe,
+                    &device_ops,
+                    None,
+                    &[],
+                    &mgr,
+                )
+                .await
+            });
+            assert_eq!(
+                outcome,
+                crate::recovery::AttemptOutcome::Succeeded,
+                "verdict {:?} with safe hardware should resume",
+                verdict
+            );
+        }
+    }
+
     /// FocusDriftCritical and ConsecutiveRejectsExceeded and SlewFailed
     /// and PlateSolveFailed all use the "wait then resume" pattern.
     #[test]
@@ -6116,6 +6720,301 @@ mod tests {
             progress.node_statuses.get("plugin-1"),
             Some(&NodeStatus::Success),
             "plugin node should be recorded as Success"
+        );
+    }
+
+    // =====================================================================
+    // GuideStarLost recovery — re-acquisition tests (P0 fix).
+    //
+    // The previous recovery arm only *queried* is_guiding and could never
+    // re-acquire a lost star. These tests assert the new behaviour: the
+    // recovery actively calls guider_start (re-acquire) and only succeeds
+    // once guiding re-locks.
+    // =====================================================================
+
+    use crate::device_ops::{DeviceOps, DeviceResult, GuidingStatus};
+
+    /// DeviceOps that simulates a guider which is NOT guiding until
+    /// `guider_start` is called, after which `guider_get_status` reports
+    /// guiding. Records whether `guider_start` was invoked.
+    struct ReacquireGuiderOps {
+        inner: std::sync::Arc<crate::device_ops::NullDeviceOps>,
+        /// Shared so the test can observe whether re-acquire was issued.
+        started: std::sync::Arc<std::sync::atomic::AtomicBool>,
+        start_should_fail: bool,
+        relock_after_start: bool,
+    }
+
+    impl ReacquireGuiderOps {
+        fn new(start_should_fail: bool, relock_after_start: bool) -> Self {
+            Self {
+                inner: std::sync::Arc::new(crate::device_ops::NullDeviceOps),
+                started: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+                start_should_fail,
+                relock_after_start,
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl DeviceOps for ReacquireGuiderOps {
+        async fn guider_get_status(&self) -> DeviceResult<GuidingStatus> {
+            // Guiding only once a (successful) re-acquire has been issued.
+            let guiding = self.started.load(Ordering::Relaxed) && self.relock_after_start;
+            Ok(GuidingStatus {
+                is_guiding: guiding,
+                rms_ra: 0.5,
+                rms_dec: 0.4,
+                rms_total: 0.64,
+            })
+        }
+
+        async fn guider_start(
+            &self,
+            _settle_pixels: f64,
+            _settle_time: f64,
+            _settle_timeout: f64,
+        ) -> DeviceResult<()> {
+            if self.start_should_fail {
+                return Err("simulated guider_start failure".to_string());
+            }
+            self.started.store(true, Ordering::Relaxed);
+            Ok(())
+        }
+
+        // === delegating methods (every other DeviceOps method) ===
+        async fn mount_slew_to_coordinates(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
+            self.inner.mount_slew_to_coordinates(id, ra, dec).await
+        }
+        async fn mount_abort_slew(&self, id: &str) -> DeviceResult<()> {
+            self.inner.mount_abort_slew(id).await
+        }
+        async fn mount_get_coordinates(&self, id: &str) -> DeviceResult<(f64, f64)> {
+            self.inner.mount_get_coordinates(id).await
+        }
+        async fn mount_sync(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
+            self.inner.mount_sync(id, ra, dec).await
+        }
+        async fn mount_park(&self, id: &str) -> DeviceResult<()> {
+            self.inner.mount_park(id).await
+        }
+        async fn mount_unpark(&self, id: &str) -> DeviceResult<()> {
+            self.inner.mount_unpark(id).await
+        }
+        async fn mount_is_slewing(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_is_slewing(id).await
+        }
+        async fn mount_is_parked(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_is_parked(id).await
+        }
+        async fn mount_can_flip(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_can_flip(id).await
+        }
+        async fn mount_side_of_pier(&self, id: &str) -> DeviceResult<crate::meridian::PierSide> {
+            self.inner.mount_side_of_pier(id).await
+        }
+        async fn mount_is_tracking(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_is_tracking(id).await
+        }
+        async fn mount_set_tracking(&self, id: &str, enabled: bool) -> DeviceResult<()> {
+            self.inner.mount_set_tracking(id, enabled).await
+        }
+        async fn camera_start_exposure(
+            &self,
+            id: &str,
+            d: f64,
+            g: Option<i32>,
+            o: Option<i32>,
+            bx: i32,
+            by: i32,
+        ) -> DeviceResult<crate::device_ops::ImageData> {
+            self.inner.camera_start_exposure(id, d, g, o, bx, by).await
+        }
+        async fn camera_abort_exposure(&self, id: &str) -> DeviceResult<()> {
+            self.inner.camera_abort_exposure(id).await
+        }
+        async fn camera_set_cooler(&self, id: &str, e: bool, t: f64) -> DeviceResult<()> {
+            self.inner.camera_set_cooler(id, e, t).await
+        }
+        async fn camera_get_temperature(&self, id: &str) -> DeviceResult<f64> {
+            self.inner.camera_get_temperature(id).await
+        }
+        async fn camera_get_cooler_power(&self, id: &str) -> DeviceResult<f64> {
+            self.inner.camera_get_cooler_power(id).await
+        }
+        async fn focuser_move_to(&self, id: &str, p: i32) -> DeviceResult<()> {
+            self.inner.focuser_move_to(id, p).await
+        }
+        async fn focuser_get_position(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.focuser_get_position(id).await
+        }
+        async fn focuser_is_moving(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.focuser_is_moving(id).await
+        }
+        async fn focuser_get_temperature(&self, id: &str) -> DeviceResult<Option<f64>> {
+            self.inner.focuser_get_temperature(id).await
+        }
+        async fn focuser_halt(&self, id: &str) -> DeviceResult<()> {
+            self.inner.focuser_halt(id).await
+        }
+        async fn filterwheel_set_position(&self, id: &str, p: i32) -> DeviceResult<()> {
+            self.inner.filterwheel_set_position(id, p).await
+        }
+        async fn filterwheel_get_position(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.filterwheel_get_position(id).await
+        }
+        async fn filterwheel_get_names(&self, id: &str) -> DeviceResult<Vec<String>> {
+            self.inner.filterwheel_get_names(id).await
+        }
+        async fn filterwheel_set_filter_by_name(&self, id: &str, n: &str) -> DeviceResult<i32> {
+            self.inner.filterwheel_set_filter_by_name(id, n).await
+        }
+        async fn rotator_move_to(&self, id: &str, a: f64) -> DeviceResult<()> {
+            self.inner.rotator_move_to(id, a).await
+        }
+        async fn rotator_move_relative(&self, id: &str, d: f64) -> DeviceResult<()> {
+            self.inner.rotator_move_relative(id, d).await
+        }
+        async fn rotator_get_angle(&self, id: &str) -> DeviceResult<f64> {
+            self.inner.rotator_get_angle(id).await
+        }
+        async fn rotator_halt(&self, id: &str) -> DeviceResult<()> {
+            self.inner.rotator_halt(id).await
+        }
+        async fn guider_dither(
+            &self,
+            p: f64,
+            sp: f64,
+            st: f64,
+            sto: f64,
+            ra: bool,
+        ) -> DeviceResult<()> {
+            self.inner.guider_dither(p, sp, st, sto, ra).await
+        }
+        async fn guider_stop(&self) -> DeviceResult<()> {
+            self.inner.guider_stop().await
+        }
+        async fn plate_solve(
+            &self,
+            d: &crate::device_ops::ImageData,
+            ra: Option<f64>,
+            dec: Option<f64>,
+            s: Option<f64>,
+        ) -> DeviceResult<crate::device_ops::PlateSolveResult> {
+            self.inner.plate_solve(d, ra, dec, s).await
+        }
+        async fn save_fits(
+            &self,
+            d: &crate::device_ops::ImageData,
+            f: &str,
+            fctx: &crate::scheduling::FrameContext,
+        ) -> DeviceResult<()> {
+            self.inner.save_fits(d, f, fctx).await
+        }
+        async fn send_notification(
+            &self,
+            l: &str,
+            t: &str,
+            m: &str,
+            x: Option<&[String]>,
+        ) -> DeviceResult<()> {
+            self.inner.send_notification(l, t, m, x).await
+        }
+        fn calculate_altitude(&self, r: f64, d: f64, la: f64, lo: f64) -> f64 {
+            self.inner.calculate_altitude(r, d, la, lo)
+        }
+        fn get_observer_location(&self) -> Option<(f64, f64)> {
+            self.inner.get_observer_location()
+        }
+        async fn polar_align_update(
+            &self,
+            r: &crate::polar_align::PolarAlignResult,
+        ) -> DeviceResult<()> {
+            self.inner.polar_align_update(r).await
+        }
+        async fn dome_open(&self, id: &str) -> DeviceResult<()> {
+            self.inner.dome_open(id).await
+        }
+        async fn dome_close(&self, id: &str) -> DeviceResult<()> {
+            self.inner.dome_close(id).await
+        }
+        async fn dome_park(&self, id: &str) -> DeviceResult<()> {
+            self.inner.dome_park(id).await
+        }
+        async fn dome_get_shutter_status(&self, id: &str) -> DeviceResult<String> {
+            self.inner.dome_get_shutter_status(id).await
+        }
+        async fn safety_is_safe(&self, id: Option<&str>) -> DeviceResult<bool> {
+            self.inner.safety_is_safe(id).await
+        }
+        async fn calculate_image_hfr(
+            &self,
+            d: &crate::device_ops::ImageData,
+        ) -> DeviceResult<Option<f64>> {
+            self.inner.calculate_image_hfr(d).await
+        }
+        async fn detect_stars_in_image(
+            &self,
+            d: &crate::device_ops::ImageData,
+        ) -> DeviceResult<Vec<(f64, f64, f64)>> {
+            self.inner.detect_stars_in_image(d).await
+        }
+        async fn cover_calibrator_open_cover(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_open_cover(id).await
+        }
+        async fn cover_calibrator_close_cover(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_close_cover(id).await
+        }
+        async fn cover_calibrator_halt_cover(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_halt_cover(id).await
+        }
+        async fn cover_calibrator_calibrator_on(&self, id: &str, b: i32) -> DeviceResult<()> {
+            self.inner.cover_calibrator_calibrator_on(id, b).await
+        }
+        async fn cover_calibrator_calibrator_off(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_calibrator_off(id).await
+        }
+        async fn cover_calibrator_get_cover_state(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_cover_state(id).await
+        }
+        async fn cover_calibrator_get_calibrator_state(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_calibrator_state(id).await
+        }
+        async fn cover_calibrator_get_brightness(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_brightness(id).await
+        }
+        async fn cover_calibrator_get_max_brightness(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_max_brightness(id).await
+        }
+    }
+
+    #[tokio::test]
+    async fn guide_star_lost_recovery_actively_reacquires() {
+        // Guider is lost; guider_start succeeds and the guider re-locks.
+        let guider = ReacquireGuiderOps::new(false, true);
+        let started = guider.started.clone();
+        let ops: SharedDeviceOps = std::sync::Arc::new(guider);
+        let outcome = recover_guide_star(&ops).await;
+        assert!(
+            matches!(outcome, crate::recovery::AttemptOutcome::Succeeded),
+            "recovery should succeed once the guider re-locks after re-acquire"
+        );
+        // The re-acquire MUST have been issued (the old code never did this).
+        assert!(
+            started.load(Ordering::Relaxed),
+            "guider_start (re-acquisition) must be called during recovery"
+        );
+    }
+
+    #[tokio::test]
+    async fn guide_star_lost_recovery_fails_closed_when_start_errors() {
+        // guider_start itself errors → recovery must fail closed.
+        let ops: SharedDeviceOps =
+            std::sync::Arc::new(ReacquireGuiderOps::new(true, false));
+        let outcome = recover_guide_star(&ops).await;
+        assert!(
+            matches!(outcome, crate::recovery::AttemptOutcome::Failed { .. }),
+            "recovery must fail closed when guider_start errors"
         );
     }
 }

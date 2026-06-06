@@ -80,7 +80,7 @@ class CalibrationSection extends ConsumerWidget {
               alignment: Alignment.centerLeft,
               child: NightshadeButton(
                 label: 'Go to Equipment',
-                icon: LucideIcons.plug,
+                icon: NightshadeIcons.connected,
                 size: ButtonSize.small,
                 onPressed: () => context.go('/equipment'),
               ),
@@ -216,13 +216,13 @@ class _StatusBlock extends ConsumerWidget {
       },
       loading: () => _StatusLine(
         colors: colors,
-        icon: LucideIcons.loader2,
+        icon: NightshadeIcons.loading,
         iconColor: colors.textSecondary,
         message: 'Loading defect map status...',
       ),
       error: (err, _) => _StatusLine(
         colors: colors,
-        icon: LucideIcons.alertTriangle,
+        icon: NightshadeIcons.warning,
         iconColor: colors.error,
         message: 'Failed to load defect map status: $err',
       ),
@@ -272,7 +272,7 @@ class _NoMapForBucketBlock extends ConsumerWidget {
       children: [
         _StatusLine(
           colors: colors,
-          icon: LucideIcons.info,
+          icon: NightshadeIcons.info,
           iconColor: colors.textSecondary,
           message: 'No defect map for $cameraName at ${currentBucket.label}.',
         ),
@@ -281,7 +281,7 @@ class _NoMapForBucketBlock extends ConsumerWidget {
           'Capture 20+ dark frames at this temperature, then click Build '
           'to generate one.',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textSecondary,
             height: 1.4,
           ),
@@ -364,19 +364,19 @@ class _AlternateBucketChip extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: NightshadeDecorations.emphasisSurface(
         colors.accent,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Icon(LucideIcons.thermometer, size: 14, color: colors.accent),
+          Icon(NightshadeIcons.temperature, size: 14, color: colors.accent),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               'A map exists for ${alternateBucket.label} ($signedDelta C '
               'from current).',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textPrimary,
                 height: 1.4,
               ),
@@ -385,7 +385,7 @@ class _AlternateBucketChip extends ConsumerWidget {
           const SizedBox(width: 8),
           NightshadeButton(
             label: 'Use ${alternateBucket.label} map',
-            icon: LucideIcons.check,
+            icon: NightshadeIcons.check,
             size: ButtonSize.small,
             variant: ButtonVariant.outline,
             onPressed: () async {
@@ -434,13 +434,9 @@ class _StatusLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return NightshadeCard(
+      backgroundColor: colors.background,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: colors.background,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: colors.border),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -450,7 +446,7 @@ class _StatusLine extends StatelessWidget {
             child: Text(
               message,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textPrimary,
                 height: 1.4,
               ),
@@ -536,7 +532,7 @@ class _BuildButtonState extends ConsumerState<_BuildButton> {
       label: isBuilding
           ? 'Building defect map...'
           : 'Build defect map from current darks',
-      icon: isBuilding ? LucideIcons.loader2 : LucideIcons.cog,
+      icon: isBuilding ? NightshadeIcons.loading : LucideIcons.cog,
       colors: widget.colors,
       isEnabled: buttonEnabled,
       onTap: buttonEnabled ? _pickAndBuild : null,
@@ -590,7 +586,7 @@ class _ApplyToggle extends ConsumerWidget {
         Expanded(
           child: Text(
             'Apply during capture',
-            style: TextStyle(fontSize: 12, color: colors.textPrimary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
           ),
         ),
         NightshadeSwitch(
@@ -703,7 +699,7 @@ class _ClearButton extends ConsumerWidget {
       label: uiState.isClearing
           ? 'Clearing...'
           : 'Clear defect map for this camera at this temperature',
-      icon: uiState.isClearing ? LucideIcons.loader2 : LucideIcons.trash2,
+      icon: uiState.isClearing ? NightshadeIcons.loading : NightshadeIcons.delete,
       isOutline: true,
       colors: colors,
       isEnabled: buttonEnabled,
@@ -799,7 +795,7 @@ class _CorrectionSettings extends ConsumerWidget {
         Text(
           'Correction settings',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: FontWeight.w600,
             color: colors.textSecondary,
             letterSpacing: 0.5,
@@ -813,7 +809,7 @@ class _CorrectionSettings extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Auto-apply when map exists',
-                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
               ),
             ),
             NightshadeSwitch(
@@ -834,7 +830,7 @@ class _CorrectionSettings extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Replacement method',
-                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
               ),
             ),
             NightshadeDropdown(
@@ -858,7 +854,7 @@ class _CorrectionSettings extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Kernel size',
-                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
               ),
             ),
             NightshadeDropdown(
@@ -883,7 +879,7 @@ class _CorrectionSettings extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Save original to Raw/ subdir',
-                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
               ),
             ),
             NightshadeSwitch(

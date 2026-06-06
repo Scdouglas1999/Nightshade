@@ -57,7 +57,7 @@ class _RunDashboardSessionWarningsPanelState
                     child: Text(
                       'SESSION WARNINGS',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 0.6,
                         color: colors.textMuted,
@@ -133,7 +133,7 @@ class _WarningRow extends StatelessWidget {
           child: Text(
             message,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
               height: 1.35,
             ),

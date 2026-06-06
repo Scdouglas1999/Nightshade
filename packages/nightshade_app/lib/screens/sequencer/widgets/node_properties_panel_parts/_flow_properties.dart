@@ -16,11 +16,7 @@ class _LoopProperties extends ConsumerWidget {
       children: [
         Text(
           'Loop Settings',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(
@@ -101,7 +97,7 @@ class _LoopProperties extends ConsumerWidget {
                         horizontal: 12, vertical: 10),
                     decoration: BoxDecoration(
                       color: colors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                       border: Border.all(color: colors.border),
                     ),
                     child: Row(
@@ -114,7 +110,7 @@ class _LoopProperties extends ConsumerWidget {
                               ? '${node.repeatUntil!.hour.toString().padLeft(2, '0')}:${node.repeatUntil!.minute.toString().padLeft(2, '0')}'
                               : 'Select time...',
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: NightshadeTypography.fontSize13,
                             color: node.repeatUntil != null
                                 ? colors.textPrimary
                                 : colors.textMuted,
@@ -282,11 +278,7 @@ class _DelayProperties extends ConsumerWidget {
       children: [
         Text(
           'Delay Settings',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(
@@ -324,11 +316,7 @@ class _WaitTimeProperties extends ConsumerWidget {
       children: [
         Text(
           'Wait Settings',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(
@@ -407,7 +395,7 @@ class _WaitTimeProperties extends ConsumerWidget {
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(color: colors.border),
                 ),
                 child: Row(
@@ -419,7 +407,7 @@ class _WaitTimeProperties extends ConsumerWidget {
                           ? '${node.waitUntil!.hour.toString().padLeft(2, '0')}:${node.waitUntil!.minute.toString().padLeft(2, '0')}'
                           : 'Select time...',
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         color: node.waitUntil != null
                             ? colors.textPrimary
                             : colors.textMuted,
@@ -449,11 +437,7 @@ class _ConditionalProperties extends ConsumerWidget {
       children: [
         Text(
           'Condition Settings',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(
@@ -624,7 +608,7 @@ class _SafetyMonitorPicker extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.border),
         ),
         child: DropdownButtonHideUnderline(
@@ -637,7 +621,7 @@ class _SafetyMonitorPicker extends ConsumerWidget {
               color: colors.textMuted,
             ),
             dropdownColor: colors.surface,
-            style: TextStyle(fontSize: 13, color: colors.textPrimary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
             items: options
                 .map((o) => DropdownMenuItem(
                       value: o.key,
@@ -671,11 +655,7 @@ class _ParallelProperties extends ConsumerWidget {
       children: [
         Text(
           'Parallel Execution',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(
@@ -697,7 +677,7 @@ class _ParallelProperties extends ConsumerWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: colors.info.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -708,7 +688,7 @@ class _ParallelProperties extends ConsumerWidget {
                 child: Text(
                   'All child nodes will execute simultaneously. Node succeeds when required number of children complete.',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.info,
                   ),
                 ),
@@ -734,11 +714,7 @@ class _RecoveryProperties extends ConsumerWidget {
       children: [
         Text(
           'Recovery Settings',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(

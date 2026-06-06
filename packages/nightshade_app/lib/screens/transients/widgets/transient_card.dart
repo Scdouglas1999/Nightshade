@@ -119,11 +119,7 @@ class _TransientCardState extends State<TransientCard> {
             children: [
               Text(
                 widget.alert.name,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
               ),
               const SizedBox(height: NightshadeTokens.spaceXs),
               Row(
@@ -131,7 +127,7 @@ class _TransientCardState extends State<TransientCard> {
                   Text(
                     _getTypeLabel(),
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: colors.textSecondary,
                     ),
                   ),
@@ -139,7 +135,7 @@ class _TransientCardState extends State<TransientCard> {
                     Text(
                       ' - ${widget.alert.classification}',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: colors.textMuted,
                       ),
                     ),
@@ -164,7 +160,7 @@ class _TransientCardState extends State<TransientCard> {
           child: Row(
             children: [
               Icon(
-                LucideIcons.crosshair,
+                NightshadeIcons.crosshair,
                 size: NightshadeTokens.iconXs,
                 color: colors.textMuted,
               ),
@@ -174,7 +170,7 @@ class _TransientCardState extends State<TransientCard> {
                   '${CoordinateFormat.ra(widget.alert.raHours, seconds: SecondsPrecision.integerFloored)}  '
                   '${CoordinateFormat.dec(widget.alert.decDegrees, seconds: SecondsPrecision.integerFloored)}',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontFamily: 'monospace',
                     color: colors.textSecondary,
                   ),
@@ -209,14 +205,14 @@ class _TransientCardState extends State<TransientCard> {
         children: [
           // Discovery info
           _DetailRow(
-            icon: LucideIcons.search,
+            icon: NightshadeIcons.search,
             label: 'Source',
             value: _getSourceLabel(widget.alert.source),
             colors: colors,
           ),
           const SizedBox(height: NightshadeTokens.spaceSm),
           _DetailRow(
-            icon: LucideIcons.clock,
+            icon: NightshadeIcons.clock,
             label: 'Discovered',
             value: _formatDateTime(widget.alert.discoveryTime),
             colors: colors,
@@ -232,7 +228,7 @@ class _TransientCardState extends State<TransientCard> {
           ],
           const SizedBox(height: NightshadeTokens.spaceSm),
           _DetailRow(
-            icon: LucideIcons.refreshCw,
+            icon: NightshadeIcons.refresh,
             label: 'Last Updated',
             value: _formatDateTime(widget.alert.lastUpdated),
             colors: colors,
@@ -240,7 +236,7 @@ class _TransientCardState extends State<TransientCard> {
           if (widget.alert.notes != null) ...[
             const SizedBox(height: NightshadeTokens.spaceSm),
             _DetailRow(
-              icon: LucideIcons.fileText,
+              icon: NightshadeIcons.file,
               label: 'Notes',
               value: widget.alert.notes!,
               colors: colors,
@@ -264,7 +260,7 @@ class _TransientCardState extends State<TransientCard> {
           Expanded(
             child: NightshadeButton(
               label: 'Queue',
-              icon: LucideIcons.plus,
+              icon: NightshadeIcons.add,
               size: ButtonSize.small,
               variant: ButtonVariant.primary,
               onPressed: widget.onQueue,
@@ -285,18 +281,14 @@ class _TransientCardState extends State<TransientCard> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    LucideIcons.clock,
+                    NightshadeIcons.clock,
                     size: NightshadeTokens.iconSm,
                     color: colors.warning,
                   ),
                   const SizedBox(width: NightshadeTokens.spaceXs),
                   Text(
                     'Queued',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: colors.warning,
-                    ),
+                    style: NightshadeTypography.labelSm.copyWith(color: colors.warning),
                   ),
                 ],
               ),
@@ -317,18 +309,14 @@ class _TransientCardState extends State<TransientCard> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
-                    LucideIcons.check,
+                    NightshadeIcons.check,
                     size: NightshadeTokens.iconSm,
                     color: colors.success,
                   ),
                   const SizedBox(width: NightshadeTokens.spaceXs),
                   Text(
                     'Observed',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: colors.success,
-                    ),
+                    style: NightshadeTypography.labelSm.copyWith(color: colors.success),
                   ),
                 ],
               ),
@@ -341,7 +329,7 @@ class _TransientCardState extends State<TransientCard> {
         Expanded(
           child: NightshadeButton(
             label: 'Framing',
-            icon: LucideIcons.frame,
+            icon: NightshadeIcons.frame,
             size: ButtonSize.small,
             variant: ButtonVariant.outline,
             onPressed: widget.onViewInFraming,
@@ -354,7 +342,7 @@ class _TransientCardState extends State<TransientCard> {
         if (!isDismissed && !isObserved)
           IconButton(
             icon: Icon(
-              LucideIcons.x,
+              NightshadeIcons.close,
               size: NightshadeTokens.iconMd,
               color: colors.textMuted,
             ),
@@ -388,21 +376,21 @@ class _TransientCardState extends State<TransientCard> {
   IconData _getTypeIcon() {
     switch (widget.alert.type) {
       case TransientType.nova:
-        return LucideIcons.star;
+        return NightshadeIcons.star;
       case TransientType.supernova:
-        return LucideIcons.sparkles;
+        return NightshadeIcons.sparkle;
       case TransientType.comet:
         return LucideIcons.orbit;
       case TransientType.cataclysmic:
-        return LucideIcons.zap;
+        return NightshadeIcons.bolt;
       case TransientType.asteroid:
-        return LucideIcons.circle;
+        return NightshadeIcons.circle;
       case TransientType.variableStar:
-        return LucideIcons.activity;
+        return NightshadeIcons.activity;
       case TransientType.gammaRayBurst:
         return LucideIcons.flame;
       case TransientType.other:
-        return LucideIcons.helpCircle;
+        return NightshadeIcons.help;
     }
   }
 
@@ -507,11 +495,7 @@ class _StateBadge extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: color,
-        ),
+        style: NightshadeTypography.labelStrongSm.copyWith(color: color),
       ),
     );
   }
@@ -559,18 +543,14 @@ class _MagnitudeIndicator extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            LucideIcons.sun,
+            NightshadeIcons.sun,
             size: NightshadeTokens.iconXs,
             color: color,
           ),
           const SizedBox(width: NightshadeTokens.spaceXs),
           Text(
             'mag ${magnitude.toStringAsFixed(1)}',
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: color,
-            ),
+            style: NightshadeTypography.labelStrongSm.copyWith(color: color),
           ),
           const SizedBox(width: NightshadeTokens.spaceXs),
           Container(
@@ -585,7 +565,7 @@ class _MagnitudeIndicator extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 9,
+                fontSize: NightshadeTypography.fontSize9,
                 fontWeight: FontWeight.w600,
                 color: color,
               ),
@@ -638,7 +618,7 @@ class _DetailRow extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textMuted,
                 ),
               ),
@@ -650,7 +630,7 @@ class _DetailRow extends StatelessWidget {
             child: Text(
               value,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textSecondary,
               ),
             ),
@@ -666,7 +646,7 @@ class _DetailRow extends StatelessWidget {
         Text(
           '$label: ',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,
           ),
         ),
@@ -674,7 +654,7 @@ class _DetailRow extends StatelessWidget {
           child: Text(
             value,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
             ),
             overflow: TextOverflow.ellipsis,

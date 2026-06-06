@@ -19,7 +19,7 @@ class _ProgressPanelContainer extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: NightshadeDecorations.emphasisSurface(
         accent,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: child,
     );
@@ -73,18 +73,14 @@ class _CoolingProgressPanel extends StatelessWidget {
           Row(
             children: [
               Icon(
-                isWarming ? Icons.thermostat : Icons.ac_unit,
+                isWarming ? NightshadeIcons.temperature : NightshadeIcons.frost,
                 size: 16,
                 color: isWarming ? colors.warning : colors.info,
               ),
               const SizedBox(width: 8),
               Text(
                 isWarming ? 'Warming Camera' : 'Cooling Camera',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -103,7 +99,7 @@ class _CoolingProgressPanel extends StatelessWidget {
               const SizedBox(width: 16),
               // Arrow
               Icon(
-                Icons.arrow_forward,
+                NightshadeIcons.arrowRight,
                 size: 16,
                 color: colors.textMuted,
               ),
@@ -155,14 +151,14 @@ class _TempDisplay extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 9,
+            fontSize: NightshadeTypography.fontSize9,
             color: colors.textMuted,
           ),
         ),
         Text(
           temp != null ? '${temp!.toStringAsFixed(1)}Â°C' : '--Â°C',
           style: TextStyle(
-            fontSize: 16,
+            fontSize: NightshadeTypography.fontSize16,
             fontWeight: FontWeight.w700,
             color: isTarget ? colors.info : colors.textPrimary,
           ),
@@ -186,7 +182,7 @@ class _PowerGauge extends StatelessWidget {
         Text(
           'Power',
           style: TextStyle(
-            fontSize: 9,
+            fontSize: NightshadeTypography.fontSize9,
             color: colors.textMuted,
           ),
         ),
@@ -196,7 +192,7 @@ class _PowerGauge extends StatelessWidget {
               width: 40,
               height: 8,
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 child: LinearProgressIndicator(
                   value: power / 100.0,
                   backgroundColor: colors.border,
@@ -213,11 +209,7 @@ class _PowerGauge extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               '${power.toStringAsFixed(0)}%',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
             ),
           ],
         ),

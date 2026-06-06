@@ -308,14 +308,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     _StepSidebar(currentStep: draft.currentStep),
                     const SizedBox(width: 16),
                     Expanded(
-                      child: Container(
+                      child: NightshadeCard(
+                        backgroundColor: colors.background,
+                        borderRadius: NightshadeTokens.radiusLg,
                         padding: const EdgeInsets.all(20),
-                        decoration: BoxDecoration(
-                          color: colors.background,
-                          borderRadius:
-                              BorderRadius.circular(NightshadeTokens.radiusLg),
-                          border: Border.all(color: colors.border),
-                        ),
                         child: _StepBody(
                           currentStep: draft.currentStep,
                           onFinishTo: _finishTo,
@@ -415,9 +411,9 @@ class _Header extends StatelessWidget {
           height: 40,
           decoration: NightshadeDecorations.iconChip(
             colors.primary,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: NightshadeTokens.borderRadiusLg,
           ),
-          child: Icon(LucideIcons.sparkles, color: colors.primary, size: 20),
+          child: Icon(NightshadeIcons.sparkle, color: colors.primary, size: 20),
         ),
         const SizedBox(width: 14),
         Expanded(
@@ -489,10 +485,10 @@ class _PhoneHeader extends StatelessWidget {
               height: chipSize,
               decoration: NightshadeDecorations.iconChip(
                 colors.primary,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: NightshadeTokens.borderRadiusLg,
               ),
               child: Icon(
-                LucideIcons.sparkles,
+                NightshadeIcons.sparkle,
                 color: colors.primary,
                 size: compact ? 16 : 18,
               ),
@@ -540,7 +536,7 @@ class _PhoneHeader extends StatelessWidget {
         ),
         SizedBox(height: compact ? 6 : 10),
         ClipRRect(
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: NightshadeTokens.borderRadiusFull,
           child: LinearProgressIndicator(
             value: progress,
             minHeight: 4,
@@ -590,17 +586,17 @@ class _PhoneFooter extends StatelessWidget {
       primaryIcon = LucideIcons.layoutDashboard;
       primaryLabel = 'Go to dashboard';
     } else if (isSummary) {
-      primaryIcon = LucideIcons.check;
+      primaryIcon = NightshadeIcons.check;
       primaryLabel = 'Save profile';
     } else {
-      primaryIcon = LucideIcons.arrowRight;
+      primaryIcon = NightshadeIcons.arrowRight;
       primaryLabel = 'Next';
     }
 
     final secondary = <Widget>[
       if (onBack != null)
         NightshadeButton(
-          icon: LucideIcons.arrowLeft,
+          icon: NightshadeIcons.arrowLeft,
           label: 'Back',
           variant: ButtonVariant.outline,
           onPressed: onBack,
@@ -613,7 +609,7 @@ class _PhoneFooter extends StatelessWidget {
         ),
       if (isNextSteps && onFirstLight != null)
         NightshadeButton(
-          icon: LucideIcons.sparkles,
+          icon: NightshadeIcons.sparkle,
           label: 'Capture first light',
           variant: ButtonVariant.outline,
           onPressed: isSaving ? null : onFirstLight,
@@ -695,15 +691,15 @@ class _StepSidebar extends StatelessWidget {
 
   static const _stepIcons = <OnboardingStep, IconData>{
     OnboardingStep.welcome: LucideIcons.heart,
-    OnboardingStep.drivers: LucideIcons.plug,
-    OnboardingStep.camera: LucideIcons.camera,
-    OnboardingStep.mount: LucideIcons.compass,
-    OnboardingStep.focuser: LucideIcons.focus,
-    OnboardingStep.filterWheel: LucideIcons.disc,
-    OnboardingStep.guider: LucideIcons.crosshair,
+    OnboardingStep.drivers: NightshadeIcons.connected,
+    OnboardingStep.camera: NightshadeIcons.camera,
+    OnboardingStep.mount: NightshadeIcons.compass,
+    OnboardingStep.focuser: NightshadeIcons.focuser,
+    OnboardingStep.filterWheel: NightshadeIcons.filterWheel,
+    OnboardingStep.guider: NightshadeIcons.crosshair,
     OnboardingStep.opticalTrain: LucideIcons.ruler,
-    OnboardingStep.cameraDefaults: LucideIcons.sliders,
-    OnboardingStep.captureDir: LucideIcons.folder,
+    OnboardingStep.cameraDefaults: NightshadeIcons.sliders,
+    OnboardingStep.captureDir: NightshadeIcons.folder,
     OnboardingStep.summary: LucideIcons.clipboardCheck,
     OnboardingStep.nextSteps: LucideIcons.rocket,
   };
@@ -714,15 +710,13 @@ class _StepSidebar extends StatelessWidget {
     final theme = Theme.of(context);
     final currentIdx = currentStep.order;
 
-    return Container(
+    return SizedBox(
       width: 220,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
-        border: Border.all(color: colors.border),
-      ),
-      child: ListView(
+      child: NightshadeCard(
+        variant: CardVariant.subtle,
+        borderRadius: NightshadeTokens.radiusLg,
+        padding: const EdgeInsets.all(12),
+        child: ListView(
         children: OnboardingStep.values.map((step) {
           final idx = step.order;
           final isActive = step == currentStep;
@@ -749,11 +743,11 @@ class _StepSidebar extends StatelessWidget {
                   ),
                   child: Center(
                     child: isCompleted
-                        ? Icon(LucideIcons.check,
+                        ? Icon(NightshadeIcons.check,
                             size: 12,
                             color: Theme.of(context).colorScheme.onPrimary)
                         : Icon(
-                            _stepIcons[step] ?? LucideIcons.circle,
+                            _stepIcons[step] ?? NightshadeIcons.circle,
                             size: 12,
                             color: isActive
                                 ? Theme.of(context).colorScheme.onPrimary
@@ -777,7 +771,7 @@ class _StepSidebar extends StatelessWidget {
                   Tooltip(
                     message: 'Optional step',
                     child: Icon(
-                      LucideIcons.minus,
+                      NightshadeIcons.remove,
                       size: 10,
                       color: colors.textMuted,
                     ),
@@ -786,6 +780,7 @@ class _StepSidebar extends StatelessWidget {
             ),
           );
         }).toList(),
+        ),
       ),
     );
   }
@@ -866,17 +861,17 @@ class _Footer extends StatelessWidget {
       primaryIcon = LucideIcons.layoutDashboard;
       primaryLabel = 'Go to dashboard';
     } else if (isSummary) {
-      primaryIcon = LucideIcons.check;
+      primaryIcon = NightshadeIcons.check;
       primaryLabel = 'Save profile';
     } else {
-      primaryIcon = LucideIcons.arrowRight;
+      primaryIcon = NightshadeIcons.arrowRight;
       primaryLabel = 'Next';
     }
 
     return Row(
       children: [
         NightshadeButton(
-          icon: LucideIcons.arrowLeft,
+          icon: NightshadeIcons.arrowLeft,
           label: 'Back',
           variant: ButtonVariant.outline,
           onPressed: onBack,
@@ -892,7 +887,7 @@ class _Footer extends StatelessWidget {
         ],
         if (isNextSteps && onFirstLight != null) ...[
           NightshadeButton(
-            icon: LucideIcons.sparkles,
+            icon: NightshadeIcons.sparkle,
             label: 'Capture first light',
             variant: ButtonVariant.outline,
             onPressed: isSaving ? null : onFirstLight,

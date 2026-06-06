@@ -298,7 +298,7 @@ class SuggestionFilters extends ConsumerWidget {
                 Text(
                   'Filter Suggestions',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: NightshadeTypography.fontSize18,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -315,9 +315,7 @@ class SuggestionFilters extends ConsumerWidget {
             if (availableTypes.isNotEmpty) ...[
               Text(
                 'Object Types',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
+                style: NightshadeTypography.label.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
@@ -338,9 +336,7 @@ class SuggestionFilters extends ConsumerWidget {
             if (availableConstellations.isNotEmpty) ...[
               Text(
                 'Constellation',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
+                style: NightshadeTypography.label.copyWith(
                   color: colors.textSecondary,
                 ),
               ),
@@ -360,9 +356,7 @@ class SuggestionFilters extends ConsumerWidget {
             // Sort mode
             Text(
               'Sort By',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+              style: NightshadeTypography.label.copyWith(
                 color: colors.textSecondary,
               ),
             ),
@@ -520,9 +514,7 @@ class SuggestionFilters extends ConsumerWidget {
                     children: [
                       Text(
                         'Prioritize Incomplete Targets',
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
+                        style: NightshadeTypography.label.copyWith(
                           color: colors.textSecondary,
                         ),
                       ),
@@ -530,7 +522,7 @@ class SuggestionFilters extends ConsumerWidget {
                       Text(
                         'Rank targets with less data collected higher',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: colors.textMuted,
                         ),
                       ),

@@ -159,7 +159,7 @@ class _OnboardingOpticalTrainStepState
                 // lucide_icons 0.257.0 ships no `telescope` glyph; `aperture`
                 // is this codebase's established optics/telescope icon
                 // (equipment_profiles_screen, framing optical config panel).
-                icon: LucideIcons.aperture,
+                icon: NightshadeIcons.aperture,
                 label: 'Choose from telescope library',
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,

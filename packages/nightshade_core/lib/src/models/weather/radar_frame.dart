@@ -41,6 +41,31 @@ class RadarFrame with _$RadarFrame {
     /// Opacity for animation blending (0.0-1.0)
     @Default(1.0) double opacity,
 
+    /// Per-cell radar intensity field over the frame's geographic bounds, in
+    /// row-major order (outer list = rows running NORTH→SOUTH, inner list =
+    /// columns running WEST→EAST), each value normalised to 0.0–1.0.
+    ///
+    /// This is the real spatial radar signal decoded from the provider's tiles
+    /// (the reflectivity colormap mapped to intensity per pixel, downsampled to
+    /// this grid). When present and non-empty it lets the cloud-motion analyzer
+    /// track a genuine cloud centroid that MOVES between frames, instead of the
+    /// single uniform [opacity] box that carries no spatial structure.
+    ///
+    /// The grid spans exactly [north]..[south] (rows) and [west]..[east]
+    /// (columns); cell (r, c) covers the geographic sub-rectangle obtained by
+    /// linearly interpolating those bounds. Null when the provider could not
+    /// decode per-cell data (e.g. a tile-less WMS layer or a fetch/decode
+    /// failure) — the analyzer then treats the frame as having no spatial data
+    /// and reports its honest unavailable reason rather than fabricating motion.
+    List<List<double>>? intensityGrid,
+
+    /// True when this frame was produced but carries no usable radar signal
+    /// (the tile fetch or decode failed). Such a frame is emitted — rather than
+    /// silently dropped — so the analyzer/UI can report an honest "no spatial
+    /// radar data" state instead of acting on a fabricated uniform field. A
+    /// no-data frame never contributes density to the analysis.
+    @Default(false) bool isNoData,
+
     /// True if this is a forecast frame vs historical
     @Default(false) bool isForecast,
 

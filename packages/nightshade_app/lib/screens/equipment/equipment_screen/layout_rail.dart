@@ -35,11 +35,7 @@ class _DashboardHeader extends StatelessWidget {
             child: Text(
               profileName!,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
           ),
           if (isMobile) ...[
@@ -52,7 +48,7 @@ class _DashboardHeader extends StatelessWidget {
       profileTitle = Text(
         'Select a profile',
         style: TextStyle(
-          fontSize: 16,
+          fontSize: NightshadeTypography.fontSize16,
           color: colors.textMuted,
         ),
       );
@@ -63,7 +59,7 @@ class _DashboardHeader extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: onProfileTap,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           child: ConstrainedBox(
             constraints: const BoxConstraints(
               minHeight: NightshadeTokens.minTouchTarget,
@@ -146,17 +142,13 @@ class _PolarAlignmentShortcut extends ConsumerWidget {
                   children: [
                     Text(
                       'Polar Alignment',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       'Three-point or all-sky alignment with plate solving.',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: colors.textSecondary,
                       ),
                     ),
@@ -346,7 +338,7 @@ class _EquipmentStatusRail extends ConsumerWidget {
                   child: Text(
                     'STATUS',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       fontWeight: FontWeight.w600,
                       color: colors.textSecondary,
                       letterSpacing: 0.5,
@@ -448,7 +440,7 @@ class _ReadinessSummaryBar extends ConsumerWidget {
                   Text(
                     label,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       fontWeight: FontWeight.w600,
                       color: colors.textSecondary,
                       letterSpacing: 0.5,
@@ -461,12 +453,12 @@ class _ReadinessSummaryBar extends ConsumerWidget {
                           horizontal: 6, vertical: 1),
                       decoration: NightshadeDecorations.tintedBadge(
                         dotColor,
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                       ),
                       child: Text(
                         '$outstanding ${outstanding == 1 ? 'item' : 'items'}',
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: NightshadeTypography.fontSize10,
                           fontWeight: FontWeight.w600,
                           color: dotColor,
                         ),

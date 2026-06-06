@@ -17,7 +17,7 @@ extension _ReviewStep on _QuickStartWizardDialogState {
       children: [
         Text(
           'Review your sequence before creating it.',
-          style: TextStyle(color: colors.textSecondary, fontSize: 13),
+          style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13),
         ),
         const SizedBox(height: 16),
 
@@ -116,7 +116,7 @@ extension _ReviewStep on _QuickStartWizardDialogState {
           padding: const EdgeInsets.all(12),
           decoration: NightshadeDecorations.emphasisSurface(
             colors.primary,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           ),
           child: Row(
             children: [
@@ -127,17 +127,13 @@ extension _ReviewStep on _QuickStartWizardDialogState {
                 children: [
                   Text(
                     'Estimated Duration',
-                    style: TextStyle(
-                      color: colors.primary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: NightshadeTypography.h6.copyWith(color: colors.primary),
                   ),
                   Text(
                     _formatDuration(totalSecs),
                     style: TextStyle(
                       color: colors.textPrimary,
-                      fontSize: 16,
+                      fontSize: NightshadeTypography.fontSize16,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -165,7 +161,7 @@ extension _ReviewStep on _QuickStartWizardDialogState {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -177,11 +173,7 @@ extension _ReviewStep on _QuickStartWizardDialogState {
               const SizedBox(width: 8),
               Text(
                 title,
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -200,11 +192,11 @@ extension _ReviewStep on _QuickStartWizardDialogState {
           SizedBox(
             width: 120,
             child: Text(label,
-                style: TextStyle(color: colors.textMuted, fontSize: 12)),
+                style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12)),
           ),
           Expanded(
             child: Text(value,
-                style: TextStyle(color: colors.textPrimary, fontSize: 12)),
+                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize12)),
           ),
         ],
       ),
@@ -279,7 +271,7 @@ extension _ReviewStep on _QuickStartWizardDialogState {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.background,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -287,11 +279,7 @@ extension _ReviewStep on _QuickStartWizardDialogState {
         children: [
           Text(
             'Sequence Tree Preview',
-            style: TextStyle(
-              color: colors.textSecondary,
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-            ),
+            style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
           ),
           const SizedBox(height: 8),
           ...treeLines.map((line) {
@@ -305,7 +293,7 @@ extension _ReviewStep on _QuickStartWizardDialogState {
                     line.label,
                     style: TextStyle(
                       color: colors.textPrimary,
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       fontFamily: 'monospace',
                     ),
                   ),

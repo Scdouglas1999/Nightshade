@@ -114,6 +114,41 @@ abstract final class NightshadeTokens {
   /// Fully rounded (for circular elements)
   static const double radiusFull = 999.0;
 
+  // ---------------------------------------------------------------------------
+  // In-use migration radii (value-preserving; pending scale consolidation)
+  // ---------------------------------------------------------------------------
+  //
+  // The named scale above (3/5/6/7/10/13) is the GO-FORWARD design intent, but
+  // the screen layer still carries ~1150 hardcoded `BorderRadius.circular(n)`
+  // literals at values that don't land on that scale. These constants give
+  // every in-use literal an EXACT-valued named token so the per-directory
+  // screen migration can replace `BorderRadius.circular(8)` with
+  // `BorderRadius.circular(NightshadeTokens.radiusInline8)` with ZERO visual
+  // change. They are intentionally value-named (not semantic-named) because
+  // their only job is to make a mechanical, look-preserving migration possible;
+  // once the screens are migrated, a follow-up design pass can re-map these to
+  // the semantic scale (e.g. radiusInline8 → radiusLg) where the design agrees.
+  //
+  // Do NOT add new call sites at these values in fresh code — reach for the
+  // semantic scale (radiusXs..radiusXl) instead. Full literal→token mapping
+  // table: docs/design/token-migration-map.md.
+
+  /// 2px - in-use literal (radius 2; 29 sites). Pending scale consolidation.
+  static const double radiusInline2 = 2.0;
+
+  /// 4px - in-use literal (radius 4; 215 sites). Pending scale consolidation.
+  static const double radiusInline4 = 4.0;
+
+  /// 8px - in-use literal (radius 8; 523 sites — the single most common).
+  /// Pending scale consolidation (design intent maps toward [radiusLg]).
+  static const double radiusInline8 = 8.0;
+
+  /// 9px - in-use literal (radius 9; 1 site). Pending scale consolidation.
+  static const double radiusInline9 = 9.0;
+
+  /// 11px - in-use literal (radius 11; 1 site). Pending scale consolidation.
+  static const double radiusInline11 = 11.0;
+
   // Convenience BorderRadius objects
   static final BorderRadius borderRadiusXs = BorderRadius.circular(radiusXs);
   static final BorderRadius borderRadiusSm = BorderRadius.circular(radiusSm);
@@ -123,6 +158,18 @@ abstract final class NightshadeTokens {
   static final BorderRadius borderRadiusLg = BorderRadius.circular(radiusLg);
   static final BorderRadius borderRadiusXl = BorderRadius.circular(radiusXl);
   static final BorderRadius borderRadiusFull = BorderRadius.circular(radiusFull);
+
+  // Convenience BorderRadius objects for the in-use migration radii above.
+  static final BorderRadius borderRadiusInline2 =
+      BorderRadius.circular(radiusInline2);
+  static final BorderRadius borderRadiusInline4 =
+      BorderRadius.circular(radiusInline4);
+  static final BorderRadius borderRadiusInline8 =
+      BorderRadius.circular(radiusInline8);
+  static final BorderRadius borderRadiusInline9 =
+      BorderRadius.circular(radiusInline9);
+  static final BorderRadius borderRadiusInline11 =
+      BorderRadius.circular(radiusInline11);
 
   // ===========================================================================
   // Animation Durations

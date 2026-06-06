@@ -111,9 +111,9 @@ mixin _GuidingMobileSections
               setState(() {});
             },
             tabs: const [
-              AdaptiveTab(label: 'Star View', icon: LucideIcons.star),
-              AdaptiveTab(label: 'Controls', icon: LucideIcons.sliders),
-              AdaptiveTab(label: 'Settings', icon: LucideIcons.settings),
+              AdaptiveTab(label: 'Star View', icon: NightshadeIcons.star),
+              AdaptiveTab(label: 'Controls', icon: NightshadeIcons.sliders),
+              AdaptiveTab(label: 'Settings', icon: NightshadeIcons.settings),
             ],
           ),
         ),
@@ -147,10 +147,10 @@ mixin _GuidingMobileSections
                       child: _buildGlassCard(
                         colors,
                         title: 'Guide Star',
-                        icon: LucideIcons.star,
+                        icon: NightshadeIcons.star,
                         trailing: isConnected
                             ? IconButton(
-                                icon: Icon(LucideIcons.refreshCw,
+                                icon: Icon(NightshadeIcons.refresh,
                                     size: 14, color: colors.textSecondary),
                                 onPressed: () => ref
                                     .read(starImageProvider.notifier)
@@ -195,7 +195,7 @@ mixin _GuidingMobileSections
                       child: _buildGlassCard(
                         colors,
                         title: 'Target Display',
-                        icon: LucideIcons.target,
+                        icon: NightshadeIcons.target,
                         child: AspectRatio(
                           aspectRatio: 1,
                           child: GuideTargetDisplay(
@@ -224,10 +224,10 @@ mixin _GuidingMobileSections
                   _buildGlassCard(
                     colors,
                     title: 'Guide Star',
-                    icon: LucideIcons.star,
+                    icon: NightshadeIcons.star,
                     trailing: isConnected
                         ? IconButton(
-                            icon: Icon(LucideIcons.refreshCw,
+                            icon: Icon(NightshadeIcons.refresh,
                                 size: 14, color: colors.textSecondary),
                             onPressed: () =>
                                 ref.read(starImageProvider.notifier).refresh(),
@@ -268,7 +268,7 @@ mixin _GuidingMobileSections
                   _buildGlassCard(
                     colors,
                     title: 'Target Display',
-                    icon: LucideIcons.target,
+                    icon: NightshadeIcons.target,
                     child: AspectRatio(
                       aspectRatio: 1,
                       child: GuideTargetDisplay(
@@ -296,7 +296,7 @@ mixin _GuidingMobileSections
           _buildGlassCard(
             colors,
             title: 'Star Statistics',
-            icon: LucideIcons.activity,
+            icon: NightshadeIcons.activity,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -378,7 +378,7 @@ mixin _GuidingMobileSections
             key: GuidingTutorialKeys.brainBtn,
             label:
                 _showBrainPanel ? 'Hide Brain Settings' : 'Show Brain Settings',
-            icon: LucideIcons.brain,
+            icon: NightshadeIcons.brain,
             variant:
                 _showBrainPanel ? ButtonVariant.primary : ButtonVariant.outline,
             onPressed: () => setState(() => _showBrainPanel = !_showBrainPanel),
@@ -391,28 +391,21 @@ mixin _GuidingMobileSections
           else
             Expanded(
               child: SingleChildScrollView(
-                child: Container(
+                child: NightshadeCard(
+                  variant: CardVariant.subtle,
+                  borderRadius: NightshadeTokens.radiusInline8,
                   padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: colors.border),
-                  ),
                   child: Column(
                     children: [
                       Icon(
-                        LucideIcons.brain,
+                        NightshadeIcons.brain,
                         size: 48,
                         color: colors.textMuted,
                       ),
                       const SizedBox(height: 12),
                       Text(
                         'PHD2 Brain Settings',
-                        style: TextStyle(
-                          color: colors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 16,
-                        ),
+                        style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
                       ),
                       const SizedBox(height: 8),
                       Text(
@@ -420,7 +413,7 @@ mixin _GuidingMobileSections
                         textAlign: TextAlign.center,
                         style: TextStyle(
                           color: colors.textSecondary,
-                          fontSize: 13,
+                          fontSize: NightshadeTypography.fontSize13,
                         ),
                       ),
                     ],

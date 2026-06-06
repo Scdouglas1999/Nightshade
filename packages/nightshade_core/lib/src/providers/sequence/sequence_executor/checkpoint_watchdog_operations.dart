@@ -52,14 +52,23 @@ extension _SequenceExecutorCheckpointWatchdogOperations on SequenceExecutor {
         source: 'SequenceExecutor',
       );
       if (event.severity == DiskSpaceSeverity.blocking) {
-        // Critical: pause the run so the user can intervene. We do NOT
-        // fully stop because that would lose the checkpoint; pause keeps
-        // state preserved.
+        // Critical: an unattended low-disk condition will NOT self-recover —
+        // the writer is about to run out of space and the operator is asleep.
+        // Merely pausing leaves the mount tracking the sky all night with a
+        // dead session, which is unsafe (it can drive into the ground / a
+        // pier collision past the meridian). Route through the shared
+        // SafeRigService so we pause (preserving the checkpoint — pause, not
+        // stop), PARK the mount, and raise a CRITICAL notification. SafeRig
+        // fails loud: it throws on partial failure and we log it, but the
+        // watchdog keeps running.
         try {
-          await pause();
+          await _ref.read(safeRigServiceProvider).safeTheRig(
+                reason: 'Disk space critically low: ${event.message}',
+                park: true,
+              );
         } catch (e, stack) {
           _logger.error(
-            'Failed to pause sequence on disk-space abort: $e\n$stack',
+            'Failed to safe the rig on disk-space abort: $e\n$stack',
             source: 'SequenceExecutor',
           );
         }

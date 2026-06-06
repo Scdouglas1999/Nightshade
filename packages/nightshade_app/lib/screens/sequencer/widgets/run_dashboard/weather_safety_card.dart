@@ -43,7 +43,7 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
                 child: Text(
                   'SAFETY',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.6,
                     color: colors.textMuted,
@@ -73,7 +73,7 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
                         child: Text(
                           statusText,
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: NightshadeTypography.fontSize10,
                             fontWeight: FontWeight.w700,
                             color: statusColor,
                             letterSpacing: 0.4,
@@ -93,6 +93,7 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
             label: 'Data',
             value: _sourceLabel(safety.dataSource),
           ),
+          _LiveConditions(colors: colors),
           if (safety.failModeWarning != null) ...[
             const SizedBox(height: NightshadeTokens.spaceSm),
             Container(
@@ -111,7 +112,7 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
                     child: Text(
                       safety.failModeWarning!,
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: colors.warning,
                       ),
                     ),
@@ -125,7 +126,7 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
             Text(
               safety.actions.reason!,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textSecondary,
               ),
             ),
@@ -159,6 +160,223 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
   }
 }
 
+/// Live numeric conditions from the connected hardware weather device,
+/// colour-graded against the user's configured safety thresholds.
+///
+/// Renders nothing when no hardware weather device is connected — the status
+/// pill and data-source row above already convey the API-only case, and we
+/// must not invent numbers the rig isn't reporting (errors are a feature).
+/// Each row is shown only when its value is present; the colour grades
+/// green/amber/red relative to the threshold so an operator can see headroom
+/// at a glance (e.g. wind 24 km/h amber against a 30 km/h limit).
+class _LiveConditions extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _LiveConditions({required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final weather = ref.watch(weatherStateProvider);
+    if (weather.connectionState != DeviceConnectionState.connected) {
+      return const SizedBox.shrink();
+    }
+    final settings = ref.watch(weatherSettingsProvider);
+
+    final rows = <Widget>[];
+
+    final cloud = weather.cloudCover;
+    if (cloud != null) {
+      rows.add(_ConditionRow(
+        colors: colors,
+        label: 'Cloud',
+        value: '${cloud.toStringAsFixed(0)}%',
+        valueColor: weatherGradeAscending(
+          cloud,
+          warnAt: settings.maxCloudCoverPercent * 0.75,
+          unsafeAt: settings.maxCloudCoverPercent,
+          colors: colors,
+        ),
+      ));
+    }
+
+    final wind = weather.windSpeed;
+    if (wind != null) {
+      rows.add(_ConditionRow(
+        colors: colors,
+        label: 'Wind',
+        value: '${wind.toStringAsFixed(0)} km/h',
+        valueColor: weatherGradeAscending(
+          wind,
+          warnAt: settings.maxWindSpeedKph * 0.75,
+          unsafeAt: settings.maxWindSpeedKph,
+          colors: colors,
+        ),
+      ));
+    }
+
+    final humidity = weather.humidity;
+    if (humidity != null) {
+      rows.add(_ConditionRow(
+        colors: colors,
+        label: 'Humidity',
+        value: '${humidity.toStringAsFixed(0)}%',
+        valueColor: weatherGradeAscending(
+          humidity,
+          warnAt: settings.maxHumidityPercent * 0.9,
+          unsafeAt: settings.maxHumidityPercent,
+          colors: colors,
+        ),
+      ));
+    }
+
+    // Sky-ambient ΔT: cloud sensors report sky temperature; the colder the
+    // sky relative to ambient, the clearer it is. A small (near-zero or
+    // positive) delta means cloud/overcast. We grade on (ambient - sky):
+    // a large positive spread is good (clear), near zero is bad (cloudy).
+    final ambient = weather.temperature;
+    final sky = weather.skyTemperature;
+    if (ambient != null && sky != null) {
+      final deltaT = ambient - sky;
+      rows.add(_ConditionRow(
+        colors: colors,
+        label: 'Sky−Amb ΔT',
+        value: '${deltaT.toStringAsFixed(1)}°C',
+        valueColor: weatherGradeDescending(
+          deltaT,
+          warnBelow: 15.0,
+          unsafeBelow: 5.0,
+          colors: colors,
+        ),
+      ));
+    }
+
+    // Dew-point spread: ambient minus dew point. A small spread means the
+    // optics are close to dewing up. Grade descending — large spread good.
+    final dewPoint = weather.dewPoint;
+    if (ambient != null && dewPoint != null) {
+      final spread = ambient - dewPoint;
+      rows.add(_ConditionRow(
+        colors: colors,
+        label: 'Dew spread',
+        value: '${spread.toStringAsFixed(1)}°C',
+        valueColor: weatherGradeDescending(
+          spread,
+          warnBelow: 5.0,
+          unsafeBelow: 2.0,
+          colors: colors,
+        ),
+      ));
+    }
+
+    // Sky quality (SQM) in mag/arcsec²: higher is darker/better. Only some
+    // weather/sky-quality devices report it. Grade descending.
+    final sqm = weather.skyQuality;
+    if (sqm != null) {
+      rows.add(_ConditionRow(
+        colors: colors,
+        label: 'SQM',
+        value: '${sqm.toStringAsFixed(2)} mag',
+        valueColor: weatherGradeDescending(
+          sqm,
+          warnBelow: 20.0,
+          unsafeBelow: 18.0,
+          colors: colors,
+        ),
+      ));
+    }
+
+    final rain = weather.rainRate;
+    if (rain != null) {
+      rows.add(_ConditionRow(
+        colors: colors,
+        label: 'Rain',
+        value: rain > 0 ? '${rain.toStringAsFixed(1)} mm/h' : 'None',
+        valueColor: rain > 0 ? colors.error : colors.success,
+      ));
+    }
+
+    if (rows.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        Divider(height: 1, color: colors.border),
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        ...rows,
+      ],
+    );
+  }
+}
+
+/// Grade a metric where higher is worse (cloud, wind, humidity).
+/// Top-level (not private) so the grading is unit-testable independent of the
+/// provider graph.
+Color weatherGradeAscending(
+  double value, {
+  required double warnAt,
+  required double unsafeAt,
+  required NightshadeColors colors,
+}) {
+  if (value >= unsafeAt) return colors.error;
+  if (value >= warnAt) return colors.warning;
+  return colors.success;
+}
+
+/// Grade a metric where lower is worse (sky−ambient ΔT, dew spread, SQM).
+Color weatherGradeDescending(
+  double value, {
+  required double warnBelow,
+  required double unsafeBelow,
+  required NightshadeColors colors,
+}) {
+  if (value <= unsafeBelow) return colors.error;
+  if (value <= warnBelow) return colors.warning;
+  return colors.success;
+}
+
+class _ConditionRow extends StatelessWidget {
+  final NightshadeColors colors;
+  final String label;
+  final String value;
+  final Color valueColor;
+
+  const _ConditionRow({
+    required this.colors,
+    required this.label,
+    required this.value,
+    required this.valueColor,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              label,
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize12,
+              fontWeight: FontWeight.w700,
+              color: valueColor,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SourceRow extends StatelessWidget {
   final NightshadeColors colors;
   final String label;
@@ -177,18 +395,14 @@ class _SourceRow extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,
           ),
         ),
         const Spacer(),
         Text(
           value,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
         ),
       ],
     );

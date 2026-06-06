@@ -271,6 +271,7 @@ class CustomAnnotationPainter extends CustomPainter {
     canvas.drawCircle(pos, 4.0, markerPaint);
 
     final borderPaint = Paint()
+      // absolute: marker outline over the image canvas
       ..color = Colors.black.withValues(alpha: 0.6)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
@@ -299,8 +300,9 @@ class CustomAnnotationPainter extends CustomPainter {
       text: text,
       style: TextStyle(
         color: color.withValues(alpha: math.min(1.0, alpha + 0.15)),
-        fontSize: 11,
+        fontSize: NightshadeTypography.fontSize11,
         fontWeight: FontWeight.w600,
+        // absolute: label shadows for legibility over the image canvas
         shadows: const [
           Shadow(blurRadius: 4, color: Colors.black, offset: Offset(1, 1)),
           Shadow(blurRadius: 8, color: Colors.black, offset: Offset(0, 0)),
@@ -327,10 +329,11 @@ class CustomAnnotationPainter extends CustomPainter {
         textPainter.width + pad * 2,
         textPainter.height + pad * 2,
       ),
-      const Radius.circular(3),
+      const Radius.circular(NightshadeTokens.radiusXs),
     );
     canvas.drawRRect(
       bgRect,
+      // absolute: label pill background over the image canvas
       Paint()..color = Colors.black.withValues(alpha: 0.55),
     );
 
@@ -554,6 +557,7 @@ class _CustomAnnotationDrawingLayerState
       context: context,
       barrierDismissible: !required,
       builder: (ctx) {
+        // absolute: fixed-palette annotation dialog (matches the image-overlay tool)
         return AlertDialog(
           backgroundColor: const Color(0xFF1A1A2E),
           title: Text(
@@ -562,7 +566,7 @@ class _CustomAnnotationDrawingLayerState
               CustomAnnotationType.arrow => 'Arrow Label',
               CustomAnnotationType.text => 'Text Note',
             },
-            style: const TextStyle(color: Colors.white, fontSize: 16),
+            style: const TextStyle(color: Colors.white, fontSize: NightshadeTypography.fontSize16),
           ),
           content: TextField(
             controller: controller,
@@ -708,15 +712,16 @@ class CustomAnnotationToolbar extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       decoration: BoxDecoration(
+        // absolute: drawing toolbar is a fixed-palette overlay on the image canvas
         color: Colors.black.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           _ToolButton(
-            icon: LucideIcons.circle,
+            icon: NightshadeIcons.circle,
             tooltip: 'Draw Circle',
             isActive: activeTool == CustomAnnotationType.circle,
             colors: colors,
@@ -749,10 +754,11 @@ class CustomAnnotationToolbar extends ConsumerWidget {
             width: 1,
             height: 20,
             margin: const EdgeInsets.symmetric(horizontal: 4),
+            // absolute: divider in fixed-palette overlay toolbar
             color: Colors.white.withValues(alpha: 0.2),
           ),
           _ToolButton(
-            icon: LucideIcons.trash2,
+            icon: NightshadeIcons.delete,
             tooltip: 'Delete Annotation',
             isActive: deleteTool,
             colors: colors,
@@ -766,10 +772,11 @@ class CustomAnnotationToolbar extends ConsumerWidget {
               width: 1,
               height: 20,
               margin: const EdgeInsets.symmetric(horizontal: 4),
+              // absolute: divider in fixed-palette overlay toolbar
               color: Colors.white.withValues(alpha: 0.2),
             ),
             _ToolButton(
-              icon: LucideIcons.xCircle,
+              icon: NightshadeIcons.error,
               tooltip: 'Clear All ($annotationCount)',
               isActive: false,
               colors: colors,
@@ -790,15 +797,16 @@ class CustomAnnotationToolbar extends ConsumerWidget {
   void _confirmClearAll(BuildContext context, WidgetRef ref) {
     showDialog<bool>(
       context: context,
+      // absolute: fixed-palette annotation dialog (matches the image-overlay tool)
       builder: (ctx) => AlertDialog(
         backgroundColor: const Color(0xFF1A1A2E),
         title: const Text(
           'Clear All Annotations?',
-          style: TextStyle(color: Colors.white, fontSize: 16),
+          style: TextStyle(color: Colors.white, fontSize: NightshadeTypography.fontSize16),
         ),
         content: const Text(
           'This will remove all custom annotations you have drawn on this image.',
-          style: TextStyle(color: Colors.white70, fontSize: 13),
+          style: TextStyle(color: Colors.white70, fontSize: NightshadeTypography.fontSize13),
         ),
         actions: [
           TextButton(
@@ -864,12 +872,13 @@ class _ToolButtonState extends State<_ToolButton> {
             duration: const Duration(milliseconds: 120),
             padding: const EdgeInsets.all(7),
             decoration: BoxDecoration(
+              // absolute: fixed-palette tool button over the image canvas
               color: widget.isActive
                   ? const Color(0xFF00E676).withValues(alpha: 0.25)
                   : _hovered
                       ? Colors.white.withValues(alpha: 0.12)
                       : Colors.transparent,
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
               border: widget.isActive
                   ? Border.all(
                       color: const Color(0xFF00E676).withValues(alpha: 0.5))
@@ -878,6 +887,7 @@ class _ToolButtonState extends State<_ToolButton> {
             child: Icon(
               widget.icon,
               size: 16,
+              // absolute: fixed-palette tool icon over the image canvas
               color: widget.isActive
                   ? const Color(0xFF00E676)
                   : _hovered

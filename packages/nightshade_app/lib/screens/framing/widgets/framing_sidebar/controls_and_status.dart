@@ -26,11 +26,7 @@ class FramingControlsSection extends ConsumerWidget {
       children: [
         Text(
           'Frame',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
 
@@ -71,21 +67,18 @@ class FramingControlsSection extends ConsumerWidget {
             colors: colors,
           ),
         ] else ...[
-          Container(
+          NightshadeCard(
+            variant: CardVariant.standard,
+            borderRadius: NightshadeTokens.radiusInline8,
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: colors.border),
-            ),
             child: Row(
               children: [
-                Icon(LucideIcons.frame, size: 16, color: colors.textMuted),
+                Icon(NightshadeIcons.frame, size: 16, color: colors.textMuted),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Configure equipment to see FOV overlay',
-                    style: TextStyle(fontSize: 11, color: colors.textMuted),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                   ),
                 ),
               ],
@@ -98,7 +91,7 @@ class FramingControlsSection extends ConsumerWidget {
         // Preview FOV control (always available for browsing)
         Text(
           'Preview Field of View',
-          style: TextStyle(fontSize: 11, color: colors.textSecondary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
         ),
         const SizedBox(height: 6),
         FramingPreviewFovSlider(
@@ -136,21 +129,21 @@ class FramingControlsSection extends ConsumerWidget {
         // Survey source dropdown (always available - can browse sky without FOV)
         Text(
           'Survey Source',
-          style: TextStyle(fontSize: 11, color: colors.textSecondary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
         ),
         const SizedBox(height: 6),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: NightshadeTokens.borderRadiusMd,
             border: Border.all(color: colors.border),
           ),
           child: DropdownButton<SurveySource>(
             value: framingState.surveySource,
             isExpanded: true,
             underline: const SizedBox(),
-            style: TextStyle(fontSize: 11, color: colors.textPrimary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
             dropdownColor: colors.surfaceAlt,
             items: SurveySource.values.map((source) {
               return DropdownMenuItem(
@@ -220,14 +213,11 @@ class FramingCoordinatesPanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final target = framingState.target;
 
-    return Container(
+    return NightshadeCard(
       key: FramingTutorialKeys.coordinates,
+      variant: CardVariant.standard,
+      borderRadius: NightshadeTokens.radiusLg,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -236,16 +226,12 @@ class FramingCoordinatesPanel extends StatelessWidget {
             children: [
               Text(
                 'Coordinates',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
               ),
               if (target != null)
                 IconButton(
                   icon:
-                      Icon(LucideIcons.copy, size: 12, color: colors.textMuted),
+                      Icon(NightshadeIcons.copy, size: 12, color: colors.textMuted),
                   tooltip: 'Copy coordinates',
                   onPressed: () {
                     Clipboard.setData(ClipboardData(
@@ -293,12 +279,12 @@ class FramingCoordinatesPanel extends StatelessWidget {
               padding: const EdgeInsets.only(top: 8),
               child: Row(
                 children: [
-                  Icon(LucideIcons.alertTriangle,
+                  Icon(NightshadeIcons.warning,
                       size: 12, color: colors.warning),
                   const SizedBox(width: 6),
                   Text(
                     'Target below horizon',
-                    style: TextStyle(fontSize: 10, color: colors.warning),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.warning),
                   ),
                 ],
               ),
@@ -326,13 +312,10 @@ class FramingAltitudePanel extends StatelessWidget {
     final target = framingState.target;
 
     if (target == null) {
-      return Container(
+      return NightshadeCard(
+        variant: CardVariant.standard,
+        borderRadius: NightshadeTokens.radiusLg,
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: colors.border),
-        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -342,11 +325,7 @@ class FramingAltitudePanel extends StatelessWidget {
                 const SizedBox(width: 8),
                 Text(
                   'Altitude',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
                 ),
               ],
             ),
@@ -354,7 +333,7 @@ class FramingAltitudePanel extends StatelessWidget {
             Center(
               child: Text(
                 'Select a target to view altitude chart',
-                style: TextStyle(fontSize: 10, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
               ),
             ),
           ],
@@ -362,13 +341,10 @@ class FramingAltitudePanel extends StatelessWidget {
       );
     }
 
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.standard,
+      borderRadius: NightshadeTokens.radiusLg,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colors.border),
-      ),
       child: AltitudeChart(
         key: FramingTutorialKeys.altitudeChart,
         raHours: target.raHours,

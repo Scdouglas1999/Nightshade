@@ -55,21 +55,17 @@ class _ListsTabState extends ConsumerState<ListsTab> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.list, size: 48, color: widget.colors.textMuted),
+            Icon(NightshadeIcons.list, size: 48, color: widget.colors.textMuted),
             const SizedBox(height: 16),
             Text(
               'No observing lists',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: widget.colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: widget.colors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
               'Create a list to organize your targets for tonight\'s session.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: widget.colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.textMuted),
             ),
             const SizedBox(height: 16),
             _CreateListButton(colors: widget.colors),
@@ -89,11 +85,7 @@ class _ListsTabState extends ConsumerState<ListsTab> {
             children: [
               Text(
                 'Observing Lists',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: widget.colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
               ),
               _CreateListButton(colors: widget.colors, compact: true),
             ],
@@ -136,7 +128,7 @@ class _ListsTabState extends ConsumerState<ListsTab> {
           child: Row(
             children: [
               IconButton(
-                icon: Icon(LucideIcons.chevronLeft,
+                icon: Icon(NightshadeIcons.chevronLeft,
                     size: 18, color: widget.colors.textPrimary),
                 onPressed: () {
                   ref.read(activeObservingListIdProvider.notifier).state = null;
@@ -153,11 +145,7 @@ class _ListsTabState extends ConsumerState<ListsTab> {
                   children: [
                     Text(
                       activeList.name,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: widget.colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
                       overflow: TextOverflow.ellipsis,
                     ),
                     if (activeList.description != null &&
@@ -165,7 +153,7 @@ class _ListsTabState extends ConsumerState<ListsTab> {
                       Text(
                         activeList.description!,
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: NightshadeTypography.fontSize10,
                           color: widget.colors.textMuted,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -193,13 +181,13 @@ class _ListsTabState extends ConsumerState<ListsTab> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(LucideIcons.plus,
+                        Icon(NightshadeIcons.add,
                             size: 32, color: widget.colors.textMuted),
                         const SizedBox(height: 12),
                         Text(
                           'List is empty',
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: NightshadeTypography.fontSize13,
                             color: widget.colors.textMuted,
                           ),
                         ),
@@ -208,7 +196,7 @@ class _ListsTabState extends ConsumerState<ListsTab> {
                           'Click objects on the sky and use\n"Add to List" to populate it.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: NightshadeTypography.fontSize11,
                             color: widget.colors.textMuted,
                           ),
                         ),
@@ -265,7 +253,7 @@ class _CreateListButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (compact) {
       return IconButton(
-        icon: Icon(LucideIcons.plus, size: 16, color: colors.primary),
+        icon: Icon(NightshadeIcons.add, size: 16, color: colors.primary),
         onPressed: () => _showCreateDialog(context, ref),
         tooltip: 'Create new list',
         visualDensity: VisualDensity.compact,
@@ -280,21 +268,17 @@ class _CreateListButton extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: colors.primary.withValues(alpha: 0.15),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.plus, size: 14, color: colors.primary),
+            Icon(NightshadeIcons.add, size: 14, color: colors.primary),
             const SizedBox(width: 6),
             Text(
               'Create List',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: colors.primary,
-              ),
+              style: NightshadeTypography.h6.copyWith(color: colors.primary),
             ),
           ],
         ),
@@ -403,7 +387,7 @@ class _ObservingListCard extends ConsumerWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.border),
         ),
         child: Row(
@@ -412,9 +396,9 @@ class _ObservingListCard extends ConsumerWidget {
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
                 color: colors.primary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
-              child: Icon(LucideIcons.list, size: 16, color: colors.primary),
+              child: Icon(NightshadeIcons.list, size: 16, color: colors.primary),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -423,25 +407,21 @@ class _ObservingListCard extends ConsumerWidget {
                 children: [
                   Text(
                     list.name,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: 2),
                   Text(
                     '$itemCount object${itemCount == 1 ? '' : 's'}',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textMuted,
                     ),
                   ),
                 ],
               ),
             ),
-            Icon(LucideIcons.chevronRight, size: 14, color: colors.textMuted),
+            Icon(NightshadeIcons.chevronRight, size: 14, color: colors.textMuted),
           ],
         ),
       ),
@@ -484,7 +464,7 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
             color: _isHovered
                 ? widget.colors.surfaceAlt
                 : widget.colors.background,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(
               color: _isHovered
                   ? widget.colors.primary.withValues(alpha: 0.5)
@@ -501,11 +481,7 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
                       children: [
                         Text(
                           widget.item.objectName,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: widget.colors.textPrimary,
-                          ),
+                          style: NightshadeTypography.h6.copyWith(color: widget.colors.textPrimary),
                         ),
                         if (widget.item.catalogId != null) ...[
                           const SizedBox(width: 6),
@@ -515,12 +491,12 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
                             decoration: BoxDecoration(
                               color:
                                   widget.colors.primary.withValues(alpha: 0.15),
-                              borderRadius: BorderRadius.circular(3),
+                              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
                             ),
                             child: Text(
                               widget.item.catalogId!,
                               style: TextStyle(
-                                fontSize: 9,
+                                fontSize: NightshadeTypography.fontSize9,
                                 fontWeight: FontWeight.w600,
                                 color: widget.colors.primary,
                               ),
@@ -534,7 +510,7 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
                       Text(
                         widget.item.objectType!,
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: NightshadeTypography.fontSize10,
                           color: widget.colors.textMuted,
                         ),
                       ),
@@ -546,7 +522,7 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
                 Text(
                   'mag ${widget.item.magnitude!.toStringAsFixed(1)}',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     color: widget.colors.textMuted,
                   ),
                 ),
@@ -558,9 +534,9 @@ class _ObservingListItemCardState extends State<_ObservingListItemCard> {
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
                       color: widget.colors.error.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     ),
-                    child: Icon(LucideIcons.x,
+                    child: Icon(NightshadeIcons.close,
                         size: 12, color: widget.colors.error),
                   ),
                 ),
@@ -594,7 +570,7 @@ class _ExportToSequenceButton extends ConsumerWidget {
           padding: const EdgeInsets.all(6),
           decoration: BoxDecoration(
             color: colors.primary.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           ),
           child: Icon(LucideIcons.listPlus, size: 14, color: colors.primary),
         ),

@@ -9,7 +9,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
         Text(
           'Smart Night — Plan Tonight',
           style: TextStyle(
-            fontSize: 18,
+            fontSize: NightshadeTypography.fontSize18,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
@@ -121,7 +121,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
           Text(
             'Tonight\'s dark window',
             style: TextStyle(
-              fontSize: 15,
+              fontSize: NightshadeTypography.fontSize15,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
             ),
@@ -130,7 +130,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
           Text(
             'Computed from your location\'s astronomical twilight. '
             'You can narrow it if you don\'t want to image the full night.',
-            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
           ),
           const SizedBox(height: 16),
           if (start == null || end == null)
@@ -140,7 +140,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(color: colors.border),
               ),
               child: Column(
@@ -154,7 +154,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
                         'Start: ${_formatDateTime(start)}',
                         style: TextStyle(
                           color: colors.textPrimary,
-                          fontSize: 13,
+                          fontSize: NightshadeTypography.fontSize13,
                         ),
                       ),
                       const Spacer(),
@@ -177,7 +177,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
                         'End: ${_formatDateTime(end)}',
                         style: TextStyle(
                           color: colors.textPrimary,
-                          fontSize: 13,
+                          fontSize: NightshadeTypography.fontSize13,
                         ),
                       ),
                       const Spacer(),
@@ -195,7 +195,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
                     'Total: ${_formatDuration(end.difference(start))}',
                     style: TextStyle(
                       color: colors.textSecondary,
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                     ),
                   ),
                 ],
@@ -249,7 +249,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
           Text(
             'Active equipment profile',
             style: TextStyle(
-              fontSize: 15,
+              fontSize: NightshadeTypography.fontSize15,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
             ),
@@ -259,7 +259,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
             child: Column(
@@ -331,7 +331,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
                 'this on to schedule auto-flats at session end.',
                 style: TextStyle(
                   color: colors.textSecondary,
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                 ),
               ),
             ),
@@ -350,7 +350,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
         Text(
           'Pick tonight\'s targets',
           style: TextStyle(
-            fontSize: 15,
+            fontSize: NightshadeTypography.fontSize15,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
@@ -374,7 +374,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
                   : 'Hand-pick from suggestions below',
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
             if (_autoSelect) ...[
@@ -393,7 +393,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
                 'by score',
                 style: TextStyle(
                   color: colors.textSecondary,
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                 ),
               ),
             ],
@@ -488,7 +488,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
           Text(
             'Choose imaging strategy',
             style: TextStyle(
-              fontSize: 15,
+              fontSize: NightshadeTypography.fontSize15,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
             ),
@@ -508,11 +508,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
           const SizedBox(height: 18),
           Text(
             'Autofocus cadence',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 8),
           _AfCadenceSelector(
@@ -623,7 +619,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
               child: Text(
                 _previewError!,
                 textAlign: TextAlign.center,
-                style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
               ),
             ),
             const SizedBox(height: 12),
@@ -656,11 +652,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
             const SizedBox(height: 12),
             Text(
               'Warnings',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-                fontSize: 13,
-              ),
+              style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 6),
             for (final w in plan.warnings)
@@ -679,7 +671,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
                       child: Text(
                         w,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           color: colors.textSecondary,
                         ),
                       ),
@@ -713,7 +705,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
             child: Column(
@@ -726,11 +718,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
                     const SizedBox(width: 10),
                     Text(
                       'Plan ready',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
                     ),
                   ],
                 ),
@@ -739,7 +727,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
                   plan.sequence.name,
                   style: TextStyle(
                     color: colors.textPrimary,
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                   ),
                 ),
                 const SizedBox(height: 6),
@@ -747,7 +735,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
                   plan.sequence.description,
                   style: TextStyle(
                     color: colors.textSecondary,
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                   ),
                 ),
                 const SizedBox(height: 14),
@@ -789,7 +777,7 @@ extension _SmartNightDialogStepViews on _SmartNightDialogState {
             'so you can monitor the run immediately.',
             style: TextStyle(
               color: colors.textSecondary,
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
             ),
           ),
         ],

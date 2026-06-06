@@ -34,15 +34,33 @@ class DeviceReconnectCoordinator {
     required NightshadeBackend backend,
     required Future<void> Function() resumeSequence,
     required Future<void> Function() pauseSequence,
+    required void Function(
+      String deviceId, {
+      int attempt,
+      int maxAttempts,
+    }) surfaceReconnecting,
   })  : _ref = ref,
         _backend = backend,
         _resumeSequence = resumeSequence,
-        _pauseSequence = pauseSequence;
+        _pauseSequence = pauseSequence,
+        _surfaceReconnecting = surfaceReconnecting;
 
   final Ref _ref;
   final NightshadeBackend _backend;
   final Future<void> Function() _resumeSequence;
   final Future<void> Function() _pauseSequence;
+
+  /// Drive the per-device heartbeat-health indicator into the
+  /// "reconnecting" state. Injected (rather than reaching into the
+  /// heartbeat router directly) so the coordinator stays free of any
+  /// provider/router coupling — it owns the reconnect *decision*, the
+  /// router owns the health *surface*. See
+  /// `DeviceHeartbeatRouter.surfaceReconnecting`.
+  final void Function(
+    String deviceId, {
+    int attempt,
+    int maxAttempts,
+  }) _surfaceReconnecting;
 
   /// Maximum number of reconnection attempts before surfacing the
   /// "couldn't reconnect" UI notification and giving up.
@@ -71,6 +89,62 @@ class DeviceReconnectCoordinator {
   /// Set during backend swap so stray Disconnected events cannot
   /// reconnect against a backend that is mid-tear-down.
   bool _suppressAutoReconnect = false;
+
+  /// Whether the NATIVE Rust reconnection engine owns reconnect for
+  /// [type], i.e. its per-device-type heartbeat config has
+  /// `auto_reconnect = true`.
+  ///
+  /// This mirrors the native source of truth exactly: the path Dart
+  /// triggers when it starts a heartbeat is
+  /// `DeviceManager::start_heartbeat` →
+  /// `Self::get_heartbeat_config(device_type)` (see
+  /// `native/.../device_manager/heartbeat.rs`), which returns the
+  /// per-type `HeartbeatConfig::for_*()` policy from
+  /// `device_manager/mod.rs`. That config's `auto_reconnect` flag is
+  /// later read by the native `reconnection_loop` (it reconnects any
+  /// device left in `ConnectionState::Error` with `auto_reconnect`
+  /// set), so for those types the native loop performs the real
+  /// reconnect on its own — emitting `Connecting` then `Connected`.
+  ///
+  /// Why the policy is mirrored here instead of queried over FFI: the
+  /// plain `startDeviceHeartbeat` FFI surface the Dart side actually
+  /// uses does not let the caller tune the escalation policy — it always
+  /// inherits these compiled per-type defaults — so the mapping is
+  /// stable and authoritative. Encoding it here keeps the de-duplication
+  /// decision inside the one file that owns reconnect ownership, with no
+  /// new FFI round-trip on the hot disconnect path.
+  ///
+  /// DE-DUPLICATION (DEV-P1 dual-reconnect race): when this returns true
+  /// the Dart coordinator must NOT schedule its own reconnect — doing so
+  /// raced the native loop and double-connected / thrashed the same
+  /// physical device after a heartbeat-driven loss. The two engines now
+  /// have exactly one owner per device type. Sequence-resume after a
+  /// native-driven reconnect is still handled, off the authoritative
+  /// `Connected` event, by [onAuthoritativeDeviceConnected].
+  static bool nativeOwnsReconnect(DeviceType type) {
+    switch (type) {
+      // HeartbeatConfig::for_mount / for_dome / for_weather /
+      // for_safety_monitor / for_guider / for_cover_calibrator all set
+      // auto_reconnect = true.
+      case DeviceType.mount:
+      case DeviceType.dome:
+      case DeviceType.weather:
+      case DeviceType.safetyMonitor:
+      case DeviceType.guider:
+      case DeviceType.coverCalibrator:
+        return true;
+      // HeartbeatConfig::for_camera / for_focuser / for_filter_wheel /
+      // for_rotator / for_switch all set auto_reconnect = false, so the
+      // native loop ignores them and the Dart coordinator is the sole
+      // reconnect engine.
+      case DeviceType.camera:
+      case DeviceType.focuser:
+      case DeviceType.filterWheel:
+      case DeviceType.rotator:
+      case DeviceType.switch_:
+        return false;
+    }
+  }
 
   String _reconnectKey(DeviceType type, String deviceId) =>
       '${type.name}:$deviceId';
@@ -153,6 +227,30 @@ class DeviceReconnectCoordinator {
       return;
     }
 
+    // DEV-P1 dual-reconnect de-duplication: if the native Rust
+    // reconnection engine owns reconnect for this device type, defer to
+    // it. Both engines firing against the same physical device after a
+    // heartbeat-driven loss double-connected and thrashed the driver.
+    // The native loop will reconnect (emitting Connecting/Connected) and
+    // keep retrying for minutes; our [onAuthoritativeDeviceConnected]
+    // hook (driven off the live Connected event) still resumes a paused
+    // sequence once the device is back, and per-attempt failures still
+    // surface to the user via the native `Error` events. We only need to
+    // (a) NOT schedule a competing Dart reconnect, and (b) surface the
+    // "reconnecting" indicator the native side never emits an event for.
+    if (nativeOwnsReconnect(type)) {
+      _surfaceReconnecting(deviceId);
+      _safeLog(
+        (logger) => logger.info(
+          'Deferring reconnect of ${type.displayName} ($deviceId) to the '
+          'native auto-reconnect engine (single-owner policy); Dart '
+          'coordinator will not schedule a competing attempt.',
+          source: 'DeviceReconnectCoordinator',
+        ),
+      );
+      return;
+    }
+
     final autoReconnectEnabled = _getAutoReconnectFor(type);
 
     if (!autoReconnectEnabled) {
@@ -183,6 +281,16 @@ class DeviceReconnectCoordinator {
     }
 
     _reconnectionAttempts[reconnectKey] = attemptCount + 1;
+
+    // Surface the "reconnecting" indicator for this Dart-owned device the
+    // moment we commit to an attempt, so the card reads "Reconnecting…"
+    // through the backoff window instead of falling back to gray
+    // "unknown" (the native HeartbeatReconnecting event is never emitted).
+    _surfaceReconnecting(
+      deviceId,
+      attempt: attemptCount + 1,
+      maxAttempts: maxReconnectAttempts,
+    );
 
     final delay = attemptCount < reconnectDelays.length
         ? reconnectDelays[attemptCount]

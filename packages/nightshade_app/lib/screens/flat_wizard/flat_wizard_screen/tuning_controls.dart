@@ -21,7 +21,7 @@ class _HistogramTargetSlider extends StatelessWidget {
             Text(
               '${value.toStringAsFixed(0)}%',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: NightshadeTypography.fontSize24,
                 fontWeight: FontWeight.bold,
                 color: colors.textPrimary,
               ),
@@ -30,7 +30,7 @@ class _HistogramTargetSlider extends StatelessWidget {
             Text(
               '~${FlatExposureCalculator.histogramPercentToAdu(value)} ADU',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textMuted,
                 fontFamily: 'monospace',
               ),
@@ -73,11 +73,7 @@ class _ToleranceSlider extends StatelessWidget {
       children: [
         Text(
           '±${value.toStringAsFixed(0)}%',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(width: 16),
         Expanded(
@@ -124,7 +120,7 @@ class _FrameCountInput extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 14,
+              fontSize: NightshadeTypography.fontSize14,
               color: colors.textSecondary,
             ),
           ),
@@ -143,15 +139,11 @@ class _FrameCountInput extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           ),
           child: Text(
             '$value',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
           ),
         ),
         IconButton(
@@ -250,16 +242,12 @@ class _TwilightOption extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: isSelected ? colors.primary : colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: isSelected ? colors.primary : colors.textPrimary),
             ),
             Text(
               description,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
               ),
             ),

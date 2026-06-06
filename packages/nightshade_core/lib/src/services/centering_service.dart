@@ -506,8 +506,14 @@ class CenteringService {
         );
       }
 
-      // Step 3: Calculate offset from target
-      final solvedRa = solveResult.ra;
+      // Step 3: Calculate offset from target.
+      //
+      // `solveResult.ra` is in DEGREES (solver/FITS frame). Normalise to
+      // hours immediately so every downstream use in this iteration — the
+      // offset math, the sync-to-solved-position slew, the status display and
+      // the recorded iteration history — speaks the app-canonical hours frame
+      // that `targetRa`, the mount and `CenteringStatus.solvedRa` all use.
+      final solvedRa = _solvedRaHours(solveResult.ra);
       final solvedDec = solveResult.dec;
       final offset = _calculateOffset(
         targetRa,
@@ -748,17 +754,20 @@ class CenteringService {
       );
     }
 
-    // Calculate offset
+    // Calculate offset. `solveResult.ra` is in DEGREES; normalise to hours so
+    // it matches `targetRa` (hours) and the `CenteringIteration.solvedRa`
+    // contract — same fix as the iterative `_centerOnTargetInternal` path.
+    final solvedRaHours = _solvedRaHours(solveResult.ra);
     final offset = _calculateOffset(
       targetRa,
       targetDec,
-      solveResult.ra,
+      solvedRaHours,
       solveResult.dec,
     );
 
     final iter = CenteringIteration(
       iterationNumber: 1,
-      solvedRa: solveResult.ra,
+      solvedRa: solvedRaHours,
       solvedDec: solveResult.dec,
       targetRa: targetRa,
       targetDec: targetDec,
@@ -840,17 +849,40 @@ class CenteringService {
     }
   }
 
-  /// Calculate angular separation between two celestial coordinates in arcseconds
-  /// Uses the haversine formula for great circle distance
+  /// Right ascension returned by the plate solver, in **degrees**, converted
+  /// to the app-canonical **hours** the rest of the centering pipeline uses.
+  ///
+  /// This is the fix for the 2026-06-04 full-night-audit "slew & center never
+  /// converges" bug. `PlateSolveResult.ra` arrives in degrees: the Rust
+  /// `PlateSolveResult.ra` is documented "Solved RA in degrees" and reads FITS
+  /// `CRVAL1` (degrees) verbatim, and the network host forwards that same
+  /// value unchanged. Every other RA in this service is in hours — the slew
+  /// target (`slewMountToCoordinates` expects hours), the mount sync
+  /// (`syncMountToCoordinates` expects hours), `mountState.ra` (ASCOM
+  /// `RightAscension`, hours) and the `CenteringStatus.solvedRa` contract
+  /// ("hours"). Normalising once here keeps the offset math, the sync-to-
+  /// solved-position slew, and the status display all consistent. Without
+  /// this, the solved RA was 15× the target RA's frame, so the offset never
+  /// fell below tolerance and the loop ran out its iterations.
+  static double _solvedRaHours(double solvedRaDegrees) {
+    return solvedRaDegrees / 15.0;
+  }
+
+  /// Calculate angular separation between two celestial coordinates in
+  /// arcseconds, using the haversine formula for great-circle distance.
+  ///
+  /// Both [targetRa] and [solvedRa] are in **hours** here (the solver's
+  /// degrees value is normalised to hours via [_solvedRaHours] before it
+  /// reaches this method); [targetDec]/[solvedDec] are in degrees.
   double _calculateOffset(
     double targetRa,
     double targetDec,
     double solvedRa,
     double solvedDec,
   ) {
-    // Convert RA from hours to radians (RA is in hours)
+    // Convert RA from hours to radians (both operands are in hours).
     final ra1 =
-        targetRa * 15.0 * math.pi / 180.0; // hours to degrees to radians
+        targetRa * 15.0 * math.pi / 180.0; // hours -> degrees -> radians
     final ra2 = solvedRa * 15.0 * math.pi / 180.0;
 
     // Convert Dec from degrees to radians

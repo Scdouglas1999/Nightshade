@@ -35,7 +35,7 @@ class OpticalConfigPanel extends ConsumerWidget {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: NightshadeTokens.borderRadiusInline8,
             border: Border.all(color: colors.border),
           ),
           child: Column(
@@ -44,13 +44,13 @@ class OpticalConfigPanel extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  Icon(LucideIcons.aperture, size: 14, color: colors.textMuted),
+                  Icon(NightshadeIcons.aperture, size: 14, color: colors.textMuted),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'OPTICAL CONFIG',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         fontWeight: FontWeight.w600,
                         color: colors.textMuted,
                         letterSpacing: 0.5,
@@ -64,7 +64,7 @@ class OpticalConfigPanel extends ConsumerWidget {
                       padding: EdgeInsets.zero,
                       iconSize: 14,
                       tooltip: 'Hide optical config panel',
-                      icon: Icon(LucideIcons.x, size: 14, color: colors.textMuted),
+                      icon: Icon(NightshadeIcons.close, size: 14, color: colors.textMuted),
                       onPressed: () {
                         ref
                             .read(framingProvider.notifier)
@@ -104,7 +104,7 @@ class OpticalConfigPanel extends ConsumerWidget {
     return Column(
       children: [
         Icon(
-          LucideIcons.alertTriangle,
+          NightshadeIcons.warning,
           size: 32,
           color: colors.warning,
         ),
@@ -113,11 +113,7 @@ class OpticalConfigPanel extends ConsumerWidget {
           activeProfile == null
               ? 'No equipment profile'
               : 'No optical configuration',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 8),
         Text(
@@ -125,7 +121,7 @@ class OpticalConfigPanel extends ConsumerWidget {
               ? 'Create and activate an equipment profile to see your field of view.'
               : 'Set up your telescope and camera to see accurate field of view.',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             color: colors.textSecondary,
           ),
           textAlign: TextAlign.center,
@@ -133,7 +129,7 @@ class OpticalConfigPanel extends ConsumerWidget {
         const SizedBox(height: 16),
         NightshadeButton(
           label: 'Configure in Equipment',
-          icon: LucideIcons.settings2,
+          icon: NightshadeIcons.settings2,
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
           onPressed: () => context.go('/equipment'),
@@ -157,16 +153,12 @@ class OpticalConfigPanel extends ConsumerWidget {
           Row(
             children: [
               const Text('\u{1F52D}',
-                  style: TextStyle(fontSize: 14)), // Telescope emoji
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize14)), // Telescope emoji
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   config.telescopeName!,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -179,7 +171,7 @@ class OpticalConfigPanel extends ConsumerWidget {
         Text(
           _formatOpticalSpecs(config),
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             color: colors.textSecondary,
           ),
         ),
@@ -191,16 +183,12 @@ class OpticalConfigPanel extends ConsumerWidget {
           Row(
             children: [
               const Text('\u{1F4F7}',
-                  style: TextStyle(fontSize: 14)), // Camera emoji
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize14)), // Camera emoji
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   config.cameraName!,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -214,7 +202,7 @@ class OpticalConfigPanel extends ConsumerWidget {
           Text(
             _formatSensorSpecs(config),
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
             ),
           ),
@@ -274,14 +262,14 @@ class OpticalConfigPanel extends ConsumerWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             color: colors.textMuted,
           ),
         ),
         Text(
           value,
           style: TextStyle(
-            fontSize: 14,
+            fontSize: NightshadeTypography.fontSize14,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
             fontFamily: 'monospace',
@@ -313,14 +301,14 @@ class _ProfileSwitcher extends ConsumerWidget {
           offset: const Offset(0, 40),
           color: colors.surfaceAlt,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: NightshadeTokens.borderRadiusInline8,
             side: BorderSide(color: colors.border),
           ),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               border: Border.all(color: colors.border),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NightshadeTokens.borderRadiusInline8,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -329,14 +317,14 @@ class _ProfileSwitcher extends ConsumerWidget {
                   child: Text(
                     currentProfile?.name ?? 'Select Profile',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: colors.textSecondary,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
                 const SizedBox(width: 8),
-                Icon(LucideIcons.chevronDown,
+                Icon(NightshadeIcons.chevronDown,
                     size: 14, color: colors.textMuted),
               ],
             ),
@@ -348,7 +336,7 @@ class _ProfileSwitcher extends ConsumerWidget {
               child: Row(
                 children: [
                   if (isSelected)
-                    Icon(LucideIcons.check, size: 14, color: colors.success)
+                    Icon(NightshadeIcons.check, size: 14, color: colors.success)
                   else
                     const SizedBox(width: 14),
                   const SizedBox(width: 8),
@@ -356,7 +344,7 @@ class _ProfileSwitcher extends ConsumerWidget {
                     child: Text(
                       profile.name,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: isSelected
                             ? colors.textPrimary
                             : colors.textSecondary,
@@ -374,12 +362,12 @@ class _ProfileSwitcher extends ConsumerWidget {
                       ),
                       decoration: BoxDecoration(
                         color: colors.primary.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(4),
+                        borderRadius: NightshadeTokens.borderRadiusInline4,
                       ),
                       child: Text(
                         'Active',
                         style: TextStyle(
-                          fontSize: 9,
+                          fontSize: NightshadeTypography.fontSize9,
                           color: colors.primary,
                           fontWeight: FontWeight.w500,
                         ),
@@ -399,7 +387,7 @@ class _ProfileSwitcher extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           border: Border.all(color: colors.border),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: NightshadeTokens.borderRadiusInline8,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -416,7 +404,7 @@ class _ProfileSwitcher extends ConsumerWidget {
             Text(
               'Loading...',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textMuted,
               ),
             ),
@@ -427,7 +415,7 @@ class _ProfileSwitcher extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           border: Border.all(color: colors.error.withValues(alpha: 0.5)),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: NightshadeTokens.borderRadiusInline8,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -437,7 +425,7 @@ class _ProfileSwitcher extends ConsumerWidget {
             Text(
               'Error loading profiles',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.error,
               ),
             ),

@@ -45,7 +45,7 @@ class SessionReportDialog extends ConsumerWidget {
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         side: BorderSide(color: colors.border),
       ),
       child: ConstrainedBox(
@@ -79,7 +79,7 @@ class SessionReportDialog extends ConsumerWidget {
                 const SizedBox(height: 6),
                 Text(
                   '$err',
-                  style: TextStyle(fontSize: 12, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
@@ -302,7 +302,7 @@ class _ReportBody extends ConsumerWidget {
                       colors: colors),
                   Text(
                     report.notes!,
-                    style: TextStyle(fontSize: 13, color: colors.textSecondary),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textSecondary),
                   ),
                 ],
                 // Wave 6 Agent 5 â€” Journal notes attached to either
@@ -388,7 +388,7 @@ class _ReportBody extends ConsumerWidget {
 
   Widget _muted(String text) => Text(
         text,
-        style: TextStyle(fontSize: 13, color: colors.textMuted),
+        style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
       );
 
   List<Widget> _buildErrorList() {
@@ -398,7 +398,7 @@ class _ReportBody extends ConsumerWidget {
           padding: const EdgeInsets.only(bottom: 4),
           child: Text(
             msg,
-            style: TextStyle(fontSize: 12, color: colors.error),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.error),
           ),
         ),
     ];
@@ -421,7 +421,7 @@ class _ReportBody extends ConsumerWidget {
               Expanded(
                 child: Text(
                   msg,
-                  style: TextStyle(fontSize: 12, color: colors.warning),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.warning),
                 ),
               ),
             ],

@@ -66,14 +66,14 @@ class _FilterDropdown extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<int>(
           value: currentPosition,
           isDense: true,
           dropdownColor: colors.surface,
-          style: TextStyle(fontSize: 12, color: colors.textSecondary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
           icon:
               Icon(LucideIcons.chevronDown, size: 14, color: colors.textMuted),
           items: filterNames.asMap().entries.map((entry) {
@@ -118,7 +118,7 @@ class _TelemetryRow extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
               ),
             ),
@@ -128,7 +128,7 @@ class _TelemetryRow extends StatelessWidget {
             child: Text(
               value,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textSecondary,
                 fontFamily: 'monospace',
               ),

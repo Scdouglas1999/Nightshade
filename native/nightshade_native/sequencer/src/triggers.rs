@@ -521,7 +521,19 @@ impl Trigger {
                     false
                 }
             }
-            TriggerType::WeatherUnsafe => !state.weather_safe,
+            TriggerType::WeatherUnsafe => {
+                // Defense-in-depth (full-night audit 2026-06-04): the in-sequencer
+                // WeatherUnsafe trigger must abort when EITHER the hardware safety
+                // monitor reports unsafe OR the Dart-side weather-safety verdict
+                // (configured thresholds + API/cloud sources) computed unsafe. A
+                // rig with no hardware safety device leaves `weather_safe` at its
+                // `false`-by-default/last-poll value; the verdict is the path that
+                // makes the trigger react to non-hardware weather conditions. This
+                // is OR-of-unsafe (never less safe than the hardware verdict) — an
+                // abstaining verdict (`None`) or a `Some(false)` SAFE verdict never
+                // suppresses a hardware-unsafe reading.
+                !state.weather_safe || state.weather_verdict_unsafe == Some(true)
+            }
             TriggerType::TemperatureShift { degrees } => {
                 if let (Some(baseline), Some(current)) =
                     (state.baseline_temperature, state.current_temperature)
@@ -924,7 +936,34 @@ pub struct TriggerState {
     pub current_altitude: Option<f64>,
 
     // Weather
+    /// Hardware safety-monitor verdict: `true` when the connected safety/weather
+    /// device reports safe (or, under `WarnOnly`, the last good reading). Fed by
+    /// the executor's safety poll (`executor/mod.rs` `safety_is_safe`).
     pub weather_safe: bool,
+    /// Defense-in-depth: the Dart-side `weatherSafetyProvider` overall verdict,
+    /// composed from the user's configured thresholds + API/cloud sources (which
+    /// the hardware `weather_safe` poll knows nothing about). `Some(true)` means
+    /// the Dart side computed UNSAFE; `Some(false)` means it computed SAFE;
+    /// `None` means the Dart side has not reported (e.g. provider disabled / no
+    /// data) and this layer abstains. Folded into the `WeatherUnsafe` trigger as
+    /// an ADDITIONAL unsafe source — it can only make the rig safer, never less
+    /// safe than the hardware verdict (CLAUDE.md "fail closed"). Pushed via
+    /// `ExecutorCommand::UpdateWeatherVerdict`.
+    pub weather_verdict_unsafe: Option<bool>,
+    /// Architecture-unification 2026-06-05 (Subsystem 2 step 3 — stale-verdict
+    /// observability): the monotonic timestamp of the most recent
+    /// `update_weather_verdict` push. `None` until the Dart side has pushed at
+    /// least once.
+    ///
+    /// A pushed `Some(true)` (UNSAFE) verdict is FAIL-CLOSED: if the Dart feed
+    /// then goes silent, the verdict is deliberately NOT auto-cleared — holding
+    /// the sequence paused is the correct safe behaviour. But an INDEFINITE hold
+    /// must never be SILENT. The safety poll loop uses this timestamp to detect
+    /// a stale-AND-unsafe verdict and emit a loud warning event so the operator
+    /// knows the hold is being sustained by a dead feed rather than fresh data.
+    /// It is NEVER used to resume — staleness only adds observability, never
+    /// anti-safety auto-resume.
+    pub weather_verdict_last_update: Option<Instant>,
 
     // Temperature
     pub baseline_temperature: Option<f64>,
@@ -1052,6 +1091,8 @@ impl Default for TriggerState {
             current_humidity: None,
             current_altitude: None,
             weather_safe: false,
+            weather_verdict_unsafe: None,
+            weather_verdict_last_update: None,
             baseline_temperature: None,
             current_temperature: None,
             baseline_focuser_position: None,
@@ -1325,6 +1366,48 @@ impl TriggerState {
 
     pub fn update_humidity(&mut self, humidity: f64) {
         self.current_humidity = Some(humidity);
+    }
+
+    /// Defense-in-depth (full-night audit 2026-06-04): store the Dart-side
+    /// weather-safety verdict. `Some(true)` = Dart computed UNSAFE, `Some(false)`
+    /// = Dart computed SAFE, `None` = Dart abstains (provider disabled / no data).
+    /// Folded into the `WeatherUnsafe` trigger as an additional unsafe source so a
+    /// rig without a hardware safety device still aborts when the configured
+    /// thresholds / API / cloud sources say unsafe. Never makes the trigger LESS
+    /// safe than the hardware `weather_safe` reading (see the evaluator).
+    pub fn update_weather_verdict(&mut self, unsafe_override: Option<bool>) {
+        self.weather_verdict_unsafe = unsafe_override;
+        // Stamp the push time so the safety poll can detect a stale-AND-unsafe
+        // verdict (a dead Dart feed holding the sequence paused) and warn loudly
+        // without ever auto-clearing the unsafe state. Stamp on EVERY push,
+        // including `None` (abstain) and `Some(false)` (safe): freshness is a
+        // property of the channel, not of the verdict value, and a fresh
+        // abstain/safe is exactly what clears the stale-unsafe condition.
+        self.weather_verdict_last_update = Some(Instant::now());
+    }
+
+    /// Architecture-unification 2026-06-05 (Subsystem 2 step 3): true when a
+    /// `Some(true)` (UNSAFE) verdict has not been refreshed within
+    /// `staleness_secs`. Used by the safety poll to emit a loud
+    /// "verdict feed stale; holding paused fail-closed" warning.
+    ///
+    /// Returns false (NOT stale) when:
+    ///   * the verdict is not `Some(true)` (a safe / abstaining verdict that
+    ///     goes stale is harmless — nothing is being held), or
+    ///   * no verdict has ever been pushed (`weather_verdict_last_update` is
+    ///     `None`); there is no feed to be stale yet, and the hardware poll is
+    ///     the active gate.
+    ///
+    /// This NEVER mutates state and NEVER clears the unsafe verdict — it is a
+    /// pure observability predicate.
+    pub fn is_weather_verdict_stale_unsafe(&self, staleness_secs: u64) -> bool {
+        if self.weather_verdict_unsafe != Some(true) {
+            return false;
+        }
+        match self.weather_verdict_last_update {
+            Some(last) => last.elapsed().as_secs() >= staleness_secs,
+            None => false,
+        }
     }
 
     /// Wave 7 Science: store the latest transparency reading. `None`
@@ -1829,16 +1912,28 @@ impl TriggerManager {
             .with_cooldown(600), // 10 minute cooldown (same as temperature shift)
         );
 
-        // Humidity threshold trigger
-        self.add_trigger(
-            Trigger::new(
-                "humidity_threshold",
-                "Humidity Threshold",
-                TriggerType::HumidityThreshold { max_percent: 85.0 },
-                RecoveryAction::Pause, // Pause (not abort) - humidity may drop again
-            )
-            .with_cooldown(60), // 60 second cooldown
-        );
+        // Humidity threshold:
+        //
+        // Architecture-unification 2026-06-05 (Subsystem 2 step 2 — duplicate
+        // humidity gate reconciliation). The standard humidity trigger USED to
+        // be auto-added here with a HARDCODED `max_percent: 85.0`. That created
+        // a second, divergent humidity gate: the Dart `WeatherThresholdEvaluator`
+        // already evaluates humidity against the operator-configured
+        // `WeatherSettings.maxHumidityPercent` and folds the result into the
+        // pushed weather verdict, which the `WeatherUnsafe` trigger consumes. The
+        // hardcoded 85% standard trigger ignored that setting, so the same
+        // humidity reading could be judged differently by the two gates (e.g. an
+        // operator who set 70% still got no abort until 85%, or one who set 90%
+        // got a spurious abort at 85%).
+        //
+        // The humidity ceiling now has exactly ONE definition: the Dart
+        // `maxHumidityPercent` → `WeatherThresholdEvaluator` → pushed verdict →
+        // `WeatherUnsafe` (which already maps to `RecoveryCause::WeatherUnsafe`,
+        // the same recovery this standard trigger used). The `HumidityThreshold`
+        // trigger TYPE is retained for operators who explicitly add a per-sequence
+        // humidity recovery node with their own threshold + recovery action, but
+        // it is no longer silently auto-added with a conflicting hardcoded value.
+        // See `weather_threshold_evaluator.dart` and the parity test.
 
         // Audit §1.11: plate-solve drift trigger. Default 30 px is a pragmatic
         // mid-range value: small enough to catch real drift before it becomes
@@ -2263,6 +2358,185 @@ mod tests {
         assert!(trigger.check(&state).await);
     }
 
+    /// Full-night audit 2026-06-04 (defense-in-depth): the Dart-side weather
+    /// verdict is an ADDITIONAL unsafe source. It must be able to abort a rig
+    /// whose hardware safety device reports SAFE (or has no device), but it
+    /// must never suppress a hardware-unsafe reading.
+    #[tokio::test]
+    async fn test_weather_unsafe_trigger_honours_dart_verdict() {
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Weather Verdict",
+            TriggerType::WeatherUnsafe,
+            RecoveryAction::ParkAndAbort,
+        );
+
+        let mut state = TriggerState::new();
+
+        // Hardware reports SAFE, verdict abstains (None) -> overall SAFE.
+        state.weather_safe = true;
+        state.update_weather_verdict(None);
+        assert!(
+            !trigger.check(&state).await,
+            "no unsafe source: should not fire"
+        );
+
+        // Hardware reports SAFE, but the Dart verdict computed UNSAFE -> the
+        // trigger MUST fire (this is the rig-without-a-safety-device path).
+        state.weather_safe = true;
+        state.update_weather_verdict(Some(true));
+        assert!(
+            trigger.check(&state).await,
+            "Some(true) verdict must abort even when hardware says safe"
+        );
+
+        // Hardware reports SAFE and the Dart verdict explicitly computed SAFE
+        // -> overall SAFE (verdict never spuriously fires).
+        state.weather_safe = true;
+        state.update_weather_verdict(Some(false));
+        assert!(
+            !trigger.check(&state).await,
+            "Some(false) verdict + device-safe must stay safe"
+        );
+
+        // Hardware reports UNSAFE and the Dart verdict says SAFE -> the verdict
+        // must NOT make the rig less safe than the hardware reading.
+        state.weather_safe = false;
+        state.update_weather_verdict(Some(false));
+        assert!(
+            trigger.check(&state).await,
+            "Some(false) verdict must never suppress a hardware-unsafe reading"
+        );
+    }
+
+    /// Architecture-unification 2026-06-05 (Subsystem 2 step 1): the abstain
+    /// landmine. A disabled / snoozed / permissive-fail-mode weather toggle on
+    /// the Dart side pushes `None` (abstain), NOT `Some(false)`. This test pins
+    /// that abstaining MUST NOT suppress a hardware-unsafe abort — even though
+    /// the operator "turned weather safety off", a hardware safety device that
+    /// reads unsafe still aborts via the OR in `check`. This is the structural
+    /// guarantee that makes the disabled-toggle change safe.
+    #[tokio::test]
+    async fn test_weather_unsafe_abstain_does_not_suppress_hardware_abort() {
+        let mut trigger = Trigger::new(
+            "test",
+            "Test Weather Abstain",
+            TriggerType::WeatherUnsafe,
+            RecoveryAction::ParkAndAbort,
+        );
+
+        let mut state = TriggerState::new();
+
+        // Operator opted out of weather-driven aborts => Dart abstains (None).
+        // The hardware safety device nonetheless reads UNSAFE. The trigger MUST
+        // still fire: a disabled toggle can never gag a hardware-unsafe device.
+        state.weather_safe = false;
+        state.update_weather_verdict(None);
+        assert!(
+            trigger.check(&state).await,
+            "abstain (None) must NOT suppress a hardware-unsafe abort"
+        );
+
+        // And when the hardware also reads safe under abstain, nothing fires —
+        // abstain is genuinely non-asserting, not a stuck-unsafe.
+        state.weather_safe = true;
+        state.update_weather_verdict(None);
+        assert!(
+            !trigger.check(&state).await,
+            "abstain (None) with safe hardware must not fire"
+        );
+    }
+
+    /// Architecture-unification 2026-06-05 (Subsystem 2 step 3 — stale-verdict
+    /// observability). A pushed `Some(true)`=UNSAFE verdict whose Dart feed goes
+    /// stale MUST stay unsafe (the `WeatherUnsafe` trigger keeps firing — the
+    /// sequence is held paused fail-closed) and the staleness predicate must
+    /// report stale so the executor can emit its loud warning. Staleness NEVER
+    /// resumes — there is no anti-safety auto-clear here.
+    #[tokio::test]
+    async fn weather_verdict_stale_unsafe_stays_unsafe_and_is_detected() {
+        let mut trigger = Trigger::new(
+            "weather_unsafe",
+            "Weather Unsafe",
+            TriggerType::WeatherUnsafe,
+            RecoveryAction::ParkAndAbort,
+        );
+        let mut state = TriggerState::new();
+        // Hardware reads safe; only the Dart verdict asserts UNSAFE (the
+        // rig-without-a-safety-device path).
+        state.weather_safe = true;
+        state.update_weather_verdict(Some(true));
+
+        // Immediately after the push it is fresh: not stale, but still unsafe.
+        assert!(
+            !state.is_weather_verdict_stale_unsafe(60),
+            "a just-pushed unsafe verdict must not be considered stale"
+        );
+        assert!(
+            trigger.check(&state).await,
+            "fresh unsafe verdict must fire (hold paused)"
+        );
+
+        // Force the push timestamp into the past so the verdict is now stale.
+        // We do NOT touch `weather_verdict_unsafe` — staleness must not clear it.
+        state.weather_verdict_last_update =
+            Some(Instant::now() - std::time::Duration::from_secs(120));
+
+        // Stale-AND-unsafe: predicate true with a 60s window.
+        assert!(
+            state.is_weather_verdict_stale_unsafe(60),
+            "an unsafe verdict 120s old with a 60s window must read stale"
+        );
+        // CRITICAL: the trigger STILL fires — staleness holds paused, never resumes.
+        assert!(
+            state.weather_verdict_unsafe == Some(true),
+            "staleness must NOT clear the unsafe verdict"
+        );
+        assert!(
+            trigger.check(&state).await,
+            "stale unsafe verdict must keep firing — no auto-resume on staleness"
+        );
+
+        // A fresh push (even abstain) clears the stale-unsafe condition.
+        state.update_weather_verdict(None);
+        assert!(
+            !state.is_weather_verdict_stale_unsafe(60),
+            "a fresh abstain push must clear the stale-unsafe condition"
+        );
+    }
+
+    /// Subsystem 2 step 3: the staleness predicate is scoped to `Some(true)`
+    /// only. A stale SAFE / abstaining verdict is harmless (nothing is held), and
+    /// a never-pushed verdict has no feed to be stale — both must read NOT stale.
+    #[tokio::test]
+    async fn weather_verdict_staleness_only_applies_to_unsafe() {
+        let mut state = TriggerState::new();
+
+        // Never pushed -> no feed to be stale.
+        assert!(
+            !state.is_weather_verdict_stale_unsafe(0),
+            "a never-pushed verdict cannot be stale"
+        );
+
+        // Stale SAFE verdict -> not stale-unsafe (nothing is being held).
+        state.update_weather_verdict(Some(false));
+        state.weather_verdict_last_update =
+            Some(Instant::now() - std::time::Duration::from_secs(10_000));
+        assert!(
+            !state.is_weather_verdict_stale_unsafe(60),
+            "a stale SAFE verdict must not read as stale-unsafe"
+        );
+
+        // Stale abstain -> not stale-unsafe.
+        state.update_weather_verdict(None);
+        state.weather_verdict_last_update =
+            Some(Instant::now() - std::time::Duration::from_secs(10_000));
+        assert!(
+            !state.is_weather_verdict_stale_unsafe(60),
+            "a stale abstain must not read as stale-unsafe"
+        );
+    }
+
     #[tokio::test]
     async fn test_temperature_shift_trigger() {
         let mut trigger = Trigger::new(
@@ -2286,6 +2560,50 @@ mod tests {
         // Negative change - should also trigger
         state.current_temperature = Some(7.5);
         assert!(trigger.check(&state).await);
+    }
+
+    #[tokio::test]
+    async fn test_temperature_shift_needs_a_drifting_source() {
+        // Regression for the cooled-camera bug: the executor used to feed this
+        // trigger from `camera_get_temperature`. A cooled camera is regulated
+        // to a fixed setpoint, so its reading never drifts and the trigger
+        // could never fire — focus walked soft over the night. The executor now
+        // feeds `update_temperature` from the FOCUSER probe instead. This test
+        // demonstrates the underlying contract the fix relies on: a constant
+        // (regulated) feed never trips, while a drifting (focuser/ambient) feed
+        // does once the delta exceeds the configured degrees.
+        let mut trigger = Trigger::new(
+            "test",
+            "Temp Shift Source",
+            TriggerType::TemperatureShift { degrees: 2.0 },
+            RecoveryAction::Autofocus,
+        );
+
+        // Regulated camera sensor: held at -10.0°C all night. update_temperature
+        // seeds the baseline from the first reading, then every reading equals
+        // it, so the trigger NEVER fires no matter how many ticks elapse.
+        let mut regulated = TriggerState::new();
+        for _ in 0..100 {
+            regulated.update_temperature(-10.0);
+            assert!(
+                !trigger.check(&regulated).await,
+                "a regulated (constant) temperature source must never trip refocus"
+            );
+        }
+
+        // Focuser/ambient probe: tracks the night cooling down. Baseline seeds
+        // at 8.0°C; once the optical train cools past the 2.0° threshold the
+        // trigger fires, requesting the refocus the regulated feed could not.
+        let mut drifting = TriggerState::new();
+        drifting.update_temperature(8.0);
+        assert!(!trigger.check(&drifting).await, "delta 0 must not fire");
+        drifting.update_temperature(6.5);
+        assert!(!trigger.check(&drifting).await, "delta 1.5 below threshold");
+        drifting.update_temperature(5.5);
+        assert!(
+            trigger.check(&drifting).await,
+            "delta 2.5 above threshold must fire refocus from a drifting source"
+        );
     }
 
     #[tokio::test]

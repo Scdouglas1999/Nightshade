@@ -30,6 +30,7 @@ import '../../sequencer/widgets/run_dashboard/scheduler_panel.dart';
 import '../../sequencer/widgets/run_dashboard/cloud_motion_panel.dart';
 import '../../sequencer/widgets/run_dashboard/adaptive_conditions_panel.dart';
 import '../../sequencer/widgets/run_dashboard/light_curve_panel.dart';
+import '../../sequencer/widgets/run_dashboard/observatory_panel.dart';
 import 'cockpit_recent_frames.dart';
 import 'cockpit_now_imaging.dart';
 import 'cockpit_frames.dart';
@@ -219,6 +220,15 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     defaultZone: DashboardZone.secondary,
     selfChromed: true,
     builder: _buildCockpitLightCurve,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitObservatory,
+    title: 'Observatory',
+    subtitle: 'Dome shutter/azimuth, flat cover, and power switches',
+    icon: LucideIcons.warehouse,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitObservatory,
   ),
 
   // ===========================================================================
@@ -463,6 +473,14 @@ Widget _buildCockpitLightCurve(
   AnimationController pulseController,
 ) {
   return const LightCurvePanel();
+}
+
+Widget _buildCockpitObservatory(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const RunDashboardObservatoryPanel();
 }
 
 Widget _buildLivePreview(

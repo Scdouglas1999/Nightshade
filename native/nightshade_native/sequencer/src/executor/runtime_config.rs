@@ -155,6 +155,37 @@ impl SequenceExecutor {
         }
     }
 
+    /// Full-night audit 2026-06-04 (defense-in-depth) — push the Dart-side
+    /// weather-safety verdict into the executor.
+    ///
+    /// The in-sequencer `WeatherUnsafe` trigger keys off the hardware
+    /// `safety_is_safe` poll only; a rig WITHOUT a hardware safety device
+    /// never aborts via that trigger even when `weatherSafetyProvider`
+    /// computed UNSAFE from the user's configured thresholds + API/cloud
+    /// sources. This carries the Dart verdict as an additional unsafe
+    /// source. `unsafe_override = Some(true)` => UNSAFE, `Some(false)` =>
+    /// SAFE, `None` => abstain (provider disabled / no data). When the
+    /// executor is idle the verdict is stashed directly on the trigger
+    /// manager state so a subsequent `start()` (which builds a fresh
+    /// ExecutionContext) sees it immediately rather than waiting for the
+    /// next Dart push.
+    pub async fn update_weather_verdict(&self, unsafe_override: Option<bool>) {
+        tracing::debug!(
+            "[SEQ] update_weather_verdict: unsafe_override={:?}",
+            unsafe_override
+        );
+        if let Some(tx) = &self.command_tx {
+            let _ = tx
+                .send(ExecutorCommand::UpdateWeatherVerdict { unsafe_override })
+                .await;
+        } else {
+            let manager = self.trigger_manager.read().await;
+            let state_lock = manager.state();
+            let mut state = state_lock.write().await;
+            state.update_weather_verdict(unsafe_override);
+        }
+    }
+
     /// Update dither configuration at runtime.
     ///
     /// Audit §1.8: writes through `runtime_config` so a running sequence

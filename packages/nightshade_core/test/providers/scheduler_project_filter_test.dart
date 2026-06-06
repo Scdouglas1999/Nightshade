@@ -287,4 +287,7 @@ class _NoopSink implements SchedulerSequenceSink {
 
   @override
   Future<void> stopSequence() async {}
+
+  @override
+  Future<void> parkForEndOfNight() async {}
 }

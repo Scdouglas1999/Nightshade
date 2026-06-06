@@ -83,10 +83,8 @@ class ScienceInsightsPanel extends ConsumerWidget {
                 if (insights.isNotEmpty)
                   Text(
                     '${insights.length}',
-                    style: TextStyle(
+                    style: NightshadeTypography.labelStrongSm.copyWith(
                       color: colors.textMuted,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
                     ),
                   ),
               ],
@@ -95,7 +93,7 @@ class ScienceInsightsPanel extends ConsumerWidget {
             if (insights.isEmpty)
               Text(
                 'No actionable insights yet. Keep capturing frames.',
-                style: TextStyle(color: colors.textMuted, fontSize: 12),
+                style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
               )
             else
               ...insights.map(
@@ -138,7 +136,7 @@ class _InsightRow extends StatelessWidget {
                   insight.headline,
                   style: TextStyle(
                     color: colors.textPrimary,
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w600,
                     height: 1.3,
                   ),
@@ -150,7 +148,7 @@ class _InsightRow extends StatelessWidget {
                       insight.body!,
                       style: TextStyle(
                         color: colors.textSecondary,
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         height: 1.4,
                       ),
                     ),

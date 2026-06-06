@@ -451,7 +451,42 @@ void main() {
 
     test(
         'appends flats group when profile has cover calibrator '
-        'and includeFlatsAtEnd=true', () {
+        'and includeFlatsAtEnd=true (with ADU-calibrated flat plan)', () {
+      // Flats now require ADU-calibrated exposures (no blind 3s). Supply a
+      // flat plan covering the LRGB rotation so the group is emitted.
+      const flatPlan = SmartNightFlatPlan(
+        perFilter: {
+          'L': SmartNightFlatExposure(
+            filterName: 'L',
+            exposureSecs: 2.5,
+            panelBrightness: 90,
+            histogramTargetPercent: 50,
+            actualAdu: 32000,
+          ),
+          'R': SmartNightFlatExposure(
+            filterName: 'R',
+            exposureSecs: 3.5,
+            panelBrightness: 90,
+            histogramTargetPercent: 50,
+            actualAdu: 31000,
+          ),
+          'G': SmartNightFlatExposure(
+            filterName: 'G',
+            exposureSecs: 4.5,
+            panelBrightness: 90,
+            histogramTargetPercent: 50,
+            actualAdu: 30000,
+          ),
+          'B': SmartNightFlatExposure(
+            filterName: 'B',
+            exposureSecs: 6.0,
+            panelBrightness: 90,
+            histogramTargetPercent: 50,
+            actualAdu: 29000,
+          ),
+        },
+        uncalibratedFilters: [],
+      );
       final plan = service.build(
         profile: monoProfile,
         latitudeDeg: 41.0,
@@ -460,6 +495,7 @@ void main() {
         selectedSuggestions: [fakeSuggestion(id: 1, name: 'M51')],
         strategy: SmartNightStrategy.autoLrgb,
         settings: const SmartNightSettings(hasCoverCalibrator: true),
+        flatPlan: flatPlan,
       );
 
       // Calibrator on, change filter, flats, calibrator off.
@@ -475,6 +511,8 @@ void main() {
           .whereType<ExposureNode>()
           .where((n) => n.frameType == FrameType.flat);
       expect(flatExposures, isNotEmpty);
+      // None of them is the old blind 3.0s exposure.
+      expect(flatExposures.every((n) => n.durationSecs != 3.0), isTrue);
     });
 
     test('emits an empty-plan exception when no target window fits', () {
@@ -1238,6 +1276,302 @@ void main() {
       expect(req.targetTemp, -5);
       expect(restored.settings.autoScheduleMissingDarks, isTrue);
       expect(restored.settings.darkFramesPerRequirement, 12);
+    });
+
+    // --- P1: guide-RMS threading into the tracking-limited ceiling --------
+
+    SmartNightExposureContext guidedExposureContext({
+      double? guideRmsArcsec,
+      int guideSampleCount = 0,
+    }) {
+      return SmartNightExposureContext(
+        camera: const CameraExposureSpec(
+          readNoiseE: 1.4,
+          fullWellE: 50000,
+          qePeak: 0.8,
+        ),
+        bortleClass: 4,
+        focalLengthMm: 400,
+        apertureMm: 72,
+        pixelSizeMicrons: 3.76,
+        availableFilterNames: const ['Ha', 'OIII', 'SII'],
+        guideRmsArcsec: guideRmsArcsec,
+        guideSampleCount: guideSampleCount,
+        userCapSeconds: 600,
+        floorSeconds: 1,
+      );
+    }
+
+    test(
+        'build() threads guide RMS from the exposure context into the '
+        'mount-tracking ceiling (no "sparse" warning when RMS is known)', () {
+      // A poor guide RMS with >= 3 samples must engage the mount ceiling and
+      // shorten the sub-exposure. The context itself carries no guide history
+      // (the wizard main path never populates it) — proving the fallback to
+      // exposureContext is what makes the ceiling active. We assert on a
+      // narrowband filter (Ha) where the dark-sky Glover ceiling is long, so
+      // the mount ceiling is the binding constraint and the RMS difference is
+      // observable.
+      final emissionTarget = fakeSuggestion(
+        id: 1,
+        name: 'NGC 7000',
+        objectType: 'Emission Nebula',
+      );
+      final tightPlan = service.build(
+        profile: narrowbandProfile,
+        latitudeDeg: 41.0,
+        longitudeDeg: -73.0,
+        context: baseContext(),
+        selectedSuggestions: [emissionTarget],
+        strategy: SmartNightStrategy.narrowbandSho,
+        settings: const SmartNightSettings(
+          subExposureFloorSecs: 1,
+          subExposureCeilingSecs: 600,
+        ),
+        exposureContext: guidedExposureContext(
+          guideRmsArcsec: 3.0,
+          guideSampleCount: 5,
+        ),
+      );
+
+      // The "sparse history" warning must NOT appear — the RMS was threaded.
+      expect(
+        tightPlan.warnings.any((w) => w.contains('guide-RMS history is sparse')),
+        isFalse,
+        reason: 'guide RMS from the exposure context should activate the '
+            'mount ceiling, so the sparse-history warning must not fire.',
+      );
+
+      // A pristine mount (very low RMS) must allow a LONGER sub-exposure than
+      // a sloppy mount — confirming the ceiling actually scales with RMS.
+      final loosePlan = service.build(
+        profile: narrowbandProfile,
+        latitudeDeg: 41.0,
+        longitudeDeg: -73.0,
+        context: baseContext(),
+        selectedSuggestions: [emissionTarget],
+        strategy: SmartNightStrategy.narrowbandSho,
+        settings: const SmartNightSettings(
+          subExposureFloorSecs: 1,
+          subExposureCeilingSecs: 600,
+        ),
+        exposureContext: guidedExposureContext(
+          guideRmsArcsec: 0.3,
+          guideSampleCount: 5,
+        ),
+      );
+
+      double haFilterSecs(SmartNightPlan plan) => plan
+          .plannedTargets.first.filterPlans
+          .firstWhere((p) => p.filterName == 'Ha')
+          .durationSecs;
+
+      expect(
+        haFilterSecs(tightPlan),
+        lessThan(haFilterSecs(loosePlan)),
+        reason: 'a 3.0" RMS mount must cap the sub-exposure shorter than a '
+            '0.3" RMS mount once the guide RMS is threaded through.',
+      );
+    });
+
+    test(
+        'build() keeps the sparse-history warning when neither the context '
+        'nor the exposure context carry guide RMS', () {
+      final plan = service.build(
+        profile: monoProfile,
+        latitudeDeg: 41.0,
+        longitudeDeg: -73.0,
+        context: baseContext(),
+        selectedSuggestions: [fakeSuggestion(id: 1, name: 'M51')],
+        strategy: SmartNightStrategy.autoLrgb,
+        settings: const SmartNightSettings(subExposureFloorSecs: 1),
+        exposureContext: guidedExposureContext(),
+      );
+
+      expect(
+        plan.warnings.any((w) => w.contains('guide-RMS history is sparse')),
+        isTrue,
+      );
+    });
+
+    // --- P1: pixel size must not silently fall back to 3.76um ------------
+
+    test(
+        'build() fails loud when pixel size is unknown (no exposure context '
+        'and camera not in catalog)', () {
+      const unknownCameraProfile = EquipmentProfileModel(
+        id: 9,
+        name: 'Mystery rig',
+        focalLength: 600,
+        aperture: 120,
+        cameraName: 'Totally Unknown Sensor 9000',
+        defaultGain: 100,
+        defaultOffset: 30,
+        filterNames: ['L', 'R', 'G', 'B'],
+      );
+
+      expect(
+        () => service.build(
+          profile: unknownCameraProfile,
+          latitudeDeg: 41.0,
+          longitudeDeg: -73.0,
+          context: baseContext(),
+          selectedSuggestions: [fakeSuggestion(id: 1, name: 'M51')],
+          strategy: SmartNightStrategy.autoLrgb,
+          settings: const SmartNightSettings(subExposureFloorSecs: 1),
+          // No exposureContext → must NOT invent a 3.76um pitch.
+        ),
+        throwsA(
+          isA<SmartNightBuildException>().having(
+            (e) => e.message,
+            'message',
+            allOf(contains('pixel size'), contains('not in the bundled')),
+          ),
+        ),
+      );
+    });
+
+    test(
+        'build() uses the catalog pixel size for a known camera without an '
+        'exposure context (no silent 3.76um)', () {
+      // monoProfile's camera ("ZWO ASI2600MM Pro") is in the bundled catalog,
+      // so the build must succeed using the catalog pixel size — not throw,
+      // and not depend on an exposure context.
+      final plan = service.build(
+        profile: monoProfile,
+        latitudeDeg: 41.0,
+        longitudeDeg: -73.0,
+        context: baseContext(),
+        selectedSuggestions: [fakeSuggestion(id: 1, name: 'M51')],
+        strategy: SmartNightStrategy.autoLrgb,
+        settings: const SmartNightSettings(subExposureFloorSecs: 1),
+      );
+      expect(plan.plannedTargets, hasLength(1));
+    });
+
+    // --- P1: auto-flats must use ADU-calibrated exposures, not blind 3s --
+
+    test(
+        'build() emits a loud reminder instead of blind flats when no flat '
+        'calibration is available', () {
+      final plan = service.build(
+        profile: monoProfile,
+        latitudeDeg: 41.0,
+        longitudeDeg: -73.0,
+        context: baseContext(),
+        selectedSuggestions: [fakeSuggestion(id: 1, name: 'M51')],
+        strategy: SmartNightStrategy.autoLrgb,
+        settings: const SmartNightSettings(
+          subExposureFloorSecs: 1,
+          includeFlatsAtEnd: true,
+          hasCoverCalibrator: true,
+        ),
+        // flatPlan omitted → no calibration data.
+      );
+
+      // No blind flat ExposureNode (frameType flat) should exist.
+      final flatExposures = plan.sequence.nodes.values
+          .whereType<ExposureNode>()
+          .where((n) => n.frameType == FrameType.flat);
+      expect(flatExposures, isEmpty,
+          reason: 'must not emit blind flats without ADU calibration');
+
+      // A loud notification + a build warning must be present.
+      expect(
+        plan.sequence.nodes.values.whereType<NotificationNode>().any(
+            (n) => n.title.contains('Automated flats skipped')),
+        isTrue,
+      );
+      expect(
+        plan.warnings.any((w) => w.contains('No ADU-calibrated flat exposure')),
+        isTrue,
+      );
+    });
+
+    test(
+        'build() emits ADU-calibrated flat exposures + calibrated panel '
+        'brightness when a flat plan is supplied', () {
+      const flatPlan = SmartNightFlatPlan(
+        perFilter: {
+          'L': SmartNightFlatExposure(
+            filterName: 'L',
+            exposureSecs: 2.5,
+            panelBrightness: 90,
+            histogramTargetPercent: 50,
+            actualAdu: 32000,
+          ),
+          'R': SmartNightFlatExposure(
+            filterName: 'R',
+            exposureSecs: 4.0,
+            panelBrightness: 90,
+            histogramTargetPercent: 50,
+            actualAdu: 31000,
+          ),
+          'G': SmartNightFlatExposure(
+            filterName: 'G',
+            exposureSecs: 7.5,
+            panelBrightness: 140,
+            histogramTargetPercent: 50,
+            actualAdu: 33000,
+          ),
+        },
+        uncalibratedFilters: ['B'],
+      );
+
+      final plan = service.build(
+        profile: monoProfile,
+        latitudeDeg: 41.0,
+        longitudeDeg: -73.0,
+        context: baseContext(),
+        selectedSuggestions: [fakeSuggestion(id: 1, name: 'M51')],
+        strategy: SmartNightStrategy.autoLrgb,
+        settings: const SmartNightSettings(
+          subExposureFloorSecs: 1,
+          includeFlatsAtEnd: true,
+          hasCoverCalibrator: true,
+          flatCountPerFilter: 15,
+        ),
+        flatPlan: flatPlan,
+      );
+
+      final flatExposures = plan.sequence.nodes.values
+          .whereType<ExposureNode>()
+          .where((n) => n.frameType == FrameType.flat)
+          .toList();
+
+      // Only the LRGB filters the target actually used AND that have a
+      // calibration appear. The plan's M51 LRGB rotation uses L/R/G/B; B is
+      // uncalibrated so it must NOT get a blind exposure.
+      final flatFilters = flatExposures.map((n) => n.filter).toSet();
+      expect(flatFilters, containsAll(<String>{'L', 'R', 'G'}));
+      expect(flatFilters, isNot(contains('B')));
+
+      // Each calibrated flat uses its calibrated exposure — never 3.0s.
+      double durFor(String f) =>
+          flatExposures.firstWhere((n) => n.filter == f).durationSecs;
+      expect(durFor('L'), closeTo(2.5, 1e-9));
+      expect(durFor('R'), closeTo(4.0, 1e-9));
+      expect(durFor('G'), closeTo(7.5, 1e-9));
+      for (final n in flatExposures) {
+        expect(n.durationSecs, isNot(3.0));
+        expect(n.count, 15);
+      }
+
+      // The panel is set to the calibrated brightness (90 and 140), never 128.
+      final brightnesses = plan.sequence.nodes.values
+          .whereType<CalibratorOnNode>()
+          .map((n) => n.brightness)
+          .toSet();
+      expect(brightnesses, containsAll(<int>{90, 140}));
+      expect(brightnesses, isNot(contains(128)));
+
+      // The uncalibrated filter (B) triggers a loud reminder.
+      expect(
+        plan.sequence.nodes.values.whereType<NotificationNode>().any((n) =>
+            n.message.contains('B') &&
+            n.title.contains('no calibrated flat exposure')),
+        isTrue,
+      );
     });
   });
 

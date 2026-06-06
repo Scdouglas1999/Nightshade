@@ -467,9 +467,20 @@ class SequenceToolbar extends ConsumerWidget {
               ],
               const Spacer(),
               if (sequence != null && !isPhone) ...[
+                // The estimate box is given a bounded width so it can never
+                // grow into — and paint over — the equipment-status icons and
+                // the run-status badge to its right. `Flexible` lets it shrink
+                // when the row is crowded; the box itself ellipsises its own
+                // text (see `_SequenceTimeEstimate`) instead of overflowing.
                 Flexible(
-                  child:
-                      _SequenceTimeEstimate(colors: colors, sequence: sequence),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 280),
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: _SequenceTimeEstimate(
+                          colors: colors, sequence: sequence),
+                    ),
+                  ),
                 ),
                 const SizedBox(width: 16),
               ],
@@ -493,7 +504,7 @@ class SequenceToolbar extends ConsumerWidget {
                             horizontal: 10, vertical: 4),
                         decoration: NightshadeDecorations.kpiBadge(
                           colors.warning,
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                           shape: BoxShape.rectangle,
                         ),
                         child: Row(
@@ -505,7 +516,7 @@ class SequenceToolbar extends ConsumerWidget {
                             Text(
                               'SIMULATION',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: NightshadeTypography.fontSize11,
                                 fontWeight: FontWeight.w600,
                                 color: colors.warning,
                                 letterSpacing: 0.5,

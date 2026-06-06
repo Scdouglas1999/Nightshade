@@ -29,7 +29,7 @@ class _WizardHeader extends StatelessWidget {
         Text(
           'Add constraint',
           style: TextStyle(
-            fontSize: 16,
+            fontSize: NightshadeTypography.fontSize16,
             fontWeight: FontWeight.w700,
             color: colors.textPrimary,
           ),
@@ -40,7 +40,7 @@ class _WizardHeader extends StatelessWidget {
             label,
             textAlign: TextAlign.right,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w600,
               color: colors.textMuted,
               letterSpacing: 0.3,
@@ -72,7 +72,7 @@ class _Step1ChooseKind extends StatelessWidget {
         Text(
           'What kind of constraint?',
           style: TextStyle(
-            fontSize: 14,
+            fontSize: NightshadeTypography.fontSize14,
             fontWeight: FontWeight.w700,
             color: colors.textPrimary,
           ),
@@ -165,12 +165,12 @@ class _KindCard extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: disabled ? null : onTap,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           child: Container(
             padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
             decoration: BoxDecoration(
               color: bg,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: borderColor, width: selected ? 2 : 1),
             ),
             child: Row(
@@ -193,7 +193,7 @@ class _KindCard extends StatelessWidget {
                           Text(
                             title,
                             style: TextStyle(
-                              fontSize: 14,
+                              fontSize: NightshadeTypography.fontSize14,
                               fontWeight: FontWeight.w700,
                               color: disabled
                                   ? colors.textMuted
@@ -207,13 +207,13 @@ class _KindCard extends StatelessWidget {
                                   horizontal: 6, vertical: 1),
                               decoration: BoxDecoration(
                                 color: colors.surfaceHover,
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                                 border: Border.all(color: colors.border),
                               ),
                               child: Text(
                                 'already added',
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: NightshadeTypography.fontSize10,
                                   color: colors.textMuted,
                                 ),
                               ),
@@ -225,7 +225,7 @@ class _KindCard extends StatelessWidget {
                       Text(
                         body,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           color: disabled
                               ? colors.textMuted
                               : colors.textSecondary,

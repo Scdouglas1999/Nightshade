@@ -41,7 +41,7 @@ class PolarAlignmentSegmentedButton<T extends Object> extends StatelessWidget {
         side: BorderSide(color: colors.border),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         visualDensity: VisualDensity.compact,
-        textStyle: const TextStyle(fontSize: 12),
+        textStyle: const TextStyle(fontSize: NightshadeTypography.fontSize12),
       ),
     );
   }

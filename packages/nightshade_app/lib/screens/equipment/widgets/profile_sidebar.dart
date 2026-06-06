@@ -115,7 +115,7 @@ class ProfileSidebar extends ConsumerWidget {
           Text(
             'PROFILES',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w600,
               letterSpacing: 1.2,
               color: colors.textMuted,
@@ -133,7 +133,7 @@ class ProfileSidebar extends ConsumerWidget {
                 foregroundColor: colors.textSecondary,
                 backgroundColor: colors.surfaceAlt,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
               ),
               tooltip: 'Create new profile',
@@ -145,7 +145,7 @@ class ProfileSidebar extends ConsumerWidget {
               message: 'Collapse panel',
               child: InkWell(
                 onTap: onCollapse,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 child: Padding(
                   padding: const EdgeInsets.all(6),
                   child: Icon(
@@ -177,17 +177,13 @@ class ProfileSidebar extends ConsumerWidget {
             const SizedBox(height: 16),
             Text(
               'No profiles yet',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
               'Create a profile to save your equipment configuration',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textMuted,
               ),
               textAlign: TextAlign.center,
@@ -339,7 +335,7 @@ class ProfileSidebar extends ConsumerWidget {
       context: context,
       position: position,
       color: colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       items: [
         PopupMenuItem(
           value: 'default',
@@ -564,7 +560,7 @@ class _ProfileCardState extends State<_ProfileCard>
       // FocusRing makes profile rows keyboard-discoverable; without it the
       // raw GestureDetector silently swallowed focus traversal.
       child: FocusRing(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         child: GestureDetector(
         onTap: widget.onTap,
         onDoubleTap: widget.onDoubleTap,
@@ -586,7 +582,7 @@ class _ProfileCardState extends State<_ProfileCard>
                   : _isHovered
                       ? widget.colors.surface
                       : Colors.transparent,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               border: Border.all(
                 color: widget.isSelected
                     ? profileColor
@@ -615,7 +611,7 @@ class _ProfileCardState extends State<_ProfileCard>
                     Text(
                       widget.profile.profileIcon ??
                           '\u{1F52D}', // Default telescope emoji
-                      style: const TextStyle(fontSize: 18),
+                      style: const TextStyle(fontSize: NightshadeTypography.fontSize18),
                     ),
                     const SizedBox(width: 8),
 
@@ -623,11 +619,7 @@ class _ProfileCardState extends State<_ProfileCard>
                     Expanded(
                       child: Text(
                         widget.profile.name,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: widget.colors.textPrimary,
-                        ),
+                        style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -649,7 +641,7 @@ class _ProfileCardState extends State<_ProfileCard>
                 Text(
                   widget.profile.subtitle,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: widget.colors.textMuted,
                   ),
                   maxLines: 1,
@@ -670,7 +662,7 @@ class _ProfileCardState extends State<_ProfileCard>
                       Text(
                         '${widget.connectedCount}/${widget.totalCount}',
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: NightshadeTypography.fontSize10,
                           fontWeight: FontWeight.w500,
                           color: widget.connectedCount == widget.totalCount
                               ? widget.colors.success

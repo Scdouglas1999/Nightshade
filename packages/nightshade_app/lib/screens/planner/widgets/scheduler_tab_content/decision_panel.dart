@@ -30,13 +30,10 @@ class _DecisionPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusInline8,
       padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -49,7 +46,7 @@ class _DecisionPanel extends ConsumerWidget {
               Text(
                 'Scheduler',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: NightshadeTypography.fontSize18,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                 ),
@@ -110,7 +107,7 @@ class _StateBadge extends StatelessWidget {
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 12,
+          fontSize: NightshadeTypography.fontSize12,
           fontWeight: FontWeight.w700,
           color: color,
         ),
@@ -138,7 +135,7 @@ class _CurrentTargetSummary extends StatelessWidget {
             ? 'No eligible target right now.'
             : 'Scheduler is stopped. Press Start to begin evaluating '
                 'targets every 60s.',
-        style: TextStyle(fontSize: 13, color: colors.textSecondary),
+        style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textSecondary),
       );
     }
     return Column(
@@ -147,7 +144,7 @@ class _CurrentTargetSummary extends StatelessWidget {
         Text(
           'Active target',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: FontWeight.w600,
             color: colors.textMuted,
             letterSpacing: 0.5,
@@ -157,7 +154,7 @@ class _CurrentTargetSummary extends StatelessWidget {
         Text(
           name,
           style: TextStyle(
-            fontSize: 20,
+            fontSize: NightshadeTypography.fontSize20,
             fontWeight: FontWeight.w700,
             color: colors.textPrimary,
           ),
@@ -167,7 +164,7 @@ class _CurrentTargetSummary extends StatelessWidget {
           Text(
             'Score ${decision!.score.toStringAsFixed(3)}',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
@@ -189,7 +186,7 @@ class _Countdown extends StatelessWidget {
     if (next == null) {
       return Text(
         'No tick scheduled.',
-        style: TextStyle(fontSize: 12, color: colors.textMuted),
+        style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
       );
     }
     final delta = next.difference(DateTime.now());
@@ -203,7 +200,7 @@ class _Countdown extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
-          style: TextStyle(fontSize: 12, color: colors.textSecondary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
         ),
       ],
     );
@@ -295,7 +292,7 @@ class _ReasoningList extends StatelessWidget {
       return Text(
         'Scheduler is stopped. Press Start to begin evaluating targets '
         'every 60s.',
-        style: TextStyle(fontSize: 12, color: colors.textMuted),
+        style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
       );
     }
     return Column(
@@ -304,38 +301,35 @@ class _ReasoningList extends StatelessWidget {
         Text(
           'Reasoning',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: FontWeight.w600,
             color: colors.textMuted,
             letterSpacing: 0.5,
           ),
         ),
         const SizedBox(height: NightshadeTokens.spaceSm),
-        Container(
+        SizedBox(
           width: double.infinity,
-          padding: NightshadeTokens.paddingMd,
-          decoration: BoxDecoration(
-            color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: colors.border),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              for (final line in lines)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(
-                    line,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colors.textSecondary,
-                      height: 1.4,
-                      fontFamily: 'monospace',
+          child: NightshadeCard(
+            padding: NightshadeTokens.paddingMd,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (final line in lines)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(
+                      line,
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textSecondary,
+                        height: 1.4,
+                        fontFamily: 'monospace',
+                      ),
                     ),
                   ),
-                ),
-            ],
+              ],
+            ),
           ),
         ),
       ],
@@ -383,9 +377,7 @@ class _RejectedCandidatesSectionState
             size: NightshadeTokens.iconSm, color: colors.textSecondary),
         title: Text(
           'Other candidates considered (${rejected.length})',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
+          style: NightshadeTypography.labelStrong.copyWith(
             color: colors.textPrimary,
           ),
         ),
@@ -432,7 +424,7 @@ class _RejectedRow extends StatelessWidget {
         child: InkWell(
           key: ValueKey('rejected-row-${rejection.targetId}'),
           onTap: onToggle,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           child: Container(
             padding: const EdgeInsets.symmetric(
               horizontal: NightshadeTokens.spaceSm,
@@ -440,7 +432,7 @@ class _RejectedRow extends StatelessWidget {
             ),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               border: Border.all(
                 color: hardFailed
                     ? colors.error.withValues(alpha: 0.35)
@@ -463,9 +455,7 @@ class _RejectedRow extends StatelessWidget {
                     Expanded(
                       child: Text(
                         rejection.targetName,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
+                        style: NightshadeTypography.h6.copyWith(
                           color: colors.textPrimary,
                         ),
                       ),
@@ -473,7 +463,7 @@ class _RejectedRow extends StatelessWidget {
                     Text(
                       rejection.score.toStringAsFixed(3),
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: colors.textSecondary,
                         fontFeatures: const [FontFeature.tabularFigures()],
                       ),
@@ -518,14 +508,12 @@ class _ReasonChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: color.withValues(alpha: 0.40)),
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
+        style: NightshadeTypography.labelStrongSm.copyWith(
           color: color,
         ),
       ),
@@ -541,22 +529,19 @@ class _RejectedDetails extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SizedBox(
       width: double.infinity,
-      padding: NightshadeTokens.paddingMd,
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (rejection.hardConstraintFailures.isNotEmpty) ...[
+      child: NightshadeCard(
+        variant: CardVariant.subtle,
+        padding: NightshadeTokens.paddingMd,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (rejection.hardConstraintFailures.isNotEmpty) ...[
             Text(
               'Failed hard constraints',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w700,
                 color: colors.textPrimary,
                 letterSpacing: 0.4,
@@ -569,7 +554,7 @@ class _RejectedDetails extends StatelessWidget {
                 child: Text(
                   '• $r',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.error,
                     height: 1.4,
                   ),
@@ -580,7 +565,7 @@ class _RejectedDetails extends StatelessWidget {
           Text(
             'Score breakdown',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w700,
               color: colors.textPrimary,
               letterSpacing: 0.4,
@@ -596,14 +581,15 @@ class _RejectedDetails extends StatelessWidget {
                 '-> ${f.weighted.toStringAsFixed(3)}'
                 '${f.detail != null ? "  ${f.detail}" : ""}',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textSecondary,
                   height: 1.4,
                   fontFamily: 'monospace',
                 ),
               ),
             ),
-        ],
+          ],
+        ),
       ),
     );
   }

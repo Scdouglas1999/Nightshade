@@ -153,7 +153,7 @@ class TonightCard extends ConsumerWidget {
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textSecondary,
                 height: 1.35,
               ),
@@ -164,7 +164,7 @@ class TonightCard extends ConsumerWidget {
             Text(
               '+ ${optimization.alternates.length} more target${optimization.alternates.length == 1 ? '' : 's'}',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
               ),
             ),
@@ -194,9 +194,7 @@ class TonightCard extends ConsumerWidget {
                     children: [
                       Text(
                         'See Full Plan',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
+                        style: NightshadeTypography.labelSm.copyWith(
                           color: colors.primary,
                         ),
                       ),
@@ -415,7 +413,7 @@ class _TonightTargetActions extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textMuted,
             ),
           ),
@@ -467,15 +465,13 @@ class _TonightRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
             overflow: TextOverflow.ellipsis,
           ),
         ),
         Text(
           value,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
+          style: NightshadeTypography.labelSm.copyWith(
             color: colors.textPrimary,
           ),
         ),

@@ -1687,6 +1687,32 @@ pub async fn api_sequencer_update_cloud_motion(
     Ok(())
 }
 
+/// Full-night audit 2026-06-04 (defense-in-depth) — push the Dart-side
+/// weather-safety verdict into the executor.
+///
+/// The in-sequencer `WeatherUnsafe` trigger keys off the hardware
+/// `safety_is_safe` poll only; a rig WITHOUT a hardware safety device never
+/// aborts via that trigger even when `weatherSafetyProvider` computed UNSAFE
+/// from the user's configured thresholds + API/cloud sources. This carries
+/// that verdict as an additional unsafe source folded (OR-of-unsafe) into the
+/// trigger evaluation — it can only make the rig safer, never less safe than
+/// the hardware reading.
+///
+/// `unsafe_override = Some(true)` => Dart computed UNSAFE; `Some(false)` =>
+/// Dart computed SAFE; `None` => Dart abstains (provider disabled / no data)
+/// and this layer is inert.
+pub async fn api_sequencer_update_weather_verdict(
+    unsafe_override: Option<bool>,
+) -> Result<(), NightshadeError> {
+    tracing::debug!(
+        "[API] update_weather_verdict: unsafe_override={:?}",
+        unsafe_override
+    );
+    let executor = get_sequence_executor().read().await;
+    executor.update_weather_verdict(unsafe_override).await;
+    Ok(())
+}
+
 /// Wave 5 Agent 4 — JSON-serialised cloud-motion snapshot for the run
 /// dashboard. Returns `Ok(None)` when no data has been pushed yet.
 pub async fn api_sequencer_get_cloud_motion_json() -> Result<Option<String>, NightshadeError> {
@@ -2291,6 +2317,12 @@ pub fn api_create_loop_node(
         iterations,
         condition: condition_enum,
         condition_value: None,
+        // Per-azimuth local-horizon mask is authored on the Dart side and
+        // round-trips through the node-definition JSON (deserialized into
+        // `LoopConfig` at runtime). It is `None` for nodes created through
+        // this constructor; the `#[serde(default)]` on the field means
+        // sequence JSON that omits it still loads.
+        horizon_profile: None,
     };
 
     let node = NodeDefinition {

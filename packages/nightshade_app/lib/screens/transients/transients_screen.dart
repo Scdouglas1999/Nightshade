@@ -61,7 +61,7 @@ class TransientsScreen extends ConsumerWidget {
             child: alertsAsync.when(
               data: (alerts) =>
                   _buildDataState(context, ref, colors, alerts, currentFilter),
-              loading: () => _buildLoadingState(colors),
+              loading: () => _buildLoadingState(),
               error: (error, stackTrace) =>
                   _buildErrorState(context, ref, colors, error),
             ),
@@ -140,15 +140,15 @@ class TransientsScreen extends ConsumerWidget {
     }
   }
 
-  Widget _buildLoadingState(NightshadeColors colors) {
+  Widget _buildLoadingState() {
     return ShimmerLoading(
       child: ListView.builder(
         padding: NightshadeTokens.screenPadding,
         itemCount: 5,
         itemBuilder: (context, index) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
-            child: _TransientCardSkeleton(colors: colors),
+          return const Padding(
+            padding: EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+            child: _TransientCardSkeleton(),
           );
         },
       ),
@@ -162,16 +162,16 @@ class TransientsScreen extends ConsumerWidget {
     switch (filter) {
       case TransientFilter.all:
         message = 'No transient alerts';
-        icon = LucideIcons.sparkles;
+        icon = NightshadeIcons.sparkle;
       case TransientFilter.newAlerts:
         message = 'No new alerts';
-        icon = LucideIcons.bellOff;
+        icon = NightshadeIcons.notificationsOff;
       case TransientFilter.queued:
         message = 'No queued alerts';
-        icon = LucideIcons.listChecks;
+        icon = NightshadeIcons.checklist;
       case TransientFilter.observed:
         message = 'No observed alerts';
-        icon = LucideIcons.eye;
+        icon = NightshadeIcons.visible;
     }
 
     return Center(
@@ -188,11 +188,7 @@ class TransientsScreen extends ConsumerWidget {
             const SizedBox(height: NightshadeTokens.spaceLg),
             Text(
               message,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: NightshadeTokens.spaceSm),
             Text(
@@ -201,7 +197,7 @@ class TransientsScreen extends ConsumerWidget {
                   : 'No alerts match the current filter.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: colors.textSecondary,
               ),
             ),
@@ -231,25 +227,21 @@ class TransientsScreen extends ConsumerWidget {
             const SizedBox(height: NightshadeTokens.spaceLg),
             Text(
               'Failed to load transient alerts',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: NightshadeTokens.spaceSm),
             Text(
               error.toString(),
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: colors.textSecondary,
               ),
             ),
             const SizedBox(height: NightshadeTokens.spaceXl),
             NightshadeButton(
               label: 'Retry',
-              icon: LucideIcons.refreshCw,
+              icon: NightshadeIcons.refresh,
               onPressed: () => refreshTransientAlerts(ref),
             ),
           ],
@@ -307,7 +299,7 @@ class _TransientsHeader extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            icon: Icon(LucideIcons.arrowLeft, color: colors.textPrimary),
+            icon: Icon(NightshadeIcons.arrowLeft, color: colors.textPrimary),
             onPressed: () {
               if (context.canPop()) {
                 context.pop();
@@ -322,7 +314,7 @@ class _TransientsHeader extends StatelessWidget {
             padding: const EdgeInsets.all(8),
             decoration: NightshadeDecorations.tintedBadge(colors.warning),
             child: Icon(
-              LucideIcons.sparkles,
+              NightshadeIcons.sparkle,
               size: NightshadeTokens.iconMd,
               color: colors.warning,
             ),
@@ -331,14 +323,14 @@ class _TransientsHeader extends StatelessWidget {
           Text(
             'Transient Alerts',
             style: TextStyle(
-              fontSize: 18,
+              fontSize: NightshadeTypography.fontSize18,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
             ),
           ),
           const Spacer(),
           IconButton(
-            icon: const Icon(LucideIcons.refreshCw,
+            icon: const Icon(NightshadeIcons.refresh,
                 size: NightshadeTokens.iconMd),
             onPressed: onRefresh,
             tooltip: 'Refresh alerts',
@@ -347,7 +339,7 @@ class _TransientsHeader extends StatelessWidget {
           const SizedBox(width: NightshadeTokens.spaceSm),
           IconButton(
             icon:
-                const Icon(LucideIcons.settings, size: NightshadeTokens.iconMd),
+                const Icon(NightshadeIcons.settings, size: NightshadeTokens.iconMd),
             onPressed: onSettingsTap,
             tooltip: 'Alert settings',
             color: colors.textSecondary,
@@ -430,11 +422,7 @@ class _FilterChip extends StatelessWidget {
           ),
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: isSelected ? onPrimary : colors.textSecondary,
-            ),
+            style: NightshadeTypography.label.copyWith(color: isSelected ? onPrimary : colors.textSecondary),
           ),
         ),
       ),
@@ -444,20 +432,15 @@ class _FilterChip extends StatelessWidget {
 
 /// Skeleton loading cards for transient items.
 class _TransientCardSkeleton extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const _TransientCardSkeleton({required this.colors});
+  const _TransientCardSkeleton();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: NightshadeTokens.borderRadiusLg,
-        border: Border.all(color: colors.border),
-      ),
+    return const NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusLg,
       padding: NightshadeTokens.cardPadding,
-      child: const Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -544,14 +527,14 @@ class _TransientSettingsDialog extends ConsumerWidget {
             Row(
               children: [
                 const Icon(
-                  LucideIcons.settings,
+                  NightshadeIcons.settings,
                   size: NightshadeTokens.iconMd,
                 ),
                 const SizedBox(width: NightshadeTokens.spaceMd),
                 Text(
                   'Alert Settings',
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: NightshadeTypography.fontSize18,
                     fontWeight: FontWeight.w600,
                     color: colors.textPrimary,
                   ),
@@ -559,7 +542,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                 const Spacer(),
                 IconButton(
                   icon:
-                      const Icon(LucideIcons.x, size: NightshadeTokens.iconMd),
+                      const Icon(NightshadeIcons.close, size: NightshadeTokens.iconMd),
                   onPressed: () => Navigator.of(context).pop(),
                   color: colors.textSecondary,
                 ),
@@ -570,11 +553,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
             // Sources section
             Text(
               'Alert Sources',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: NightshadeTokens.spaceSm),
             Wrap(
@@ -590,7 +569,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                   checkmarkColor: colors.primary,
                   labelStyle: TextStyle(
                     color: isEnabled ? colors.primary : colors.textSecondary,
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                   ),
                 );
               }).toList(),
@@ -601,11 +580,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
             // Types section
             Text(
               'Transient Types',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: NightshadeTokens.spaceSm),
             Wrap(
@@ -621,7 +596,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                   checkmarkColor: colors.primary,
                   labelStyle: TextStyle(
                     color: isEnabled ? colors.primary : colors.textSecondary,
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                   ),
                 );
               }).toList(),
@@ -632,11 +607,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
             // Magnitude threshold
             Text(
               'Magnitude Threshold',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: NightshadeTokens.spaceSm),
             Row(
@@ -665,7 +636,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
                   child: Text(
                     'mag ${settings.magnitudeThreshold.toStringAsFixed(1)}',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: colors.textSecondary,
                     ),
                   ),
@@ -675,7 +646,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
             Text(
               'Only show alerts brighter than this magnitude',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
               ),
             ),
@@ -691,16 +662,12 @@ class _TransientSettingsDialog extends ConsumerWidget {
                     children: [
                       Text(
                         'Notifications',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textPrimary,
-                        ),
+                        style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                       ),
                       Text(
                         'Show notifications for new alerts',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: colors.textMuted,
                         ),
                       ),

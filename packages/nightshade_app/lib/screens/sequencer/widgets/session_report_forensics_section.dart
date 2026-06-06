@@ -83,7 +83,7 @@ class _ForensicsSummaryBlock extends StatelessWidget {
             Text(
               'FRAME FORENSICS',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.6,
                 color: colors.textMuted,
@@ -95,7 +95,7 @@ class _ForensicsSummaryBlock extends StatelessWidget {
         Text(
           _buildHeadline(summary, records),
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             color: colors.textPrimary,
             height: 1.4,
           ),
@@ -173,7 +173,7 @@ class _StackedBar extends StatelessWidget {
             margin: const EdgeInsets.symmetric(horizontal: 1),
             decoration: BoxDecoration(
               color: forensicsCauseColor(e.key, colors),
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
           ),
         );
@@ -203,7 +203,7 @@ class _CauseSummaryRow extends StatelessWidget {
     final color = forensicsCauseColor(cause, colors);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
@@ -213,24 +213,20 @@ class _CauseSummaryRow extends StatelessWidget {
               height: 8,
               decoration: BoxDecoration(
                 color: color,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
               ),
             ),
             const SizedBox(width: NightshadeTokens.spaceSm),
             Expanded(
               child: Text(
                 cause.humanLabel,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: NightshadeTypography.labelSm.copyWith(color: colors.textPrimary),
               ),
             ),
             Text(
               '$count (${pct.toStringAsFixed(0)}%)',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textSecondary,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
@@ -239,7 +235,7 @@ class _CauseSummaryRow extends StatelessWidget {
             Text(
               'view',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.primary,
                 decoration: TextDecoration.underline,
               ),
@@ -283,7 +279,7 @@ class _CauseDrilldownDialog extends ConsumerWidget {
               Text(
                 '${cause.humanLabel} rejections',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: NightshadeTypography.fontSize16,
                   fontWeight: FontWeight.w700,
                   color: forensicsCauseColor(cause, colors),
                 ),
@@ -312,21 +308,21 @@ class _CauseDrilldownDialog extends ConsumerWidget {
                           dense: true,
                           title: Text(
                             'Frame ${r.frameIndex}/${r.totalFrames}',
-                            style: const TextStyle(fontSize: 13),
+                            style: const TextStyle(fontSize: NightshadeTypography.fontSize13),
                           ),
                           subtitle: Text(
                             r.reason,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: NightshadeTypography.fontSize11,
                               color: colors.textSecondary,
                             ),
                           ),
                           trailing: Text(
                             _fmtTime(r.createdAt),
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: NightshadeTypography.fontSize11,
                               color: colors.textMuted,
                               fontFeatures: const [FontFeature.tabularFigures()],
                             ),
@@ -377,7 +373,7 @@ class _ErrorRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       'Forensics section unavailable: $message',
-      style: TextStyle(fontSize: 11, color: colors.error),
+      style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.error),
     );
   }
 }

@@ -27,8 +27,10 @@ import 'dart:developer' as developer;
 
 import '../../models/backend/event_types.dart';
 import '../../models/notification/notification_categories.dart';
+import 'event_classifier.dart';
 import 'notification_template.dart';
 import 'transports/notification_transport.dart';
+import 'transports/system_push_transport.dart';
 
 /// Public entry point the router uses to fan out a single notification.
 /// Tests can construct a router with an in-memory transport set and
@@ -45,6 +47,26 @@ class NotificationRouter {
 
   /// Per-category last fire time (for debouncing).
   final Map<NotificationCategory, DateTime> _lastFireTime = {};
+
+  /// Recently-emitted systemPush signatures, for cross-stream de-duplication.
+  ///
+  /// After the architecture-unification collapse the router is the single
+  /// systemPush producer, but it can be driven from TWO converging inputs:
+  ///   * its own [attachEventStream] subscription (core event stream), and
+  ///   * an explicit [route]/[routeExplicit] call from the Run Dashboard
+  ///     critical-events bridge (which observes the bridge-typed event
+  ///     history — a different representation of the SAME backend events with
+  ///     no shared id to dedup on).
+  /// Without dedup a single critical event the classifier recognises would
+  /// fire two phone pushes (one per input). We suppress an identical
+  /// (category + title + body) systemPush within [_pushDedupeWindow].
+  final Map<String, DateTime> _recentPushSignatures = {};
+
+  /// How long a systemPush content signature suppresses an identical repeat.
+  /// Long enough to absorb the small skew between the core stream and the
+  /// bridge's event-history update, short enough that a genuinely repeated
+  /// alert minutes later still fires.
+  static const Duration _pushDedupeWindow = Duration(seconds: 15);
 
   /// Event stream subscription.
   StreamSubscription<NightshadeEvent>? _subscription;
@@ -158,6 +180,49 @@ class NotificationRouter {
     }
   }
 
+  /// Route the Run Dashboard critical-events bridge's phone-push through the
+  /// single systemPush producer.
+  ///
+  /// The bridge escalates every `isCriticalEvent` (banner + toast + audible);
+  /// historically it ALSO owned a parallel phone-push via the push service.
+  /// That parallel feed is collapsed here: the bridge now forwards its push
+  /// through the router so there is exactly ONE systemPush producer.
+  ///
+  /// Some bridge-flagged events (generic system errors / FITS save failures)
+  /// have no [NotificationCategory] and the classifier path will not push
+  /// them, so this entry point forces a `critical` phone push with the copy
+  /// the bridge already rendered (`Critical · <category>` / detail). For
+  /// events the classifier DOES recognise (e.g. a guiding StarLost), the
+  /// router's own core-stream subscription also pushes — the systemPush
+  /// content-signature dedup in [_dispatch]/here collapses the pair so the
+  /// operator still gets exactly one page.
+  ///
+  /// Respects the master push gate (the transport's `enabled` config) and the
+  /// matrix master `enabled` flag, mirroring the legacy bridge which honoured
+  /// `pushCriticalAlerts`.
+  void routeBridgeCriticalPush({
+    required String title,
+    required String body,
+    required String eventType,
+    required EventCategory eventCategory,
+  }) {
+    if (!_matrix.enabled) return;
+    final transport = _transports[NotificationTransportKind.systemPush];
+    if (transport is! SystemPushTransport) return;
+
+    // Cross-stream dedup: the classifier path keys the same phone push on its
+    // rendered (title + body). The operator only ever sees title + body, so a
+    // shared (title + body) signature is exactly what must not page twice.
+    if (_isDuplicatePush(title, body)) return;
+
+    transport.enqueueExplicit(
+      title: title,
+      body: body,
+      eventType: eventType,
+      eventCategory: eventCategory,
+    );
+  }
+
   /// Bridge for the in-sequence `NotificationNode`.
   ///
   /// The executor (Rust side) raises a `Custom` event whose data map
@@ -232,11 +297,39 @@ class NotificationRouter {
       return;
     }
 
-    final mapped = _categoryForEvent(event);
-    if (mapped == null) return;
-    final (category, contextOverrides) = mapped;
-    final context = _buildContext(event, contextOverrides);
-    route(category, context, severity: event.severity);
+    // P1-11 — OTA "update available" is an operator-driven system event the
+    // shared classifier deliberately does not route to a notification
+    // category. The (now demoted) PushNotificationService used to surface it
+    // as a phone push from its own subscription; since that subscription is
+    // gone, the router preserves the push here so paired phones still learn a
+    // new build is available. Routed as `custom` with explicit in-app +
+    // systemPush transports so it does not depend on the user's `custom`
+    // matrix wiring.
+    if (event.category == EventCategory.system &&
+        event.eventType == 'UpdateAvailable') {
+      final latest =
+          (event.data['latestVersion'] as String?) ?? 'a new version';
+      final current =
+          (event.data['currentVersion'] as String?) ?? 'the current build';
+      routeNotificationNode(
+        title: 'Nightshade $latest available',
+        body:
+            'Open Settings > Updates to install the new build (currently on $current).',
+        severity: EventSeverity.info,
+        explicitTransports: const [
+          NotificationTransportKind.inApp,
+          NotificationTransportKind.systemPush,
+        ],
+      );
+      return;
+    }
+
+    // Single source of truth for event -> category classification, shared
+    // with PushNotificationService (see event_classifier.dart).
+    final classified = NotificationEventClassifier.classify(event);
+    if (classified == null) return;
+    final context = _buildContext(event, classified.context);
+    route(classified.category, context, severity: classified.severity);
   }
 
   /// Pull `explicit_transports` out of a NotificationNode Rust event
@@ -254,168 +347,6 @@ class NotificationRouter {
       }
     }
     return out.isEmpty ? null : out;
-  }
-
-  /// Decide which NotificationCategory (if any) a raw event belongs to,
-  /// plus any extra context the mapper wants injected.
-  (NotificationCategory, Map<String, String>)? _categoryForEvent(
-      NightshadeEvent event) {
-    switch (event.category) {
-      case EventCategory.sequencer:
-        return _classifySequencerEvent(event);
-      case EventCategory.imaging:
-        return _classifyImagingEvent(event);
-      case EventCategory.guiding:
-        return _classifyGuidingEvent(event);
-      case EventCategory.safety:
-        return (
-          event.eventType.toLowerCase().contains('safe')
-              ? NotificationCategory.weatherSafeAgain
-              : NotificationCategory.weatherUnsafe,
-          <String, String>{},
-        );
-      case EventCategory.equipment:
-        if (event.eventType == 'Disconnected' || event.eventType == 'Error') {
-          return (
-            NotificationCategory.equipmentDisconnected,
-            <String, String>{
-              'equipment.device_type':
-                  (event.data['device_type'] as String?) ?? '',
-              'equipment.device_id':
-                  (event.data['device_id'] as String?) ?? '',
-            },
-          );
-        }
-        return null;
-      case EventCategory.system:
-        if (event.eventType.toLowerCase().contains('disk')) {
-          return (NotificationCategory.diskSpaceLow, <String, String>{});
-        }
-        return null;
-      case EventCategory.polarAlignment:
-      case EventCategory.job:
-      case EventCategory.session:
-      case EventCategory.catalog:
-        // P1-2/P1-3/P1-5/P1-12 categories are consumed via dedicated UI
-        // surfaces (job progress toast, session-ownership banner,
-        // Catalog management panel); not routed through the
-        // cross-platform notification system.
-        return null;
-    }
-  }
-
-  (NotificationCategory, Map<String, String>)? _classifySequencerEvent(
-      NightshadeEvent event) {
-    switch (event.eventType) {
-      case 'Started':
-        return (NotificationCategory.sequenceStarted, <String, String>{});
-      case 'Completed':
-        return (NotificationCategory.sequenceCompleted, <String, String>{});
-      case 'Stopped':
-      case 'Error':
-        return (NotificationCategory.sequenceFailed, <String, String>{});
-      case 'Paused':
-        return (NotificationCategory.sequencePaused, <String, String>{});
-      case 'Resumed':
-        return (NotificationCategory.sequenceResumed, <String, String>{});
-      case 'TargetStarted':
-        return (
-          NotificationCategory.targetStarted,
-          <String, String>{
-            'target.name': (event.data['target_name'] as String?) ?? '',
-            'target.id': (event.data['target_id'] as String?) ?? '',
-          },
-        );
-      case 'TargetCompleted':
-        return (
-          NotificationCategory.targetCompleted,
-          <String, String>{
-            'target.name': (event.data['target_name'] as String?) ?? '',
-            'target.id': (event.data['target_id'] as String?) ?? '',
-          },
-        );
-      case 'NodeCompleted':
-        final nodeType = (event.data['node_type'] as String? ?? '')
-            .toLowerCase();
-        final success = event.data['success'] as bool? ?? true;
-        if (nodeType.contains('autofocus')) {
-          return (
-            success
-                ? NotificationCategory.autofocusCompleted
-                : NotificationCategory.autofocusFailed,
-            <String, String>{},
-          );
-        }
-        return null;
-      case 'InstructionProgress':
-        final instr = (event.data['instruction'] as String? ?? '')
-            .toLowerCase();
-        if (instr.contains('meridian')) {
-          return (
-            NotificationCategory.meridianFlipPerformed,
-            <String, String>{},
-          );
-        }
-        return null;
-      case 'TriggerFired':
-        return (
-          NotificationCategory.triggerFired,
-          <String, String>{
-            'trigger.name': (event.data['trigger_name'] as String?) ?? '',
-          },
-        );
-      case 'RecoveryStarted':
-        return (NotificationCategory.recoveryStarted, <String, String>{});
-      case 'RecoveryRecovered':
-        return (NotificationCategory.recoveryRecovered, <String, String>{});
-      case 'RecoveryGaveUp':
-        return (NotificationCategory.recoveryGaveUp, <String, String>{});
-      case 'FrameRejected':
-        return (
-          NotificationCategory.frameRejected,
-          <String, String>{
-            'frame.reason': (event.data['reason'] as String?) ?? '',
-          },
-        );
-    }
-    return null;
-  }
-
-  (NotificationCategory, Map<String, String>)? _classifyImagingEvent(
-      NightshadeEvent event) {
-    switch (event.eventType) {
-      case 'ExposureCompleted':
-        return (
-          NotificationCategory.frameCaptured,
-          <String, String>{
-            'frame': '${event.data['frame_number'] ?? ''}',
-            'exposure.duration': '${event.data['duration_secs'] ?? ''}',
-          },
-        );
-      case 'ExposureFailed':
-        return (
-          NotificationCategory.exposureFailed,
-          <String, String>{
-            'frame.reason': (event.data['error'] as String?) ??
-                (event.data['reason'] as String?) ??
-                '',
-          },
-        );
-    }
-    return null;
-  }
-
-  (NotificationCategory, Map<String, String>)? _classifyGuidingEvent(
-      NightshadeEvent event) {
-    switch (event.eventType) {
-      case 'StarLost':
-      case 'Disconnected':
-        return (NotificationCategory.guidingLost, <String, String>{});
-      case 'StarRecovered':
-      case 'Reconnected':
-        return (NotificationCategory.guidingRecovered, <String, String>{});
-    }
-    return null;
   }
 
   Map<String, String> _buildContext(
@@ -476,6 +407,17 @@ class NotificationRouter {
     String title,
     String body,
   ) {
+    // Cross-stream de-duplication for the single systemPush producer: if an
+    // identical phone push (same category + title + body) was emitted within
+    // the dedupe window, suppress this one. This collapses the case where the
+    // router's own classifier path and the dashboard bridge's explicit path
+    // converge on the same backend event. Other transports (in-app, email,
+    // webhooks, …) are not deduped here — each has its own delivery semantics
+    // and an at-idle external alert must not be swallowed by a UI repeat.
+    if (transport.kind == NotificationTransportKind.systemPush) {
+      if (_isDuplicatePush(title, body)) return;
+    }
+
     // Fire and forget — the transport's own timeout caps the wait. We
     // record the result so the settings UI can show the latest status.
     Future.microtask(() async {
@@ -493,6 +435,23 @@ class NotificationRouter {
         );
       }
     });
+  }
+
+  /// True if an identical phone push (same rendered title + body) was emitted
+  /// within [_pushDedupeWindow]. Records the signature when not a duplicate so
+  /// the next identical push inside the window is suppressed. This is the one
+  /// place the single systemPush producer collapses its two converging inputs
+  /// (the classifier core-stream path and the dashboard-bridge explicit path)
+  /// keyed on the copy the operator actually sees.
+  bool _isDuplicatePush(String title, String body) {
+    final now = DateTime.now();
+    _recentPushSignatures
+        .removeWhere((_, when) => now.difference(when) > _pushDedupeWindow);
+    final signature = '$title|$body';
+    final last = _recentPushSignatures[signature];
+    if (last != null && now.difference(last) < _pushDedupeWindow) return true;
+    _recentPushSignatures[signature] = now;
+    return false;
   }
 
   // ----- Default templates ------------------------------------------------

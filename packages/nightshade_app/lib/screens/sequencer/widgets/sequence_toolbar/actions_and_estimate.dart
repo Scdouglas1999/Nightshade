@@ -73,7 +73,7 @@ class _ToolbarOverflowMenu extends StatelessWidget {
                   Text(
                     a.label!,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       color: a.onPressed == null
                           ? colors.textMuted
                           : colors.textPrimary,
@@ -120,11 +120,16 @@ class _SequenceTimeEstimate extends StatelessWidget {
               '(slews, AF, dithers, downloads, etc.)\n'
               'Estimated total: ${_formatDuration(estimate.totalEstimatedSecs)}'
           : 'Integration time: ${_formatDuration(estimate.estimatedSecs)}',
+      // `clipBehavior` is the load-bearing guard: even if this box is given
+      // less width than its content's natural size (a crowded toolbar row),
+      // it clips at its own rounded border instead of painting its text out
+      // over the equipment-status icons / run-status badge to its right.
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        clipBehavior: Clip.hardEdge,
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(color: colors.border),
         ),
         child: Row(
@@ -132,23 +137,33 @@ class _SequenceTimeEstimate extends StatelessWidget {
           children: [
             Icon(LucideIcons.camera, size: 14, color: colors.textMuted),
             const SizedBox(width: 6),
-            Text(
-              '${sequence.totalExposures} frames',
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
-                fontFeatures: const [FontFeature.tabularFigures()],
+            Flexible(
+              child: Text(
+                '${sequence.totalExposures} frames',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
               ),
             ),
             const SizedBox(width: 12),
             Icon(LucideIcons.clock, size: 14, color: colors.textMuted),
             const SizedBox(width: 6),
-            Text(
-              _formatDuration(estimate.estimatedSecs),
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
-                fontFeatures: const [FontFeature.tabularFigures()],
+            Flexible(
+              child: Text(
+                _formatDuration(estimate.estimatedSecs),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                softWrap: false,
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textSecondary,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                ),
               ),
             ),
             if (estimate.overheadSecs > 0) ...[
@@ -161,13 +176,18 @@ class _SequenceTimeEstimate extends StatelessWidget {
               const SizedBox(width: 8),
               Icon(LucideIcons.timer, size: 14, color: colors.textMuted),
               const SizedBox(width: 4),
-              Text(
-                '~${_formatDuration(estimate.totalEstimatedSecs)}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colors.textMuted,
-                  fontStyle: FontStyle.italic,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+              Flexible(
+                child: Text(
+                  '~${_formatDuration(estimate.totalEstimatedSecs)}',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  softWrap: false,
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize12,
+                    color: colors.textMuted,
+                    fontStyle: FontStyle.italic,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
             ],

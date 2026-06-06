@@ -311,7 +311,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                                                 color: colors.border),
                                           ),
                                           child: Icon(
-                                            LucideIcons.camera,
+                                            NightshadeIcons.camera,
                                             size: 48,
                                             color: colors.textMuted,
                                           ),
@@ -322,7 +322,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                                               ? 'No Image'
                                               : 'No Camera Connected',
                                           style: TextStyle(
-                                            fontSize: 18,
+                                            fontSize: NightshadeTypography.fontSize18,
                                             fontWeight: FontWeight.w600,
                                             color: colors.textSecondary,
                                           ),
@@ -334,7 +334,7 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                                               : 'Connect a camera in Equipment settings',
                                           textAlign: TextAlign.center,
                                           style: TextStyle(
-                                            fontSize: 13,
+                                            fontSize: NightshadeTypography.fontSize13,
                                             color: colors.textMuted,
                                           ),
                                         ),

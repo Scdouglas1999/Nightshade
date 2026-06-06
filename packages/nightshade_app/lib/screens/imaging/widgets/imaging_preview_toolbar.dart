@@ -180,7 +180,7 @@ class _DrawModeButton extends ConsumerWidget {
     final active = ref.watch(customAnnotationDrawModeActiveProvider);
     return _LabeledToolbarToggle(
       colors: colors,
-      icon: LucideIcons.pencil,
+      icon: NightshadeIcons.edit,
       label: 'Annotate',
       tooltip: active ? 'Close drawing tools' : 'Draw on the image',
       active: active,
@@ -215,11 +215,11 @@ class _StatusReadoutCluster extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final children = <Widget>[
-      _segment(LucideIcons.maximize2, resolutionLabel),
+      _segment(NightshadeIcons.expand, resolutionLabel),
       _divider(),
-      _segment(LucideIcons.grid, binningLabel),
+      _segment(NightshadeIcons.grid, binningLabel),
       _divider(),
-      _segment(LucideIcons.search, zoomLabel),
+      _segment(NightshadeIcons.search, zoomLabel),
     ];
 
     if (showCalibration) {
@@ -228,7 +228,7 @@ class _StatusReadoutCluster extends StatelessWidget {
         // ZP + Sky share one leading gauge glyph and sit adjacent: they are a
         // single calibration/transparency telemetry group, not two unrelated
         // readouts.
-        ..add(_segment(LucideIcons.gauge, '$zeroPointLabel   $skyLabel'));
+        ..add(_segment(NightshadeIcons.gauge, '$zeroPointLabel   $skyLabel'));
     }
 
     return Row(
@@ -248,7 +248,7 @@ class _StatusReadoutCluster extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textSecondary,
             ),
           ),
@@ -328,7 +328,7 @@ class OverlaysMenuButton extends ConsumerWidget {
         return <PopupMenuEntry<int>>[
           _overlayItem(
             value: 0,
-            icon: LucideIcons.crosshair,
+            icon: NightshadeIcons.crosshair,
             label: 'Crosshair',
             active: showCrosshair,
             onTap: onToggleCrosshair,
@@ -336,8 +336,8 @@ class OverlaysMenuButton extends ConsumerWidget {
           _overlayItem(
             value: 1,
             icon: gridType == GridType.celestial
-                ? LucideIcons.globe
-                : LucideIcons.grid,
+                ? NightshadeIcons.globe
+                : NightshadeIcons.grid,
             label: 'Grid',
             subtitle: switch (gridType) {
               GridType.none => 'Off',
@@ -350,14 +350,14 @@ class OverlaysMenuButton extends ConsumerWidget {
           ),
           _overlayItem(
             value: 2,
-            icon: LucideIcons.sparkles,
+            icon: NightshadeIcons.sparkle,
             label: 'Star detection',
             active: showStarOverlay,
             onTap: onToggleStarOverlay,
           ),
           _overlayItem(
             value: 3,
-            icon: LucideIcons.list,
+            icon: NightshadeIcons.list,
             label: 'Object annotations',
             active: annotationPanelVisible,
             onTap: () => ref
@@ -366,7 +366,7 @@ class OverlaysMenuButton extends ConsumerWidget {
           ),
           _overlayItem(
             value: 4,
-            icon: LucideIcons.target,
+            icon: NightshadeIcons.target,
             label: 'Catalog overlay',
             active: catalogEnabled,
             onTap: () => ref
@@ -376,7 +376,7 @@ class OverlaysMenuButton extends ConsumerWidget {
           if (scienceSettings.advancedModeEnabled)
             _overlayItem(
               value: 5,
-              icon: LucideIcons.flaskConical,
+              icon: NightshadeIcons.science,
               label: 'Science HUD',
               active: scienceHudVisible,
               onTap: () => ref.read(scienceModeStateProvider.notifier).state =
@@ -388,7 +388,7 @@ class OverlaysMenuButton extends ConsumerWidget {
       },
       child: _LabeledToolbarToggle(
         colors: colors,
-        icon: LucideIcons.layers,
+        icon: NightshadeIcons.layers,
         label: 'Overlays',
         // Tooltip is provided by PopupMenuButton itself; the pill is purely
         // visual here so the popup owns the tap.
@@ -496,15 +496,11 @@ class _LabeledToolbarToggleState extends State<_LabeledToolbarToggle> {
             const SizedBox(width: 6),
             Text(
               widget.label,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                color: accent,
-              ),
+              style: NightshadeTypography.labelSm.copyWith(color: accent),
             ),
             if (widget.showChevron) ...[
               const SizedBox(width: 2),
-              Icon(LucideIcons.chevronDown, size: 13, color: colors.textMuted),
+              Icon(NightshadeIcons.chevronDown, size: 13, color: colors.textMuted),
             ],
           ],
         ),
@@ -564,7 +560,7 @@ class _OverlayMenuRow extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: colors.textPrimary,
               ),
             ),
@@ -574,7 +570,7 @@ class _OverlayMenuRow extends StatelessWidget {
             Text(
               subtitle!,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
               ),
             ),
@@ -633,7 +629,7 @@ class _ViewControlsGroup extends StatelessWidget {
           onTap: onZoomOut,
         ),
         OverlayIconButton(
-          icon: LucideIcons.minimize2,
+          icon: NightshadeIcons.collapse,
           tooltip: '1:1 zoom',
           colors: colors,
           onTap: onZoom1to1,
@@ -647,7 +643,7 @@ class _ViewControlsGroup extends StatelessWidget {
         if (showAbort)
           OverlayIconButton(
             key: ImagingTutorialKeys.abortBtn,
-            icon: LucideIcons.x,
+            icon: NightshadeIcons.close,
             tooltip: 'Abort capture',
             colors: colors,
             onTap: onAbortCapture,
@@ -690,7 +686,7 @@ class _CatalogOverlaySettingsButton extends ConsumerWidget {
           child: CatalogOverlayPopover(colors: colors),
         ),
       ],
-      icon: Icon(LucideIcons.target, color: colors.textMuted, size: 16),
+      icon: Icon(NightshadeIcons.target, color: colors.textMuted, size: 16),
       splashRadius: 16,
       padding: const EdgeInsets.symmetric(horizontal: 4),
     );

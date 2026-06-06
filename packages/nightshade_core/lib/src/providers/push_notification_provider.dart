@@ -2,7 +2,6 @@
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'backend_provider.dart';
 import 'database_provider.dart';
 import '../services/push_notification_service.dart';
 
@@ -123,35 +122,26 @@ final pushNotificationConfigProvider =
 
 /// Provider for the PushNotificationService instance.
 ///
-/// This service subscribes to the backend event stream and emits
-/// PushNotification objects for critical events based on the current config.
-/// The notification stream is consumed by the web server to broadcast
-/// to connected mobile WebSocket clients.
+/// Architecture-unification, Subsystem 3 (collapsed): this service is now a
+/// pure mobile-push *broadcaster*. It no longer subscribes to the backend
+/// event stream or classifies events — the [NotificationRouter]'s
+/// [SystemPushTransport] is the single producer of mobile pushes and calls
+/// `enqueue` on this service. The service's stream is consumed by the
+/// embedded web server to broadcast to connected mobile WebSocket clients.
 ///
-/// The service is re-created only when the backend changes (e.g., reconnect).
-/// Config changes are applied in-place via [PushNotificationService.updateConfig]
-/// to avoid creating duplicate event stream subscriptions.
+/// The [PushNotificationConfig] remains the one config store for the
+/// systemPush feed (its per-event toggles + master `enabled` gate are read by
+/// [SystemPushTransport] / enforced in `enqueue`); config changes are applied
+/// in-place via [PushNotificationService.updateConfig].
 final pushNotificationServiceProvider = Provider<PushNotificationService>((ref) {
-  final backend = ref.watch(diagnosticsBackendProvider);
-
   // Read (don't watch) config for initial value -- changes are handled via
-  // ref.listen below to avoid tearing down the entire service on each toggle.
+  // ref.listen below so the broadcaster instance (and the web server's
+  // subscription to its stream) survives a config toggle.
   final configAsync = ref.read(pushNotificationConfigProvider);
   final config = configAsync.valueOrNull ?? const PushNotificationConfig();
 
-  final service = PushNotificationService(
-    eventStream: backend.eventStream,
-    config: config,
-  );
+  final service = PushNotificationService(config: config);
 
-  // Start the service if enabled
-  if (config.enabled) {
-    service.start();
-  }
-
-  // Listen for config changes and update the service in-place. Using listen
-  // instead of watch prevents the provider from rebuilding (and creating a
-  // redundant event stream subscription) on every config toggle.
   ref.listen<AsyncValue<PushNotificationConfig>>(
     pushNotificationConfigProvider,
     (previous, next) {

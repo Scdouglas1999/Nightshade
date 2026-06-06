@@ -152,7 +152,7 @@ class _ProjectTrackingPanelState extends ConsumerState<ProjectTrackingPanel> {
                 Text(
                   context.l10n.text('analyticsNoProjects'),
                   style: TextStyle(
-                    fontSize: 16,
+                    fontSize: NightshadeTypography.fontSize16,
                     fontWeight: FontWeight.w500,
                     color: colors.textSecondary,
                   ),
@@ -160,7 +160,7 @@ class _ProjectTrackingPanelState extends ConsumerState<ProjectTrackingPanel> {
                 const SizedBox(height: 8),
                 Text(
                   'Add targets and capture images to track multi-night progress.',
-                  style: TextStyle(fontSize: 13, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
                   textAlign: TextAlign.center,
                 ),
               ],
@@ -310,7 +310,7 @@ class _CleanupHeaderRow extends ConsumerWidget {
               icon: const Icon(LucideIcons.trash2, size: 14),
               label: const Text(
                 'Remove untracked targets',
-                style: TextStyle(fontSize: 12),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12),
               ),
             ),
           ),
@@ -333,7 +333,7 @@ class _CleanupHeaderRow extends ConsumerWidget {
           icon: Icon(LucideIcons.trash2, size: 14, color: colors.error),
           label: Text(
             'Remove untracked targets ($count)',
-            style: TextStyle(fontSize: 12, color: colors.error),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.error),
           ),
         ),
       ),
@@ -459,7 +459,7 @@ class _SummaryStat extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: NightshadeTypography.fontSize16,
             fontWeight: FontWeight.w700,
             color: colors.textPrimary,
           ),
@@ -467,7 +467,7 @@ class _SummaryStat extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           label,
-          style: TextStyle(fontSize: 11, color: colors.textMuted),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
           textAlign: TextAlign.center,
         ),
       ],
@@ -498,7 +498,7 @@ class _SortBar extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           'Sort by:',
-          style: TextStyle(fontSize: 12, color: colors.textSecondary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
         ),
         const SizedBox(width: 8),
         _sortChip('Completion', ProjectSortMode.completion),
@@ -521,16 +521,16 @@ class _SortBar extends StatelessWidget {
         decoration: isSelected
             ? NightshadeDecorations.selectedSurface(
                 colors.primary,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               )
             : BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(color: colors.border),
               ),
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
             color: isSelected ? colors.primary : colors.textSecondary,
           ),
@@ -664,7 +664,7 @@ class _EnhancedProjectCard extends ConsumerWidget {
                       Text(
                         progress.target.name,
                         style: TextStyle(
-                          fontSize: 15,
+                          fontSize: NightshadeTypography.fontSize15,
                           fontWeight: FontWeight.w600,
                           color: colors.textPrimary,
                         ),
@@ -676,7 +676,7 @@ class _EnhancedProjectCard extends ConsumerWidget {
                               progress.target.objectType ??
                               '',
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: NightshadeTypography.fontSize12,
                             color: colors.textSecondary,
                           ),
                         ),
@@ -691,7 +691,7 @@ class _EnhancedProjectCard extends ConsumerWidget {
                   icon: const Icon(LucideIcons.lineChart, size: 14),
                   label: const Text(
                     'View Campaign',
-                    style: TextStyle(fontSize: 12),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize12),
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -702,7 +702,7 @@ class _EnhancedProjectCard extends ConsumerWidget {
                     progress.isTracked
                         ? l10n.text('analyticsEditGoal')
                         : l10n.text('analyticsSetGoal'),
-                    style: const TextStyle(fontSize: 12),
+                    style: const TextStyle(fontSize: NightshadeTypography.fontSize12),
                   ),
                 ),
               ],
@@ -716,7 +716,7 @@ class _EnhancedProjectCard extends ConsumerWidget {
                 children: [
                   Expanded(
                     child: ClipRRect(
-                      borderRadius: BorderRadius.circular(5),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
                       child: LinearProgressIndicator(
                         value: progress.completionFraction,
                         minHeight: 10,
@@ -733,7 +733,7 @@ class _EnhancedProjectCard extends ConsumerWidget {
                   Text(
                     '${completionPct.toStringAsFixed(0)}%',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       fontWeight: FontWeight.w700,
                       color: progress.isCompleted
                           ? colors.success
@@ -801,7 +801,7 @@ class _EnhancedProjectCard extends ConsumerWidget {
               const SizedBox(height: 10),
               Text(
                 'Last imaged: ${DateFormat('MMM d, yyyy HH:mm').format(progress.lastSessionAt!)}',
-                style: TextStyle(fontSize: 11, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
               ),
             ],
           ],
@@ -840,13 +840,11 @@ class _MetricChip extends StatelessWidget {
           children: [
             Text(
               label,
-              style: TextStyle(fontSize: 10, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
             ),
             Text(
               value,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+              style: NightshadeTypography.labelStrong.copyWith(
                 color: colors.textPrimary,
               ),
             ),
@@ -914,7 +912,7 @@ class _FilterBreakdownRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: NightshadeDecorations.statusChip(
             color,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -930,9 +928,7 @@ class _FilterBreakdownRow extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 '${entry.key}: ${hours.toStringAsFixed(1)}h',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.labelStrongSm.copyWith(
                   color: colors.textPrimary,
                 ),
               ),

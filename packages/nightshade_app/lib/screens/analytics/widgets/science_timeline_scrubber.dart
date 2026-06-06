@@ -80,7 +80,7 @@ class _ScienceTimelineScrubberState extends State<ScienceTimelineScrubber> {
                                 height:
                                     8 + _normalized(metrics[i].snr) * barSpan,
                                 decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(3),
+                                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
                                   color: i == selectedIndex
                                       ? NightshadeChartColors.selectedFrame(
                                           widget.colors)
@@ -113,7 +113,7 @@ class _ScienceTimelineScrubberState extends State<ScienceTimelineScrubber> {
                           : 'Frame ${selectedIndex + 1}/${metrics.length}',
                       style: TextStyle(
                         color: widget.colors.textSecondary,
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                       ),
                     ),
                   ),
@@ -122,7 +122,7 @@ class _ScienceTimelineScrubberState extends State<ScienceTimelineScrubber> {
                       'SNR ${selected.snr.toStringAsFixed(1)} | Clip H ${selected.highClipPercent.toStringAsFixed(2)}%',
                       style: TextStyle(
                         color: widget.colors.textMuted,
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                       ),
                     ),
                 ],

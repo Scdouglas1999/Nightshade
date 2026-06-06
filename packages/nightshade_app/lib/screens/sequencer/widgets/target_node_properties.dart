@@ -266,7 +266,7 @@ class TargetGroupProperties extends ConsumerWidget {
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(color: colors.border),
                 ),
                 child: Row(
@@ -279,7 +279,7 @@ class TargetGroupProperties extends ConsumerWidget {
                             ? '${node.startAfter!.hour.toString().padLeft(2, '0')}:${node.startAfter!.minute.toString().padLeft(2, '0')}'
                             : 'Not set',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: NightshadeTypography.fontSize13,
                           color: node.startAfter != null
                               ? colors.textPrimary
                               : colors.textMuted,
@@ -318,7 +318,7 @@ class TargetGroupProperties extends ConsumerWidget {
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(color: colors.border),
                 ),
                 child: Row(
@@ -331,7 +331,7 @@ class TargetGroupProperties extends ConsumerWidget {
                             ? '${node.endBefore!.hour.toString().padLeft(2, '0')}:${node.endBefore!.minute.toString().padLeft(2, '0')}'
                             : 'Not set',
                         style: TextStyle(
-                          fontSize: 13,
+                          fontSize: NightshadeTypography.fontSize13,
                           color: node.endBefore != null
                               ? colors.textPrimary
                               : colors.textMuted,

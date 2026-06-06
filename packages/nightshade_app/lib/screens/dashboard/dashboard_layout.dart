@@ -54,6 +54,7 @@ extension DashboardZoneX on DashboardZone {
       DashboardWidgetId.cockpitCloudMotion => DashboardZone.secondary,
       DashboardWidgetId.cockpitAdaptiveConditions => DashboardZone.secondary,
       DashboardWidgetId.cockpitLightCurve => DashboardZone.secondary,
+      DashboardWidgetId.cockpitObservatory => DashboardZone.secondary,
 
       // Primary zone: main content area (hero widgets)
       DashboardWidgetId.livePreview => DashboardZone.primary,
@@ -99,6 +100,7 @@ enum DashboardWidgetId {
   cockpitCloudMotion,
   cockpitAdaptiveConditions,
   cockpitLightCurve,
+  cockpitObservatory,
 
   // Legacy control/info cards. Kept for migration + power users, but disabled
   // by default now that the cockpit panels own the dashboard.
@@ -138,6 +140,7 @@ extension DashboardWidgetIdX on DashboardWidgetId {
       DashboardWidgetId.cockpitAdaptiveConditions =>
         'cockpitAdaptiveConditions',
       DashboardWidgetId.cockpitLightCurve => 'cockpitLightCurve',
+      DashboardWidgetId.cockpitObservatory => 'cockpitObservatory',
       DashboardWidgetId.livePreview => 'livePreview',
       DashboardWidgetId.captureSettings => 'captureSettings',
       DashboardWidgetId.sequenceStatus => 'sequenceStatus',
@@ -174,6 +177,7 @@ extension DashboardWidgetIdX on DashboardWidgetId {
       'cockpitAdaptiveConditions' =>
         DashboardWidgetId.cockpitAdaptiveConditions,
       'cockpitLightCurve' => DashboardWidgetId.cockpitLightCurve,
+      'cockpitObservatory' => DashboardWidgetId.cockpitObservatory,
       'livePreview' => DashboardWidgetId.livePreview,
       'captureSettings' => DashboardWidgetId.captureSettings,
       'sequenceStatus' => DashboardWidgetId.sequenceStatus,
@@ -668,6 +672,17 @@ class DashboardLayout {
         enabled: false,
         order: 28,
         zone: DashboardZone.tertiary,
+      ),
+
+      // Observatory / dome telemetry. Disabled by default because most rigs
+      // are portable (no dome/roof/flat-panel); operators with an observatory
+      // enable it via Edit Dashboard. Lives in the right-rail telemetry zone.
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitObservatory,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 29,
+        zone: DashboardZone.secondary,
       ),
     ];
 

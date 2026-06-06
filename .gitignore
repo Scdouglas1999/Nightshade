@@ -213,9 +213,9 @@ fix_*.py
 *_README.md
 NOT_IMPLEMENTED_FIXES.md
 
-# But DO track the docs/ folder and CLAUDE.md
+# Keep docs/ tracked. CLAUDE.md stays UNTRACKED (internal AI/deploy notes incl.
+# a LAN IP + SSH) — it's ignored at the top of this file; do NOT re-include it.
 !docs/
-!CLAUDE.md
 
 # =============================================================================
 # OS-Specific

@@ -21,6 +21,7 @@ import 'widgets/week_forecast_strip.dart';
 // ---------------------------------------------------------------------------
 
 part 'planner_screen_parts/_recommendation_tab.dart';
+part 'planner_screen_parts/_autopilot_preview_banner.dart';
 part 'planner_screen_parts/_header_and_controls_bar.dart';
 part 'planner_screen_parts/_filter_controls.dart';
 part 'planner_screen_parts/_candidate_list.dart';

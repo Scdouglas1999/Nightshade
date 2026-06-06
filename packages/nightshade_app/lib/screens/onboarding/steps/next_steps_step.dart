@@ -87,7 +87,7 @@ class OnboardingNextStepsStep extends ConsumerWidget {
                 _SummaryLine(
                   // `aperture` is this codebase's telescope/optics icon;
                   // lucide_icons 0.257.0 has no `telescope` glyph.
-                  icon: LucideIcons.aperture,
+                  icon: NightshadeIcons.aperture,
                   label: 'Telescope',
                   value: draft.telescopeName ??
                       (draft.focalLengthMm != null
@@ -95,12 +95,12 @@ class OnboardingNextStepsStep extends ConsumerWidget {
                           : null),
                 ),
                 _SummaryLine(
-                  icon: LucideIcons.camera,
+                  icon: NightshadeIcons.camera,
                   label: 'Camera',
                   value: draft.cameraName,
                 ),
                 _SummaryLine(
-                  icon: LucideIcons.move,
+                  icon: NightshadeIcons.move,
                   label: 'Image scale',
                   value: imageScale != null
                       ? '${imageScale.toStringAsFixed(2)} arcsec/px'
@@ -120,7 +120,7 @@ class OnboardingNextStepsStep extends ConsumerWidget {
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           _NextStepCard(
-            icon: LucideIcons.sparkles,
+            icon: NightshadeIcons.sparkle,
             tint: colors.primary,
             title: 'Capture your first light',
             subtitle:
@@ -129,7 +129,7 @@ class OnboardingNextStepsStep extends ConsumerWidget {
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           _NextStepCard(
-            icon: LucideIcons.bookOpen,
+            icon: NightshadeIcons.book,
             tint: colors.info,
             title: 'Take the first-night walkthrough',
             subtitle:
@@ -138,7 +138,7 @@ class OnboardingNextStepsStep extends ConsumerWidget {
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           _NextStepCard(
-            icon: LucideIcons.listChecks,
+            icon: NightshadeIcons.checklist,
             tint: colors.success,
             title: 'Review readiness checklist',
             subtitle:
@@ -265,7 +265,7 @@ class _NextStepCard extends StatelessWidget {
           ),
           const SizedBox(width: NightshadeTokens.spaceSm),
           Icon(
-            LucideIcons.chevronRight,
+            NightshadeIcons.chevronRight,
             size: NightshadeTokens.iconMd,
             color: colors.textMuted,
           ),

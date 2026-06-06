@@ -110,7 +110,7 @@ class _RemoteTailscalePanelState extends ConsumerState<_RemoteTailscalePanel> {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -127,11 +127,7 @@ class _RemoteTailscalePanelState extends ConsumerState<_RemoteTailscalePanel> {
                     'remoteAccessTailscaleTitle',
                     'Reach this rig over Tailscale',
                   ),
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                 ),
               ),
             ],
@@ -146,7 +142,7 @@ class _RemoteTailscalePanelState extends ConsumerState<_RemoteTailscalePanel> {
                   'QR while signed in to the same tailnet.',
             ),
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
               height: 1.4,
             ),
@@ -184,7 +180,7 @@ class _RemoteTailscalePanelState extends ConsumerState<_RemoteTailscalePanel> {
                   'remoteAccessTailscaleStartHint',
                   'Start pairing to arm the Tailscale QR for this session.',
                 ),
-                style: TextStyle(fontSize: 12, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
               ),
             ] else if (widget.pairingCode != null && qrPayload != null) ...[
               Center(
@@ -239,12 +235,12 @@ class _TailscaleReachableRow extends StatelessWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: SelectableText(
               url,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 fontWeight: FontWeight.w500,
                 color: colors.primary,
                 fontFamily: 'monospace',
@@ -309,11 +305,7 @@ class _TailscaleNotDetectedSection extends StatelessWidget {
             'remoteAccessTailscaleManualLabel',
             'Tailscale address (manual)',
           ),
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 6),
         NightshadeTextField(

@@ -17,13 +17,9 @@ class _DiagnosticIssueTile extends StatelessWidget {
     final icon = issue.category == ValidationCategory.opticalTrain
         ? LucideIcons.crosshair
         : LucideIcons.activity;
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: colors.border),
-      ),
+      borderRadius: NightshadeTokens.radiusMd,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -35,17 +31,14 @@ class _DiagnosticIssueTile extends StatelessWidget {
               children: [
                 Text(
                   issue.title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h6
+                      .copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   issue.description,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -54,7 +47,7 @@ class _DiagnosticIssueTile extends StatelessWidget {
                   Text(
                     issue.resolutionHint!,
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                       color: colors.primary,
                       fontStyle: FontStyle.italic,
                     ),

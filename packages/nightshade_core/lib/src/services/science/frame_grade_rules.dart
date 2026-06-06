@@ -68,25 +68,56 @@ class FrameGradeRules {
   }
 
   /// Returns a rejection reason when the frame fails any active rule.
-  String? gradeFrame(db.CapturedImage img) {
+  ///
+  /// HFR, star count and guiding RMS live directly on the [db.CapturedImage]
+  /// data class and are read from it. Eccentricity and FWHM do **not**: the
+  /// generated `CapturedImage` data class carries neither field (eccentricity
+  /// is a raw-DDL column added by the v30 migration but never declared on the
+  /// Drift table; FWHM is not persisted on `captured_images` at all). They are
+  /// therefore supplied by the caller via [eccentricity] / [fwhm], exactly the
+  /// way [gradeStats] takes its out-of-band metrics.
+  ///
+  /// A `null` metric means "cannot grade this dimension" and the rule is
+  /// skipped — but skipping a *configured* rule because nobody supplied its
+  /// metric is the silent-never-fires trap this method previously fell into
+  /// (it read `eccentricity`/`fwhm` via dynamic dispatch on columns the data
+  /// class does not have, so they were *always* null). To make that failure
+  /// loud instead of silent, an [assert] trips in debug/test builds when an
+  /// eccentricity or FWHM rule is active but its metric was not supplied.
+  String? gradeFrame(
+    db.CapturedImage img, {
+    double? eccentricity,
+    double? fwhm,
+  }) {
+    assert(
+      maxEccentricity == null || eccentricity != null,
+      'maxEccentricity rule is configured but no eccentricity was supplied to '
+      'gradeFrame(). CapturedImage does not carry eccentricity; the caller '
+      'must read the raw `eccentricity` column and pass it in, otherwise the '
+      'rule would silently never fire.',
+    );
+    assert(
+      maxFwhm == null || fwhm != null,
+      'maxFwhm rule is configured but no fwhm was supplied to gradeFrame(). '
+      'FWHM is not persisted on captured_images; the caller must source it '
+      '(e.g. from the science row or live ImageStats) and pass it in, '
+      'otherwise the rule would silently never fire.',
+    );
+
     final reasons = <String>[];
     if (maxHfr != null && img.hfr != null && img.hfr! > maxHfr!) {
       reasons.add(
           'HFR ${img.hfr!.toStringAsFixed(2)} > ${maxHfr!.toStringAsFixed(2)}');
     }
-    if (maxFwhm != null) {
-      final fwhm = _fwhmOf(img);
-      if (fwhm != null && fwhm > maxFwhm!) {
-        reasons.add(
-            'FWHM ${fwhm.toStringAsFixed(2)} > ${maxFwhm!.toStringAsFixed(2)}');
-      }
+    if (maxFwhm != null && fwhm != null && fwhm > maxFwhm!) {
+      reasons.add(
+          'FWHM ${fwhm.toStringAsFixed(2)} > ${maxFwhm!.toStringAsFixed(2)}');
     }
-    if (maxEccentricity != null) {
-      final ecc = _eccOf(img);
-      if (ecc != null && ecc > maxEccentricity!) {
-        reasons.add(
-            'Eccentricity ${ecc.toStringAsFixed(2)} > ${maxEccentricity!.toStringAsFixed(2)}');
-      }
+    if (maxEccentricity != null &&
+        eccentricity != null &&
+        eccentricity > maxEccentricity!) {
+      reasons.add(
+          'Eccentricity ${eccentricity.toStringAsFixed(2)} > ${maxEccentricity!.toStringAsFixed(2)}');
     }
     if (minStars != null &&
         img.starCount != null &&
@@ -107,18 +138,23 @@ class FrameGradeRules {
   /// the persisted auto-grader never disagree (there is exactly one rule
   /// engine).
   ///
-  /// Unlike a database row, [ImageStats] carries neither eccentricity nor
-  /// guiding RMS, so those two metrics are supplied by the caller:
-  /// [eccentricity] from the science row when one exists, [guidingRmsTotal]
-  /// from the live guiding telemetry. As in [gradeFrame], a `null` metric
-  /// means "cannot grade this dimension" and that rule is skipped — passing
-  /// `null` for either argument simply omits the corresponding check.
+  /// [ImageStats] now carries a per-frame [ImageStats.eccentricity] (measured
+  /// by the native star detector from star shape moments), so the gate reads
+  /// it directly. Guiding RMS still lives outside the stats snapshot and is
+  /// supplied via [guidingRmsTotal] from live telemetry. The optional
+  /// [eccentricity] argument overrides [ImageStats.eccentricity] when a caller
+  /// has a more authoritative value (e.g. the persisted science row); when
+  /// omitted the engine falls back to the live measured value. As in
+  /// [gradeFrame], a `null` metric means "cannot grade this dimension" and that
+  /// rule is skipped — never a no-evidence reject.
   String? gradeStats(
     ImageStats stats, {
     double? guidingRmsTotal,
     double? eccentricity,
   }) {
     final reasons = <String>[];
+    // Caller override wins; otherwise use the live measured frame value.
+    final effectiveEccentricity = eccentricity ?? stats.eccentricity;
     if (maxHfr != null && stats.hfr != null && stats.hfr! > maxHfr!) {
       reasons.add(
           'HFR ${stats.hfr!.toStringAsFixed(2)} > ${maxHfr!.toStringAsFixed(2)}');
@@ -128,10 +164,10 @@ class FrameGradeRules {
           'FWHM ${stats.fwhm!.toStringAsFixed(2)} > ${maxFwhm!.toStringAsFixed(2)}');
     }
     if (maxEccentricity != null &&
-        eccentricity != null &&
-        eccentricity > maxEccentricity!) {
+        effectiveEccentricity != null &&
+        effectiveEccentricity > maxEccentricity!) {
       reasons.add(
-          'Eccentricity ${eccentricity.toStringAsFixed(2)} > ${maxEccentricity!.toStringAsFixed(2)}');
+          'Eccentricity ${effectiveEccentricity.toStringAsFixed(2)} > ${maxEccentricity!.toStringAsFixed(2)}');
     }
     if (minStars != null &&
         stats.starCount != null &&
@@ -206,29 +242,4 @@ class FrameGradeRules {
       maxGuidingRmsTotalArcsec: p75d(gd),
     );
   }
-}
-
-double? _fwhmOf(db.CapturedImage img) {
-  try {
-    final v = (img as dynamic).fwhm;
-    if (v is double && v.isFinite) return v;
-  } on NoSuchMethodError {
-    // Why: legacy schema rows lack the `fwhm` column; dynamic dispatch raises
-    // NoSuchMethodError. Treat as "no FWHM available" and let the caller use
-    // a fallback grader. Any other exception is genuinely unexpected and
-    // bubbles up rather than being silently swallowed.
-    return null;
-  }
-  return null;
-}
-
-double? _eccOf(db.CapturedImage img) {
-  try {
-    final v = (img as dynamic).eccentricity;
-    if (v is double && v.isFinite) return v;
-  } on NoSuchMethodError {
-    // Why: see _fwhmOf — legacy rows lack the `eccentricity` column.
-    return null;
-  }
-  return null;
 }

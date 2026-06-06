@@ -40,7 +40,7 @@ class AnnotationObjectListItem extends StatelessWidget {
               height: 28,
               decoration: NightshadeDecorations.iconChip(
                 _getTypeColor(object.type),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: NightshadeTokens.borderRadiusMd,
               ),
               child: Center(
                 child: Icon(
@@ -61,7 +61,7 @@ class AnnotationObjectListItem extends StatelessWidget {
                     object.commonName ?? object.name,
                     style: TextStyle(
                       color: colors.textPrimary,
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       fontWeight:
                           isSelected ? FontWeight.w600 : FontWeight.w500,
                     ),
@@ -76,7 +76,7 @@ class AnnotationObjectListItem extends StatelessWidget {
                           object.name,
                           style: TextStyle(
                             color: colors.textMuted,
-                            fontSize: 10,
+                            fontSize: NightshadeTypography.fontSize10,
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -86,7 +86,7 @@ class AnnotationObjectListItem extends StatelessWidget {
                         style: TextStyle(
                           color:
                               _getTypeColor(object.type).withValues(alpha: 0.8),
-                          fontSize: 10,
+                          fontSize: NightshadeTypography.fontSize10,
                         ),
                       ),
                     ],
@@ -101,13 +101,13 @@ class AnnotationObjectListItem extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: NightshadeTokens.borderRadiusInline4,
                 ),
                 child: Text(
                   'm${object.magnitude!.toStringAsFixed(1)}',
                   style: TextStyle(
                     color: colors.textMuted,
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     fontFamily: 'monospace',
                   ),
                 ),
@@ -123,19 +123,19 @@ class AnnotationObjectListItem extends StatelessWidget {
       case ObjectType.galaxy:
         return LucideIcons.disc3;
       case ObjectType.nebula:
-        return LucideIcons.cloud;
+        return NightshadeIcons.cloud;
       case ObjectType.starCluster:
-        return LucideIcons.sparkles;
+        return NightshadeIcons.sparkle;
       case ObjectType.planetaryNebula:
-        return LucideIcons.circle;
+        return NightshadeIcons.circle;
       case ObjectType.star:
-        return LucideIcons.star;
+        return NightshadeIcons.star;
       case ObjectType.doubleStar:
         return LucideIcons.gitMerge;
       case ObjectType.asterism:
         return LucideIcons.shapes;
       case ObjectType.unknown:
-        return LucideIcons.helpCircle;
+        return NightshadeIcons.help;
     }
   }
 

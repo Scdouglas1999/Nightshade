@@ -45,19 +45,19 @@ class TutorialStepWidget extends StatelessWidget {
   IconData _resolveIcon(String iconName) {
     switch (iconName) {
       case 'sparkles':
-        return LucideIcons.sparkles;
+        return NightshadeIcons.sparkle;
       case 'plug':
-        return LucideIcons.plug;
+        return NightshadeIcons.connected;
       case 'compass':
-        return LucideIcons.compass;
+        return NightshadeIcons.compass;
       case 'snowflake':
-        return LucideIcons.snowflake;
+        return NightshadeIcons.frost;
       case 'crop':
         return LucideIcons.crop;
       case 'crosshair':
-        return LucideIcons.crosshair;
+        return NightshadeIcons.crosshair;
       case 'play':
-        return LucideIcons.play;
+        return NightshadeIcons.play;
       default:
         throw ArgumentError(
           'TutorialStepWidget: unknown icon name "$iconName". '
@@ -85,7 +85,7 @@ class TutorialStepWidget extends StatelessWidget {
               height: 48,
               decoration: NightshadeDecorations.iconChip(
                 colors.primary,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: NightshadeTokens.borderRadiusLg,
               ),
               child: Icon(icon, color: colors.primary, size: 24),
             ),
@@ -99,7 +99,7 @@ class TutorialStepWidget extends StatelessWidget {
                     // nightshade_localizations sweep.
                     'Step ${currentIndex + 1} of $totalSteps',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textMuted,
                       letterSpacing: 0.5,
                     ),
@@ -108,7 +108,7 @@ class TutorialStepWidget extends StatelessWidget {
                   Text(
                     step.title,
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: NightshadeTypography.fontSize18,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                     ),
@@ -127,7 +127,7 @@ class TutorialStepWidget extends StatelessWidget {
         Text(
           step.description,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: NightshadeTypography.fontSize13,
             height: 1.55,
             color: colors.textSecondary,
           ),
@@ -141,7 +141,7 @@ class TutorialStepWidget extends StatelessWidget {
         if (step.hasDeepLink)
           NightshadeButton(
             label: 'Show me on the ${_routeLabel(step.deepLinkRoute)} screen',
-            icon: LucideIcons.externalLink,
+            icon: NightshadeIcons.externalLink,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,
             onPressed: onShowMe,
@@ -167,7 +167,7 @@ class TutorialStepWidget extends StatelessWidget {
                       : isComplete
                           ? colors.primary.withValues(alpha: 0.5)
                           : colors.border,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: NightshadeTokens.borderRadiusInline4,
                 ),
               ),
             );

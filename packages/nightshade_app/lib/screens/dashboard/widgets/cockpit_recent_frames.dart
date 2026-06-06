@@ -84,7 +84,7 @@ class CockpitRecentFrames extends ConsumerWidget {
               Text(
                 'Recent Frames',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w700,
                   color: colors.textSecondary,
                   letterSpacing: 0.3,
@@ -95,7 +95,7 @@ class CockpitRecentFrames extends ConsumerWidget {
                 Text(
                   total == 1 ? '1 frame' : '$total frames',
                   style: NightshadeTypography.withTabular(
-                    TextStyle(fontSize: 11, color: colors.textMuted),
+                    TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                   ),
                 ),
             ],
@@ -115,14 +115,9 @@ class _EmptyHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
+    return NightshadeCard(
+      borderRadius: NightshadeTokens.radiusInline8,
       padding: const EdgeInsets.symmetric(vertical: 18, horizontal: 12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -130,7 +125,7 @@ class _EmptyHint extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'No frames captured this session yet',
-            style: TextStyle(fontSize: 11.5, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize11_5, color: colors.textMuted),
           ),
         ],
       ),
@@ -204,14 +199,14 @@ class _MoreBadge extends StatelessWidget {
         height: tilePx,
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(color: colors.border),
         ),
         alignment: Alignment.center,
         child: Text(
           '+$count',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w700,
             color: colors.textMuted,
           ),
@@ -308,7 +303,7 @@ class _FrameTileState extends ConsumerState<_FrameTile> {
               height: px,
               decoration: BoxDecoration(
                 color: colors.surface,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 border: Border.all(
                   color: colors.border,
                 ),
@@ -326,7 +321,7 @@ class _FrameTileState extends ConsumerState<_FrameTile> {
                 Text(
                   _filterLabel(),
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     fontWeight: FontWeight.w700,
                     color: colors.textSecondary,
                   ),
@@ -336,7 +331,7 @@ class _FrameTileState extends ConsumerState<_FrameTile> {
                   child: Text(
                     _exposureLabel(),
                     style: NightshadeTypography.withTabular(
-                      TextStyle(fontSize: 10, color: colors.textMuted),
+                      TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -348,7 +343,7 @@ class _FrameTileState extends ConsumerState<_FrameTile> {
             Text(
               _timeLabel(),
               style: NightshadeTypography.withTabular(
-                TextStyle(fontSize: 9, color: colors.textMuted),
+                TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
               ),
             ),
           ],

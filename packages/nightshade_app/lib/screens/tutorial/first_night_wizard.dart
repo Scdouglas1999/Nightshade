@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart'
     show
         FirstNightWizardStep,
@@ -72,7 +71,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
     if (!state.isLoaded) {
       return NightshadeDialog(
         title: 'First Night Walkthrough',
-        icon: LucideIcons.sparkles,
+        icon: NightshadeIcons.sparkle,
         width: 600,
         height: 400,
         showCloseButton: false,
@@ -89,7 +88,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
       // Walkthrough", "Next", "Back", "Skip", "Done", etc.) in the
       // nightshade_localizations sweep.
       title: 'First Night Walkthrough',
-      icon: LucideIcons.sparkles,
+      icon: NightshadeIcons.sparkle,
       width: 640,
       height: 560,
       // The close button is the "soft close" — same effect as
@@ -139,7 +138,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
       else
         NightshadeButton(
           label: 'Back',
-          icon: LucideIcons.chevronLeft,
+          icon: NightshadeIcons.chevronLeft,
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
           onPressed: () => notifier.back(),
@@ -148,7 +147,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
       if (notifier.isLastStep)
         NightshadeButton(
           label: 'Done',
-          icon: LucideIcons.check,
+          icon: NightshadeIcons.check,
           variant: ButtonVariant.primary,
           size: ButtonSize.small,
           onPressed: () => _handleDone(context, notifier),
@@ -156,7 +155,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
       else
         NightshadeButton(
           label: 'Next',
-          icon: LucideIcons.chevronRight,
+          icon: NightshadeIcons.chevronRight,
           variant: ButtonVariant.primary,
           size: ButtonSize.small,
           onPressed: () => notifier.next(),

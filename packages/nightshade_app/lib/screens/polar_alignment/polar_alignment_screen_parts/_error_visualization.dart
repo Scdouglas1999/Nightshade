@@ -191,7 +191,7 @@ class _BullseyeOverlayPainter extends CustomPainter {
         text: TextSpan(
           text: '${arcsec.toInt()}"',
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             color: ringPaint.color,
           ),
         ),
@@ -378,7 +378,7 @@ class _PolarErrorPainter extends CustomPainter {
       final radius = maxRadius * (positions[i] / 120.0);
       textPainter.text = TextSpan(
         text: labels[i],
-        style: TextStyle(fontSize: 9, color: colors.textMuted),
+        style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
       );
       textPainter.layout();
       textPainter.paint(

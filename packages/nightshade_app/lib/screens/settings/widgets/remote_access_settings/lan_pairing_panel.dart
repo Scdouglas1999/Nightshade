@@ -43,7 +43,7 @@ class _RemotePairingQrPanel extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -51,17 +51,13 @@ class _RemotePairingQrPanel extends StatelessWidget {
         children: [
           Text(
             l10n.text('remoteAccessQrTitle'),
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 6),
           Text(
             l10n.text('remoteAccessQrBody'),
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
               height: 1.4,
             ),
@@ -71,7 +67,7 @@ class _RemotePairingQrPanel extends StatelessWidget {
             '${l10n.text('remoteAccessFingerprint')}: '
             '${shortServerFingerprint(webState.serverFingerprint)}',
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontFamily: 'monospace',
               color: colors.textSecondary,
             ),
@@ -88,7 +84,7 @@ class _RemotePairingQrPanel extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               l10n.text('remoteAccessQrStartHint'),
-              style: TextStyle(fontSize: 12, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
             ),
           ] else if (pairingCode != null && qrPayload != null) ...[
             Center(
@@ -103,14 +99,14 @@ class _RemotePairingQrPanel extends StatelessWidget {
           ] else if (pairingCode != null && qrPayload == null) ...[
             Text(
               l10n.text('remoteAccessQrNoLanIp'),
-              style: TextStyle(fontSize: 12, color: colors.warning),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.warning),
             ),
             const SizedBox(height: 8),
             Center(
               child: Text(
                 pairingCode!,
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: NightshadeTypography.fontSize16,
                   fontWeight: FontWeight.w600,
                   fontFamily: 'monospace',
                   color: colors.textPrimary,

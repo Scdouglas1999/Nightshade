@@ -7,21 +7,19 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import '../../utils/snackbar_helper.dart';
 import '../settings/catalog_settings_screen.dart';
 import 'tabs/mount_tab.dart';
-import 'widgets/stretch_controls.dart';
 import 'widgets/annotation_widgets.dart';
 import 'widgets/calibration_section.dart';
 import 'widgets/capture_panel.dart';
-import 'widgets/collapsible_control_panel.dart';
 import 'widgets/camera_panel.dart';
 import 'widgets/focus_panel.dart';
 import 'widgets/guiding_panel.dart';
+import 'widgets/imaging_bottom_banner.dart';
 import 'widgets/imaging_preview_toolbar.dart';
 import 'widgets/live_preview_area.dart';
 import 'widgets/meridian_flip_countdown_banner.dart';
 import 'widgets/panel_widgets.dart';
 import 'widgets/rotator_panel.dart';
 import 'widgets/stacking_panel.dart';
-import '../../widgets/filter_wheel_selector.dart';
 import '../../widgets/tutorial_keys/imaging_keys.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 
@@ -204,7 +202,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                   minPanelWidth: 250,
                   maxPanelWidth: 500,
                   primarySegmentLabel: 'Image',
-                  primarySegmentIcon: LucideIcons.image,
+                  primarySegmentIcon: NightshadeIcons.image,
                   primary: _buildPreviewColumn(
                     colors,
                     viewerState,
@@ -213,7 +211,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                   secondary: [
                     AdaptivePanel(
                       title: 'Controls',
-                      icon: LucideIcons.sliders,
+                      icon: NightshadeIcons.sliders,
                       child: _buildTabsPanel(
                         colors,
                         selectedPanel,
@@ -265,16 +263,21 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
   }) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Cap the desktop bottom control panel at ~45% of the available column
-        // height so the fully-expanded panel can never squeeze the live preview
-        // to nothing. The panel sizes to its content (NOT an Expanded), so as
-        // its sections collapse the preview's Expanded above absorbs the freed
-        // height. If the expanded controls exceed the cap they scroll
-        // internally.
-        final maxPanelHeight = constraints.maxHeight.isFinite
-            ? constraints.maxHeight * 0.45
-            : double.infinity;
+        // Hide the inline Stats readout on narrow widths, matching the old
+        // panel which dropped the whole Stats section below ~600px.
+        final showStats =
+            constraints.maxWidth >= BreakpointTokens.breakpointPhone;
         return Column(
+          // Stretch so every child (toolbar, preview, control banner) gets a
+          // TIGHT width equal to the column. Without this the column defaults
+          // to CrossAxisAlignment.center, which hands children LOOSE width
+          // constraints — and the live preview's inner Stack holds only
+          // Positioned children, so under a loose width it collapses to zero
+          // width (height stays correct via the Expanded). That zero-width
+          // Stack is exactly why captured frames rendered blank here while the
+          // dashboard's stretch-column copy of the same ImageDisplayWidget
+          // showed them fine.
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // Slim off-canvas toolbar above the preview — status readouts,
             // Overlays menu, annotate toggle and view controls live here so the
@@ -306,26 +309,24 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                 onPanUpdate: _panPreview,
               ),
             ),
-            // Desktop / tablet bottom control panel — content-sized, capped
-            // and scrollable. On phone this is omitted: the live preview keeps
-            // the whole primary region and the persistent capture bar (composed
-            // as a sibling in [build]) carries Duration + Snapshot + Loop.
+            // Desktop / tablet bottom control BANNER — a single thin toolbar
+            // row (Snapshot/Loop, duration + an Exposure popover, the filter
+            // strip, an inline stats readout, and the compact stretch/display
+            // controls). It replaces the former three always-expanded
+            // collapsible sections, so the live preview's Expanded above keeps
+            // the vertical room. On phone this is omitted: the persistent
+            // capture bar (composed as a sibling in [build]) carries
+            // Duration + Snapshot + Loop.
             if (!phone)
-              ConstrainedBox(
-                constraints: BoxConstraints(maxHeight: maxPanelHeight),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: colors.surface,
-                    border: Border(
-                      top: BorderSide(color: colors.border),
-                    ),
-                  ),
-                  child: FadeTransition(
-                    opacity: _fadeController,
-                    child: SingleChildScrollView(
-                      child: _buildControlPanel(colors),
-                    ),
-                  ),
+              FadeTransition(
+                opacity: _fadeController,
+                child: ImagingBottomBanner(
+                  colors: colors,
+                  isLooping: _isLooping,
+                  isSingleCapture: _isSingleCapture,
+                  showStats: showStats,
+                  onSnapshot: _takeSnapshot,
+                  onToggleLoop: _toggleLoop,
                 ),
               ),
           ],
@@ -475,8 +476,8 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                 child: BigActionButton(
                   key: ImagingTutorialKeys.snapshotBtn,
                   icon: _isSingleCapture
-                      ? LucideIcons.loader2
-                      : LucideIcons.camera,
+                      ? NightshadeIcons.loading
+                      : NightshadeIcons.camera,
                   label: _isSingleCapture ? 'Taking...' : 'Snapshot$hostSuffix',
                   color: colors.primary,
                   isLoading: _isSingleCapture,
@@ -490,7 +491,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                 width: 120,
                 child: BigActionButton(
                   key: ImagingTutorialKeys.loopBtn,
-                  icon: _isLooping ? LucideIcons.square : LucideIcons.video,
+                  icon: _isLooping ? NightshadeIcons.stop : LucideIcons.video,
                   label: _isLooping ? 'Stop' : 'Loop',
                   color: _isLooping ? colors.error : colors.accent,
                   isEnabled: isConnected && !_isSingleCapture,
@@ -505,405 +506,6 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
     );
   }
 
-  Widget _buildControlPanel(NightshadeColors colors) {
-    final exposureSettings = ref.watch(exposureSettingsProvider);
-    final cameraState = ref.watch(cameraStateProvider);
-    final isConnected =
-        cameraState.connectionState == DeviceConnectionState.connected;
-    final isCapturing = _isSingleCapture || _isLooping;
-    final isRemoteMode = ref.watch(isRemoteModeProvider);
-    final hostSuffix = isRemoteMode ? ' (host)' : '';
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isMobile =
-            constraints.maxWidth < BreakpointTokens.breakpointPhone;
-        final isSmallMobile = constraints.maxWidth < 400;
-        final horizontalPadding = isMobile ? 12.0 : 16.0;
-        final verticalPadding = isMobile ? 12.0 : 16.0;
-        final sectionSpacing = isSmallMobile ? 12.0 : (isMobile ? 16.0 : 24.0);
-
-        // On very small screens, stack vertically
-        if (isSmallMobile) {
-          return Padding(
-            padding: EdgeInsets.symmetric(
-                horizontal: horizontalPadding, vertical: verticalPadding),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Capture controls
-                ControlSection(
-                  title: 'Capture$hostSuffix',
-                  colors: colors,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: BigActionButton(
-                          key: ImagingTutorialKeys.snapshotBtn,
-                          icon: _isSingleCapture
-                              ? LucideIcons.loader2
-                              : LucideIcons.camera,
-                          label: _isSingleCapture
-                              ? 'Taking...'
-                              : 'Snapshot$hostSuffix',
-                          color: colors.primary,
-                          isLoading: _isSingleCapture,
-                          isEnabled: isConnected && !isCapturing,
-                          onPressed: _takeSnapshot,
-                          isMobile: true,
-                        ),
-                      ),
-                      SizedBox(width: sectionSpacing),
-                      Expanded(
-                        child: BigActionButton(
-                          key: ImagingTutorialKeys.loopBtn,
-                          icon: _isLooping
-                              ? LucideIcons.square
-                              : LucideIcons.video,
-                          label: _isLooping ? 'Stop' : 'Loop',
-                          color: _isLooping ? colors.error : colors.accent,
-                          isEnabled: isConnected && !_isSingleCapture,
-                          onPressed: _toggleLoop,
-                          isMobile: true,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: sectionSpacing),
-                // Exposure settings
-                ControlSection(
-                  title: 'Exposure$hostSuffix',
-                  colors: colors,
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: EditableCompactInput(
-                          key: ImagingTutorialKeys.exposureSlider,
-                          label: 'Duration$hostSuffix',
-                          value:
-                              exposureSettings.exposureTime.toStringAsFixed(0),
-                          suffix: 's',
-                          colors: colors,
-                          isMobile: true,
-                          onChanged: (value) {
-                            final parsed = double.tryParse(value);
-                            if (parsed != null && parsed > 0) {
-                              ref
-                                      .read(exposureSettingsProvider.notifier)
-                                      .state =
-                                  exposureSettings.copyWith(
-                                      exposureTime: parsed);
-                            }
-                          },
-                        ),
-                      ),
-                      SizedBox(width: sectionSpacing),
-                      Expanded(
-                        child: EditableCompactInput(
-                          key: ImagingTutorialKeys.gainControl,
-                          label: 'Gain',
-                          value: exposureSettings.gain.toString(),
-                          colors: colors,
-                          isMobile: true,
-                          onChanged: (value) {
-                            final parsed = int.tryParse(value);
-                            if (parsed != null && parsed >= 0) {
-                              ref
-                                      .read(exposureSettingsProvider.notifier)
-                                      .state =
-                                  exposureSettings.copyWith(gain: parsed);
-                            }
-                          },
-                        ),
-                      ),
-                      SizedBox(width: sectionSpacing),
-                      Expanded(
-                        child: EditableCompactInput(
-                          label: 'Offset',
-                          value: exposureSettings.offset.toString(),
-                          colors: colors,
-                          isMobile: true,
-                          onChanged: (value) {
-                            final parsed = int.tryParse(value);
-                            if (parsed != null && parsed >= 0) {
-                              ref
-                                      .read(exposureSettingsProvider.notifier)
-                                      .state =
-                                  exposureSettings.copyWith(offset: parsed);
-                            }
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                SizedBox(height: sectionSpacing),
-                // Filter selection
-                ControlSection(
-                  title: 'Filter',
-                  colors: colors,
-                  child: FilterWheelSelector(
-                    key: ImagingTutorialKeys.filterSelector,
-                    style: FilterSelectorStyle.buttons,
-                    compact: true,
-                  ),
-                ),
-                SizedBox(height: sectionSpacing),
-                // Stretch controls
-                ControlSection(
-                  title: 'Display',
-                  colors: colors,
-                  child: const StretchControls(compact: true),
-                ),
-              ],
-            ),
-          );
-        }
-
-        // On larger screens the bottom control panel is split into three
-        // independently collapsible sections so the live preview's Expanded
-        // can grow to fill the freed space when the operator wants the image
-        // to dominate the screen for review (IMG layout work):
-        //
-        //   1. Quick Capture — Capture / Exposure / Filter. When collapsed it
-        //      shrinks to a thin "quick capture" bar that keeps filter
-        //      switching + the duration field + the snapshot button reachable
-        //      inline, so the most-used controls never vanish.
-        //   2. Stats — temp / RMS / HFR. Collapses to a thin header that shows
-        //      the same three readouts inline as a summary.
-        //   3. Display — stretch controls. Collapses away entirely.
-        //
-        // Each section persists its expanded state for the session via the
-        // providers in collapsible_control_panel.dart, matching the equipment
-        // screen's rail/section collapse providers.
-        //
-        // The expanded Capture / Exposure / Filter bodies still flow through a
-        // Wrap so they reflow onto a second line when horizontal space is
-        // tight — preserving the audit §4.9 fix that stopped the Capture
-        // buttons from scrolling offscreen on narrow desktop windows.
-        final wrapSpacing = sectionSpacing;
-
-        final captureSection = ControlSection(
-          title: 'Capture$hostSuffix',
-          colors: colors,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              BigActionButton(
-                key: ImagingTutorialKeys.snapshotBtn,
-                icon:
-                    _isSingleCapture ? LucideIcons.loader2 : LucideIcons.camera,
-                label: _isSingleCapture ? 'Taking...' : 'Snapshot$hostSuffix',
-                color: colors.primary,
-                isLoading: _isSingleCapture,
-                isEnabled: isConnected && !isCapturing,
-                onPressed: _takeSnapshot,
-              ),
-              const SizedBox(width: 12),
-              BigActionButton(
-                key: ImagingTutorialKeys.loopBtn,
-                icon: _isLooping ? LucideIcons.square : LucideIcons.video,
-                label: _isLooping ? 'Stop' : 'Loop',
-                color: _isLooping ? colors.error : colors.accent,
-                isEnabled: isConnected && !_isSingleCapture,
-                onPressed: _toggleLoop,
-              ),
-            ],
-          ),
-        );
-
-        final exposureSection = ControlSection(
-          title: 'Exposure$hostSuffix',
-          colors: colors,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              EditableCompactInput(
-                key: ImagingTutorialKeys.exposureSlider,
-                label: 'Duration$hostSuffix',
-                value: exposureSettings.exposureTime.toStringAsFixed(0),
-                suffix: 's',
-                colors: colors,
-                isMobile: isMobile,
-                onChanged: (value) {
-                  final parsed = double.tryParse(value);
-                  if (parsed != null && parsed > 0) {
-                    ref.read(exposureSettingsProvider.notifier).state =
-                        exposureSettings.copyWith(exposureTime: parsed);
-                  }
-                },
-              ),
-              SizedBox(width: isMobile ? 8.0 : 12.0),
-              EditableCompactInput(
-                key: ImagingTutorialKeys.gainControl,
-                label: 'Gain',
-                value: exposureSettings.gain.toString(),
-                colors: colors,
-                isMobile: isMobile,
-                onChanged: (value) {
-                  final parsed = int.tryParse(value);
-                  if (parsed != null && parsed >= 0) {
-                    ref.read(exposureSettingsProvider.notifier).state =
-                        exposureSettings.copyWith(gain: parsed);
-                  }
-                },
-              ),
-              SizedBox(width: isMobile ? 8.0 : 12.0),
-              EditableCompactInput(
-                label: 'Offset',
-                value: exposureSettings.offset.toString(),
-                colors: colors,
-                isMobile: isMobile,
-                onChanged: (value) {
-                  final parsed = int.tryParse(value);
-                  if (parsed != null && parsed >= 0) {
-                    ref.read(exposureSettingsProvider.notifier).state =
-                        exposureSettings.copyWith(offset: parsed);
-                  }
-                },
-              ),
-            ],
-          ),
-        );
-
-        // Filter selector. In the wide single-row layout it scrolls
-        // horizontally (with a trailing fade) so a profile with many filters
-        // sits to the RIGHT of the capture controls instead of wrapping onto
-        // its own row; in the narrow fallback it renders at natural width and
-        // the Wrap reflows it below.
-        ControlSection buildFilterSection({required bool scrollable}) {
-          final selector = FilterWheelSelector(
-            key: ImagingTutorialKeys.filterSelector,
-            style: FilterSelectorStyle.buttons,
-            compact: isMobile,
-          );
-          return ControlSection(
-            title: 'Filter',
-            colors: colors,
-            child: scrollable
-                ? ShaderMask(
-                    shaderCallback: (rect) => const LinearGradient(
-                      begin: Alignment.centerLeft,
-                      end: Alignment.centerRight,
-                      colors: [
-                        Color(0xFFFFFFFF),
-                        Color(0xFFFFFFFF),
-                        Colors.transparent,
-                      ],
-                      stops: [0.0, 0.92, 1.0],
-                    ).createShader(rect),
-                    blendMode: BlendMode.dstIn,
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: selector,
-                    ),
-                  )
-                : selector,
-          );
-        }
-
-        // Cap + centre the panel so it doesn't stretch edge-to-edge on wide
-        // monitors. A full-width panel spreads the Capture / Exposure / Filter
-        // groups far apart and wastes horizontal room the image canvas could
-        // use; centring at kImagingControlPanelMaxWidth keeps the controls in
-        // one comfortable cluster anchored under the preview. The inner Wrap
-        // still reflows when the available width is below the cap.
-        return Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              maxWidth: kImagingControlPanelMaxWidth,
-            ),
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                  horizontal: horizontalPadding, vertical: verticalPadding / 2),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Quick-capture section. Expanded: full Capture / Exposure /
-                  // Filter controls. Collapsed: a thin bar with inline filter
-                  // switching + duration + snapshot.
-                  CollapsibleControlSection(
-                    icon: LucideIcons.camera,
-                    title: 'Quick Capture$hostSuffix',
-                    expandedProvider: imagingCaptureSectionExpandedProvider,
-                    colors: colors,
-                    collapsedTrailing: QuickCaptureBar(
-                      colors: colors,
-                      exposureSettings: exposureSettings,
-                      isConnected: isConnected,
-                      isCapturing: isCapturing,
-                      isSingleCapture: _isSingleCapture,
-                      hostSuffix: hostSuffix,
-                      onDurationChanged: (parsed) {
-                        ref.read(exposureSettingsProvider.notifier).state =
-                            exposureSettings.copyWith(exposureTime: parsed);
-                      },
-                      onSnapshot: _takeSnapshot,
-                    ),
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        // Wide enough to seat Capture + Exposure + a scrolling
-                        // Filter strip on a single row (filters to the right of
-                        // the capture controls), saving the vertical run the
-                        // wrapped layout cost. Narrow widths fall back to the
-                        // reflowing Wrap so cramped/mobile panels still fit.
-                        const oneRowMinWidth = 720.0;
-                        if (constraints.maxWidth >= oneRowMinWidth) {
-                          return Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              captureSection,
-                              SizedBox(width: wrapSpacing),
-                              exposureSection,
-                              SizedBox(width: wrapSpacing),
-                              Flexible(
-                                child: buildFilterSection(scrollable: true),
-                              ),
-                            ],
-                          );
-                        }
-                        return Wrap(
-                          spacing: wrapSpacing,
-                          runSpacing: wrapSpacing,
-                          crossAxisAlignment: WrapCrossAlignment.start,
-                          children: [
-                            captureSection,
-                            exposureSection,
-                            buildFilterSection(scrollable: false),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                  // Stats section (temp / RMS / HFR). Hidden entirely on mobile
-                  // widths to save space, mirroring the previous behaviour.
-                  if (!isMobile)
-                    CollapsibleControlSection(
-                      icon: LucideIcons.activity,
-                      title: 'Stats',
-                      expandedProvider: imagingStatsSectionExpandedProvider,
-                      colors: colors,
-                      collapsedSummary: QuickStatsSummary(colors: colors),
-                      child: QuickStatsPanel(colors: colors),
-                    ),
-                  // Display / stretch controls.
-                  CollapsibleControlSection(
-                    icon: LucideIcons.sliders,
-                    title: 'Display',
-                    expandedProvider: imagingDisplaySectionExpandedProvider,
-                    colors: colors,
-                    child: const StretchControls(compact: true),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
 }
 
 /// Composes the Camera tab from its existing controls and the new

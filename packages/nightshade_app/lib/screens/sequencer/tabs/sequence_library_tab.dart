@@ -104,16 +104,12 @@ class SequenceLibraryTab extends ConsumerWidget {
                         : 'Save your sequences to access them later',
                     action: hasSearch
                         ? null
-                        : Container(
+                        : NightshadeCard(
                             padding: const EdgeInsets.symmetric(
                               horizontal: 16,
                               vertical: 10,
                             ),
-                            decoration: BoxDecoration(
-                              color: colors.surfaceAlt,
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: colors.border),
-                            ),
+                            borderRadius: NightshadeTokens.radiusInline8,
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
@@ -123,7 +119,7 @@ class SequenceLibraryTab extends ConsumerWidget {
                                 Text(
                                   'Tip: Use "Save Current" to save your sequence',
                                   style: TextStyle(
-                                    fontSize: 12,
+                                    fontSize: NightshadeTypography.fontSize12,
                                     color: colors.textSecondary,
                                   ),
                                 ),
@@ -157,12 +153,12 @@ class SequenceLibraryTab extends ConsumerWidget {
                     const SizedBox(height: 16),
                     Text(
                       'Failed to load sequences',
-                      style: TextStyle(color: colors.textPrimary, fontSize: 16),
+                      style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize16),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       error.toString(),
-                      style: TextStyle(color: colors.textMuted, fontSize: 12),
+                      style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
                     ),
                     const SizedBox(height: 16),
                     NightshadeButton(

@@ -13,29 +13,25 @@ class _StatChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.subtle,
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: colors.border),
-      ),
+      borderRadius: NightshadeTokens.radiusMd,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: 10, color: colors.textMuted),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize10,
+                color: colors.textMuted),
           ),
           const SizedBox(height: 2),
           Text(
             value,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.labelStrong
+                .copyWith(color: colors.textPrimary),
           ),
         ],
       ),
@@ -66,7 +62,7 @@ class _RecoveryHistoryTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: NightshadeDecorations.iconChip(
         outcomeColor,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         borderAlpha: 0.35,
       ),
       child: Column(
@@ -78,7 +74,7 @@ class _RecoveryHistoryTile extends StatelessWidget {
                 child: Text(
                   entry.cause.displayLabel,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
@@ -87,7 +83,7 @@ class _RecoveryHistoryTile extends StatelessWidget {
               Text(
                 outcomeLabel,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w700,
                   color: outcomeColor,
                   letterSpacing: 0.4,
@@ -100,7 +96,7 @@ class _RecoveryHistoryTile extends StatelessWidget {
             '${entry.attempts} attempt${entry.attempts == 1 ? '' : 's'} · '
             '${_formatDuration(entry.durationSecs)}',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textSecondary,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
@@ -110,7 +106,7 @@ class _RecoveryHistoryTile extends StatelessWidget {
             Text(
               entry.lastError!,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
                 fontStyle: FontStyle.italic,
               ),
@@ -283,7 +279,7 @@ class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: c.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: confColor.withValues(alpha: 0.35)),
       ),
       child: Column(
@@ -299,7 +295,7 @@ class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
                 child: Text(
                   widget.insight.title,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w700,
                     color: c.textPrimary,
                   ),
@@ -309,13 +305,14 @@ class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: NightshadeDecorations.statusChip(
                   confColor,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline4),
                   bordered: false,
                 ),
                 child: Text(
                   '${(conf * 100).round()}%',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     fontWeight: FontWeight.w700,
                     color: confColor,
                   ),
@@ -332,7 +329,7 @@ class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
                   Text(
                     _expanded ? 'Hide details' : 'Show details',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                       color: c.textMuted,
                       decoration: TextDecoration.underline,
                     ),
@@ -351,7 +348,7 @@ class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
                 Text(
                   widget.insight.body!,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: c.textSecondary,
                   ),
                 ),
@@ -361,7 +358,7 @@ class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
                 Text(
                   widget.insight.recommendation!,
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: c.primary,
                     fontStyle: FontStyle.italic,
                   ),
@@ -379,7 +376,7 @@ class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
                   child: Text(
                     'Apply',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: c.primary,
                       fontWeight: FontWeight.w700,
                     ),
@@ -389,14 +386,18 @@ class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
                 onPressed: () => _onDismiss(sticky: false),
                 child: Text(
                   'Dismiss',
-                  style: TextStyle(fontSize: 11, color: c.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: c.textMuted),
                 ),
               ),
               TextButton(
                 onPressed: () => _onDismiss(sticky: true),
                 child: Text(
                   "Don't suggest again",
-                  style: TextStyle(fontSize: 11, color: c.textMuted),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: c.textMuted),
                 ),
               ),
             ],

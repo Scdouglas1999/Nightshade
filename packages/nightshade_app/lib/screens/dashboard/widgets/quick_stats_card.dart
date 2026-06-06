@@ -143,9 +143,7 @@ class _QuickStatItem extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               value,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
+              style: NightshadeTypography.h4.copyWith(
                 color: colors.textPrimary,
               ),
             ),
@@ -153,7 +151,7 @@ class _QuickStatItem extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 color: colors.textMuted,
               ),
             ),

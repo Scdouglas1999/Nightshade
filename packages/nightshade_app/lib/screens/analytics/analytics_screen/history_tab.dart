@@ -107,13 +107,13 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                             Text(
                               l10n.text('analyticsNoSessionHistory'),
                               style: TextStyle(
-                                  fontSize: 14, color: colors.textSecondary),
+                                  fontSize: NightshadeTypography.fontSize14, color: colors.textSecondary),
                             ),
                             const SizedBox(height: 8),
                             Text(
                               l10n.text('analyticsNoSessionHistoryDesc'),
                               style: TextStyle(
-                                  fontSize: 12, color: colors.textMuted),
+                                  fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
                             ),
                           ],
                         ),
@@ -164,13 +164,13 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                         const SizedBox(height: 16),
                         Text(
                           'Error loading sessions',
-                          style: TextStyle(fontSize: 14, color: colors.error),
+                          style: TextStyle(fontSize: NightshadeTypography.fontSize14, color: colors.error),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           err.toString(),
                           style:
-                              TextStyle(fontSize: 12, color: colors.textMuted),
+                              TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
                         ),
                       ],
                     ),

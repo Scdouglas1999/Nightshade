@@ -57,7 +57,7 @@ class StorageCard extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
           'Set a capture directory in Settings → File Output to track free space.',
-          style: TextStyle(fontSize: 11, color: colors.textSecondary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
         ),
       );
     }
@@ -75,7 +75,7 @@ class StorageCard extends ConsumerWidget {
             Text(
               freeGb,
               style: TextStyle(
-                fontSize: 22,
+                fontSize: NightshadeTypography.fontSize22,
                 fontWeight: FontWeight.w700,
                 color: _freeColor(info, projection),
                 fontFeatures: const [FontFeature.tabularFigures()],
@@ -85,20 +85,20 @@ class StorageCard extends ConsumerWidget {
               padding: const EdgeInsets.only(bottom: 4, left: 4),
               child: Text(
                 'GB free',
-                style: TextStyle(fontSize: 11, color: colors.textSecondary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
               ),
             ),
             const Spacer(),
             Text(
               'of $totalGb GB',
-              style: TextStyle(fontSize: 11, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
             ),
           ],
         ),
         const SizedBox(height: 6),
         Text(
           info.path,
-          style: TextStyle(fontSize: 10, color: colors.textMuted),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
           overflow: TextOverflow.ellipsis,
         ),
         const SizedBox(height: 10),
@@ -112,7 +112,7 @@ class StorageCard extends ConsumerWidget {
           Text(
             projection.headline,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: _severityColor(projection.severity),
               fontWeight: FontWeight.w500,
             ),
@@ -146,7 +146,7 @@ class StorageCard extends ConsumerWidget {
         Expanded(
           child: Text(
             'Disk query failed: $error',
-            style: TextStyle(fontSize: 11, color: colors.error),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.error),
             overflow: TextOverflow.ellipsis,
             maxLines: 2,
           ),
@@ -229,12 +229,12 @@ class _StorageBar extends StatelessWidget {
               width: w,
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               ),
             ),
             // Used segment
             ClipRRect(
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               child: Row(
                 children: [
                   Container(

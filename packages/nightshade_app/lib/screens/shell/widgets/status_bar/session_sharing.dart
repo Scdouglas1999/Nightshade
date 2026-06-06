@@ -33,7 +33,7 @@ class _ShareSessionButtonState extends ConsumerState<_ShareSessionButton> {
           onTap: webState.isRunning
               ? () => _showShareDialog(context, webState)
               : null,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: NightshadeTokens.borderRadiusInline4,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
@@ -41,13 +41,13 @@ class _ShareSessionButtonState extends ConsumerState<_ShareSessionButton> {
               color: _isHovered && webState.isRunning
                   ? widget.colors.surfaceAlt
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: NightshadeTokens.borderRadiusInline4,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(
-                  LucideIcons.share2,
+                  NightshadeIcons.share,
                   size: 12,
                   color: hasViewers
                       ? widget.colors.success
@@ -64,12 +64,12 @@ class _ShareSessionButtonState extends ConsumerState<_ShareSessionButton> {
                     ),
                     decoration: BoxDecoration(
                       color: widget.colors.success.withValues(alpha: 0.2),
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: NightshadeTokens.borderRadiusInline8,
                     ),
                     child: Text(
                       '${webState.activeViewers}',
                       style: TextStyle(
-                        fontSize: 9,
+                        fontSize: NightshadeTypography.fontSize9,
                         fontWeight: FontWeight.w600,
                         color: widget.colors.success,
                       ),
@@ -117,18 +117,18 @@ class _ShareSessionDialog extends ConsumerWidget {
     return AlertDialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: NightshadeTokens.borderRadiusInline8,
         side: BorderSide(color: colors.border),
       ),
       title: Row(
         children: [
-          Icon(LucideIcons.share2, size: 20, color: colors.primary),
+          Icon(NightshadeIcons.share, size: 20, color: colors.primary),
           const SizedBox(width: 10),
           Text(
             'Remote Access',
             style: TextStyle(
               color: colors.textPrimary,
-              fontSize: 18,
+              fontSize: NightshadeTypography.fontSize18,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -150,7 +150,7 @@ class _ShareSessionDialog extends ConsumerWidget {
                       ? 'Local access works immediately on this machine. Remote browsers on your LAN must pair before they can control the app.'
                       : 'Remote access is available on your local network.',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: colors.textSecondary,
               ),
             ),
@@ -177,7 +177,7 @@ class _ShareSessionDialog extends ConsumerWidget {
                 color: currentState.activeViewers > 0
                     ? colors.success.withValues(alpha: 0.08)
                     : colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: NightshadeTokens.borderRadiusInline8,
                 border: Border.all(
                   color: currentState.activeViewers > 0
                       ? colors.success.withValues(alpha: 0.3)
@@ -199,7 +199,7 @@ class _ShareSessionDialog extends ConsumerWidget {
                         ? '${currentState.activeViewers} $viewerLabel${currentState.activeViewers == 1 ? '' : 's'} connected'
                         : 'No viewers connected',
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       color: currentState.activeViewers > 0
                           ? colors.success
                           : colors.textMuted,
@@ -214,7 +214,7 @@ class _ShareSessionDialog extends ConsumerWidget {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: colors.error.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: NightshadeTokens.borderRadiusInline8,
                   border: Border.all(
                     color: colors.error.withValues(alpha: 0.2),
                   ),
@@ -222,7 +222,7 @@ class _ShareSessionDialog extends ConsumerWidget {
                 child: Row(
                   children: [
                     Icon(
-                      LucideIcons.alertTriangle,
+                      NightshadeIcons.warning,
                       size: 14,
                       color: colors.error,
                     ),
@@ -231,7 +231,7 @@ class _ShareSessionDialog extends ConsumerWidget {
                       child: Text(
                         currentState.lastError,
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           color: colors.error,
                         ),
                       ),
@@ -268,34 +268,27 @@ class _UrlCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.standard,
+      borderRadius: NightshadeTokens.radiusInline8,
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: colors.textMuted,
-            ),
+            style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textMuted),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              Icon(LucideIcons.link, size: 14, color: colors.textMuted),
+              Icon(NightshadeIcons.link, size: 14, color: colors.textMuted),
               const SizedBox(width: 8),
               Expanded(
                 child: SelectableText(
                   url,
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     fontWeight: FontWeight.w500,
                     color: colors.primary,
                     fontFamily: 'monospace',
@@ -315,7 +308,7 @@ class _UrlCard extends StatelessWidget {
                     ),
                   );
                 },
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: NightshadeTokens.borderRadiusMd,
                 child: Container(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 10,
@@ -323,24 +316,20 @@ class _UrlCard extends StatelessWidget {
                   ),
                   decoration: NightshadeDecorations.tintedBadge(
                     colors.primary,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: NightshadeTokens.borderRadiusMd,
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       Icon(
-                        LucideIcons.copy,
+                        NightshadeIcons.copy,
                         size: 12,
                         color: colors.primary,
                       ),
                       const SizedBox(width: 4),
                       Text(
                         'Copy',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: colors.primary,
-                        ),
+                        style: NightshadeTypography.labelSm.copyWith(color: colors.primary),
                       ),
                     ],
                   ),

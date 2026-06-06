@@ -1,7 +1,6 @@
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -67,7 +66,7 @@ class TopOverlay extends ConsumerWidget {
                         children: [
                           if (!isVeryCompact) ...[
                             OverlayChip(
-                              icon: LucideIcons.mapPin,
+                              icon: NightshadeIcons.location,
                               label: locationLabel,
                               colors: colors,
                               compact: isCompact,
@@ -75,14 +74,14 @@ class TopOverlay extends ConsumerWidget {
                             SizedBox(width: chipSpacing),
                           ],
                           OverlayChip(
-                            icon: LucideIcons.clock,
+                            icon: NightshadeIcons.clock,
                             label: timeFormat.format(time.time),
                             colors: colors,
                             compact: isCompact,
                           ),
                           SizedBox(width: chipSpacing),
                           OverlayChip(
-                            icon: LucideIcons.star,
+                            icon: NightshadeIcons.star,
                             label: 'LST ${_formatHours(lst)}',
                             colors: colors,
                             compact: isCompact,
@@ -92,7 +91,7 @@ class TopOverlay extends ConsumerWidget {
                           if (!time.isRealTime) ...[
                             SizedBox(width: chipSpacing),
                             TimeControlButton(
-                              icon: LucideIcons.play,
+                              icon: NightshadeIcons.play,
                               onTap: () => ref
                                   .read(observationTimeProvider.notifier)
                                   .setRealTime(true),
@@ -106,14 +105,14 @@ class TopOverlay extends ConsumerWidget {
                   ),
                   SizedBox(width: chipSpacing),
                   OverlayToggle(
-                    icon: LucideIcons.grid,
+                    icon: NightshadeIcons.grid,
                     tooltip: 'Coordinate grid',
                     isActive: renderConfig.showCoordinateGrid,
                     onTap: ref.read(skyRenderConfigProvider.notifier).toggleGrid,
                   ),
                   SizedBox(width: toggleSpacing),
                   OverlayToggle(
-                    icon: LucideIcons.activity,
+                    icon: NightshadeIcons.activity,
                     tooltip: 'Constellation lines',
                     isActive: renderConfig.showConstellationLines,
                     onTap: ref
@@ -123,7 +122,7 @@ class TopOverlay extends ConsumerWidget {
                   SizedBox(width: toggleSpacing),
                   if (!isVeryCompact) ...[
                     OverlayToggle(
-                      icon: LucideIcons.tag,
+                      icon: NightshadeIcons.tag,
                       tooltip: 'Constellation labels',
                       isActive: renderConfig.showConstellationLabels,
                       onTap: ref
@@ -133,7 +132,7 @@ class TopOverlay extends ConsumerWidget {
                     SizedBox(width: toggleSpacing),
                   ],
                   OverlayToggle(
-                    icon: LucideIcons.circle,
+                    icon: NightshadeIcons.circle,
                     tooltip: 'Horizon',
                     isActive: renderConfig.showHorizon,
                     onTap:
@@ -178,7 +177,7 @@ class OverlayChip extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: colors.surfaceOverlay.withValues(alpha: 0.85),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border.withValues(alpha: 0.6)),
       ),
       child: Row(
@@ -191,7 +190,9 @@ class OverlayChip extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             style: TextStyle(
-              fontSize: compact ? 10 : 11,
+              fontSize: compact
+                  ? NightshadeTypography.fontSize10
+                  : NightshadeTypography.fontSize11,
               color: colors.textSecondary,
               fontFeatures: const [ui.FontFeature.tabularFigures()],
             ),
@@ -248,7 +249,7 @@ class _OverlayToggleState extends State<OverlayToggle> {
                   : _isHovered
                       ? colors.surfaceOverlay.withValues(alpha: 0.5)
                       : Colors.transparent,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               border: widget.isActive
                   ? Border.all(color: colors.primary.withValues(alpha: 0.4))
                   : null,
@@ -287,7 +288,7 @@ class TimeControlButton extends StatelessWidget {
         padding: EdgeInsets.all(compact ? 4 : 6),
         decoration: BoxDecoration(
           color: colors.primary.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         ),
         child: Icon(icon, size: compact ? 12 : 14, color: colors.primary),
       ),

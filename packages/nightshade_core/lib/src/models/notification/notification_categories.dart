@@ -114,6 +114,29 @@ enum NotificationCategory {
     }
   }
 
+  /// Single source of truth for "is this category operationally critical?".
+  ///
+  /// Critical categories are the ones an unattended operator must not miss:
+  /// they default into the `systemPush` (mobile) transport in the routing
+  /// matrix and drive the Run Dashboard's persistent critical banner. Both
+  /// the matrix defaults ([_criticalByDefault]) and any criticality check
+  /// elsewhere derive from this one list so they can never drift.
+  bool get isCritical {
+    switch (this) {
+      case NotificationCategory.sequenceFailed:
+      case NotificationCategory.recoveryGaveUp:
+      case NotificationCategory.weatherUnsafe:
+      case NotificationCategory.guidingLost:
+      case NotificationCategory.diskSpaceLow:
+      case NotificationCategory.equipmentDisconnected:
+      case NotificationCategory.autofocusFailed:
+      case NotificationCategory.exposureFailed:
+        return true;
+      default:
+        return false;
+    }
+  }
+
   static NotificationCategory? fromStorageKey(String key) {
     for (final c in NotificationCategory.values) {
       if (c.name == key) return c;
@@ -360,8 +383,17 @@ class NotificationRoutingMatrix extends Equatable {
     );
   }
 
-  /// Built-in defaults: in-app for everything; critical events also opt
-  /// into systemPush (matches the pre-existing Pack C behaviour).
+  /// Built-in defaults: in-app for everything; the categories the mobile
+  /// push feed escalates also opt into systemPush.
+  ///
+  /// After the architecture-unification collapse the [SystemPushTransport] is
+  /// the single mobile-push producer, so the default matrix must route to
+  /// systemPush every category the (now demoted) PushNotificationService used
+  /// to push — otherwise the collapse would silently drop pushes. That is the
+  /// 8 critical-by-default categories PLUS the three non-critical completion
+  /// milestones the legacy feed pushed (sequenceCompleted, targetCompleted,
+  /// meridianFlipPerformed). The per-event toggle still gates each of those
+  /// inside the transport via [PushNotificationConfig].
   factory NotificationRoutingMatrix.defaults() {
     const inApp = [NotificationTransportKind.inApp];
     const inAppPush = [
@@ -371,7 +403,7 @@ class NotificationRoutingMatrix extends Equatable {
     final rules = <NotificationCategory, NotificationRoutingRule>{
       for (final c in NotificationCategory.values)
         c: NotificationRoutingRule(
-          transports: _criticalByDefault(c) ? inAppPush : inApp,
+          transports: _systemPushByDefault(c) ? inAppPush : inApp,
           minSeverity: c.defaultSeverity,
         ),
     };
@@ -382,16 +414,15 @@ class NotificationRoutingMatrix extends Equatable {
   List<Object?> get props => [enabled, rules];
 }
 
-bool _criticalByDefault(NotificationCategory c) {
+/// Categories routed to systemPush by default. The 8 critical-by-default
+/// categories plus the three non-critical completion milestones the legacy
+/// mobile feed escalated, so the single-producer collapse loses no push.
+bool _systemPushByDefault(NotificationCategory c) {
+  if (c.isCritical) return true;
   switch (c) {
-    case NotificationCategory.sequenceFailed:
-    case NotificationCategory.recoveryGaveUp:
-    case NotificationCategory.weatherUnsafe:
-    case NotificationCategory.guidingLost:
-    case NotificationCategory.diskSpaceLow:
-    case NotificationCategory.equipmentDisconnected:
-    case NotificationCategory.autofocusFailed:
-    case NotificationCategory.exposureFailed:
+    case NotificationCategory.sequenceCompleted:
+    case NotificationCategory.targetCompleted:
+    case NotificationCategory.meridianFlipPerformed:
       return true;
     default:
       return false;

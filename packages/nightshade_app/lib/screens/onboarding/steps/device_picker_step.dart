@@ -127,7 +127,7 @@ class _OnboardingDevicePickerBodyState
         Row(
           children: [
             NightshadeButton(
-              icon: LucideIcons.refreshCw,
+              icon: NightshadeIcons.refresh,
               label: isDiscovering ? 'Scanning...' : 'Scan again',
               variant: ButtonVariant.outline,
               size: ButtonSize.small,
@@ -136,7 +136,7 @@ class _OnboardingDevicePickerBodyState
             const SizedBox(width: 12),
             if (widget.selectedDeviceId != null)
               NightshadeButton(
-                icon: LucideIcons.x,
+                icon: NightshadeIcons.close,
                 label: 'Clear selection',
                 variant: ButtonVariant.ghost,
                 size: ButtonSize.small,
@@ -166,7 +166,7 @@ class _OnboardingDevicePickerBodyState
           const SizedBox(height: 12),
           Row(
             children: [
-              Icon(LucideIcons.info, size: 14, color: colors.textSecondary),
+              Icon(NightshadeIcons.info, size: 14, color: colors.textSecondary),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -211,13 +211,13 @@ class _BackendStatusRow extends StatelessWidget {
         String? tooltipMessage;
 
         if (state == null) {
-          icon = LucideIcons.circle;
+          icon = NightshadeIcons.circle;
           color = colors.textMuted;
           tooltipMessage = 'Not scanned yet';
         } else {
           switch (state.status) {
             case DiscoveryStatus.idle:
-              icon = LucideIcons.circle;
+              icon = NightshadeIcons.circle;
               color = colors.textMuted;
               break;
             case DiscoveryStatus.discovering:
@@ -230,7 +230,7 @@ class _BackendStatusRow extends StatelessWidget {
               label = '${driver.shortLabel} (${state.devices.length})';
               break;
             case DiscoveryStatus.error:
-              icon = LucideIcons.alertTriangle;
+              icon = NightshadeIcons.warning;
               color = colors.error;
               tooltipMessage = state.error ?? 'Discovery failed';
               break;
@@ -241,7 +241,7 @@ class _BackendStatusRow extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: NightshadeDecorations.statusChip(
             color,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: NightshadeTokens.borderRadiusInline8,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -289,7 +289,7 @@ class _DeviceList extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
-                isDiscovering ? LucideIcons.loader : LucideIcons.searchX,
+                isDiscovering ? LucideIcons.loader : NightshadeIcons.searchEmpty,
                 color: colors.textMuted,
                 size: 28,
               ),
@@ -321,18 +321,18 @@ class _DeviceList extends StatelessWidget {
         final isSelected = device.activeDeviceId == selectedDeviceId;
         return InkWell(
           onTap: () => onSelected(device),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: NightshadeTokens.borderRadiusLg,
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: isSelected
                 ? NightshadeDecorations.selectedSurface(
                     colors.primary,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: NightshadeTokens.borderRadiusLg,
                     fillAlpha: 0.08,
                   )
                 : BoxDecoration(
                     color: colors.surface,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: NightshadeTokens.borderRadiusLg,
                     border: Border.all(color: colors.border),
                   ),
             child: Row(
@@ -340,7 +340,7 @@ class _DeviceList extends StatelessWidget {
                 Icon(
                   isSelected
                       ? LucideIcons.checkCircle2
-                      : LucideIcons.circle,
+                      : NightshadeIcons.circle,
                   color:
                       isSelected ? colors.primary : colors.textMuted,
                   size: 18,

@@ -5,6 +5,8 @@
 // test creates a fixed virtual clock so altitude / hour-angle results are
 // deterministic.
 
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:nightshade_core/src/models/scheduler/integration_goal.dart';
@@ -18,6 +20,7 @@ class _RecordingSink implements SchedulerSequenceSink {
   int pauseCount = 0;
   int resumeCount = 0;
   int stopCount = 0;
+  int parkCount = 0;
 
   @override
   Future<void> dispatchSequence(Sequence sequence) async {
@@ -37,6 +40,11 @@ class _RecordingSink implements SchedulerSequenceSink {
   @override
   Future<void> stopSequence() async {
     stopCount++;
+  }
+
+  @override
+  Future<void> parkForEndOfNight() async {
+    parkCount++;
   }
 }
 
@@ -165,6 +173,61 @@ void main() {
           decision.scoredCandidates.where((s) => s.hardConstraintFailed);
       expect(rejected.isNotEmpty, isTrue,
           reason: 'below-horizon target should be hardConstraintFailed');
+      await engine.dispose();
+    });
+
+    test('rejects all candidates while the Sun is up (no daylight imaging)',
+        () async {
+      final sink = _RecordingSink();
+      // Local noon at the site (lon -75 -> solar noon ~17:00 UTC). Sun is
+      // high (~+65 deg), far above the -12 deg darkness limit.
+      DateTime daytime() => DateTime.utc(2026, 5, 11, 17, 0);
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 30, name: 'Circumpolar', raHours: 7.0, decDegrees: 40.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: daytime,
+      );
+      await engine.start();
+      final decision = engine.lastDecision!;
+      expect(decision.chosenTargetId, isNull,
+          reason: 'must not slew/expose while the Sun is up');
+      expect(
+        decision.scoredCandidates.every((s) => s.hardConstraintFailed),
+        isTrue,
+      );
+      expect(
+        decision.scoredCandidates
+            .any((s) => s.rejectionReasons.any((r) => r.contains('Sun'))),
+        isTrue,
+        reason: 'the twilight gate should reject candidates in daylight',
+      );
+      expect(sink.dispatched, isEmpty);
+      await engine.dispose();
+    });
+
+    test('does not apply the Sun gate at night', () async {
+      final sink = _RecordingSink();
+      final candidates = <SchedulerCandidate>[
+        _candidate(
+            id: 31, name: 'High in south', raHours: 14.0, decDegrees: 30.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: _fixedNow, // 23:00 local -- deep night
+      );
+      await engine.start();
+      final decision = engine.lastDecision!;
+      final sunRejections = decision.scoredCandidates
+          .expand((s) => s.rejectionReasons)
+          .where((r) => r.contains('Sun'));
+      expect(sunRejections, isEmpty,
+          reason: 'gate must not fire when the Sun is well below the horizon');
       await engine.dispose();
     });
 
@@ -479,6 +542,263 @@ void main() {
       await engine.dispose();
     });
 
+  });
+
+  group('SchedulerEngine - sequence completion reaction', () {
+    test('SequenceCompleted re-dispatches a still-eligible current target',
+        () async {
+      final sink = _RecordingSink();
+      final triggers = StreamController<SchedulerTriggerEvent>();
+      addTearDown(triggers.close);
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        triggerStream: triggers.stream,
+        clock: _fixedNow,
+      );
+      await engine.start();
+      expect(sink.dispatched.length, 1,
+          reason: 'cold start dispatches the chosen target');
+
+      // The dispatched sequence finishes naturally. The engine must re-pick
+      // and re-dispatch the still-eligible target's remaining work instead of
+      // sitting idle until the next periodic tick.
+      triggers.add(SchedulerTriggerEvent.sequenceCompleted);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(sink.dispatched.length, 2,
+          reason: 'natural completion must re-dispatch, not leave the rig '
+              'idle (the original P0 bug)');
+      await engine.dispose();
+    });
+
+    test('a non-completion trigger does NOT re-dispatch an unchanged winner',
+        () async {
+      final sink = _RecordingSink();
+      final triggers = StreamController<SchedulerTriggerEvent>();
+      addTearDown(triggers.close);
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        triggerStream: triggers.stream,
+        clock: _fixedNow,
+      );
+      await engine.start();
+      expect(sink.dispatched.length, 1);
+
+      // A weather/guiding-style re-eval where the winner is unchanged must NOT
+      // re-dispatch (hysteresis keeps the running target) -- only a genuine
+      // completion clears the current target and re-dispatches.
+      triggers.add(SchedulerTriggerEvent.guidingRecovered);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(sink.dispatched.length, 1,
+          reason: 'an unchanged-winner re-eval must not re-dispatch');
+      await engine.dispose();
+    });
+  });
+
+  group('SchedulerEngine - end-of-night park', () {
+    // Local noon at the site (lon -75 -> solar noon ~17:00 UTC): the Sun is
+    // high above the -12 deg darkness limit, so every candidate is
+    // Sun-rejected and the engine treats the empty-eligible path as dawn.
+    DateTime daytime() => DateTime.utc(2026, 5, 11, 17, 0);
+
+    test('parks the mount once at end-of-night (Sun up, no eligible target)',
+        () async {
+      final sink = _RecordingSink();
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: daytime,
+      );
+      await engine.start();
+
+      expect(engine.lastDecision!.chosenTargetId, isNull,
+          reason: 'Sun is up — no candidate is eligible');
+      expect(sink.dispatched, isEmpty,
+          reason: 'must never slew/expose at dawn');
+      expect(sink.parkCount, 1,
+          reason: 'end-of-night must invoke the distinct park hook');
+      // The empty-eligible path stops a *running* sequence on every tick, but
+      // on the dawn/park path we park instead of issuing a redundant stop.
+      expect(sink.stopCount, 0,
+          reason: 'the dawn path parks rather than stopping');
+    });
+
+    test('does NOT park again on subsequent dawn ticks (parks once per dawn)',
+        () async {
+      final sink = _RecordingSink();
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: daytime,
+      );
+      await engine.start();
+      expect(sink.parkCount, 1);
+
+      // Several more ticks while the Sun is still up must NOT re-park.
+      await engine.evaluateNow();
+      await engine.evaluateNow();
+      await engine.evaluateNow();
+      expect(sink.parkCount, 1,
+          reason: 'the end-of-night park must fire exactly once per dawn, '
+              'not on every tick while the Sun stays up');
+    });
+
+    test(
+        'a transient mid-night empty (all goals complete) STOPS but does NOT '
+        'park', () async {
+      final sink = _RecordingSink();
+      final now = DateTime.utc(2026, 5, 11, 4, 0); // deep night
+      // Target high in the south, but every goal is already fully captured, so
+      // it is hard-rejected ("all integration goals complete") and the
+      // eligible set is empty — at night, NOT end-of-night.
+      final goal = IntegrationGoal(
+        targetId: 1,
+        filter: 'L',
+        exposureSeconds: 120.0,
+        frameCount: 10,
+        priority: 5,
+        createdAt: now,
+      );
+      var phase = 1;
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => <SchedulerCandidate>[
+          SchedulerCandidate(
+            targetId: 1,
+            name: 'A',
+            raHours: 14.0,
+            decDegrees: 30.0,
+            userPriority: 5,
+            goals: [goal],
+            // Phase 1: still needs frames (so we get a running sequence to
+            // stop). Phase 2: fully complete -> empty-eligible mid-night.
+            capturedCounts: phase == 1 ? const [2] : const [10],
+            constraints: const [],
+            horizonProfiles: const {},
+            availableFilters: const ['L'],
+          ),
+        ],
+        clock: () => now,
+      );
+      await engine.start();
+      expect(sink.dispatched.length, 1,
+          reason: 'phase 1 dispatches the incomplete target');
+
+      // Now the goal is complete; the eligible set is empty but the Sun is
+      // still well below the horizon.
+      phase = 2;
+      await engine.evaluateNow();
+      expect(engine.lastDecision!.chosenTargetId, isNull);
+      expect(sink.parkCount, 0,
+          reason: 'a transient mid-night empty must NEVER park — the night '
+              'is not over');
+      expect(sink.stopCount, 1,
+          reason: 'mid-night empty stops the running sequence');
+    });
+
+    test('a mid-night target swap does NOT park', () async {
+      final sink = _RecordingSink();
+      // Two candidates at night; B becomes the clear winner in phase 2, forcing
+      // a swap. A swap must use stopSequence/dispatch — never the park hook.
+      var phase = 1;
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => phase == 1
+            ? <SchedulerCandidate>[
+                _candidate(id: 100, name: 'A', raHours: 14.0, decDegrees: 30.0),
+                _candidate(
+                    id: 200, name: 'B', raHours: 14.0, decDegrees: -25.0),
+              ]
+            : <SchedulerCandidate>[
+                _candidate(
+                    id: 100, name: 'A', raHours: 14.0, decDegrees: -10.0),
+                _candidate(id: 200, name: 'B', raHours: 14.0, decDegrees: 30.0),
+              ],
+        clock: _fixedNow,
+      );
+      await engine.start();
+      expect(engine.lastDecision!.chosenTargetId, 100);
+      phase = 2;
+      await engine.evaluateNow();
+      expect(engine.lastDecision!.chosenTargetId, 200,
+          reason: 'the swap target should win in phase 2');
+      expect(engine.lastDecision!.isSwitch, isTrue);
+      expect(sink.parkCount, 0,
+          reason: 'a mid-night target swap must never park the mount');
+    });
+
+    test('re-arms after dispatching a new target (parks again next dawn)',
+        () async {
+      final sink = _RecordingSink();
+      // Phase 1: dawn -> park. Phase 2: night returns and a target is eligible
+      // -> dispatch (re-arm). Phase 3: dawn again -> must park a SECOND time.
+      var phase = 1;
+      DateTime nowFn() => phase == 2
+          ? DateTime.utc(2026, 5, 11, 4, 0) // night
+          : DateTime.utc(2026, 5, 11, 17, 0); // dawn/day
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => <SchedulerCandidate>[
+          _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+        ],
+        clock: nowFn,
+      );
+      await engine.start(); // phase 1: dawn
+      expect(sink.parkCount, 1);
+      expect(sink.dispatched, isEmpty);
+
+      phase = 2; // night returns
+      await engine.evaluateNow();
+      expect(engine.lastDecision!.chosenTargetId, 1,
+          reason: 'at night the target is eligible and dispatched');
+      expect(sink.dispatched.length, 1);
+
+      phase = 3; // dawn again
+      await engine.evaluateNow();
+      expect(sink.parkCount, 2,
+          reason: 'after a fresh night/dispatch, the next dawn must park '
+              'again (the guard re-arms on dispatch)');
+    });
+
+    test('does NOT park while idle (engine not running)', () async {
+      final sink = _RecordingSink();
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'A', raHours: 14.0, decDegrees: 30.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: daytime,
+      );
+      // evaluateNow without start(): the engine is idle, so even at dawn it
+      // must not issue a park (nothing is running to be unsafe).
+      await engine.evaluateNow();
+      expect(sink.parkCount, 0,
+          reason: 'an idle engine must not park — it is not driving the rig');
+    });
   });
 
   group('SchedulerEngine - requestReevaluation debounce', () {
@@ -809,6 +1129,204 @@ void main() {
       expect(byId[3]!.factors, isNotEmpty);
       // Eligible-but-lower entries have no hard constraint failures.
       expect(byId[3]!.hardConstraintFailures, isEmpty);
+      await engine.dispose();
+    });
+  });
+
+  group('SchedulerEngine - read-only preview (Planner unification)', () {
+    test('previewRanking is side-effect-free: status/decision/dispatch unchanged',
+        () async {
+      final sink = _RecordingSink();
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'High in south', raHours: 14.0, decDegrees: 30.0),
+        _candidate(id: 2, name: 'Rising east', raHours: 20.0, decDegrees: 20.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: _fixedNow,
+      );
+
+      // Engine is IDLE and has never evaluated: a preview must not start it,
+      // dispatch anything, or mutate its status/lastDecision.
+      expect(engine.status.state, SchedulerState.idle);
+      expect(engine.lastDecision, isNull);
+
+      final statusBefore = engine.status;
+      final ranking = await engine.previewRanking(_fixedNow());
+
+      expect(ranking, isNotEmpty,
+          reason: 'at deep night both targets are eligible');
+      // Hard-rejected candidates are omitted; only eligible ones returned.
+      expect(ranking.every((s) => !s.hardConstraintFailed), isTrue);
+
+      // No side effects whatsoever.
+      expect(engine.status, same(statusBefore),
+          reason: 'preview must not mutate engine status');
+      expect(engine.status.state, SchedulerState.idle);
+      expect(engine.status.currentTargetId, isNull);
+      expect(engine.lastDecision, isNull,
+          reason: 'preview must not publish a decision');
+      expect(sink.dispatched, isEmpty,
+          reason: 'preview must never dispatch a sequence');
+      expect(sink.pauseCount, 0);
+      expect(sink.stopCount, 0);
+      expect(sink.parkCount, 0);
+
+      await engine.dispose();
+    });
+
+    test(
+        'previewRanking ordering equals mapping scoreCandidate over the same '
+        'candidates (eligible, best-first)', () async {
+      final sink = _RecordingSink();
+      final now = _fixedNow();
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'High in south', raHours: 14.0, decDegrees: 30.0),
+        _candidate(id: 2, name: 'Setting west', raHours: 4.0, decDegrees: 10.0),
+        _candidate(id: 3, name: 'Rising east', raHours: 20.0, decDegrees: 20.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: () => now,
+      );
+
+      final ranking = await engine.previewRanking(now);
+
+      // Independently reproduce the expected order using the public pure
+      // scorer: score all, drop hard-failed, sort by totalScore desc.
+      final expected = candidates
+          .map((c) => engine.scoreCandidate(c, now))
+          .where((s) => !s.hardConstraintFailed)
+          .toList()
+        ..sort((a, b) => b.totalScore.compareTo(a.totalScore));
+
+      expect(ranking.map((s) => s.targetId).toList(),
+          expected.map((s) => s.targetId).toList());
+
+      await engine.dispose();
+    });
+
+    test(
+        "previewDecision top pick equals the engine's live lastDecision for the "
+        'same candidates + clock', () async {
+      final sink = _RecordingSink();
+      final now = _fixedNow();
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 1, name: 'High in south', raHours: 14.0, decDegrees: 30.0),
+        _candidate(id: 2, name: 'Setting west', raHours: 4.0, decDegrees: 10.0),
+        _candidate(id: 3, name: 'Rising east', raHours: 20.0, decDegrees: 20.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: () => now,
+      );
+
+      // Run the live autopilot once so lastDecision reflects a real dispatch.
+      await engine.start();
+      final live = engine.lastDecision!;
+      expect(live.chosenTargetId, isNotNull);
+      final dispatchedBefore = sink.dispatched.length;
+
+      // The preview, computed for the SAME clock + candidate set + hysteresis
+      // state, must agree with what the autopilot actually chose.
+      final preview = await engine.previewDecision(now);
+      expect(preview.chosenTargetId, live.chosenTargetId,
+          reason: 'the human preview must equal the rig pick by construction');
+      expect(preview.chosenTargetName, live.chosenTargetName);
+      expect(preview.score, live.score);
+
+      // And the preview itself dispatched / mutated nothing.
+      expect(sink.dispatched.length, dispatchedBefore,
+          reason: 'preview must not dispatch');
+      expect(engine.lastDecision, same(live),
+          reason: 'preview must not replace the published decision');
+
+      // previewRanking.first must agree with the chosen pick too.
+      final ranking = await engine.previewRanking(now);
+      expect(ranking.first.targetId, live.chosenTargetId);
+
+      await engine.dispose();
+    });
+
+    test(
+        'previewDecision respects live hysteresis state (matches what the rig '
+        'would keep running)', () async {
+      final sink = _RecordingSink();
+      var preferB = false;
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => <SchedulerCandidate>[
+          _candidate(
+            id: 100,
+            name: 'A',
+            raHours: 14.0,
+            decDegrees: 30.0,
+            userPriority: preferB ? 6 : 5,
+          ),
+          _candidate(
+            id: 200,
+            name: 'B',
+            raHours: 14.0,
+            decDegrees: 30.0,
+            userPriority: preferB ? 7 : 5,
+          ),
+        ],
+        clock: _fixedNow,
+      );
+
+      await engine.start();
+      final firstPick = engine.lastDecision!.chosenTargetId!;
+
+      // Nudge B's priority slightly above A — not enough to clear the 1.20
+      // hysteresis ratio. The live engine will STICK with the current target.
+      preferB = true;
+      await engine.evaluateNow();
+      expect(engine.lastDecision!.chosenTargetId, firstPick,
+          reason: 'sub-threshold challenger must not flip the rig');
+
+      // The preview must report the SAME held target, not the marginally
+      // higher-scoring challenger — otherwise the human sees a pick the rig
+      // will not actually switch to.
+      final preview = await engine.previewDecision(_fixedNow());
+      expect(preview.chosenTargetId, firstPick,
+          reason: 'preview must honour the same hysteresis the autopilot uses');
+
+      await engine.dispose();
+    });
+
+    test('previewRanking on an all-rejected (daylight) set is empty, no effects',
+        () async {
+      final sink = _RecordingSink();
+      DateTime daytime() => DateTime.utc(2026, 5, 11, 17, 0);
+      final candidates = <SchedulerCandidate>[
+        _candidate(id: 30, name: 'Circumpolar', raHours: 7.0, decDegrees: 40.0),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => candidates,
+        clock: daytime,
+      );
+
+      final ranking = await engine.previewRanking(daytime());
+      expect(ranking, isEmpty,
+          reason: 'the Sun gate hard-rejects every candidate in daylight');
+
+      final preview = await engine.previewDecision(daytime());
+      expect(preview.chosenTargetId, isNull);
+
+      expect(sink.dispatched, isEmpty);
+      expect(sink.parkCount, 0,
+          reason: 'preview must never park even at end-of-night');
+      expect(engine.lastDecision, isNull);
+
       await engine.dispose();
     });
   });

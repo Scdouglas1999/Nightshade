@@ -25,7 +25,7 @@ class _SortModeDropdown extends StatelessWidget {
         Text(
           'Sort',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,
           ),
         ),
@@ -34,7 +34,7 @@ class _SortModeDropdown extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             border: Border.all(color: colors.border),
           ),
           child: DropdownButton<SuggestionSortMode>(
@@ -46,7 +46,7 @@ class _SortModeDropdown extends StatelessWidget {
             isDense: true,
             dropdownColor: colors.surfaceAlt,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textPrimary,
             ),
             items: SuggestionSortMode.values.map((mode) {
@@ -96,14 +96,14 @@ class _SortModeSegmentedButton extends StatelessWidget {
         final isSelected = mode == value;
         return InkWell(
           onTap: () => onChanged(mode),
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: isSelected
                   ? colors.primary.withValues(alpha: 0.15)
                   : colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               border: Border.all(
                 color: isSelected
                     ? colors.primary.withValues(alpha: 0.5)
@@ -122,7 +122,7 @@ class _SortModeSegmentedButton extends StatelessWidget {
                 Text(
                   _sortModeLabel(mode),
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight:
                         isSelected ? FontWeight.w600 : FontWeight.normal,
                     color: isSelected ? colors.primary : colors.textSecondary,
@@ -181,14 +181,14 @@ class _PrioritizeIncompleteToggle extends StatelessWidget {
       message: 'Rank targets with less data collected higher',
       child: InkWell(
         onTap: () => onChanged(!value),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
             color: value
                 ? colors.primary.withValues(alpha: 0.15)
                 : colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             border: Border.all(
               color:
                   value ? colors.primary.withValues(alpha: 0.5) : colors.border,
@@ -206,7 +206,7 @@ class _PrioritizeIncompleteToggle extends StatelessWidget {
               Text(
                 'Incomplete',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: value ? FontWeight.w600 : FontWeight.normal,
                   color: value ? colors.primary : colors.textSecondary,
                 ),
@@ -235,12 +235,12 @@ class _ResetFiltersButton extends StatelessWidget {
       message: 'Reset all filters to defaults',
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             border: Border.all(color: colors.border),
           ),
           child: Row(
@@ -255,7 +255,7 @@ class _ResetFiltersButton extends StatelessWidget {
               Text(
                 'Reset',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textSecondary,
                 ),
               ),

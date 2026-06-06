@@ -217,7 +217,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                       const SizedBox(width: 12),
                       NightshadeButton(
                         label: 'Start Centering',
-                        icon: LucideIcons.target,
+                        icon: NightshadeIcons.target,
                         onPressed: _startCentering,
                         variant: ButtonVariant.primary,
                       ),
@@ -236,7 +236,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     return Row(
       children: [
         Icon(
-          LucideIcons.target,
+          NightshadeIcons.target,
           color: colors.accent,
           size: 28,
         ),
@@ -284,13 +284,13 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
       ),
       decoration: BoxDecoration(
         color: colors.background,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(
           color: colors.border,
         ),
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(7),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusButton),
         child: Stack(
           children: [
             // Image
@@ -318,14 +318,16 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
+                  // absolute: HUD badge scrim over the preview image canvas
                   color: Colors.black.withValues(alpha: 0.7),
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
                   '${imageData.width}x${imageData.height}',
                   style: const TextStyle(
+                    // absolute: HUD label over the preview image canvas
                     color: Colors.white70,
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     fontFeatures: [FontFeature.tabularFigures()],
                   ),
                 ),
@@ -339,15 +341,9 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
 
   Widget _buildCoordinatesCompact(
       CenteringStatus status, NightshadeColors colors, ThemeData theme) {
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: colors.border,
-        ),
-      ),
+      borderRadius: NightshadeTokens.radiusInline8,
       child: Column(
         children: [
           Row(
@@ -356,7 +352,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                 child: _buildCoordInfo(
                   'Target RA',
                   _formatRa(widget.targetRa!),
-                  LucideIcons.compass,
+                  NightshadeIcons.compass,
                   colors,
                 ),
               ),
@@ -381,7 +377,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                   child: _buildCoordInfo(
                     'Solved RA',
                     _formatRa(status.solvedRa!),
-                    LucideIcons.sparkles,
+                    NightshadeIcons.sparkle,
                     colors,
                   ),
                 ),
@@ -390,7 +386,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                   child: _buildCoordInfo(
                     'Solved Dec',
                     _formatDec(status.solvedDec!),
-                    LucideIcons.sparkles,
+                    NightshadeIcons.sparkle,
                     colors,
                   ),
                 ),
@@ -403,18 +399,12 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   }
 
   Widget _buildExposureSettings(NightshadeColors colors, ThemeData theme) {
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: colors.border,
-        ),
-      ),
+      borderRadius: NightshadeTokens.radiusInline8,
       child: Row(
         children: [
-          Icon(LucideIcons.camera, size: 16, color: colors.textSecondary),
+          Icon(NightshadeIcons.camera, size: 16, color: colors.textSecondary),
           const SizedBox(width: 8),
           Text(
             'Solve exposure:',
@@ -442,15 +432,15 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                   borderSide: BorderSide(color: colors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                   borderSide: BorderSide(color: colors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                   borderSide: BorderSide(color: colors.accent),
                 ),
                 filled: true,
@@ -487,7 +477,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
             Text(
               label,
               style: theme.textTheme.labelSmall?.copyWith(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 color: colors.textSecondary,
               ),
             ),
@@ -515,12 +505,12 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     switch (status.state) {
       case CenteringState.exposing:
         stateText = 'Capturing...';
-        stateIcon = LucideIcons.camera;
+        stateIcon = NightshadeIcons.camera;
         stateColor = colors.accent;
         break;
       case CenteringState.solving:
         stateText = 'Plate solving...';
-        stateIcon = LucideIcons.sparkles;
+        stateIcon = NightshadeIcons.sparkle;
         stateColor = colors.accent;
         break;
       case CenteringState.slewing:
@@ -530,12 +520,12 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
         break;
       case CenteringState.verifying:
         stateText = 'Verifying...';
-        stateIcon = LucideIcons.checkCircle;
+        stateIcon = NightshadeIcons.success;
         stateColor = colors.accent;
         break;
       case CenteringState.completed:
         stateText = 'Centered!';
-        stateIcon = LucideIcons.checkCircle;
+        stateIcon = NightshadeIcons.success;
         stateColor = colors.success;
         break;
       case CenteringState.error:
@@ -545,7 +535,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
         break;
       default:
         stateText = 'Ready';
-        stateIcon = LucideIcons.circle;
+        stateIcon = NightshadeIcons.circle;
         stateColor = colors.textMuted;
     }
 
@@ -553,7 +543,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
       padding: const EdgeInsets.all(12),
       decoration: NightshadeDecorations.statusChip(
         stateColor,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -587,7 +577,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
               children: [
                 Expanded(
                   child: ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     child: LinearProgressIndicator(
                       value: (status.currentOffsetArcsec! /
                                   _centeringConfig.toleranceArcsec)
@@ -625,14 +615,14 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
   Widget _buildResultSection(CenteringResult result, NightshadeColors colors) {
     final theme = Theme.of(context);
     final isSuccess = result.success;
-    final icon = isSuccess ? LucideIcons.checkCircle : LucideIcons.xCircle;
+    final icon = isSuccess ? NightshadeIcons.success : NightshadeIcons.error;
     final color = isSuccess ? colors.success : colors.error;
 
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: NightshadeDecorations.statusChip(
         color,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -703,14 +693,14 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                   height: 22,
                   decoration: NightshadeDecorations.tintedBadge(
                     color,
-                    borderRadius: BorderRadius.circular(11),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline11),
                   ),
                   child: Center(
                     child: Text(
                       '${iter.iterationNumber}',
                       style: TextStyle(
                         color: color,
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -736,9 +726,9 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                         ),
                 ),
                 if (isSuccess)
-                  Icon(LucideIcons.checkCircle, size: 14, color: color),
+                  Icon(NightshadeIcons.success, size: 14, color: color),
                 if (!isSuccess)
-                  Icon(LucideIcons.xCircle, size: 14, color: color),
+                  Icon(NightshadeIcons.error, size: 14, color: color),
               ],
             ),
           );

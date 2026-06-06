@@ -14,26 +14,16 @@ class _PlannerHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      height: NightshadeTokens.appBarHeight,
-      padding: const EdgeInsets.symmetric(horizontal: NightshadeTokens.spaceLg),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: Row(
-        children: [
-          Icon(LucideIcons.moonStar, size: 20, color: colors.primary),
-          const SizedBox(width: NightshadeTokens.spaceMd),
-          Text(
-            context.l10n.text('plannerTitle'),
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
-          ),
-        ],
+    // Canonical screen chrome: the planner title routes through the shared
+    // [ScreenHeader] (design-system typography + divider) instead of a
+    // hand-rolled title row. Vertical padding is kept symmetric so the header
+    // lands at the same ~56px [appBarHeight] it occupied before.
+    return ScreenHeader(
+      icon: LucideIcons.moonStar,
+      title: context.l10n.text('plannerTitle'),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceLg,
+        vertical: NightshadeTokens.spaceLg,
       ),
     );
   }
@@ -181,9 +171,7 @@ class _PlannerControlsBar extends ConsumerWidget {
                         Expanded(
                           child: Text(
                             'Filters & sort',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.w600,
+                            style: NightshadeTypography.h4.copyWith(
                               color: colors.textPrimary,
                             ),
                           ),
@@ -349,9 +337,7 @@ class _FiltersSheetButton extends StatelessWidget {
             const SizedBox(width: 6),
             Text(
               'Filters',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
+              style: NightshadeTypography.labelStrong.copyWith(
                 color: fg,
               ),
             ),
@@ -367,7 +353,7 @@ class _FiltersSheetButton extends StatelessWidget {
                 child: Text(
                   '$activeCount',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w700,
                     color: colors.onPrimary,
                   ),

@@ -131,19 +131,16 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
         const SizedBox(height: 16),
 
         // PHD2 quick path
-        Container(
+        NightshadeCard(
+          variant: CardVariant.subtle,
+          borderRadius: NightshadeTokens.radiusLg,
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: colors.border),
-          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(LucideIcons.crosshair,
+                  Icon(NightshadeIcons.crosshair,
                       color: colors.primary, size: 18),
                   const SizedBox(width: 8),
                   Text(
@@ -168,11 +165,11 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
                         labelText: 'Host',
                         labelStyle: TextStyle(color: colors.textSecondary),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: NightshadeTokens.borderRadiusMd,
                           borderSide: BorderSide(color: colors.border),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: NightshadeTokens.borderRadiusMd,
                           borderSide: BorderSide(color: colors.primary),
                         ),
                         filled: true,
@@ -191,11 +188,11 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
                         labelText: 'Port',
                         labelStyle: TextStyle(color: colors.textSecondary),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: NightshadeTokens.borderRadiusMd,
                           borderSide: BorderSide(color: colors.border),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: NightshadeTokens.borderRadiusMd,
                           borderSide: BorderSide(color: colors.primary),
                         ),
                         filled: true,
@@ -205,7 +202,7 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
                   ),
                   const SizedBox(width: 8),
                   NightshadeButton(
-                    icon: LucideIcons.zap,
+                    icon: NightshadeIcons.bolt,
                     label: _testing ? 'Testing…' : 'Test',
                     variant: ButtonVariant.outline,
                     size: ButtonSize.small,
@@ -220,7 +217,7 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
                     Icon(
                       _lastResult == true
                           ? LucideIcons.checkCircle2
-                          : LucideIcons.alertTriangle,
+                          : NightshadeIcons.warning,
                       size: 16,
                       color: _lastResult == true
                           ? colors.success
@@ -275,7 +272,7 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
             title: 'Native guiders',
             subtitle:
                 'Cameras that publish a guider interface — usually only relevant for OAGs with dedicated drivers.',
-            icon: LucideIcons.eye,
+            icon: NightshadeIcons.visible,
             deviceType: DeviceType.guider,
             selectedDeviceId: draft.guiderId,
             selectedDeviceName: draft.guiderName,

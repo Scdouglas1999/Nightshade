@@ -67,12 +67,12 @@ class MobileObjectInfoContent extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: colors.primary.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               ),
               child: Text(
                 catalogTag,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.bold,
                   color: colors.primary,
                 ),
@@ -86,7 +86,7 @@ class MobileObjectInfoContent extends ConsumerWidget {
                   Text(
                     displayName,
                     style: TextStyle(
-                      fontSize: 18,
+                      fontSize: NightshadeTypography.fontSize18,
                       fontWeight: FontWeight.bold,
                       color: colors.textPrimary,
                     ),
@@ -94,7 +94,7 @@ class MobileObjectInfoContent extends ConsumerWidget {
                   Text(
                     typeName,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: colors.textMuted,
                     ),
                   ),
@@ -106,12 +106,12 @@ class MobileObjectInfoContent extends ConsumerWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Text(
                   'mag ${obj.magnitude!.toStringAsFixed(1)}',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -184,7 +184,7 @@ class MobileObjectInfoContent extends ConsumerWidget {
                                 ? colors.warning
                                 : colors.error)
                         .withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                   ),
                   child: Text(
                     altAz.$1 > 30
@@ -195,7 +195,7 @@ class MobileObjectInfoContent extends ConsumerWidget {
                                 ? 'Low'
                                 : 'Below',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                       fontWeight: FontWeight.w500,
                       color: altAz.$1 > 30
                           ? colors.success
@@ -216,7 +216,7 @@ class MobileObjectInfoContent extends ConsumerWidget {
           children: [
             Expanded(
               child: MobileActionButton(
-                icon: LucideIcons.crosshair,
+                icon: NightshadeIcons.crosshair,
                 label: 'Slew',
                 colors: colors,
                 onTap: () {
@@ -228,7 +228,7 @@ class MobileObjectInfoContent extends ConsumerWidget {
             const SizedBox(width: 8),
             Expanded(
               child: MobileActionButton(
-                icon: LucideIcons.target,
+                icon: NightshadeIcons.target,
                 label: 'Center',
                 colors: colors,
                 onTap: () {
@@ -244,7 +244,7 @@ class MobileObjectInfoContent extends ConsumerWidget {
           children: [
             Expanded(
               child: MobileActionButton(
-                icon: LucideIcons.frame,
+                icon: NightshadeIcons.frame,
                 label: 'Framing',
                 colors: colors,
                 onTap: () {
@@ -290,20 +290,15 @@ class MobileInfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             title,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               fontWeight: FontWeight.w600,
               color: colors.textMuted,
               letterSpacing: 0.5,
@@ -340,7 +335,7 @@ class MobileInfoRow extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             color: colors.textMuted,
           ),
         ),
@@ -348,7 +343,7 @@ class MobileInfoRow extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: NightshadeTypography.fontSize13,
             fontWeight: FontWeight.w600,
             color: valueColor ?? colors.textPrimary,
             fontFeatures: const [ui.FontFeature.tabularFigures()],
@@ -386,7 +381,7 @@ class MobileActionButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         decoration: BoxDecoration(
           color: isPrimary ? colors.primary : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(
             color: isPrimary
                 ? colors.primary.withValues(alpha: 0.85)
@@ -407,11 +402,7 @@ class MobileActionButton extends StatelessWidget {
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: isPrimary ? onPrimary : colors.textPrimary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: isPrimary ? onPrimary : colors.textPrimary),
               ),
             ),
           ],

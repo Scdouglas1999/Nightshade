@@ -102,18 +102,14 @@ class SmartNightSafetyWatchdogsSection extends StatelessWidget {
         const SizedBox(height: 12),
         Text(
           'Safety & Watchdogs',
-          style: TextStyle(
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-            fontSize: 13,
-          ),
+          style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 4),
         Text(
           'These run in parallel with the imaging branch and fire by '
           'condition, not by list position.',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,
           ),
         ),
@@ -136,16 +132,12 @@ class SmartNightSafetyWatchdogsSection extends StatelessWidget {
                       children: [
                         TextSpan(
                           text: '${w.title} — ',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: colors.textSecondary,
-                          ),
+                          style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
                         ),
                         TextSpan(
                           text: w.detail,
                           style: TextStyle(
-                            fontSize: 12,
+                            fontSize: NightshadeTypography.fontSize12,
                             color: colors.textSecondary,
                           ),
                         ),

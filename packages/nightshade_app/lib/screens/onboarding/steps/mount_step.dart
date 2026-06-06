@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'device_picker_step.dart';
 
@@ -17,7 +17,7 @@ class OnboardingMountStep extends ConsumerWidget {
       title: 'Pick your mount',
       subtitle:
           "Tracking mode and park position settings can be tuned later from the Equipment screen — we'll save sensible defaults for now.",
-      icon: LucideIcons.compass,
+      icon: NightshadeIcons.compass,
       deviceType: DeviceType.mount,
       selectedDeviceId: draft.mountId,
       selectedDeviceName: draft.mountName,

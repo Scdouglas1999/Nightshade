@@ -59,7 +59,7 @@ extension _RightPanel on _PolarAlignmentScreenState {
                             'mount. Rings mark 30", 60", and 120" error zones.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
-                              fontSize: 12,
+                              fontSize: NightshadeTypography.fontSize12,
                               color: colors.textSecondary,
                               height: 1.4,
                             ),
@@ -90,7 +90,7 @@ extension _RightPanel on _PolarAlignmentScreenState {
                       Text(
                         'Error Trend',
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: NightshadeTypography.fontSize10,
                           fontWeight: FontWeight.w600,
                           color: colors.textMuted,
                         ),

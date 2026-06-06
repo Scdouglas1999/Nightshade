@@ -1,5 +1,11 @@
 part of '../mobile_widgets.dart';
 
+// NOTE (design tokens): the `Colors.white*` / `Colors.black*` literals in this
+// file are canvas-absolute HUD colors for the mobile planetarium overlays drawn
+// over the sky. The planetarium is wrapped in `_NightVisionFilter` (luminance→
+// red conversion for dark adaptation), so they are intentionally NOT mapped to
+// the theme-relative semantic palette.
+
 class MobileBottomInfoBar extends ConsumerWidget {
   final NightshadeColors colors;
 
@@ -22,7 +28,7 @@ class MobileBottomInfoBar extends ConsumerWidget {
               Text(
                 'RA ${CoordinateFormatUtils.formatRACompact(viewState.centerRA)}',
                 style: const TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   color: Colors.white60,
                   fontFeatures: [ui.FontFeature.tabularFigures()],
                 ),
@@ -31,7 +37,7 @@ class MobileBottomInfoBar extends ConsumerWidget {
               Text(
                 'Dec ${CoordinateFormatUtils.formatDecCompact(viewState.centerDec)}',
                 style: const TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   color: Colors.white60,
                   fontFeatures: [ui.FontFeature.tabularFigures()],
                 ),
@@ -40,7 +46,7 @@ class MobileBottomInfoBar extends ConsumerWidget {
               Text(
                 'FOV ${CoordinateFormatUtils.formatFOVCompact(viewState.fieldOfView)}',
                 style: const TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   color: Colors.white60,
                   fontFeatures: [ui.FontFeature.tabularFigures()],
                 ),
@@ -88,7 +94,7 @@ class MobileSelectedObjectHud extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: colors.surface.withValues(alpha: 0.9),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.primary.withValues(alpha: 0.5)),
         ),
         child: Row(
@@ -98,12 +104,12 @@ class MobileSelectedObjectHud extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
                 color: colors.primary.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
               child: Text(
                 catalogTag,
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: NightshadeTypography.fontSize9,
                   fontWeight: FontWeight.bold,
                   color: colors.primary,
                 ),
@@ -115,16 +121,12 @@ class MobileSelectedObjectHud extends StatelessWidget {
                 displayName,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
               ),
             ),
             const SizedBox(width: 8),
             Icon(
-              LucideIcons.chevronDown,
+              NightshadeIcons.chevronDown,
               size: 14,
               color: colors.textMuted,
             ),

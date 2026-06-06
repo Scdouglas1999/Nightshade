@@ -151,7 +151,9 @@ pub async fn api_phd2_connect(
     // It publishes to the broadcast channel which is picked up by api_event_stream.
     client.set_event_callback(move |event| {
         let subscriber_count = get_state().event_bus.subscriber_count();
-        tracing::info!(
+        // Per-event plumbing trace — fires on every looping frame (~1 Hz), so
+        // keep it at debug to avoid flooding the log during normal guiding.
+        tracing::debug!(
             "PHD2 event callback received: {:?} (event bus subscribers: {})",
             std::mem::discriminant(&event),
             subscriber_count
@@ -159,7 +161,7 @@ pub async fn api_phd2_connect(
 
         let guiding_event = match event {
             nightshade_imaging::Phd2Event::GuideStep(ref frame) => {
-                tracing::info!(
+                tracing::debug!(
                     "PHD2 GuideStep: RA={:.3}, Dec={:.3}, SNR={:.1}",
                     frame.ra_distance,
                     frame.dec_distance,
@@ -175,7 +177,7 @@ pub async fn api_phd2_connect(
                     },
                     EventSeverity::Info,
                 );
-                tracing::info!("PHD2: Published Correction event (id={})", event_id);
+                tracing::debug!("PHD2: Published Correction event (id={})", event_id);
                 // Also forward guide stats (SNR and star mass)
                 let stats_id = get_state().publish_guiding_event(
                     GuidingEvent::GuideStats {
@@ -184,11 +186,14 @@ pub async fn api_phd2_connect(
                     },
                     EventSeverity::Info,
                 );
-                tracing::info!("PHD2: Published GuideStats event (id={})", stats_id);
+                tracing::debug!("PHD2: Published GuideStats event (id={})", stats_id);
                 return;
             }
             nightshade_imaging::Phd2Event::StateChanged(state) => {
-                tracing::info!("PHD2 state changed: {:?}", state);
+                // PHD2 re-emits its state on every looping frame, so this would
+                // log "Looping" once a second. The meaningful transitions are
+                // surfaced to the UI as GuidingEvents; keep the raw log at debug.
+                tracing::debug!("PHD2 state changed: {:?}", state);
                 match state {
                     nightshade_imaging::Phd2State::Guiding => GuidingEvent::GuidingStarted,
                     nightshade_imaging::Phd2State::Connected => GuidingEvent::GuidingStopped,
@@ -221,9 +226,26 @@ pub async fn api_phd2_connect(
             }
             nightshade_imaging::Phd2Event::SettleBegin => GuidingEvent::Settling,
             nightshade_imaging::Phd2Event::SettleDone {
+                status,
+                ref error,
                 total_frames: _,
                 dropped_frames: _,
-            } => GuidingEvent::Settled { rms: 0.0 },
+            } => {
+                // The dither path waits on SettleDone explicitly (see
+                // api_phd2_dither); this stream mapping is for UI/telemetry. A
+                // failed settle (non-zero status) must not masquerade as a
+                // clean "Settled" event.
+                if status != 0 {
+                    tracing::warn!(
+                        "PHD2: settle failed (status {}): {}",
+                        status,
+                        if error.is_empty() { "no detail" } else { error }
+                    );
+                    GuidingEvent::LostStar
+                } else {
+                    GuidingEvent::Settled { rms: 0.0 }
+                }
+            }
             nightshade_imaging::Phd2Event::CalibrationComplete => {
                 tracing::info!("PHD2: Calibration complete");
                 GuidingEvent::CalibrationComplete
@@ -248,7 +270,7 @@ pub async fn api_phd2_connect(
         };
 
         let event_id = get_state().publish_guiding_event(guiding_event.clone(), severity);
-        tracing::info!(
+        tracing::debug!(
             "PHD2: Published {:?} to event bus (event_id={}, subscribers={})",
             guiding_event,
             event_id,
@@ -361,8 +383,13 @@ pub async fn api_phd2_dither(
         .ok_or_else(|| NightshadeError::NotConnected("PHD2".to_string()))?;
 
     let ra_only_bool = ra_only != 0;
-    client
-        .dither(
+
+    // Issue the dither RPC and arm settle tracking while holding the storage
+    // lock, but DO NOT block on the multi-second settle here — that would stall
+    // every other PHD2 operation (status polls, stop, etc.) for the duration.
+    // `dither_arm` returns a detached waiter that only clones the shared Arcs.
+    let waiter = client
+        .dither_arm(
             amount,
             ra_only_bool,
             settle_pixels,
@@ -371,10 +398,31 @@ pub async fn api_phd2_dither(
         )
         .map_err(|e| NightshadeError::OperationFailed(format!("Failed to dither: {}", e)))?;
 
+    // Release the storage write-lock before waiting for settle.
+    drop(storage);
+
     get_state().publish_guiding_event(
         GuidingEvent::DitherStarted { pixels: amount },
         EventSeverity::Info,
     );
+
+    // Wait (off the async runtime) for PHD2's asynchronous SettleDone. This
+    // fails CLOSED: a non-zero PHD2 settle status, a settle timeout, or a
+    // disconnect all surface as an error so the sequencer never resumes
+    // exposing mid-settle (which trailed every dithered sub).
+    let wait =
+        nightshade_imaging::Phd2Client::settle_wait_duration(settle_time, settle_timeout);
+    let settle = tokio::task::spawn_blocking(move || waiter.wait(wait))
+        .await
+        .map_err(|e| {
+            NightshadeError::OperationFailed(format!("Dither settle task failed: {}", e))
+        })?;
+
+    settle.map_err(|e| {
+        NightshadeError::OperationFailed(format!("Dither did not settle: {}", e))
+    })?;
+
+    get_state().publish_guiding_event(GuidingEvent::Settled { rms: 0.0 }, EventSeverity::Info);
 
     Ok(())
 }

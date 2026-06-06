@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 
@@ -228,7 +229,7 @@ class PairingScreen extends ConsumerWidget {
               const SizedBox(height: 16),
               NightshadeButton(
                 label: l10n.text('pairingStartButton'),
-                icon: Icons.link,
+                icon: NightshadeIcons.link,
                 variant: ButtonVariant.primary,
                 onPressed: state.isLoading
                     ? null
@@ -256,7 +257,7 @@ class PairingScreen extends ConsumerWidget {
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: Theme.of(context).colorScheme.primaryContainer,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           ),
           child: Column(
             children: [
@@ -285,7 +286,7 @@ class PairingScreen extends ConsumerWidget {
                         l10n.text('pairingCodeCopied'),
                       );
                     },
-                    icon: const Icon(Icons.copy),
+                    icon: const Icon(NightshadeIcons.copy),
                     tooltip: l10n.text('pairingCopyCode'),
                   ),
                 ],
@@ -298,7 +299,7 @@ class PairingScreen extends ConsumerWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Icon(
-              Icons.timer_outlined,
+              NightshadeIcons.timer,
               size: 20,
               color: Theme.of(context).colorScheme.secondary,
             ),
@@ -346,7 +347,7 @@ class PairingScreen extends ConsumerWidget {
                 IconButton(
                   onPressed: () =>
                       ref.read(pairingProvider.notifier).loadPairedDevices(),
-                  icon: const Icon(Icons.refresh),
+                  icon: const Icon(NightshadeIcons.refresh),
                   tooltip: l10n.text('pairingRefresh'),
                 ),
               ],
@@ -359,7 +360,7 @@ class PairingScreen extends ConsumerWidget {
                   child: Column(
                     children: [
                       Icon(
-                        Icons.devices_outlined,
+                        NightshadeIcons.device,
                         size: 64,
                         color: Theme.of(context).colorScheme.outline,
                       ),
@@ -412,7 +413,7 @@ class PairingScreen extends ConsumerWidget {
             height: 44,
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Icon(
               _getDeviceIcon(device.deviceType),
@@ -440,15 +441,11 @@ class PairingScreen extends ConsumerWidget {
                       ),
                       decoration: BoxDecoration(
                         color: statusColor.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(999),
+                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
                       ),
                       child: Text(
                         statusText,
-                        style: TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: statusColor,
-                        ),
+                        style: NightshadeTypography.labelStrongSm.copyWith(color: statusColor),
                       ),
                     ),
                   ],
@@ -456,11 +453,7 @@ class PairingScreen extends ConsumerWidget {
                 const SizedBox(height: 4),
                 Text(
                   _deviceTypeLabel(device.deviceType),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.textMuted,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: NightshadeTypography.labelSm.copyWith(color: colors.textMuted),
                 ),
                 const SizedBox(height: 8),
                 Text(
@@ -469,7 +462,7 @@ class PairingScreen extends ConsumerWidget {
                     params: {'time': _formatDate(context, device.pairedAt)},
                   ),
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -484,7 +477,7 @@ class PairingScreen extends ConsumerWidget {
                         )
                       : 'Has not connected yet',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -504,7 +497,7 @@ class PairingScreen extends ConsumerWidget {
                 value: 'revoke',
                 child: Row(
                   children: [
-                    const Icon(Icons.block),
+                    const Icon(LucideIcons.ban),
                     const SizedBox(width: 8),
                     Text(context.l10n.text('pairingRevokeAccess')),
                   ],
@@ -514,7 +507,7 @@ class PairingScreen extends ConsumerWidget {
                 value: 'delete',
                 child: Row(
                   children: [
-                    const Icon(Icons.delete),
+                    const Icon(NightshadeIcons.delete),
                     const SizedBox(width: 8),
                     Text(context.l10n.text('pairingDeleteDevice')),
                   ],
@@ -530,13 +523,13 @@ class PairingScreen extends ConsumerWidget {
   IconData _getDeviceIcon(String deviceType) {
     switch (deviceType.toLowerCase()) {
       case 'mobile':
-        return Icons.smartphone;
+        return NightshadeIcons.phone;
       case 'tablet':
-        return Icons.tablet;
+        return LucideIcons.tablet;
       case 'desktop':
-        return Icons.computer;
+        return NightshadeIcons.device;
       default:
-        return Icons.devices;
+        return NightshadeIcons.device;
     }
   }
 
@@ -694,19 +687,19 @@ class _PairingErrorBanner extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.error.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.error.withValues(alpha: 0.3)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.error_outline, color: colors.error, size: 20),
+          Icon(NightshadeIcons.error, color: colors.error, size: 20),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               context.l10n.text(message),
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: colors.textPrimary,
                 height: 1.4,
               ),

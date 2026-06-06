@@ -146,7 +146,7 @@ class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
                 const SizedBox(height: 8),
                 Text(
                   _applyError!,
-                  style: TextStyle(color: colors.error, fontSize: 12),
+                  style: TextStyle(color: colors.error, fontSize: NightshadeTypography.fontSize12),
                 ),
               ],
               const SizedBox(height: 14),
@@ -196,7 +196,7 @@ class _Header extends StatelessWidget {
           padding: const EdgeInsets.all(8),
           decoration: NightshadeDecorations.tintedBadge(
             colors.primary,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           ),
           child: Icon(LucideIcons.sliders, color: colors.primary, size: 18),
         ),
@@ -210,7 +210,7 @@ class _Header extends StatelessWidget {
                 'Image grader',
                 style: TextStyle(
                   fontWeight: FontWeight.w700,
-                  fontSize: 16,
+                  fontSize: NightshadeTypography.fontSize16,
                   color: colors.textPrimary,
                 ),
               ),
@@ -220,14 +220,14 @@ class _Header extends StatelessWidget {
                 'Nothing is deleted — rejection can be undone per frame.',
                 style: TextStyle(
                   color: colors.textSecondary,
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   height: 1.4,
                 ),
               ),
               const SizedBox(height: 4),
               Text(
                 '$frameCount frame${frameCount == 1 ? "" : "s"} loaded',
-                style: TextStyle(color: colors.textMuted, fontSize: 11),
+                style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
               ),
             ],
           ),
@@ -348,7 +348,7 @@ class _DoubleRow extends StatelessWidget {
               label,
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
           ),
@@ -373,7 +373,7 @@ class _DoubleRow extends StatelessWidget {
                   : '${value!.toStringAsFixed(2)} $unit',
               style: TextStyle(
                 color: value == null ? colors.textMuted : colors.textPrimary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
@@ -432,7 +432,7 @@ class _IntRow extends StatelessWidget {
             width: 110,
             child: Text(
               label,
-              style: TextStyle(color: colors.textSecondary, fontSize: 12),
+              style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
             ),
           ),
           Expanded(
@@ -459,7 +459,7 @@ class _IntRow extends StatelessWidget {
               value == null ? 'off' : '$value',
               style: TextStyle(
                 color: value == null ? colors.textMuted : colors.textPrimary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
             ),
@@ -502,7 +502,7 @@ class _PreviewSummary extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -545,7 +545,7 @@ class _Chip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: NightshadeDecorations.statusChip(
         tone,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -554,7 +554,7 @@ class _Chip extends StatelessWidget {
             label,
             style: TextStyle(
               color: colors.textSecondary,
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
             ),
           ),
           const SizedBox(width: 6),
@@ -586,14 +586,14 @@ class _RejectionList extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 14),
         child: Text(
           'No frames currently fail any rule.',
-          style: TextStyle(color: colors.textMuted, fontSize: 12),
+          style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
         ),
       );
     }
     return Container(
       decoration: BoxDecoration(
         border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: ListView.separated(
         itemCount: rejections.length,
@@ -610,10 +610,8 @@ class _RejectionList extends StatelessWidget {
               children: [
                 Text(
                   filename,
-                  style: TextStyle(
+                  style: NightshadeTypography.h6.copyWith(
                     color: colors.textPrimary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -621,7 +619,7 @@ class _RejectionList extends StatelessWidget {
                   r.reason,
                   style: TextStyle(
                     color: colors.textMuted,
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     height: 1.4,
                   ),
                 ),

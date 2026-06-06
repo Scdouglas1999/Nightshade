@@ -336,7 +336,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.error, color: colors.error, size: 20),
+                            Icon(NightshadeIcons.error, color: colors.error, size: 20),
                             const SizedBox(width: 8),
                             Expanded(child: Text(error)),
                           ],
@@ -367,7 +367,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
         final colors = NightshadeColors.of(context);
         return NightshadeDialog(
           title: 'Mosaic Warnings',
-          icon: Icons.warning_amber,
+          icon: NightshadeIcons.warning,
           width: 480,
           actions: [
             NightshadeButton(
@@ -397,7 +397,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.warning, color: colors.warning, size: 20),
+                        Icon(NightshadeIcons.warning, color: colors.warning, size: 20),
                         const SizedBox(width: 8),
                         Expanded(child: Text(warning)),
                       ],
@@ -422,7 +422,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
 
     return NightshadeDialog(
       title: 'Mosaic Wizard',
-      icon: Icons.grid_on,
+      icon: NightshadeIcons.grid,
       width: 960,
       height: 720,
       scrollableBody: false,
@@ -436,7 +436,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
         ),
         NightshadeButton(
           onPressed: _generateMosaic,
-          icon: Icons.add,
+          icon: NightshadeIcons.add,
           label: 'Generate Mosaic',
           variant: ButtonVariant.primary,
           size: ButtonSize.small,
@@ -537,7 +537,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
               margin: const EdgeInsets.all(20),
               decoration: BoxDecoration(
                 color: colors.background,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 border: Border.all(color: colors.border),
               ),
               clipBehavior: Clip.antiAlias,
@@ -585,7 +585,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
       padding: const EdgeInsets.all(16),
       decoration: NightshadeDecorations.iconChip(
         colors.warning,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         borderAlpha: 0.4,
       ),
       child: Column(
@@ -593,7 +593,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
         children: [
           Row(
             children: [
-              Icon(Icons.replay_circle_filled, color: colors.warning, size: 20),
+              Icon(NightshadeIcons.undo, color: colors.warning, size: 20),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
@@ -611,7 +611,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
             '"${info.sequenceName}" was interrupted $ageStr. '
             '${info.completedExposures} frames captured (${integrationMins}m '
             'integration). Resuming picks up at the next unfinished panel.',
-            style: TextStyle(color: colors.textSecondary, fontSize: 13),
+            style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13),
           ),
           const SizedBox(height: 12),
           Wrap(
@@ -620,14 +620,14 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
             children: [
               NightshadeButton(
                 onPressed: _resumeInterruptedMosaic,
-                icon: Icons.play_arrow,
+                icon: NightshadeIcons.play,
                 label: 'Resume',
                 variant: ButtonVariant.primary,
                 size: ButtonSize.small,
               ),
               NightshadeButton(
                 onPressed: _discardMosaicCheckpoint,
-                icon: Icons.delete_outline,
+                icon: NightshadeIcons.delete,
                 label: 'Start Over',
                 variant: ButtonVariant.ghost,
                 size: ButtonSize.small,

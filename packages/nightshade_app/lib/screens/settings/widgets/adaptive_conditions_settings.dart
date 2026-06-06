@@ -290,7 +290,7 @@ class _WeightTotalCallout extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: NightshadeDecorations.iconChip(
         color,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         borderAlpha: 0.24,
       ),
       child: Row(
@@ -308,7 +308,7 @@ class _WeightTotalCallout extends StatelessWidget {
                   ? 'Weights sum to ${total.toStringAsFixed(2)}. The composer will preserve the configured balance.'
                   : 'Weights sum to ${total.toStringAsFixed(2)}. The composer renormalizes available axes at runtime, but keeping the total near 1.00 makes the score easier to reason about.',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textSecondary,
               ),
             ),

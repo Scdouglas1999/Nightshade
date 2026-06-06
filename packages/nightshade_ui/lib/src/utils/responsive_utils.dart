@@ -75,6 +75,29 @@ abstract final class Responsive {
       defaultTargetPlatform == TargetPlatform.android ||
       defaultTargetPlatform == TargetPlatform.iOS;
 
+  /// The width used to pick a **device-class tier** ([isMobile] / [isTablet] /
+  /// [isDesktop] / [isDesktopLarge] / [isUltraWide]).
+  ///
+  /// - On a mobile OS this is the **shortest side**, so the tier is
+  ///   orientation-stable: a landscape phone (long edge ≥ 768, e.g. the Galaxy
+  ///   Z Fold 6 cover screen at 905×369) is still classified by its short edge
+  ///   and stays in the mobile tier rather than flipping to the desktop layout.
+  ///   This matches the device-class logic in [isPhone].
+  /// - On desktop this is the live window **width**, so narrowing or splitting a
+  ///   desktop window still reflows tiers exactly as before.
+  ///
+  /// NOTE: this is for *tier classification* only. Helpers that physically size
+  /// to the viewport ([panelWidth], [gridColumns], [panelDimensions],
+  /// [scaleFactor], dialog/preview constraints) intentionally keep using the
+  /// real width/height.
+  static double _classWidth(BuildContext context) {
+    final size = MediaQuery.sizeOf(context);
+    if (_isMobilePlatform) {
+      return math.min(size.width, size.height);
+    }
+    return size.width;
+  }
+
   /// Returns true on a **compact phone** (`width < 480`).
   ///
   /// Use to tighten further (e.g. drop a stat strip to a single column, hide a
@@ -82,31 +105,40 @@ abstract final class Responsive {
   static bool isCompactPhone(BuildContext context) =>
       MediaQuery.sizeOf(context).width < compactPhoneMaxWidth;
 
-  /// Returns true if the screen width is less than the tablet breakpoint (768px).
+  /// Returns true if the device-class width is less than the tablet breakpoint
+  /// (768px).
   ///
   /// NOTE: This is the legacy "mobile" bucket (`< 768`) and includes small
   /// tablets. For phone-specific reflow use [isPhone] (`< 600`).
+  ///
+  /// Uses [_classWidth] so a landscape phone / foldable cover screen (long edge
+  /// ≥ 768) is still classified by its short edge and correctly resolves to the
+  /// mobile layout instead of the desktop split.
   static bool isMobile(BuildContext context) =>
-      MediaQuery.sizeOf(context).width < NightshadeTokens.breakpointTablet;
+      _classWidth(context) < NightshadeTokens.breakpointTablet;
 
-  /// Returns true if the screen width is between tablet (768px) and desktop (1024px) breakpoints.
+  /// Returns true if the device-class width is between tablet (768px) and
+  /// desktop (1024px) breakpoints.
   static bool isTablet(BuildContext context) {
-    final width = MediaQuery.sizeOf(context).width;
+    final width = _classWidth(context);
     return width >= NightshadeTokens.breakpointTablet &&
         width < NightshadeTokens.breakpointDesktop;
   }
 
-  /// Returns true if the screen width is at least the desktop breakpoint (1024px).
+  /// Returns true if the device-class width is at least the desktop breakpoint
+  /// (1024px).
   static bool isDesktop(BuildContext context) =>
-      MediaQuery.sizeOf(context).width >= NightshadeTokens.breakpointDesktop;
+      _classWidth(context) >= NightshadeTokens.breakpointDesktop;
 
-  /// Returns true if the screen width is at least the large desktop breakpoint (1440px).
+  /// Returns true if the device-class width is at least the large desktop
+  /// breakpoint (1440px).
   static bool isDesktopLarge(BuildContext context) =>
-      MediaQuery.sizeOf(context).width >= NightshadeTokens.breakpointDesktopLg;
+      _classWidth(context) >= NightshadeTokens.breakpointDesktopLg;
 
-  /// Returns true if the screen width is at least the ultra-wide breakpoint (1920px).
+  /// Returns true if the device-class width is at least the ultra-wide
+  /// breakpoint (1920px).
   static bool isUltraWide(BuildContext context) =>
-      MediaQuery.sizeOf(context).width >= NightshadeTokens.breakpointUltraWide;
+      _classWidth(context) >= NightshadeTokens.breakpointUltraWide;
 
   /// Returns a value based on screen size breakpoints.
   ///

@@ -4,7 +4,7 @@
 // standard.md) we pump the real `SequencerScreen` at the three reference phone
 // sizes in BOTH orientations and assert:
 //   * no RenderFlex / layout overflow at any size or orientation,
-//   * the six-tab strip is the non-overflowing AdaptiveTabBar (and scrolls
+//   * the tab strip is the non-overflowing AdaptiveTabBar (and scrolls
 //     rather than overflowing — the whole point of the rework),
 //   * the sequence tree (the dominant primary region) is on screen,
 //   * the add-node FAB is reachable.

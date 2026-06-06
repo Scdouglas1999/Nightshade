@@ -75,7 +75,7 @@ class VisualTimeline extends ConsumerWidget {
         child: Center(
           child: Text(
             'No timeline data available',
-            style: TextStyle(fontSize: 12, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
           ),
         ),
       );
@@ -114,7 +114,7 @@ class VisualTimeline extends ConsumerWidget {
                     Text(
                       'Simulation issue',
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         fontWeight: FontWeight.w700,
                         color: issueColor,
                       ),
@@ -125,7 +125,7 @@ class VisualTimeline extends ConsumerWidget {
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: colors.textSecondary,
                       ),
                     ),
@@ -134,7 +134,7 @@ class VisualTimeline extends ConsumerWidget {
                       Text(
                         '+${simulation.issues.length - 1} more issue(s)',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: colors.textMuted,
                         ),
                       ),
@@ -156,7 +156,7 @@ class VisualTimeline extends ConsumerWidget {
         child: Center(
           child: Text(
             'No timeline data available',
-            style: TextStyle(fontSize: 12, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
           ),
         ),
       );
@@ -178,7 +178,7 @@ class VisualTimeline extends ConsumerWidget {
         child: Center(
           child: Text(
             'Sequence has no estimated duration',
-            style: TextStyle(fontSize: 12, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
           ),
         ),
       );
@@ -203,7 +203,7 @@ class VisualTimeline extends ConsumerWidget {
                 Text(
                   'Timeline',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     fontWeight: FontWeight.w700,
                     color: colors.textPrimary,
                   ),
@@ -211,7 +211,7 @@ class VisualTimeline extends ConsumerWidget {
                 const SizedBox(width: 12),
                 Text(
                   _formatTotalDuration(totalDuration),
-                  style: TextStyle(fontSize: 11, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                 ),
                 const Spacer(),
                 // Close button
@@ -256,30 +256,30 @@ class VisualTimeline extends ConsumerWidget {
               children: [
                 Text(
                   DateFormat('HH:mm').format(firstStart),
-                  style: TextStyle(fontSize: 10, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                 ),
                 Text(
                   DateFormat('HH:mm').format(
                     firstStart.add(Duration(seconds: (totalSecs / 4).round())),
                   ),
-                  style: TextStyle(fontSize: 10, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                 ),
                 Text(
                   DateFormat('HH:mm').format(
                     firstStart.add(Duration(seconds: (totalSecs / 2).round())),
                   ),
-                  style: TextStyle(fontSize: 10, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                 ),
                 Text(
                   DateFormat('HH:mm').format(
                     firstStart
                         .add(Duration(seconds: (totalSecs * 3 / 4).round())),
                   ),
-                  style: TextStyle(fontSize: 10, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                 ),
                 Text(
                   DateFormat('HH:mm').format(lastEnd),
-                  style: TextStyle(fontSize: 10, color: colors.textMuted),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                 ),
               ],
             ),
@@ -397,7 +397,7 @@ class _TimelinePainter extends CustomPainter {
             text: TextSpan(
               text: segment.nodeName,
               style: TextStyle(
-                fontSize: 9,
+                fontSize: NightshadeTypography.fontSize9,
                 color: labelColor,
                 fontWeight: FontWeight.w500,
               ),

@@ -28,14 +28,14 @@ class AnnotationCatalogBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Icon(LucideIcons.info, size: 16, color: colors.primary),
+          Icon(NightshadeIcons.info, size: 16, color: colors.primary),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               'Annotations are enabled but no catalog is installed. Download the annotation catalog to identify objects in your images.',
               style: TextStyle(
                 color: colors.textPrimary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
           ),
@@ -47,7 +47,7 @@ class AnnotationCatalogBanner extends StatelessWidget {
             size: ButtonSize.small,
           ),
           IconButton(
-            icon: Icon(LucideIcons.x, size: 16, color: colors.textMuted),
+            icon: Icon(NightshadeIcons.close, size: 16, color: colors.textMuted),
             onPressed: onDismiss,
             tooltip: 'Dismiss',
             padding: EdgeInsets.zero,
@@ -90,7 +90,7 @@ class AnnotationStatusIndicator extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: _getBackgroundColor(annotationState.status),
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(
             color: _getBorderColor(annotationState.status),
           ),
@@ -109,7 +109,7 @@ class AnnotationStatusIndicator extends ConsumerWidget {
                       _getStatusText(annotationState.status),
                   style: TextStyle(
                     color: _getTextColor(annotationState.status),
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -119,7 +119,7 @@ class AnnotationStatusIndicator extends ConsumerWidget {
                     style: TextStyle(
                       color: _getTextColor(annotationState.status)
                           .withValues(alpha: 0.7),
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
@@ -158,14 +158,14 @@ class AnnotationStatusIndicator extends ConsumerWidget {
           ),
         );
       case AnnotationStatus.complete:
-        return Icon(LucideIcons.checkCircle,
+        return Icon(NightshadeIcons.success,
             size: 14, color: _getTextColor(status));
       case AnnotationStatus.error:
       case AnnotationStatus.plateSolveFailed:
         return Icon(LucideIcons.alertCircle,
             size: 14, color: _getTextColor(status));
       case AnnotationStatus.catalogsNotInstalled:
-        return Icon(LucideIcons.alertTriangle,
+        return Icon(NightshadeIcons.warning,
             size: 14, color: _getTextColor(status));
       case AnnotationStatus.idle:
         return const SizedBox.shrink();

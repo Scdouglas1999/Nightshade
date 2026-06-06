@@ -39,7 +39,7 @@ class _Step2Params extends StatelessWidget {
             Text(
               'Default 22:00 – 02:00 local — a typical imaging session. '
               'Tap a time to adjust.',
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
             ),
             const SizedBox(height: NightshadeTokens.spaceMd),
             _TimeWindowField(
@@ -57,7 +57,7 @@ class _Step2Params extends StatelessWidget {
               'Default 30% max illumination — typical for narrowband and '
               'most broadband DSO work. Increase the cap if your target '
               'tolerates more moon.',
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
             ),
             const SizedBox(height: NightshadeTokens.spaceMd),
             _MoonField(value: moonMax, onChange: onMoonMax),
@@ -73,12 +73,12 @@ class _Step2Params extends StatelessWidget {
                 'No horizon profiles defined yet. Manage horizon '
                 'profiles in Settings → Observing site, then return here '
                 'to attach one.',
-                style: TextStyle(fontSize: 12, color: colors.warning),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.warning),
               )
             else ...[
               Text(
                 'Pick an existing horizon profile to use for $targetName.',
-                style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
               ),
               const SizedBox(height: NightshadeTokens.spaceMd),
               _HorizonField(
@@ -89,7 +89,7 @@ class _Step2Params extends StatelessWidget {
               const SizedBox(height: NightshadeTokens.spaceSm),
               Text(
                 'Manage horizon profiles in Settings → Observing site.',
-                style: TextStyle(fontSize: 11, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
               ),
             ],
           ],
@@ -103,7 +103,7 @@ class _Step2Params extends StatelessWidget {
               'Forces the scheduler onto $targetName during the window, '
               'bypassing hysteresis. Defaults to tonight 20:00 → 06:00 '
               'local — adjust as needed.',
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
             ),
             const SizedBox(height: NightshadeTokens.spaceMd),
             _ScheduledWindowField(
@@ -179,7 +179,7 @@ class _Step3Review extends StatelessWidget {
         Text(
           'Review and save',
           style: TextStyle(
-            fontSize: 14,
+            fontSize: NightshadeTypography.fontSize14,
             fontWeight: FontWeight.w700,
             color: colors.textPrimary,
           ),
@@ -190,7 +190,7 @@ class _Step3Review extends StatelessWidget {
           padding: NightshadeTokens.paddingMd,
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(color: colors.border),
           ),
           child: Column(
@@ -199,7 +199,7 @@ class _Step3Review extends StatelessWidget {
               Text(
                 typeLabel,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   fontWeight: FontWeight.w700,
                   color: colors.primary,
                 ),
@@ -208,7 +208,7 @@ class _Step3Review extends StatelessWidget {
               Text(
                 summary,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   color: colors.textPrimary,
                   height: 1.5,
                 ),

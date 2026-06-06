@@ -275,10 +275,11 @@ class TargetPreviewTooltip extends ConsumerWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             border: Border.all(color: colors.border),
             boxShadow: [
               BoxShadow(
+                // absolute: drop-shadow scrim (theme-independent)
                 color: Colors.black.withValues(alpha: 0.3),
                 blurRadius: 12,
                 offset: const Offset(0, 4),
@@ -296,7 +297,7 @@ class TargetPreviewTooltip extends ConsumerWidget {
                     padding: const EdgeInsets.all(8),
                     decoration: NightshadeDecorations.statusChip(
                       colors.warning,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                       bordered: false,
                     ),
                     child: Icon(
@@ -313,7 +314,7 @@ class TargetPreviewTooltip extends ConsumerWidget {
                         Text(
                           target.targetName,
                           style: TextStyle(
-                            fontSize: 14,
+                            fontSize: NightshadeTypography.fontSize14,
                             fontWeight: FontWeight.w700,
                             color: colors.textPrimary,
                           ),
@@ -322,7 +323,7 @@ class TargetPreviewTooltip extends ConsumerWidget {
                           Text(
                             'Priority: ${target.priority}',
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: NightshadeTypography.fontSize10,
                               color: colors.textMuted,
                             ),
                           ),
@@ -370,7 +371,7 @@ class TargetPreviewTooltip extends ConsumerWidget {
                       child: Text(
                         'Set observer location for altitude data',
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: NightshadeTypography.fontSize10,
                           fontStyle: FontStyle.italic,
                           color: colors.textMuted,
                         ),
@@ -445,7 +446,7 @@ class TargetPreviewTooltip extends ConsumerWidget {
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
                           color: colors.surfaceAlt,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                         ),
                         child: Row(
                           children: [
@@ -461,16 +462,12 @@ class TargetPreviewTooltip extends ConsumerWidget {
                                 children: [
                                   Text(
                                     'Transit: ${_formatTime(data.transitTime)}',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: FontWeight.w600,
-                                      color: colors.textPrimary,
-                                    ),
+                                    style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
                                   ),
                                   Text(
                                     'Max altitude: ${data.transitAltitude.toStringAsFixed(1)}°',
                                     style: TextStyle(
-                                      fontSize: 10,
+                                      fontSize: NightshadeTypography.fontSize10,
                                       color: colors.textSecondary,
                                     ),
                                   ),
@@ -482,13 +479,13 @@ class TargetPreviewTooltip extends ConsumerWidget {
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                                 decoration: NightshadeDecorations.statusChip(
                                   colors.primary,
-                                  borderRadius: BorderRadius.circular(4),
+                                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                                   bordered: false,
                                 ),
                                 child: Text(
                                   '${data.hoursAboveHorizon.toStringAsFixed(1)}h',
                                   style: TextStyle(
-                                    fontSize: 10,
+                                    fontSize: NightshadeTypography.fontSize10,
                                     fontWeight: FontWeight.w600,
                                     color: colors.primary,
                                   ),
@@ -512,7 +509,7 @@ class TargetPreviewTooltip extends ConsumerWidget {
                             Text(
                               'Constraints: ',
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: NightshadeTypography.fontSize10,
                                 color: colors.textMuted,
                               ),
                             ),
@@ -520,7 +517,7 @@ class TargetPreviewTooltip extends ConsumerWidget {
                               Text(
                                 'Min ${target.minAltitude!.toStringAsFixed(0)}°',
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: NightshadeTypography.fontSize10,
                                   color: colors.textSecondary,
                                 ),
                               ),
@@ -528,7 +525,7 @@ class TargetPreviewTooltip extends ConsumerWidget {
                               Text(
                                 ' - ',
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: NightshadeTypography.fontSize10,
                                   color: colors.textMuted,
                                 ),
                               ),
@@ -536,7 +533,7 @@ class TargetPreviewTooltip extends ConsumerWidget {
                               Text(
                                 'Max ${target.maxAltitude!.toStringAsFixed(0)}°',
                                 style: TextStyle(
-                                  fontSize: 10,
+                                  fontSize: NightshadeTypography.fontSize10,
                                   color: colors.textSecondary,
                                 ),
                               ),
@@ -597,14 +594,14 @@ class _InfoRow extends StatelessWidget {
         Text(
           '$label: ',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,
           ),
         ),
         Text(
           value,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: FontWeight.w600,
             color: valueColor ?? colors.textSecondary,
             fontFeatures: const [FontFeature.tabularFigures()],
@@ -634,7 +631,7 @@ class _StatusBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: NightshadeDecorations.statusChip(
         color,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -644,7 +641,7 @@ class _StatusBadge extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               fontWeight: FontWeight.w600,
               color: color,
             ),

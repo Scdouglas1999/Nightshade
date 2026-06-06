@@ -55,12 +55,12 @@ extension _ImagingScreenActions on _ImagingScreenState {
         backgroundColor: colors.surface,
         title: Row(
           children: [
-            Icon(LucideIcons.sparkles, color: colors.primary, size: 22),
+            Icon(NightshadeIcons.sparkle, color: colors.primary, size: 22),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 'Annotation Catalogs Required',
-                style: TextStyle(color: colors.textPrimary, fontSize: 16),
+                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize16),
               ),
             ),
           ],
@@ -71,7 +71,7 @@ extension _ImagingScreenActions on _ImagingScreenState {
           'nebulae, and other objects in your images.\n\n'
           'This only takes a moment and greatly enhances your imaging experience.',
           style:
-              TextStyle(color: colors.textSecondary, fontSize: 13, height: 1.5),
+              TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13, height: 1.5),
         ),
         actions: [
           NightshadeButton(

@@ -108,13 +108,10 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
           const SizedBox(height: 16),
 
           // Computed values
-          Container(
+          NightshadeCard(
+            variant: CardVariant.subtle,
+            borderRadius: NightshadeTokens.radiusInline8,
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: colors.border),
-            ),
             child: Row(
               children: [
                 _ComputedValue(
@@ -157,11 +154,7 @@ extension _ProfileEditorOpticalAndDevices on _ProfileEditorDialogState {
       children: [
         Text(
           label,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.labelSm.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(width: NightshadeTokens.spaceXs),
         helpAffordance(context, title: helpTitle, body: helpBody),

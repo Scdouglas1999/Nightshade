@@ -78,13 +78,13 @@ class _AutofocusProgressPanelState
             height: 40,
             decoration: BoxDecoration(
               color: widget.colors.surface,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
               border: Border.all(color: widget.colors.border),
             ),
             child: Center(
               child: Text('Waiting for data...',
                   style:
-                      TextStyle(fontSize: 10, color: widget.colors.textMuted)),
+                      TextStyle(fontSize: NightshadeTypography.fontSize10, color: widget.colors.textMuted)),
             ),
           ),
           const SizedBox(height: 8),
@@ -180,7 +180,7 @@ class _AutofocusProgressPanelState
                   child: Container(
                     decoration: BoxDecoration(
                       color: widget.colors.surface,
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                       border: Border.all(color: widget.colors.border),
                     ),
                     child: CustomPaint(
@@ -255,20 +255,17 @@ class _AutofocusProgressPanelState
   Widget _buildHeader(int? currentPoint, int? totalPoints) {
     return Row(
       children: [
-        Icon(Icons.center_focus_strong, size: 16, color: widget.colors.primary),
+        Icon(NightshadeIcons.crosshair, size: 16, color: widget.colors.primary),
         const SizedBox(width: 8),
         Text(
           'Autofocus',
-          style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: widget.colors.textPrimary),
+          style: NightshadeTypography.labelStrongSm.copyWith(color: widget.colors.textPrimary),
         ),
         const Spacer(),
         if (currentPoint != null && totalPoints != null)
           Text(
             'Point $currentPoint of $totalPoints',
-            style: TextStyle(fontSize: 10, color: widget.colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: widget.colors.textMuted),
           ),
       ],
     );

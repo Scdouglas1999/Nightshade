@@ -28,9 +28,9 @@ class _CloudCoverCard extends StatelessWidget {
   }
 
   IconData _getCloudCoverIcon(double percent) {
-    if (percent <= 20) return LucideIcons.sun;
-    if (percent <= 50) return LucideIcons.cloudSun;
-    if (percent <= 80) return LucideIcons.cloud;
+    if (percent <= 20) return NightshadeIcons.sun;
+    if (percent <= 50) return NightshadeIcons.weather;
+    if (percent <= 80) return NightshadeIcons.cloud;
     return LucideIcons.cloudFog;
   }
 
@@ -41,13 +41,10 @@ class _CloudCoverCard extends StatelessWidget {
     final label = _getCloudCoverLabel(percent);
     final icon = _getCloudCoverIcon(percent);
 
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusInline8,
       padding: _weatherCardPadding(context),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
       child: Row(
         children: [
           // Icon
@@ -55,7 +52,7 @@ class _CloudCoverCard extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             decoration: NightshadeDecorations.tintedBadge(
               coverColor,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NightshadeTokens.borderRadiusInline8,
             ),
             child: Icon(
               icon,
@@ -73,7 +70,7 @@ class _CloudCoverCard extends StatelessWidget {
                 Text(
                   'Cloud Cover',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -97,7 +94,7 @@ class _CloudCoverCard extends StatelessWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
-                          fontSize: 14,
+                          fontSize: NightshadeTypography.fontSize14,
                           fontWeight: FontWeight.w500,
                           color: colors.textPrimary,
                         ),
@@ -124,11 +121,7 @@ class _CloudCoverCard extends StatelessWidget {
                 ),
                 Text(
                   cloudCoverPercent != null ? '${percent.toInt()}' : '--',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                 ),
               ],
             ),
@@ -161,13 +154,10 @@ class _HardwareSensorsCard extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusInline8,
       padding: _weatherCardPadding(context),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -178,10 +168,10 @@ class _HardwareSensorsCard extends ConsumerWidget {
                 padding: const EdgeInsets.all(8),
                 decoration: NightshadeDecorations.tintedBadge(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: NightshadeTokens.borderRadiusInline8,
                 ),
                 child: Icon(
-                  LucideIcons.cpu,
+                  NightshadeIcons.cpu,
                   size: 16,
                   color: colors.primary,
                 ),
@@ -193,16 +183,12 @@ class _HardwareSensorsCard extends ConsumerWidget {
                   children: [
                     Text(
                       'Hardware Sensors',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                     ),
                     Text(
                       'Live readings from connected devices',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: colors.textSecondary,
                       ),
                     ),
@@ -218,8 +204,8 @@ class _HardwareSensorsCard extends ConsumerWidget {
             _SensorRow(
               colors: colors,
               icon: safetyState.isSafe
-                  ? LucideIcons.shieldCheck
-                  : LucideIcons.shieldAlert,
+                  ? NightshadeIcons.shieldOk
+                  : NightshadeIcons.shieldAlert,
               label: 'Safety Monitor',
               value: safetyState.isSafe ? 'SAFE' : 'UNSAFE',
               valueColor: safetyState.isSafe ? colors.success : colors.error,
@@ -233,7 +219,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
             if (weatherState.temperature != null)
               _SensorRow(
                 colors: colors,
-                icon: LucideIcons.thermometer,
+                icon: NightshadeIcons.temperature,
                 label: 'Temperature',
                 value: '${weatherState.temperature!.toStringAsFixed(1)}°C',
               ),
@@ -241,7 +227,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
               const SizedBox(height: 8),
               _SensorRow(
                 colors: colors,
-                icon: LucideIcons.droplets,
+                icon: NightshadeIcons.humidity,
                 label: 'Humidity',
                 value: '${weatherState.humidity!.toStringAsFixed(0)}%',
                 valueColor: weatherState.humidity! > 80 ? colors.warning : null,
@@ -260,7 +246,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
               const SizedBox(height: 8),
               _SensorRow(
                 colors: colors,
-                icon: LucideIcons.wind,
+                icon: NightshadeIcons.wind,
                 label: 'Wind Speed',
                 value: '${weatherState.windSpeed!.toStringAsFixed(1)} m/s',
                 valueColor:
@@ -271,7 +257,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
               const SizedBox(height: 8),
               _SensorRow(
                 colors: colors,
-                icon: LucideIcons.cloud,
+                icon: NightshadeIcons.cloud,
                 label: 'Cloud Cover',
                 value: '${weatherState.cloudCover!.toStringAsFixed(0)}%',
                 valueColor:
@@ -282,7 +268,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
               const SizedBox(height: 8),
               _SensorRow(
                 colors: colors,
-                icon: LucideIcons.sparkles,
+                icon: NightshadeIcons.sparkle,
                 label: 'Sky Quality',
                 value:
                     '${weatherState.skyQuality!.toStringAsFixed(2)} mag/arcsec²',
@@ -293,7 +279,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
               const SizedBox(height: 8),
               _SensorRow(
                 colors: colors,
-                icon: LucideIcons.cloudRain,
+                icon: NightshadeIcons.rain,
                 label: 'Rain',
                 value: '${weatherState.rainRate!.toStringAsFixed(1)} mm/hr',
                 valueColor: colors.error,
@@ -307,7 +293,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
             Text(
               'Last updated: ${_formatTime(weatherState.lastUpdated!)}',
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 color: colors.textSecondary.withValues(alpha: 0.7),
               ),
             ),
@@ -357,7 +343,7 @@ class _SensorRow extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textSecondary,
                 ),
               ),
@@ -365,7 +351,7 @@ class _SensorRow extends StatelessWidget {
                 Text(
                   deviceName!,
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: NightshadeTypography.fontSize9,
                     color: colors.textSecondary.withValues(alpha: 0.6),
                   ),
                 ),
@@ -374,11 +360,7 @@ class _SensorRow extends StatelessWidget {
         ),
         Text(
           value,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: valueColor ?? colors.textPrimary,
-          ),
+          style: NightshadeTypography.labelStrong.copyWith(color: valueColor ?? colors.textPrimary),
         ),
       ],
     );

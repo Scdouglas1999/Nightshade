@@ -90,11 +90,11 @@ class _OnboardingSummaryStepState
             hintText: 'My First Rig',
             hintStyle: TextStyle(color: colors.textMuted),
             enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NightshadeTokens.borderRadiusInline8,
               borderSide: BorderSide(color: colors.border),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NightshadeTokens.borderRadiusInline8,
               borderSide: BorderSide(color: colors.primary),
             ),
             filled: true,
@@ -107,44 +107,41 @@ class _OnboardingSummaryStepState
           },
         ),
         const SizedBox(height: 18),
-        Container(
+        NightshadeCard(
+          variant: CardVariant.subtle,
+          borderRadius: NightshadeTokens.radiusLg,
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: colors.border),
-          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _summaryRow(theme, colors, LucideIcons.camera, 'Camera',
+              _summaryRow(theme, colors, NightshadeIcons.camera, 'Camera',
                   draft.cameraName),
-              _summaryRow(theme, colors, LucideIcons.compass, 'Mount',
+              _summaryRow(theme, colors, NightshadeIcons.compass, 'Mount',
                   draft.mountName),
-              _summaryRow(theme, colors, LucideIcons.focus, 'Focuser',
+              _summaryRow(theme, colors, NightshadeIcons.focuser, 'Focuser',
                   draft.focuserName ?? '— not set —'),
-              _summaryRow(theme, colors, LucideIcons.disc, 'Filter wheel',
+              _summaryRow(theme, colors, NightshadeIcons.filterWheel, 'Filter wheel',
                   draft.filterWheelName ?? '— not set —'),
               if (draft.filterNames.isNotEmpty)
-                _summaryRow(theme, colors, LucideIcons.list, 'Filters',
+                _summaryRow(theme, colors, NightshadeIcons.list, 'Filters',
                     draft.filterNames.join(', ')),
-              _summaryRow(theme, colors, LucideIcons.crosshair, 'Guider',
+              _summaryRow(theme, colors, NightshadeIcons.crosshair, 'Guider',
                   draft.guiderName ?? '— not set —'),
               const Divider(height: 20),
               _summaryRow(theme, colors, LucideIcons.ruler, 'Focal length',
                   draft.focalLengthMm != null
                       ? '${draft.focalLengthMm!.toStringAsFixed(1)} mm × ${draft.reducerFactor.toStringAsFixed(2)}'
                       : null),
-              _summaryRow(theme, colors, LucideIcons.aperture, 'Aperture',
+              _summaryRow(theme, colors, NightshadeIcons.aperture, 'Aperture',
                   draft.apertureMm != null
                       ? '${draft.apertureMm!.toStringAsFixed(1)} mm'
                       : null),
-              _summaryRow(theme, colors, LucideIcons.move, 'Image scale',
+              _summaryRow(theme, colors, NightshadeIcons.move, 'Image scale',
                   imageScale != null
                       ? '${imageScale.toStringAsFixed(2)} arcsec/px'
                       : null),
               const Divider(height: 20),
-              _summaryRow(theme, colors, LucideIcons.folder,
+              _summaryRow(theme, colors, NightshadeIcons.folder,
                   'Capture folder', draft.captureDirectory),
             ],
           ),
@@ -154,11 +151,11 @@ class _OnboardingSummaryStepState
           padding: const EdgeInsets.all(12),
           decoration: NightshadeDecorations.emphasisSurface(
             colors.primary,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: NightshadeTokens.borderRadiusLg,
           ),
           child: Row(
             children: [
-              Icon(LucideIcons.info, color: colors.primary, size: 16),
+              Icon(NightshadeIcons.info, color: colors.primary, size: 16),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

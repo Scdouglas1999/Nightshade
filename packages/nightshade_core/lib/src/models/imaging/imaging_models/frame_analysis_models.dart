@@ -59,6 +59,12 @@ enum DebayerAlgorithm {
 class ImageStats extends Equatable {
   final double? hfr;
   final double? fwhm;
+
+  /// Per-frame median star eccentricity (0.0 = round, →1.0 = trailed).
+  /// `null` when the native detector could not honestly measure it (too few
+  /// reliable stars) or the producing path ran no star detection — never a
+  /// fabricated value.
+  final double? eccentricity;
   final int? starCount;
   final double? median;
   final double? mean;
@@ -73,6 +79,7 @@ class ImageStats extends Equatable {
   const ImageStats({
     this.hfr,
     this.fwhm,
+    this.eccentricity,
     this.starCount,
     this.median,
     this.mean,
@@ -89,6 +96,7 @@ class ImageStats extends Equatable {
     return ImageStats(
       hfr: (json['hfr'] as num?)?.toDouble(),
       fwhm: (json['fwhm'] as num?)?.toDouble(),
+      eccentricity: (json['eccentricity'] as num?)?.toDouble(),
       starCount: json['starCount'] as int?,
       median: (json['median'] as num?)?.toDouble(),
       mean: (json['mean'] as num?)?.toDouble(),
@@ -106,6 +114,7 @@ class ImageStats extends Equatable {
     return {
       'hfr': hfr,
       'fwhm': fwhm,
+      'eccentricity': eccentricity,
       'starCount': starCount,
       'median': median,
       'mean': mean,
@@ -123,6 +132,7 @@ class ImageStats extends Equatable {
   List<Object?> get props => [
         hfr,
         fwhm,
+        eccentricity,
         starCount,
         median,
         mean,

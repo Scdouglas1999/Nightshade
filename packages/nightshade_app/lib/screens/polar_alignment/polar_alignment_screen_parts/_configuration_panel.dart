@@ -25,7 +25,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
                 children: [
                   // Essential settings - always visible
                   _buildSectionHeader(
-                      colors, 'Essential', LucideIcons.settings),
+                      colors, 'Essential', NightshadeIcons.settings),
                   const SizedBox(height: 12),
                   _buildEssentialSettings(colors, config, isRunning),
 
@@ -42,7 +42,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
                   if (state.phase == PolarAlignPhase.adjusting) ...[
                     const SizedBox(height: 24),
                     _buildSectionHeader(
-                        colors, 'Adjustment Tips', LucideIcons.lightbulb),
+                        colors, 'Adjustment Tips', NightshadeIcons.idea),
                     const SizedBox(height: 12),
                     _buildAdjustmentTips(colors),
                     if (state.currentError != null) ...[
@@ -73,11 +73,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
         const SizedBox(width: 8),
         Text(
           title,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
       ],
     );
@@ -135,7 +131,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
                 width: 40,
                 child: Text(
                   '${config.exposureTime.toInt()}s',
-                  style: TextStyle(fontSize: 11, color: colors.textPrimary),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
                 ),
               ),
             ],
@@ -163,15 +159,11 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
         onExpansionChanged: uiNotifier.setShowCommonSettings,
         title: Row(
           children: [
-            Icon(LucideIcons.sliders, size: 14, color: colors.textMuted),
+            Icon(NightshadeIcons.sliders, size: 14, color: colors.textMuted),
             const SizedBox(width: 8),
             Text(
               'Common',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
             ),
           ],
         ),
@@ -217,7 +209,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
                   width: 40,
                   child: Text(
                     '${config.stepSize.toInt()}°',
-                    style: TextStyle(fontSize: 11, color: colors.textPrimary),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
                   ),
                 ),
               ],
@@ -265,15 +257,11 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
         onExpansionChanged: uiNotifier.setShowAdvancedSettings,
         title: Row(
           children: [
-            Icon(LucideIcons.settings2, size: 14, color: colors.textMuted),
+            Icon(NightshadeIcons.settings2, size: 14, color: colors.textMuted),
             const SizedBox(width: 8),
             Text(
               'Advanced',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
             ),
           ],
         ),
@@ -313,7 +301,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
                   width: 40,
                   child: Text(
                     '${config.solveTimeout.toInt()}s',
-                    style: TextStyle(fontSize: 11, color: colors.textPrimary),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
                   ),
                 ),
               ],
@@ -362,7 +350,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
                   width: 40,
                   child: Text(
                     '${config.autoCompleteThreshold.toInt()}"',
-                    style: TextStyle(fontSize: 11, color: colors.textPrimary),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
                   ),
                 ),
               ],

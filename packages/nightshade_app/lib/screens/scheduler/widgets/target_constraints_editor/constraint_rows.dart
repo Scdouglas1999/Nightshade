@@ -40,7 +40,7 @@ class _ConstraintRowState extends State<_ConstraintRow> {
         ),
         decoration: BoxDecoration(
           color: c.enabled ? colors.surfaceAlt : colors.surfaceHover,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(color: colors.border),
         ),
         child: Row(
@@ -54,9 +54,7 @@ class _ConstraintRowState extends State<_ConstraintRow> {
               width: 150,
               child: Text(
                 _kindLabel(c.kind),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.labelStrong.copyWith(
                   color: colors.textPrimary,
                 ),
               ),

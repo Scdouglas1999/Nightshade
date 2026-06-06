@@ -1,5 +1,11 @@
 part of '../mobile_widgets.dart';
 
+// NOTE (design tokens): the `Colors.white*` / `Colors.black*` literals in this
+// file are canvas-absolute HUD colors for the mobile planetarium view/slew
+// controls drawn over the sky. The planetarium is wrapped in
+// `_NightVisionFilter` (luminance→red conversion for dark adaptation), so they
+// are intentionally NOT mapped to the theme-relative semantic palette.
+
 class MobileViewControls extends ConsumerWidget {
   final NightshadeColors colors;
   final bool showFOV;
@@ -21,13 +27,13 @@ class MobileViewControls extends ConsumerWidget {
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           MobileControlButton(
-            icon: LucideIcons.plus,
+            icon: NightshadeIcons.add,
             onTap: ref.read(skyViewStateProvider.notifier).zoomIn,
           ),
           Container(
@@ -35,14 +41,14 @@ class MobileViewControls extends ConsumerWidget {
             child: Text(
               viewState.fieldOfView.toStringAsFixed(0),
               style: const TextStyle(
-                fontSize: 9,
+                fontSize: NightshadeTypography.fontSize9,
                 color: Colors.white70,
                 fontFeatures: [ui.FontFeature.tabularFigures()],
               ),
             ),
           ),
           MobileControlButton(
-            icon: LucideIcons.minus,
+            icon: NightshadeIcons.remove,
             onTap: ref.read(skyViewStateProvider.notifier).zoomOut,
           ),
           Container(
@@ -52,7 +58,7 @@ class MobileViewControls extends ConsumerWidget {
             color: Colors.white24,
           ),
           MobileControlButton(
-            icon: LucideIcons.home,
+            icon: NightshadeIcons.home,
             onTap: () {
               ref.read(skyViewStateProvider.notifier).setCenter(0, 0);
               ref.read(skyViewStateProvider.notifier).setFieldOfView(60);
@@ -61,7 +67,7 @@ class MobileViewControls extends ConsumerWidget {
           const SizedBox(height: 4),
           MobileControlButton(
             key: PlanetariumTutorialKeys.fovToggle,
-            icon: LucideIcons.frame,
+            icon: NightshadeIcons.frame,
             isActive: showFOV,
             onTap: onToggleFOV,
           ),
@@ -102,14 +108,14 @@ class MobileViewControls extends ConsumerWidget {
                             decoration: isEnabled
                                 ? NightshadeDecorations.selectedSurface(
                                     colors.info,
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                                   )
                                 : null,
                             child: Stack(
                               alignment: Alignment.center,
                               children: [
                                 Icon(
-                                  LucideIcons.compass,
+                                  NightshadeIcons.compass,
                                   size: gyroInner * 0.54,
                                   color:
                                       isEnabled ? colors.info : Colors.white70,
@@ -157,11 +163,11 @@ class MobileViewControls extends ConsumerWidget {
                               decoration: mountSyncActive
                                   ? NightshadeDecorations.selectedSurface(
                                       colors.warning,
-                                      borderRadius: BorderRadius.circular(4),
+                                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                                     )
                                   : null,
                               child: Icon(
-                                LucideIcons.star,
+                                NightshadeIcons.star,
                                 size: gyroInner * 0.54,
                                 color: mountSyncActive
                                     ? colors.warning
@@ -257,7 +263,7 @@ class MobileSlewControls extends ConsumerWidget {
       padding: const EdgeInsets.all(6),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: slewMode ? Border.all(color: colors.warning, width: 2) : null,
       ),
       child: Column(
@@ -265,7 +271,7 @@ class MobileSlewControls extends ConsumerWidget {
         children: [
           MobileControlButton(
             key: PlanetariumTutorialKeys.slewBtn,
-            icon: LucideIcons.move,
+            icon: NightshadeIcons.move,
             isActive: slewMode,
             isEnabled: isConnected,
             onTap: isConnected ? onToggleSlewMode : null,
@@ -322,7 +328,7 @@ class MobileControlButton extends StatelessWidget {
             decoration: BoxDecoration(
               color:
                   isActive ? color.withValues(alpha: 0.2) : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Icon(
               icon,

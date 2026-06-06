@@ -100,7 +100,7 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
               margin: const EdgeInsets.only(bottom: 16),
               decoration: NightshadeDecorations.emphasisSurface(
                 widget.colors.warning,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Row(
                 children: [
@@ -111,7 +111,7 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
                     child: Text(
                       'No guider connected',
                       style:
-                          TextStyle(fontSize: 12, color: widget.colors.warning),
+                          TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.warning),
                     ),
                   ),
                 ],
@@ -156,7 +156,7 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
                                 ? 'Guiding'
                                 : 'Start',
                         icon:
-                            isGuiding ? LucideIcons.activity : LucideIcons.play,
+                            isGuiding ? NightshadeIcons.activity : NightshadeIcons.play,
                         colors: widget.colors,
                         isEnabled:
                             isConnected && !isGuiding && !_isStartingGuiding,
@@ -167,7 +167,7 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
                     Expanded(
                       child: SmallButton(
                         label: 'Stop',
-                        icon: LucideIcons.square,
+                        icon: NightshadeIcons.stop,
                         isOutline: true,
                         colors: widget.colors,
                         isEnabled: isConnected && isGuiding,
@@ -182,7 +182,7 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
                   child: SmallButton(
                     label: _isDithering ? 'Dithering...' : 'Dither',
                     icon: _isDithering
-                        ? LucideIcons.loader2
+                        ? NightshadeIcons.loading
                         : LucideIcons.shuffle,
                     isOutline: true,
                     colors: widget.colors,
@@ -288,19 +288,15 @@ class _BuiltinGuiderConfigSection extends ConsumerWidget {
               children: [
                 Icon(
                   isExpanded
-                      ? LucideIcons.chevronDown
-                      : LucideIcons.chevronRight,
+                      ? NightshadeIcons.chevronDown
+                      : NightshadeIcons.chevronRight,
                   size: 14,
                   color: colors.textPrimary,
                 ),
                 const SizedBox(width: 6),
                 Text(
                   'Guider Configuration',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
                 ),
                 const Spacer(),
                 Container(
@@ -308,12 +304,12 @@ class _BuiltinGuiderConfigSection extends ConsumerWidget {
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: NightshadeDecorations.tintedBadge(
                     colors.primary,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                   ),
                   child: Text(
                     'Built-in',
                     style: TextStyle(
-                      fontSize: 9,
+                      fontSize: NightshadeTypography.fontSize9,
                       fontWeight: FontWeight.w600,
                       color: colors.primary,
                     ),
@@ -326,13 +322,9 @@ class _BuiltinGuiderConfigSection extends ConsumerWidget {
         if (isExpanded) ...[
           const SizedBox(height: 12),
           configAsync.when(
-            loading: () => Container(
+            loading: () => NightshadeCard(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: colors.border),
-              ),
+              borderRadius: NightshadeTokens.radiusLg,
               child: Center(
                 child: SizedBox(
                   width: 16,
@@ -348,11 +340,11 @@ class _BuiltinGuiderConfigSection extends ConsumerWidget {
               padding: const EdgeInsets.all(14),
               decoration: NightshadeDecorations.emphasisSurface(
                 colors.error,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               ),
               child: Text(
                 'Failed to load guider config: $error',
-                style: TextStyle(fontSize: 11, color: colors.error),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.error),
               ),
             ),
             data: (config) => _BuiltinGuiderConfigForm(
@@ -536,13 +528,9 @@ class _BuiltinGuiderConfigFormState
             '${pulseBounds.max.toStringAsFixed(0)} ms'
         : null;
 
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: widget.colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: widget.colors.border),
-      ),
+      borderRadius: NightshadeTokens.radiusLg,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -610,7 +598,7 @@ class _BuiltinGuiderConfigFormState
               Expanded(
                 child: SmallButton(
                   label: 'Apply',
-                  icon: LucideIcons.check,
+                  icon: NightshadeIcons.check,
                   colors: widget.colors,
                   onTap: () => _applyConfig(mountCaps),
                 ),
@@ -619,7 +607,7 @@ class _BuiltinGuiderConfigFormState
               Expanded(
                 child: SmallButton(
                   label: 'Reset Defaults',
-                  icon: LucideIcons.rotateCcw,
+                  icon: NightshadeIcons.undo,
                   isOutline: true,
                   colors: widget.colors,
                   onTap: _resetDefaults,
@@ -667,7 +655,7 @@ class _ConfigInputRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final labelStyle = TextStyle(
-      fontSize: 12,
+      fontSize: NightshadeTypography.fontSize12,
       color: colors.textSecondary,
     );
     final id = helpId;
@@ -710,13 +698,13 @@ class _ConfigInputRow extends StatelessWidget {
               Container(
                 decoration: BoxDecoration(
                   color: colors.background,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                   border: Border.all(color: colors.border),
                 ),
                 child: TextField(
                   controller: controller,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textPrimary,
                   ),
                   decoration: InputDecoration(
@@ -726,7 +714,7 @@ class _ConfigInputRow extends StatelessWidget {
                     isDense: true,
                     suffixText: suffix,
                     suffixStyle: TextStyle(
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                       color: colors.textMuted,
                     ),
                   ),
@@ -740,7 +728,7 @@ class _ConfigInputRow extends StatelessWidget {
                 Text(
                   helperText!,
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     color: colors.textMuted,
                   ),
                 ),
@@ -778,7 +766,7 @@ class CompactGuidingGraph extends StatelessWidget {
       height: 120,
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Stack(
@@ -787,7 +775,7 @@ class CompactGuidingGraph extends StatelessWidget {
           if (hasData)
             Positioned.fill(
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(9),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline9),
                 child: CustomPaint(
                   painter: _CompactGuidingGraphPainter(
                     data: data,
@@ -803,7 +791,7 @@ class CompactGuidingGraph extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    isGuiding ? LucideIcons.activity : LucideIcons.crosshair,
+                    isGuiding ? NightshadeIcons.activity : NightshadeIcons.crosshair,
                     size: 24,
                     color: isGuiding ? colors.success : colors.textMuted,
                   ),
@@ -815,7 +803,7 @@ class CompactGuidingGraph extends StatelessWidget {
                             ? 'Ready to guide'
                             : 'No guide data',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: isGuiding ? colors.success : colors.textMuted,
                     ),
                   ),
@@ -828,15 +816,17 @@ class CompactGuidingGraph extends StatelessWidget {
             left: 8,
             child: Row(
               children: [
-                Container(width: 12, height: 2, color: Colors.redAccent),
+                Container(
+                    width: 12, height: 2, color: NightshadeChartColors.seriesRed),
                 const SizedBox(width: 4),
                 Text('RA',
-                    style: TextStyle(fontSize: 9, color: colors.textMuted)),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted)),
                 const SizedBox(width: 12),
-                Container(width: 12, height: 2, color: Colors.blueAccent),
+                Container(
+                    width: 12, height: 2, color: NightshadeChartColors.seriesBlue),
                 const SizedBox(width: 4),
                 Text('Dec',
-                    style: TextStyle(fontSize: 9, color: colors.textMuted)),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted)),
               ],
             ),
           ),
@@ -871,12 +861,12 @@ class _CompactGuidingGraphPainter extends CustomPainter {
     if (data.isEmpty) return;
 
     final raPaint = Paint()
-      ..color = Colors.redAccent.withValues(alpha: 0.8)
+      ..color = NightshadeChartColors.seriesRed.withValues(alpha: 0.8)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
     final decPaint = Paint()
-      ..color = Colors.blueAccent.withValues(alpha: 0.8)
+      ..color = NightshadeChartColors.seriesBlue.withValues(alpha: 0.8)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
@@ -936,17 +926,13 @@ class GuideStat extends StatelessWidget {
         children: [
           Text(
             value,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 2),
           Text(
             label,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: colors.textMuted,
             ),
           ),

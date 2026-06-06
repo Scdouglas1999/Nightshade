@@ -139,7 +139,7 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
               margin: const EdgeInsets.only(bottom: 16),
               decoration: NightshadeDecorations.emphasisSurface(
                 widget.colors.warning,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Row(
                 children: [
@@ -150,7 +150,7 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                     child: Text(
                       'No focuser connected',
                       style:
-                          TextStyle(fontSize: 12, color: widget.colors.warning),
+                          TextStyle(fontSize: NightshadeTypography.fontSize12, color: widget.colors.warning),
                     ),
                   ),
                 ],
@@ -169,13 +169,13 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                   children: [
                     Text('Position',
                         style: TextStyle(
-                            fontSize: 12, color: widget.colors.textSecondary)),
+                            fontSize: NightshadeTypography.fontSize12, color: widget.colors.textSecondary)),
                     Row(
                       children: [
                         Text(
                           isConnected ? '$currentPosition' : '---',
                           style: TextStyle(
-                            fontSize: 18,
+                            fontSize: NightshadeTypography.fontSize18,
                             fontWeight: FontWeight.w600,
                             color: widget.colors.textPrimary,
                             fontFeatures: const [FontFeature.tabularFigures()],
@@ -184,7 +184,7 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                         Text(
                           isConnected ? ' / $maxPosition' : '',
                           style: TextStyle(
-                              fontSize: 12, color: widget.colors.textMuted),
+                              fontSize: NightshadeTypography.fontSize12, color: widget.colors.textMuted),
                         ),
                         if (isMoving)
                           Padding(
@@ -210,12 +210,12 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                       children: [
                         Text('Temperature',
                             style: TextStyle(
-                                fontSize: 12,
+                                fontSize: NightshadeTypography.fontSize12,
                                 color: widget.colors.textSecondary)),
                         Text(
                           '${temperature.toStringAsFixed(1)}°C',
                           style: TextStyle(
-                              fontSize: 12, color: widget.colors.textPrimary),
+                              fontSize: NightshadeTypography.fontSize12, color: widget.colors.textPrimary),
                         ),
                       ],
                     ),
@@ -234,7 +234,7 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                   children: [
                     Text('Step Size:',
                         style: TextStyle(
-                            fontSize: 11, color: widget.colors.textSecondary)),
+                            fontSize: NightshadeTypography.fontSize11, color: widget.colors.textSecondary)),
                     const SizedBox(width: 8),
                     ...[10, 50, 100, 500].map((step) {
                       final isSelected = focusSettings.stepSize == step;
@@ -250,12 +250,12 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                             decoration: isSelected
                                 ? NightshadeDecorations.selectedSurface(
                                     widget.colors.primary,
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                                     fillAlpha: 0.15,
                                   )
                                 : BoxDecoration(
                                     color: widget.colors.background,
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                                     border: Border.all(
                                       color: widget.colors.border,
                                     ),
@@ -263,7 +263,7 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                             child: Text(
                               '$step',
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: NightshadeTypography.fontSize10,
                                 fontWeight: isSelected
                                     ? FontWeight.w600
                                     : FontWeight.normal,
@@ -285,7 +285,7 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                   width: double.infinity,
                   child: SmallButton(
                     label: 'Go To Position...',
-                    icon: LucideIcons.move,
+                    icon: NightshadeIcons.move,
                     colors: widget.colors,
                     isEnabled: isConnected && !isMoving,
                     onTap: _showGoToPositionDialog,
@@ -365,8 +365,8 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                   child: SmallButton(
                     label: _isRunningAutofocus ? 'Running...' : 'Run Autofocus',
                     icon: _isRunningAutofocus
-                        ? LucideIcons.loader2
-                        : LucideIcons.focus,
+                        ? NightshadeIcons.loading
+                        : NightshadeIcons.focuser,
                     colors: widget.colors,
                     isEnabled: isConnected && !_isRunningAutofocus,
                     onTap: _runAutofocus,

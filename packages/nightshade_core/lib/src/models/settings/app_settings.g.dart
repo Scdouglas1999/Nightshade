@@ -111,6 +111,125 @@ _$AppSettingsImpl _$$AppSettingsImplFromJson(Map<String, dynamic> json) =>
                 (k, e) => MapEntry(k, (e as num).toDouble()),
               ) ??
               const <String, double>{},
+      parkOnUnsafeWeather: json['parkOnUnsafeWeather'] as bool? ?? true,
+      autoFocusOnFilterChange: json['autoFocusOnFilterChange'] as bool? ?? true,
+      afDisableGuidingDuringAf:
+          json['afDisableGuidingDuringAf'] as bool? ?? false,
+      ditherEnabled: json['ditherEnabled'] as bool? ?? true,
+      ditherScale: json['ditherScale'] as String? ?? 'Medium',
+      recoveryDefaultRetryIntervalMins:
+          (json['recoveryDefaultRetryIntervalMins'] as num?)?.toDouble() ??
+              10.0,
+      recoveryDefaultMaxDurationMins:
+          (json['recoveryDefaultMaxDurationMins'] as num?)?.toDouble() ?? 90.0,
+      recoveryStopTrackingDuringRecovery:
+          json['recoveryStopTrackingDuringRecovery'] as bool? ?? true,
+      recoveryAbortOnMeridian: json['recoveryAbortOnMeridian'] as bool? ?? true,
+      recoveryAudibleAlertWhenEntered:
+          json['recoveryAudibleAlertWhenEntered'] as bool? ?? true,
+      parkBeforeDawn: json['parkBeforeDawn'] as bool? ?? true,
+      enableMeridianFlip: json['enableMeridianFlip'] as bool? ?? true,
+      tempCompensation: json['tempCompensation'] as bool? ?? true,
+      tempCoefficient: (json['tempCoefficient'] as num?)?.toDouble() ?? -12.0,
+      backlashCompensation:
+          (json['backlashCompensation'] as num?)?.toInt() ?? 0,
+      settleThreshold: (json['settleThreshold'] as num?)?.toDouble() ?? 0.5,
+      settleTimeout: (json['settleTimeout'] as num?)?.toInt() ?? 30,
+      plateSolver: json['plateSolver'] as String? ?? 'ASTAP',
+      blindSolve: json['blindSolve'] as bool? ?? false,
+      bortleClass: (json['bortleClass'] as num?)?.toInt() ?? 5,
+      effectiveHorizonDeg:
+          (json['effectiveHorizonDeg'] as num?)?.toDouble() ?? 0.0,
+      preflightStrictness: json['preflightStrictness'] as String? ?? 'normal',
+      polarAlignmentMaxAgeDays:
+          (json['polarAlignmentMaxAgeDays'] as num?)?.toInt() ?? 7,
+      opticalTrainDriftThreshold:
+          (json['opticalTrainDriftThreshold'] as num?)?.toDouble() ?? 8.0,
+      darkLibraryMinCoverage:
+          (json['darkLibraryMinCoverage'] as num?)?.toInt() ?? 10,
+      smartNightMaxSessionHours:
+          (json['smartNightMaxSessionHours'] as num?)?.toDouble(),
+      smartNightDefaultAfCadenceFrames:
+          (json['smartNightDefaultAfCadenceFrames'] as num?)?.toInt() ?? 25,
+      smartNightDefaultIntegrationBudgetMinsPerTarget:
+          (json['smartNightDefaultIntegrationBudgetMinsPerTarget'] as num?)
+                  ?.toInt() ??
+              240,
+      smartNightIncludeFlatsAtEnd:
+          json['smartNightIncludeFlatsAtEnd'] as bool? ?? true,
+      smartNightUseSchedulerForMultiTarget:
+          json['smartNightUseSchedulerForMultiTarget'] as bool? ?? true,
+      smartNightSchedulerTargetThreshold:
+          (json['smartNightSchedulerTargetThreshold'] as num?)?.toInt() ?? 3,
+      smartNightDefaultStrategy:
+          json['smartNightDefaultStrategy'] as String? ?? 'auto_lrgb',
+      smartNightPolarAlignmentStaleAfterDays:
+          (json['smartNightPolarAlignmentStaleAfterDays'] as num?)?.toInt() ??
+              7,
+      smartNightSubExposureFloorSecs:
+          (json['smartNightSubExposureFloorSecs'] as num?)?.toDouble() ?? 30.0,
+      smartNightSubExposureCeilingSecs:
+          (json['smartNightSubExposureCeilingSecs'] as num?)?.toDouble() ??
+              300.0,
+      smartNightTargetSnr:
+          (json['smartNightTargetSnr'] as num?)?.toDouble() ?? 30.0,
+      coolingBehavior: json['coolingBehavior'] as String? ?? 'On Connect',
+      defaultGain: (json['defaultGain'] as num?)?.toInt() ?? 100,
+      defaultOffset: (json['defaultOffset'] as num?)?.toInt() ?? 50,
+      webServerEnabled: json['webServerEnabled'] as bool? ?? false,
+      webServerPort: (json['webServerPort'] as num?)?.toInt() ?? 8080,
+      phd2Path: json['phd2Path'] as String? ?? '',
+      phd2Host: json['phd2Host'] as String? ?? 'localhost',
+      phd2Port: (json['phd2Port'] as num?)?.toInt() ?? 4400,
+      notificationsEnabled: json['notificationsEnabled'] as bool? ?? true,
+      notifyOnSequenceComplete:
+          json['notifyOnSequenceComplete'] as bool? ?? true,
+      notifyOnError: json['notifyOnError'] as bool? ?? true,
+      notifyOnMeridianFlip: json['notifyOnMeridianFlip'] as bool? ?? false,
+      soundEnabled: json['soundEnabled'] as bool? ?? true,
+      audibleAlertsOnCritical:
+          json['audibleAlertsOnCritical'] as bool? ?? false,
+      criticalAlertSound: json['criticalAlertSound'] as String? ?? 'systemBell',
+      pushCriticalAlerts: json['pushCriticalAlerts'] as bool? ?? true,
+      smartNightAutoPromptEnabled:
+          json['smartNightAutoPromptEnabled'] as bool? ?? true,
+      promptForNotesAfterRun: json['promptForNotesAfterRun'] as bool? ?? true,
+      sessionHandoffAutoPrompt:
+          json['sessionHandoffAutoPrompt'] as bool? ?? true,
+      campaignRollupSurfaceTargetsTab:
+          json['campaignRollupSurfaceTargetsTab'] as bool? ?? true,
+      campaignRollupGroupingMode:
+          json['campaignRollupGroupingMode'] as String? ?? 'by_target_name',
+      afMethod: json['afMethod'] as String? ?? 'Star HFR',
+      afCurveFitting: json['afCurveFitting'] as String? ?? 'Hyperbolic',
+      afStepSize: (json['afStepSize'] as num?)?.toInt() ?? 50,
+      afExposureTime: (json['afExposureTime'] as num?)?.toDouble() ?? 4.0,
+      afInitialOffsetSteps:
+          (json['afInitialOffsetSteps'] as num?)?.toInt() ?? 4,
+      afNumberOfAttempts: (json['afNumberOfAttempts'] as num?)?.toInt() ?? 1,
+      afUseBrightestNStars:
+          (json['afUseBrightestNStars'] as num?)?.toInt() ?? 0,
+      afOuterCropRatio: (json['afOuterCropRatio'] as num?)?.toDouble() ?? 1.0,
+      afInnerCropRatio: (json['afInnerCropRatio'] as num?)?.toDouble() ?? 0.0,
+      afBinning: (json['afBinning'] as num?)?.toInt() ?? 1,
+      afRSquaredThreshold:
+          (json['afRSquaredThreshold'] as num?)?.toDouble() ?? 0.7,
+      afFocuserSettleTimeMs:
+          (json['afFocuserSettleTimeMs'] as num?)?.toInt() ?? 500,
+      afExposuresPerPoint: (json['afExposuresPerPoint'] as num?)?.toInt() ?? 1,
+      afBacklashCompMethod:
+          json['afBacklashCompMethod'] as String? ?? 'Overshoot',
+      afBacklashIn: (json['afBacklashIn'] as num?)?.toInt() ?? 350,
+      afBacklashOut: (json['afBacklashOut'] as num?)?.toInt() ?? 0,
+      afAutofocusFilterName: json['afAutofocusFilterName'] as String? ?? '',
+      afFilterSettingsJson: json['afFilterSettingsJson'] as String? ?? '{}',
+      useFilterFocusOffsets: json['useFilterFocusOffsets'] as bool? ?? true,
+      astrometryPath: json['astrometryPath'] as String? ?? '',
+      observerName: json['observerName'] as String? ?? '',
+      imageFormat: json['imageFormat'] as String? ?? 'FITS',
+      bitDepth: json['bitDepth'] as String? ?? '16-bit',
+      timezone: json['timezone'] as String? ?? 'UTC',
+      useSystemTime: json['useSystemTime'] as bool? ?? true,
     );
 
 Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
@@ -174,6 +293,98 @@ Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
           instance.adaptiveExposurePerFilterMinSecs,
       'adaptiveExposurePerFilterMaxSecs':
           instance.adaptiveExposurePerFilterMaxSecs,
+      'parkOnUnsafeWeather': instance.parkOnUnsafeWeather,
+      'autoFocusOnFilterChange': instance.autoFocusOnFilterChange,
+      'afDisableGuidingDuringAf': instance.afDisableGuidingDuringAf,
+      'ditherEnabled': instance.ditherEnabled,
+      'ditherScale': instance.ditherScale,
+      'recoveryDefaultRetryIntervalMins':
+          instance.recoveryDefaultRetryIntervalMins,
+      'recoveryDefaultMaxDurationMins': instance.recoveryDefaultMaxDurationMins,
+      'recoveryStopTrackingDuringRecovery':
+          instance.recoveryStopTrackingDuringRecovery,
+      'recoveryAbortOnMeridian': instance.recoveryAbortOnMeridian,
+      'recoveryAudibleAlertWhenEntered':
+          instance.recoveryAudibleAlertWhenEntered,
+      'parkBeforeDawn': instance.parkBeforeDawn,
+      'enableMeridianFlip': instance.enableMeridianFlip,
+      'tempCompensation': instance.tempCompensation,
+      'tempCoefficient': instance.tempCoefficient,
+      'backlashCompensation': instance.backlashCompensation,
+      'settleThreshold': instance.settleThreshold,
+      'settleTimeout': instance.settleTimeout,
+      'plateSolver': instance.plateSolver,
+      'blindSolve': instance.blindSolve,
+      'bortleClass': instance.bortleClass,
+      'effectiveHorizonDeg': instance.effectiveHorizonDeg,
+      'preflightStrictness': instance.preflightStrictness,
+      'polarAlignmentMaxAgeDays': instance.polarAlignmentMaxAgeDays,
+      'opticalTrainDriftThreshold': instance.opticalTrainDriftThreshold,
+      'darkLibraryMinCoverage': instance.darkLibraryMinCoverage,
+      'smartNightMaxSessionHours': instance.smartNightMaxSessionHours,
+      'smartNightDefaultAfCadenceFrames':
+          instance.smartNightDefaultAfCadenceFrames,
+      'smartNightDefaultIntegrationBudgetMinsPerTarget':
+          instance.smartNightDefaultIntegrationBudgetMinsPerTarget,
+      'smartNightIncludeFlatsAtEnd': instance.smartNightIncludeFlatsAtEnd,
+      'smartNightUseSchedulerForMultiTarget':
+          instance.smartNightUseSchedulerForMultiTarget,
+      'smartNightSchedulerTargetThreshold':
+          instance.smartNightSchedulerTargetThreshold,
+      'smartNightDefaultStrategy': instance.smartNightDefaultStrategy,
+      'smartNightPolarAlignmentStaleAfterDays':
+          instance.smartNightPolarAlignmentStaleAfterDays,
+      'smartNightSubExposureFloorSecs': instance.smartNightSubExposureFloorSecs,
+      'smartNightSubExposureCeilingSecs':
+          instance.smartNightSubExposureCeilingSecs,
+      'smartNightTargetSnr': instance.smartNightTargetSnr,
+      'coolingBehavior': instance.coolingBehavior,
+      'defaultGain': instance.defaultGain,
+      'defaultOffset': instance.defaultOffset,
+      'webServerEnabled': instance.webServerEnabled,
+      'webServerPort': instance.webServerPort,
+      'phd2Path': instance.phd2Path,
+      'phd2Host': instance.phd2Host,
+      'phd2Port': instance.phd2Port,
+      'notificationsEnabled': instance.notificationsEnabled,
+      'notifyOnSequenceComplete': instance.notifyOnSequenceComplete,
+      'notifyOnError': instance.notifyOnError,
+      'notifyOnMeridianFlip': instance.notifyOnMeridianFlip,
+      'soundEnabled': instance.soundEnabled,
+      'audibleAlertsOnCritical': instance.audibleAlertsOnCritical,
+      'criticalAlertSound': instance.criticalAlertSound,
+      'pushCriticalAlerts': instance.pushCriticalAlerts,
+      'smartNightAutoPromptEnabled': instance.smartNightAutoPromptEnabled,
+      'promptForNotesAfterRun': instance.promptForNotesAfterRun,
+      'sessionHandoffAutoPrompt': instance.sessionHandoffAutoPrompt,
+      'campaignRollupSurfaceTargetsTab':
+          instance.campaignRollupSurfaceTargetsTab,
+      'campaignRollupGroupingMode': instance.campaignRollupGroupingMode,
+      'afMethod': instance.afMethod,
+      'afCurveFitting': instance.afCurveFitting,
+      'afStepSize': instance.afStepSize,
+      'afExposureTime': instance.afExposureTime,
+      'afInitialOffsetSteps': instance.afInitialOffsetSteps,
+      'afNumberOfAttempts': instance.afNumberOfAttempts,
+      'afUseBrightestNStars': instance.afUseBrightestNStars,
+      'afOuterCropRatio': instance.afOuterCropRatio,
+      'afInnerCropRatio': instance.afInnerCropRatio,
+      'afBinning': instance.afBinning,
+      'afRSquaredThreshold': instance.afRSquaredThreshold,
+      'afFocuserSettleTimeMs': instance.afFocuserSettleTimeMs,
+      'afExposuresPerPoint': instance.afExposuresPerPoint,
+      'afBacklashCompMethod': instance.afBacklashCompMethod,
+      'afBacklashIn': instance.afBacklashIn,
+      'afBacklashOut': instance.afBacklashOut,
+      'afAutofocusFilterName': instance.afAutofocusFilterName,
+      'afFilterSettingsJson': instance.afFilterSettingsJson,
+      'useFilterFocusOffsets': instance.useFilterFocusOffsets,
+      'astrometryPath': instance.astrometryPath,
+      'observerName': instance.observerName,
+      'imageFormat': instance.imageFormat,
+      'bitDepth': instance.bitDepth,
+      'timezone': instance.timezone,
+      'useSystemTime': instance.useSystemTime,
     };
 
 const _$SafetyFailModeEnumMap = {

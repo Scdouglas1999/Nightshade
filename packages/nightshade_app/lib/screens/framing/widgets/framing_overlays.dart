@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -21,7 +20,7 @@ class FramingTargetInfoOverlay extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surface.withValues(alpha: 0.9),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: NightshadeTokens.borderRadiusInline8,
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -30,17 +29,13 @@ class FramingTargetInfoOverlay extends StatelessWidget {
         children: [
           Text(
             target.name,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
           ),
           if (target.catalogId != null && target.catalogId != target.name)
             Text(
               target.catalogId!,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 color: colors.textMuted,
               ),
             ),
@@ -48,7 +43,7 @@ class FramingTargetInfoOverlay extends StatelessWidget {
           Text(
             '${target.raFormatted}  ${target.decFormatted}',
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: colors.textSecondary,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
@@ -64,7 +59,7 @@ class FramingTargetInfoOverlay extends StatelessWidget {
                     "${target.sizeArcmin!.toStringAsFixed(0)}'",
                 ].join('  '),
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   color: colors.textMuted,
                 ),
               ),
@@ -102,7 +97,7 @@ class FramingEquipmentWarningCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: NightshadeDecorations.emphasisSurface(
         colors.warning,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: NightshadeTokens.borderRadiusLg,
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -113,7 +108,7 @@ class FramingEquipmentWarningCard extends StatelessWidget {
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
                   color: colors.warning.withValues(alpha: 0.2),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: NightshadeTokens.borderRadiusInline8,
                 ),
                 child: Icon(icon, size: 16, color: colors.warning),
               ),
@@ -121,11 +116,7 @@ class FramingEquipmentWarningCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.warning,
-                  ),
+                  style: NightshadeTypography.h6.copyWith(color: colors.warning),
                 ),
               ),
             ],
@@ -134,7 +125,7 @@ class FramingEquipmentWarningCard extends StatelessWidget {
           Text(
             message,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textSecondary,
               height: 1.4,
             ),
@@ -148,21 +139,17 @@ class FramingEquipmentWarningCard extends StatelessWidget {
                     const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: colors.warning.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: NightshadeTokens.borderRadiusMd,
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
                       actionLabel!,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                        color: colors.warning,
-                      ),
+                      style: NightshadeTypography.labelQuiet.copyWith(color: colors.warning),
                     ),
                     const SizedBox(width: 4),
-                    Icon(LucideIcons.arrowRight,
+                    Icon(NightshadeIcons.arrowRight,
                         size: 12, color: colors.warning),
                   ],
                 ),
@@ -199,7 +186,7 @@ class FramingInfoRow extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textSecondary,
             ),
           ),
@@ -208,7 +195,7 @@ class FramingInfoRow extends StatelessWidget {
           child: Text(
             value,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: highlight ? FontWeight.w600 : FontWeight.w500,
               color: highlight ? colors.primary : colors.textPrimary,
             ),
@@ -250,14 +237,14 @@ class FramingCoordRow extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textSecondary,
           ),
         ),
         Text(
           value,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: FontWeight.w500,
             color: valueColor,
             fontFeatures: const [FontFeature.tabularFigures()],

@@ -119,7 +119,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
         builder: (dialogContext, setDialogState) => AlertDialog(
           backgroundColor: widget.colors.surfaceOverlay,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           ),
           title: Row(
             children: [
@@ -129,7 +129,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
               Text(
                 'Save as Template',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: NightshadeTypography.fontSize18,
                   fontWeight: FontWeight.w600,
                   color: widget.colors.textPrimary,
                 ),
@@ -146,32 +146,29 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text('Name',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: widget.colors.textSecondary)),
+                    style: NightshadeTypography.labelSm.copyWith(color: widget.colors.textSecondary)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: nameController,
                   autofocus: true,
                   style:
-                      TextStyle(fontSize: 14, color: widget.colors.textPrimary),
+                      TextStyle(fontSize: NightshadeTypography.fontSize14, color: widget.colors.textPrimary),
                   decoration: InputDecoration(
                     hintText: 'Template name',
                     hintStyle:
-                        TextStyle(fontSize: 14, color: widget.colors.textMuted),
+                        TextStyle(fontSize: NightshadeTypography.fontSize14, color: widget.colors.textMuted),
                     filled: true,
                     fillColor: widget.colors.surfaceAlt,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                       borderSide: BorderSide(color: widget.colors.border),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                       borderSide: BorderSide(color: widget.colors.border),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                       borderSide: BorderSide(color: widget.colors.primary),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
@@ -180,32 +177,29 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                 ),
                 const SizedBox(height: 14),
                 Text('Description',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: widget.colors.textSecondary)),
+                    style: NightshadeTypography.labelSm.copyWith(color: widget.colors.textSecondary)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: descController,
                   maxLines: 2,
                   style:
-                      TextStyle(fontSize: 14, color: widget.colors.textPrimary),
+                      TextStyle(fontSize: NightshadeTypography.fontSize14, color: widget.colors.textPrimary),
                   decoration: InputDecoration(
                     hintText: 'What does this template do?',
                     hintStyle:
-                        TextStyle(fontSize: 14, color: widget.colors.textMuted),
+                        TextStyle(fontSize: NightshadeTypography.fontSize14, color: widget.colors.textMuted),
                     filled: true,
                     fillColor: widget.colors.surfaceAlt,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                       borderSide: BorderSide(color: widget.colors.border),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                       borderSide: BorderSide(color: widget.colors.border),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                       borderSide: BorderSide(color: widget.colors.primary),
                     ),
                     contentPadding: const EdgeInsets.symmetric(
@@ -214,16 +208,13 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                 ),
                 const SizedBox(height: 14),
                 Text('Category',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: widget.colors.textSecondary)),
+                    style: NightshadeTypography.labelSm.copyWith(color: widget.colors.textSecondary)),
                 const SizedBox(height: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
                     color: widget.colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(color: widget.colors.border),
                   ),
                   child: DropdownButtonHideUnderline(
@@ -232,7 +223,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                       isExpanded: true,
                       dropdownColor: widget.colors.surfaceOverlay,
                       style: TextStyle(
-                          fontSize: 14, color: widget.colors.textPrimary),
+                          fontSize: NightshadeTypography.fontSize14, color: widget.colors.textPrimary),
                       items: SnippetCategory.values.map((cat) {
                         return DropdownMenuItem(
                           value: cat,
@@ -514,7 +505,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                           margin: EdgeInsets.only(right: isMobile ? 12 : 10),
                           decoration: BoxDecoration(
                             color: statusColor,
-                            borderRadius: BorderRadius.circular(2),
+                            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
                           ),
                         ),
 
@@ -525,7 +516,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                         decoration: NightshadeDecorations.tintedBadge(
                           categoryColor,
                           borderRadius:
-                              BorderRadius.circular(isMobile ? 10 : 8),
+                              BorderRadius.circular(isMobile ? NightshadeTokens.radiusLg : NightshadeTokens.radiusInline8),
                         ),
                         child: isRunning
                             ? _SpinningIcon(
@@ -611,7 +602,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                                 child: Text(
                                   widget.node.comment!,
                                   style: TextStyle(
-                                    fontSize: isMobile ? 12.0 : 10.0,
+                                    fontSize: isMobile ? NightshadeTypography.fontSize12 : NightshadeTypography.fontSize10,
                                     color: widget.colors.textMuted
                                         .withValues(alpha: 0.7),
                                     fontStyle: FontStyle.italic,
@@ -639,14 +630,14 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                                         child: Text(
                                           widget.progressDetail!,
                                           style: TextStyle(
-                                            fontSize: 10,
+                                            fontSize: NightshadeTypography.fontSize10,
                                             color: widget.colors.info,
                                             fontWeight: FontWeight.w500,
                                           ),
                                         ),
                                       ),
                                     ClipRRect(
-                                      borderRadius: BorderRadius.circular(2),
+                                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
                                       child: LinearProgressIndicator(
                                         value: widget.progressPercent! / 100.0,
                                         minHeight: 4,
@@ -738,7 +729,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                               popupMenuTheme: PopupMenuThemeData(
                                 color: widget.colors.surfaceAlt,
                                 shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
+                                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                                   side: BorderSide(color: widget.colors.border),
                                 ),
                               ),
@@ -756,7 +747,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                                     enabled: canEdit,
                                     child: Text('Move Up',
                                         style: TextStyle(
-                                          fontSize: 13,
+                                          fontSize: NightshadeTypography.fontSize13,
                                           color: canEdit
                                               ? widget.colors.textPrimary
                                               : widget.colors.textMuted,
@@ -769,7 +760,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                                     enabled: canEdit,
                                     child: Text('Move Down',
                                         style: TextStyle(
-                                          fontSize: 13,
+                                          fontSize: NightshadeTypography.fontSize13,
                                           color: canEdit
                                               ? widget.colors.textPrimary
                                               : widget.colors.textMuted,
@@ -788,7 +779,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                                   height: 32,
                                   child: Text('Save as Template',
                                       style: TextStyle(
-                                          fontSize: 13,
+                                          fontSize: NightshadeTypography.fontSize13,
                                           color: widget.colors.textPrimary)),
                                 ),
                               ],

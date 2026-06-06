@@ -133,6 +133,16 @@ pub struct ExecutionContext {
     /// Instruction nodes use this to promote device-disconnect failures into
     /// the same first-class recovery loop as trigger-driven recoveries.
     pub recovery_request_tx: Option<mpsc::Sender<crate::recovery::RecoveryCause>>,
+    /// Set to `true` the moment an instruction failure is promoted to a
+    /// `DeviceDisconnected` recovery (see
+    /// `instructions::request_device_disconnected_recovery`). The node-runtime
+    /// (`RuntimeNode::execute`) consumes this flag: instead of letting the
+    /// node's `Failure` propagate up and end the night, it waits for the
+    /// recovery driver to reconnect the device and then RETRIES the failed
+    /// instruction. Shared `Arc<AtomicBool>` so the instruction-side write and
+    /// the runtime-side read see the same allocation across the
+    /// `ExecutionContext -> InstructionContext` boundary.
+    pub device_disconnect_recovery_pending: Arc<AtomicBool>,
     /// Wave 3 Agent 2: in-memory SmartExposure per-node resume state,
     /// keyed by NodeId. Survives pause/resume within a single process run.
     /// Cross-process resume requires the executor to additionally plumb a
@@ -520,6 +530,7 @@ impl ExecutionContext {
             filter_focus_offsets: std::collections::HashMap::new(),
             event_tx: None,
             recovery_request_tx: None,
+            device_disconnect_recovery_pending: Arc::new(AtomicBool::new(false)),
             smart_exposure_states: Arc::new(RwLock::new(std::collections::HashMap::new())),
             budget_registry: BudgetRegistry::new(),
             // Wave 3 Image Grading: a non-empty session id is preferred to
@@ -1045,6 +1056,7 @@ impl ExecutionContext {
         InstructionContext {
             target_ra: self.target_ra,
             target_dec: self.target_dec,
+            target_rotation: self.target_rotation,
             target_name: self.target_name.clone(),
             current_filter: self.current_filter.clone(),
             current_binning: self.current_binning,
@@ -1064,6 +1076,7 @@ impl ExecutionContext {
             filter_focus_offsets: self.filter_focus_offsets.clone(),
             event_tx: self.event_tx.clone(),
             recovery_request_tx: self.recovery_request_tx.clone(),
+            device_disconnect_recovery_pending: self.device_disconnect_recovery_pending.clone(),
             // Wave 3 Image Grading: thread the FITS-header metadata
             // through so execute_exposure can assemble a FrameContext at
             // save time. These fields are all cheap clones (Strings/Options/

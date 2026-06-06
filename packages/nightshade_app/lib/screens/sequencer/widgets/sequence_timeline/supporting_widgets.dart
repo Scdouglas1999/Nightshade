@@ -46,6 +46,7 @@ class _TimelineBlockState extends State<_TimelineBlock> {
             color: _isHovered ? color : color.withValues(alpha: 0.7),
             border: _isHovered
                 ? Border.all(
+                    // absolute: lightening hover ring over the data-colored segment
                     color: Colors.white.withValues(alpha: 0.5), width: 1)
                 : null,
           ),
@@ -54,8 +55,9 @@ class _TimelineBlockState extends State<_TimelineBlock> {
                   child: Text(
                     _getShortLabel(),
                     style: TextStyle(
-                      fontSize: 9,
+                      fontSize: NightshadeTypography.fontSize9,
                       fontWeight: FontWeight.w600,
+                      // absolute: label over the data-colored segment fill (legibility)
                       color: Colors.white.withValues(alpha: 0.9),
                     ),
                     overflow: TextOverflow.clip,
@@ -146,14 +148,14 @@ class _LegendItem extends StatelessWidget {
           height: 10,
           decoration: BoxDecoration(
             color: color.withValues(alpha: 0.7),
-            borderRadius: BorderRadius.circular(2),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
           ),
         ),
         const SizedBox(width: 4),
         Text(
           label,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             color: colors.textMuted,
           ),
         ),

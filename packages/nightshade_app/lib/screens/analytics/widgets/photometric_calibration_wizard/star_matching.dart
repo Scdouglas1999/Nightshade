@@ -9,7 +9,7 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
           'Matching detected stars to catalog',
           style: TextStyle(
             color: colors.textPrimary,
-            fontSize: 14,
+            fontSize: NightshadeTypography.fontSize14,
             fontWeight: FontWeight.w500,
           ),
         ),
@@ -18,7 +18,7 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
           'Nightshade is matching stars detected in the selected frame against '
           'the photometric catalog (APASS/Gaia). Stars with known B and V '
           'magnitudes will be used for the transformation fit.',
-          style: TextStyle(color: colors.textSecondary, fontSize: 12),
+          style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
         ),
         const SizedBox(height: 16),
         if (_isComputing)
@@ -50,7 +50,7 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: NightshadeDecorations.emphasisSurface(
               colors.success,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Row(
               children: [
@@ -58,10 +58,8 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
                 const SizedBox(width: 8),
                 Text(
                   '${_starMatches.length} catalog stars matched',
-                  style: TextStyle(
+                  style: NightshadeTypography.label.copyWith(
                     color: colors.success,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
                   ),
                 ),
               ],
@@ -82,7 +80,7 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
                         child: Text(
                           '${index + 1}',
                           style:
-                              TextStyle(color: colors.textMuted, fontSize: 11),
+                              TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
                         ),
                       ),
                       Expanded(
@@ -93,7 +91,7 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
                           'SNR=${match.snr.toStringAsFixed(1)}',
                           style: TextStyle(
                             color: colors.textSecondary,
-                            fontSize: 11,
+                            fontSize: NightshadeTypography.fontSize11,
                             fontFamily: 'monospace',
                           ),
                         ),

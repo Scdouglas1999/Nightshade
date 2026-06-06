@@ -58,7 +58,7 @@ class RunDashboardQualityPanel extends ConsumerWidget {
               Text(
                 'IMAGE QUALITY',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
                   color: colors.textMuted,
@@ -131,7 +131,7 @@ class RunDashboardQualityPanel extends ConsumerWidget {
             Text(
               'RECENT',
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.6,
                 color: colors.textMuted,
@@ -230,7 +230,7 @@ class _AdaptiveExposureInline extends StatelessWidget {
             Text(
               'ADAPTIVE EXPOSURE',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.6,
                 color: colors.textMuted,
@@ -239,11 +239,7 @@ class _AdaptiveExposureInline extends StatelessWidget {
             const Spacer(),
             Text(
               event.reason.label,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: tone,
-              ),
+              style: NightshadeTypography.labelStrongSm.copyWith(color: tone),
             ),
           ],
         ),
@@ -312,7 +308,7 @@ class _GradeRow extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textPrimary,
               ),
             ),

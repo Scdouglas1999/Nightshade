@@ -131,7 +131,16 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Authoritative headline: a READ-ONLY preview of the live
+              // SchedulerEngine's decision — the exact target the autopilot
+              // would slew to right now. This is what the rig runs; the
+              // suggestion-based card below is the whole-night OUTLOOK
+              // supplement (peak altitude / transit / window hours), not a
+              // competing #1 ranker (architecture-unification plan, §1).
+              _AutopilotPreviewBanner(colors: colors),
               if (effectivePrimary != null) ...[
+                _OutlookSectionLabel(colors: colors),
+                const SizedBox(height: NightshadeTokens.spaceSm),
                 _PrimaryTargetCard(
                   target: effectivePrimary,
                   plan: plan,
@@ -160,7 +169,7 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
                 Text(
                   l10n.text('plannerReviewHint'),
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                     height: 1.4,
                   ),
@@ -343,9 +352,7 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
                       isLocationError
                           ? context.l10n.text('plannerLocationMissingTitle')
                           : context.l10n.text('plannerPlanFailedTitle'),
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
+                      style: NightshadeTypography.h4.copyWith(
                         color: colors.textPrimary,
                       ),
                     ),
@@ -356,7 +363,7 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
                           : context.l10n.text('plannerPlanFailedBody'),
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: NightshadeTypography.fontSize13,
                         color: colors.textSecondary,
                       ),
                     ),

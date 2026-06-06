@@ -276,7 +276,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
                       child: Stack(
                         children: [
                           ClipRRect(
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: NightshadeTokens.borderRadiusInline8,
                             child: WeatherRadarMap(
                               key: WeatherTutorialKeys.radarMap,
                               currentFrame: currentFrame,
@@ -396,7 +396,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
       final radarStack = Stack(
         children: [
           ClipRRect(
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: NightshadeTokens.borderRadiusInline8,
             child: WeatherRadarMap(
               key: WeatherTutorialKeys.radarMap,
               currentFrame: currentFrame,

@@ -50,7 +50,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: widget.colors.surface,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(
             color: _isHovered
                 ? widget.colors.primary.withValues(alpha: 0.4)
@@ -67,7 +67,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
               height: 48,
               decoration: NightshadeDecorations.tintedBadge(
                 widget.colors.primary,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               ),
               child: Icon(
                 LucideIcons.workflow,
@@ -89,7 +89,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                         child: Text(
                           widget.sequence.name,
                           style: TextStyle(
-                            fontSize: 15,
+                            fontSize: NightshadeTypography.fontSize15,
                             fontWeight: FontWeight.w600,
                             color: widget.colors.textPrimary,
                           ),
@@ -101,7 +101,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                       Text(
                         _formatDate(widget.sequence.modifiedAt),
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: widget.colors.textMuted,
                         ),
                       ),
@@ -112,7 +112,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                     Text(
                       widget.sequence.description,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: NightshadeTypography.fontSize12,
                         color: widget.colors.textSecondary,
                       ),
                       maxLines: 1,
@@ -323,7 +323,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         backgroundColor: widget.colors.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
         title: Text(
           'Delete Sequence',
           style: TextStyle(color: widget.colors.textPrimary),

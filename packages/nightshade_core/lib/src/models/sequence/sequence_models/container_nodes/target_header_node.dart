@@ -47,6 +47,21 @@ class TargetHeaderNode extends SequenceNode {
   /// [BrightnessTier.bright] for planetary nebulae / open clusters.
   final BrightnessTier? brightnessTierHint;
 
+  /// DB `targets.id` this header images, set when the sequence is generated
+  /// from a known catalog/library target (the live scheduler populates it
+  /// from the `SchedulerCandidate`). The frame-registration path walks the
+  /// tree to this id so captured frames are attributed to the correct
+  /// `targets` row and per-target integration goals can actually complete —
+  /// fixing the bug where scheduler frames were written with `target_id=NULL`
+  /// and the engine imaged one target forever.
+  ///
+  /// RUNTIME-ONLY: deliberately NOT serialized (scheduler sequences are
+  /// dispatched in-memory and never saved) and NOT sent to the Rust executor;
+  /// it exists purely for Dart-side frame attribution. `null` for ad-hoc /
+  /// manual sequences with no backing target row (frames stay unattributed,
+  /// which is the honest result).
+  final int? catalogTargetId;
+
   TargetHeaderNode({
     super.id,
     super.name = 'Target',
@@ -70,6 +85,7 @@ class TargetHeaderNode extends SequenceNode {
     this.endWhen,
     this.triggerPollIntervalSecs = 30,
     this.brightnessTierHint,
+    this.catalogTargetId,
   });
 
   @override
@@ -149,6 +165,7 @@ class TargetHeaderNode extends SequenceNode {
     TargetTrigger? endWhen,
     int? triggerPollIntervalSecs,
     BrightnessTier? brightnessTierHint,
+    int? catalogTargetId,
   }) {
     return TargetHeaderNode(
       id: id ?? this.id,
@@ -174,6 +191,7 @@ class TargetHeaderNode extends SequenceNode {
       triggerPollIntervalSecs:
           triggerPollIntervalSecs ?? this.triggerPollIntervalSecs,
       brightnessTierHint: brightnessTierHint ?? this.brightnessTierHint,
+      catalogTargetId: catalogTargetId ?? this.catalogTargetId,
     );
   }
 
@@ -195,5 +213,6 @@ class TargetHeaderNode extends SequenceNode {
         endWhen,
         triggerPollIntervalSecs,
         brightnessTierHint,
+        catalogTargetId,
       ];
 }

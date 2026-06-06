@@ -39,7 +39,7 @@ class _TriggerSection extends ConsumerWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -100,7 +100,7 @@ class _TriggerSection extends ConsumerWidget {
           ] else ...[
             const SizedBox(height: 6),
             Text(_helpText,
-                style: TextStyle(fontSize: 11, color: colors.textMuted)),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted)),
           ],
         ],
       ),
@@ -131,7 +131,7 @@ class _TriggerBuilder extends StatelessWidget {
           isExpanded: true,
           value: _kindKey(trigger),
           dropdownColor: colors.surfaceAlt,
-          style: TextStyle(fontSize: 12, color: colors.textPrimary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
           items: const [
             DropdownMenuItem(
                 value: 'AltitudeAbove', child: Text('Altitude above')),

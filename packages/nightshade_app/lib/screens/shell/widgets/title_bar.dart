@@ -3,7 +3,6 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../widgets/remote_connection_indicator.dart';
@@ -40,10 +39,10 @@ class TitleBar extends ConsumerWidget {
                   height: 24,
                   decoration: BoxDecoration(
                     color: colors.primary,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: NightshadeTokens.borderRadiusMd,
                   ),
                   child: Icon(
-                    LucideIcons.sparkles,
+                    NightshadeIcons.sparkle,
                     size: 14,
                     color: onPrimary,
                   ),
@@ -53,7 +52,7 @@ class TitleBar extends ConsumerWidget {
                   'NIGHTSHADE',
                   style: TextStyle(
                     color: colors.textPrimary,
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 1.5,
                   ),
@@ -95,7 +94,7 @@ class TitleBar extends ConsumerWidget {
             // Profile button - navigates to Settings > Equipment Profiles
             Builder(
               builder: (context) => _TitleBarButton(
-                icon: LucideIcons.user,
+                icon: NightshadeIcons.user,
                 tooltip: 'Equipment Profiles',
                 onPressed: () {
                   try {
@@ -119,7 +118,7 @@ class TitleBar extends ConsumerWidget {
             Builder(
               builder: (context) => _TitleBarButton(
                 key: TutorialKeys.navSettings,
-                icon: LucideIcons.settings,
+                icon: NightshadeIcons.settings,
                 tooltip: 'Settings',
                 onPressed: () {
                   try {
@@ -161,7 +160,7 @@ class _TitleBarButton extends StatelessWidget {
 
     final button = InkWell(
       onTap: onPressed,
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: NightshadeTokens.borderRadiusInline4,
       child: Padding(
         padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
         child: Icon(
@@ -193,17 +192,17 @@ class _WindowControls extends StatelessWidget {
     return Row(
       children: [
         _WindowButton(
-          icon: LucideIcons.minus,
+          icon: NightshadeIcons.remove,
           onPressed: window_impl.minimizeWindow,
           hoverColor: colors.surfaceHover,
         ),
         _WindowButton(
-          icon: LucideIcons.square,
+          icon: NightshadeIcons.stop,
           onPressed: window_impl.toggleMaximizeWindow,
           hoverColor: colors.surfaceHover,
         ),
         _WindowButton(
-          icon: LucideIcons.x,
+          icon: NightshadeIcons.close,
           onPressed: window_impl.closeWindow,
           hoverColor: colors.error,
           isClose: true,

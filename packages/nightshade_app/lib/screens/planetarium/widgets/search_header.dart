@@ -131,11 +131,11 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
           child: Material(
             elevation: 8,
             color: widget.colors.surface,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             child: Container(
               decoration: BoxDecoration(
                 border: Border.all(color: widget.colors.border),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 color: widget.colors.surface,
               ),
               constraints: BoxConstraints(maxHeight: maxOverlayHeight),
@@ -149,7 +149,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                       children: [
                         SearchCategoryHeader(
                           title: 'Coordinates',
-                          icon: LucideIcons.compass,
+                          icon: NightshadeIcons.compass,
                           colors: widget.colors,
                         ),
                         MouseRegion(
@@ -173,10 +173,10 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                                 decoration: BoxDecoration(
                                   color: widget.colors.accent
                                       .withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(4),
+                                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                                 ),
                                 child: Icon(
-                                  LucideIcons.crosshair,
+                                  NightshadeIcons.crosshair,
                                   size: 16,
                                   color: widget.colors.accent,
                                 ),
@@ -190,7 +190,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                                 'RA ${CoordinateFormatUtils.formatRACompact(coord.ra)}, Dec ${CoordinateFormatUtils.formatDec(coord.dec)}',
                                 style: TextStyle(
                                     color: widget.colors.textMuted,
-                                    fontSize: 11),
+                                    fontSize: NightshadeTypography.fontSize11),
                               ),
                             ),
                           ),
@@ -258,7 +258,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                             Text(
                               '$totalCount result${totalCount == 1 ? '' : 's'}',
                               style: TextStyle(
-                                fontSize: 10,
+                                fontSize: NightshadeTypography.fontSize10,
                                 color: widget.colors.textMuted,
                               ),
                             ),
@@ -270,12 +270,12 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                                 decoration: BoxDecoration(
                                   color: widget.colors.accent
                                       .withValues(alpha: 0.2),
-                                  borderRadius: BorderRadius.circular(3),
+                                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
                                 ),
                                 child: Text(
                                   'filtered',
                                   style: TextStyle(
-                                    fontSize: 9,
+                                    fontSize: NightshadeTypography.fontSize9,
                                     color: widget.colors.accent,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -294,7 +294,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                             if (dsos.isNotEmpty) ...[
                               SearchCategoryHeader(
                                 title: 'Deep Sky Objects (${dsos.length})',
-                                icon: LucideIcons.sparkles,
+                                icon: NightshadeIcons.sparkle,
                                 colors: widget.colors,
                               ),
                               // Show first 20 DSOs in overlay, full list in Search tab
@@ -308,7 +308,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                                   child: Text(
                                     '${dsos.length - 20} more in Search tab...',
                                     style: TextStyle(
-                                      fontSize: 11,
+                                      fontSize: NightshadeTypography.fontSize11,
                                       color: widget.colors.textMuted,
                                       fontStyle: FontStyle.italic,
                                     ),
@@ -319,7 +319,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                             if (stars.isNotEmpty) ...[
                               SearchCategoryHeader(
                                 title: 'Stars (${stars.length})',
-                                icon: LucideIcons.star,
+                                icon: NightshadeIcons.star,
                                 colors: widget.colors,
                               ),
                               ...stars.take(10).map(
@@ -331,7 +331,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                                   child: Text(
                                     '${stars.length - 10} more in Search tab...',
                                     style: TextStyle(
-                                      fontSize: 11,
+                                      fontSize: NightshadeTypography.fontSize11,
                                       color: widget.colors.textMuted,
                                       fontStyle: FontStyle.italic,
                                     ),
@@ -384,12 +384,12 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: widget.colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Text(
               catalogTag,
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 fontWeight: FontWeight.bold,
                 color: widget.colors.primary,
               ),
@@ -403,7 +403,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
             showCommonName
                 ? '$commonName - ${dso.type.displayName}'
                 : dso.type.displayName,
-            style: TextStyle(color: widget.colors.textMuted, fontSize: 11),
+            style: TextStyle(color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize11),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
@@ -411,7 +411,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
               ? Text(
                   'mag ${dso.magnitude!.toStringAsFixed(1)}',
                   style:
-                      TextStyle(color: widget.colors.textMuted, fontSize: 11),
+                      TextStyle(color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize11),
                 )
               : null,
         ),
@@ -439,13 +439,13 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
             alignment: Alignment.center,
             decoration: BoxDecoration(
               color: widget.colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
-            child: const Text(
+            child: Text(
               '\u2605',
               style: TextStyle(
-                fontSize: 14,
-                color: Colors.amber,
+                fontSize: NightshadeTypography.fontSize14,
+                color: widget.colors.warning,
               ),
             ),
           ),
@@ -457,13 +457,13 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
             star.constellation != null
                 ? 'Star - ${star.constellation}'
                 : 'Star',
-            style: TextStyle(color: widget.colors.textMuted, fontSize: 11),
+            style: TextStyle(color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize11),
           ),
           trailing: star.magnitude != null
               ? Text(
                   'mag ${star.magnitude!.toStringAsFixed(1)}',
                   style:
-                      TextStyle(color: widget.colors.textMuted, fontSize: 11),
+                      TextStyle(color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize11),
                 )
               : null,
         ),
@@ -500,12 +500,12 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                     controller: widget.controller,
                     focusNode: _focusNode,
                     style: TextStyle(
-                        fontSize: 13, color: widget.colors.textPrimary),
+                        fontSize: NightshadeTypography.fontSize13, color: widget.colors.textPrimary),
                     decoration: InputDecoration(
                       hintText: 'Search objects, names...',
                       hintStyle: TextStyle(
-                          fontSize: 13, color: widget.colors.textMuted),
-                      prefixIcon: Icon(LucideIcons.search,
+                          fontSize: NightshadeTypography.fontSize13, color: widget.colors.textMuted),
+                      prefixIcon: Icon(NightshadeIcons.search,
                           size: 16, color: widget.colors.textMuted),
                       suffixIcon: Container(
                         margin: const EdgeInsets.all(8),
@@ -513,26 +513,26 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                             horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
                           color: widget.colors.background,
-                          borderRadius: BorderRadius.circular(4),
+                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                         ),
                         child: Text(
                           '\u2318K',
                           style: TextStyle(
-                              fontSize: 10, color: widget.colors.textMuted),
+                              fontSize: NightshadeTypography.fontSize10, color: widget.colors.textMuted),
                         ),
                       ),
                       filled: true,
                       fillColor: widget.colors.surfaceAlt,
                       border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                         borderSide: BorderSide(color: widget.colors.border),
                       ),
                       enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                         borderSide: BorderSide(color: widget.colors.border),
                       ),
                       focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                         borderSide: BorderSide(color: widget.colors.primary),
                       ),
                       contentPadding: const EdgeInsets.symmetric(
@@ -556,7 +556,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                     color: filters.hasActiveFilters
                         ? widget.colors.accent.withValues(alpha: 0.2)
                         : widget.colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(
                       color: filters.hasActiveFilters
                           ? widget.colors.accent.withValues(alpha: 0.5)
@@ -615,7 +615,7 @@ class _SearchFilterControls extends StatelessWidget {
         Text(
           'Object Type',
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             fontWeight: FontWeight.w600,
             color: colors.textMuted,
           ),
@@ -635,7 +635,7 @@ class _SearchFilterControls extends StatelessWidget {
                   color: isSelected
                       ? colors.accent.withValues(alpha: 0.2)
                       : colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   border: Border.all(
                     color: isSelected ? colors.accent : colors.border,
                   ),
@@ -643,7 +643,7 @@ class _SearchFilterControls extends StatelessWidget {
                 child: Text(
                   _typeFilterLabel(type),
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                     color: isSelected ? colors.accent : colors.textSecondary,
                   ),
@@ -661,7 +661,7 @@ class _SearchFilterControls extends StatelessWidget {
             Text(
               'Magnitude',
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 fontWeight: FontWeight.w600,
                 color: colors.textMuted,
               ),
@@ -674,7 +674,7 @@ class _SearchFilterControls extends StatelessWidget {
                 child: Text(
                   'Clear',
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     color: colors.accent,
                   ),
                 ),
@@ -686,7 +686,7 @@ class _SearchFilterControls extends StatelessWidget {
           children: [
             Text(
               'Max:',
-              style: TextStyle(fontSize: 11, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
             ),
             Expanded(
               child: SliderTheme(
@@ -714,11 +714,7 @@ class _SearchFilterControls extends StatelessWidget {
               width: 32,
               child: Text(
                 filters.maxMagnitude?.toStringAsFixed(1) ?? '--',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: colors.textPrimary,
-                  fontWeight: FontWeight.w500,
-                ),
+                style: NightshadeTypography.labelQuiet.copyWith(color: colors.textPrimary),
               ),
             ),
           ],
@@ -739,7 +735,7 @@ class _SearchFilterControls extends StatelessWidget {
                   color: filters.observableNow
                       ? colors.accent
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                   border: Border.all(
                     color:
                         filters.observableNow ? colors.accent : colors.border,
@@ -747,14 +743,14 @@ class _SearchFilterControls extends StatelessWidget {
                   ),
                 ),
                 child: filters.observableNow
-                    ? Icon(LucideIcons.check, size: 12, color: colors.surface)
+                    ? Icon(NightshadeIcons.check, size: 12, color: colors.surface)
                     : null,
               ),
               const SizedBox(width: 8),
               Text(
                 'Observable now (>10\u00b0 alt)',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: filters.observableNow
                       ? colors.textPrimary
                       : colors.textSecondary,
@@ -772,7 +768,7 @@ class _SearchFilterControls extends StatelessWidget {
             Text(
               'Constellation:',
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 fontWeight: FontWeight.w600,
                 color: colors.textMuted,
               ),
@@ -782,22 +778,22 @@ class _SearchFilterControls extends StatelessWidget {
               child: SizedBox(
                 height: 28,
                 child: TextField(
-                  style: TextStyle(fontSize: 11, color: colors.textPrimary),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textPrimary),
                   decoration: InputDecoration(
                     hintText: 'e.g. Orion',
-                    hintStyle: TextStyle(fontSize: 11, color: colors.textMuted),
+                    hintStyle: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                     filled: true,
                     fillColor: colors.surfaceAlt,
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                       borderSide: BorderSide(color: colors.border),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                       borderSide: BorderSide(color: colors.border),
                     ),
                     focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                       borderSide: BorderSide(color: colors.primary),
                     ),
                     contentPadding:
@@ -867,7 +863,7 @@ class SearchCategoryHeader extends StatelessWidget {
           Text(
             title,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               fontWeight: FontWeight.w600,
               color: colors.textMuted,
               letterSpacing: 0.5,

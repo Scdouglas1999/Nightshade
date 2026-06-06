@@ -38,7 +38,7 @@ class ScienceCampaignStrip extends ConsumerWidget {
         return NightshadeCard(
           child: InkWell(
             onTap: () => CampaignRollupDialog.show(context, targetId),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Row(
@@ -66,7 +66,7 @@ class ScienceCampaignStrip extends ConsumerWidget {
                           '${primary != null ? " · ${primary.capturedFrames} frames" : ""}'
                           '${pctLabel != null ? " · $pctLabel of goal" : ""}',
                           style: TextStyle(
-                            fontSize: 11,
+                            fontSize: NightshadeTypography.fontSize11,
                             color: colors.textSecondary,
                           ),
                         ),

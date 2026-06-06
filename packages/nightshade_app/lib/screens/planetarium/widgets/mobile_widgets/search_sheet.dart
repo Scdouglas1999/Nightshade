@@ -48,16 +48,16 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
           child: TextField(
             controller: _searchController,
             autofocus: true,
-            style: TextStyle(fontSize: 14, color: widget.colors.textPrimary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize14, color: widget.colors.textPrimary),
             decoration: InputDecoration(
               hintText: 'Search objects (M42, Orion, etc.)',
               hintStyle:
-                  TextStyle(fontSize: 14, color: widget.colors.textMuted),
-              prefixIcon: Icon(LucideIcons.search,
+                  TextStyle(fontSize: NightshadeTypography.fontSize14, color: widget.colors.textMuted),
+              prefixIcon: Icon(NightshadeIcons.search,
                   size: 18, color: widget.colors.textMuted),
               suffixIcon: _searchController.text.isNotEmpty
                   ? IconButton(
-                      icon: Icon(LucideIcons.x,
+                      icon: Icon(NightshadeIcons.close,
                           size: 18, color: widget.colors.textMuted),
                       onPressed: () {
                         _searchController.clear();
@@ -68,15 +68,15 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
               filled: true,
               fillColor: widget.colors.surfaceAlt,
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 borderSide: BorderSide(color: widget.colors.border),
               ),
               enabledBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 borderSide: BorderSide(color: widget.colors.border),
               ),
               focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 borderSide: BorderSide(color: widget.colors.primary),
               ),
               contentPadding:
@@ -109,7 +109,7 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.searchX, size: 48, color: widget.colors.textMuted),
+            Icon(NightshadeIcons.searchEmpty, size: 48, color: widget.colors.textMuted),
             const SizedBox(height: 16),
             Text(
               'No results found',
@@ -148,7 +148,7 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
         Text(
           'Best Targets Tonight',
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w600,
             color: widget.colors.textMuted,
             letterSpacing: 0.5,
@@ -191,7 +191,7 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
                     height: _mobileSearchTileExtent(context) - 12,
                     decoration: BoxDecoration(
                       color: widget.colors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(6),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                     ),
                   ),
                 ),
@@ -244,16 +244,11 @@ class MobileSearchResultTile extends StatelessWidget {
       typeName = 'Object';
     }
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: NightshadeCard(
+        onTap: onTap,
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: colors.border),
-        ),
         child: Row(
           children: [
             Container(
@@ -262,7 +257,7 @@ class MobileSearchResultTile extends StatelessWidget {
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: colors.primary.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Text(
                 catalogTag,
@@ -280,16 +275,12 @@ class MobileSearchResultTile extends StatelessWidget {
                 children: [
                   Text(
                     displayName,
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                   ),
                   Text(
                     typeName,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textMuted,
                     ),
                   ),
@@ -300,13 +291,13 @@ class MobileSearchResultTile extends StatelessWidget {
               Text(
                 'mag ${object.magnitude!.toStringAsFixed(1)}',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textSecondary,
                 ),
               ),
             const SizedBox(width: 8),
             Icon(
-              LucideIcons.chevronRight,
+              NightshadeIcons.chevronRight,
               size: 16,
               color: colors.textMuted,
             ),

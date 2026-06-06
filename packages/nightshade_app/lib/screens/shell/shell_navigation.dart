@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../localization/nightshade_localizations.dart';
 
@@ -45,37 +46,37 @@ abstract final class ShellNavigation {
     ),
     ShellPrimaryDestination(
       route: '/equipment',
-      icon: LucideIcons.plug,
+      icon: NightshadeIcons.connected,
       label: _navEquipment,
       description: _navEquipmentDesc,
     ),
     ShellPrimaryDestination(
       route: '/imaging',
-      icon: LucideIcons.camera,
+      icon: NightshadeIcons.camera,
       label: _navImaging,
       description: _navImagingDesc,
     ),
     ShellPrimaryDestination(
       route: '/guiding',
-      icon: LucideIcons.crosshair,
+      icon: NightshadeIcons.crosshair,
       label: _navGuiding,
       description: _navGuidingDesc,
     ),
     ShellPrimaryDestination(
       route: '/sequencer',
-      icon: LucideIcons.listOrdered,
+      icon: NightshadeIcons.listOrdered,
       label: _navSequencer,
       description: _navSequencerDesc,
     ),
     ShellPrimaryDestination(
       route: '/planetarium',
-      icon: LucideIcons.globe,
+      icon: NightshadeIcons.globe,
       label: _navPlanetarium,
       description: _navPlanetariumDesc,
     ),
     ShellPrimaryDestination(
       route: '/framing',
-      icon: LucideIcons.frame,
+      icon: NightshadeIcons.frame,
       label: _navFraming,
       description: _navFramingDesc,
     ),
@@ -87,13 +88,13 @@ abstract final class ShellNavigation {
     ),
     ShellPrimaryDestination(
       route: '/flat-wizard',
-      icon: LucideIcons.sun,
+      icon: NightshadeIcons.sun,
       label: _navFlatWizard,
       description: _navFlatWizardDesc,
     ),
     ShellPrimaryDestination(
       route: '/weather',
-      icon: LucideIcons.cloudRain,
+      icon: NightshadeIcons.rain,
       label: _navWeather,
       description: _navWeatherDesc,
     ),
@@ -108,13 +109,13 @@ abstract final class ShellNavigation {
   /// Desktop title-bar routes (not in side nav).
   static const ShellRouteDestination transients = ShellRouteDestination(
     route: '/transients',
-    icon: LucideIcons.sparkles,
+    icon: NightshadeIcons.sparkle,
     label: _navTransients,
   );
 
   static const ShellRouteDestination settings = ShellRouteDestination(
     route: '/settings',
-    icon: LucideIcons.settings,
+    icon: NightshadeIcons.settings,
     label: _settingsTitle,
   );
 
@@ -125,22 +126,22 @@ abstract final class ShellNavigation {
   static const List<ShellRouteDestination> bottomNavigationDestinations = [
     ShellRouteDestination(
       route: '/equipment',
-      icon: LucideIcons.plug,
+      icon: NightshadeIcons.connected,
       label: _navEquipment,
     ),
     ShellRouteDestination(
       route: '/imaging',
-      icon: LucideIcons.camera,
+      icon: NightshadeIcons.camera,
       label: _navImaging,
     ),
     ShellRouteDestination(
       route: '/sequencer',
-      icon: LucideIcons.listOrdered,
+      icon: NightshadeIcons.listOrdered,
       label: _navSequencer,
     ),
     ShellRouteDestination(
       route: '/planetarium',
-      icon: LucideIcons.globe,
+      icon: NightshadeIcons.globe,
       label: _navPlanetarium,
     ),
     ShellRouteDestination(
@@ -150,12 +151,12 @@ abstract final class ShellNavigation {
     ),
     ShellRouteDestination(
       route: '/guiding',
-      icon: LucideIcons.crosshair,
+      icon: NightshadeIcons.crosshair,
       label: _navGuiding,
     ),
     ShellRouteDestination(
       route: '/framing',
-      icon: LucideIcons.frame,
+      icon: NightshadeIcons.frame,
       label: _navFraming,
     ),
     ShellRouteDestination(
@@ -165,12 +166,12 @@ abstract final class ShellNavigation {
     ),
     ShellRouteDestination(
       route: '/flat-wizard',
-      icon: LucideIcons.sun,
+      icon: NightshadeIcons.sun,
       label: _navFlatWizard,
     ),
     ShellRouteDestination(
       route: '/weather',
-      icon: LucideIcons.cloudRain,
+      icon: NightshadeIcons.rain,
       label: _navWeather,
     ),
     ShellRouteDestination(

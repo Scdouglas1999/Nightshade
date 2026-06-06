@@ -20,7 +20,6 @@
 // URLs. When no URL is published the badge is non-interactive text.
 
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 // HipsProperties is the parsed survey metadata carrying the attribution fields.
 // It is exported from nightshade_core's public barrel, but the framing widgets
@@ -100,7 +99,7 @@ class HipsAttributionBadge extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            LucideIcons.info,
+            NightshadeIcons.info,
             size: NightshadeTokens.iconXs,
             color: colors.textMuted,
           ),

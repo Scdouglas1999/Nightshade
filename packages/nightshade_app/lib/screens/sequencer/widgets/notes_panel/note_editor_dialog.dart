@@ -59,7 +59,7 @@ class _NoteEditorDialogState extends ConsumerState<NoteEditorDialog> {
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         side: BorderSide(color: colors.border),
       ),
       child: ConstrainedBox(
@@ -83,7 +83,7 @@ class _NoteEditorDialogState extends ConsumerState<NoteEditorDialog> {
                     child: Text(
                       isEditing ? 'Edit note' : 'New note',
                       style: TextStyle(
-                        fontSize: 16,
+                        fontSize: NightshadeTypography.fontSize16,
                         fontWeight: FontWeight.w700,
                         color: colors.textPrimary,
                       ),
@@ -94,7 +94,7 @@ class _NoteEditorDialogState extends ConsumerState<NoteEditorDialog> {
                       padding: const EdgeInsets.only(right: 8),
                       child: Text(
                         'attached to run #${widget.sequenceRunId}',
-                        style: TextStyle(fontSize: 11, color: colors.textMuted),
+                        style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                       ),
                     ),
                   IconButton(

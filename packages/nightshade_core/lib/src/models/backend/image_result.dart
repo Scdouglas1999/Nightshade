@@ -8,6 +8,11 @@ class ImageStatsResult {
   final double median;
   final double stdDev;
   final double? hfr;
+
+  /// Per-frame median star eccentricity (0.0 = round, →1.0 = trailed).
+  /// `null` when the native detector could not honestly measure it (too few
+  /// reliable stars) or the producing path ran no star detection.
+  final double? eccentricity;
   final int starCount;
 
   const ImageStatsResult({
@@ -17,6 +22,7 @@ class ImageStatsResult {
     required this.median,
     required this.stdDev,
     this.hfr,
+    this.eccentricity,
     required this.starCount,
   });
 
@@ -29,6 +35,9 @@ class ImageStatsResult {
       median: (json['median'] as num).toDouble(),
       stdDev: (json['stdDev'] as num).toDouble(),
       hfr: json['hfr'] != null ? (json['hfr'] as num).toDouble() : null,
+      eccentricity: json['eccentricity'] != null
+          ? (json['eccentricity'] as num).toDouble()
+          : null,
       starCount: json['starCount'] as int,
     );
   }
@@ -41,6 +50,7 @@ class ImageStatsResult {
         'median': median,
         'stdDev': stdDev,
         'hfr': hfr,
+        'eccentricity': eccentricity,
         'starCount': starCount,
       };
 }

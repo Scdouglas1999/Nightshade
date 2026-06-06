@@ -220,7 +220,7 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
                 height: 4,
                 decoration: BoxDecoration(
                   color: colors.textMuted.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(2),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
                 ),
               ),
               Expanded(child: profileSidebar),

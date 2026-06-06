@@ -143,21 +143,6 @@ extension _BackupSequenceCodec on BackupService {
     return count;
   }
 
-  Future<int> _importSequences(List<dynamic> sequencesList,
-      {bool replace = false}) async {
-    int count = 0;
-
-    for (final sequenceJson in sequencesList) {
-      final sequence = _jsonToSequence(sequenceJson as Map<String, dynamic>);
-      if (sequence != null) {
-        await sequenceRepository.saveSequence(sequence);
-        count++;
-      }
-    }
-
-    return count;
-  }
-
   Future<int> _importTargets(List<dynamic> targetsList,
       {bool replace = false}) async {
     int count = 0;

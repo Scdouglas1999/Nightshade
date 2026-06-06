@@ -135,6 +135,10 @@ pub async fn execute_target_scheduler(
             moon: Some(crate::scheduling::ephemeris::moon_equatorial(&now)),
             moon_illumination: crate::scheduling::ephemeris::moon_illumination_percent(&now),
             twilight: Some(crate::scheduling::ephemeris::twilight_bracket(&now, lat, lon)),
+            // Per-azimuth horizon mask: consulted by `score_target`'s
+            // runnable gate so a target behind the local tree-line / roof
+            // is filtered out even when it clears the flat altitude floor.
+            horizon: config.horizon_profile.clone(),
         };
 
         // Collect inputs + a parallel index so we can resolve back to the
@@ -966,6 +970,7 @@ mod tests {
             moon: None,
             moon_illumination: 0.0,
             twilight: None,
+            horizon: None,
         };
         let inputs = vec![
             crate::scheduling::TargetInput {
@@ -1288,6 +1293,7 @@ mod tests {
             moon: Some((75.0, 18.0)), // Pleiades-ish region
             moon_illumination: 50.0,
             twilight: None,
+            horizon: None,
         };
         let weights = ScoringWeights::default();
         let m42 = TargetInput {

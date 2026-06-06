@@ -197,6 +197,7 @@ pub async fn api_run_autofocus(
         target_ra: None,
         target_dec: None,
         target_name: None,
+        target_rotation: None,
         current_filter: None,
         current_binning: Binning::One,
         cancellation_token: cancel_token.clone(),
@@ -257,6 +258,12 @@ pub async fn api_run_autofocus(
         // Wave 8 Replay Debug — one-shot bridge API doesn't emit decisions.
         decision_tx: None,
         active_sequence_run_id: std::sync::Arc::new(parking_lot::RwLock::new(None)),
+        // Standalone autofocus from the API is not driven by the node-runtime
+        // disconnect-retry loop, so this one-shot context owns a fresh,
+        // unshared flag (no recovery driver observes it here).
+        device_disconnect_recovery_pending: std::sync::Arc::new(
+            std::sync::atomic::AtomicBool::new(false),
+        ),
     };
 
     // Execute (no progress callback when called directly from API)
@@ -407,6 +414,10 @@ pub struct ImageStatsResult {
     pub median: f64,
     pub std_dev: f64,
     pub hfr: Option<f64>,
+    /// Per-frame median star eccentricity (0.0 = round, →1.0 = trailed).
+    /// `None` when too few reliable stars to honestly measure — never a
+    /// fabricated value.
+    pub eccentricity: Option<f64>,
     pub star_count: u32,
 }
 
@@ -581,6 +592,9 @@ pub async fn api_camera_start_exposure(
                 median: stats.median,
                 std_dev: stats.std_dev,
                 hfr: Some(2.5 + (rand::random::<f64>() - 0.5) * 0.5), // Simulated HFR
+                // Simulated stars are round Gaussians; report a small,
+                // realistic eccentricity (well-guided rigs sit ~0.1–0.3).
+                eccentricity: Some(0.15 + (rand::random::<f64>() - 0.5) * 0.1),
                 star_count,
             },
             exposure_time: duration_secs,
@@ -813,10 +827,14 @@ pub async fn api_camera_start_exposure(
         } else {
             None
         };
+        // Per-frame median eccentricity from the same detected stars. Fails
+        // closed (None) when too few reliable stars — never fabricated.
+        let median_eccentricity = nightshade_imaging::frame_eccentricity(&stars);
         tracing::info!(
-            "Star detection: {} stars found, median HFR: {:?}",
+            "Star detection: {} stars found, median HFR: {:?}, median ecc: {:?}",
             star_count,
-            median_hfr
+            median_hfr,
+            median_eccentricity
         );
 
         // Calculate histogram from pre-RGBA display data (256 bins for u8 pixel values)
@@ -842,6 +860,7 @@ pub async fn api_camera_start_exposure(
                 median: stats.median,
                 std_dev: stats.std_dev,
                 hfr: median_hfr,
+                eccentricity: median_eccentricity,
                 star_count,
             },
             exposure_time: duration_secs,
@@ -1319,7 +1338,10 @@ pub async fn api_read_fits_file(file_path: String) -> Result<FitsReadResult, Nig
             mean: stats.mean,
             median: stats.median,
             std_dev: stats.std_dev,
+            // This load path does not run star detection, so neither HFR nor
+            // eccentricity is measured here — honest None, not a fabricated 0.
             hfr: None,
+            eccentricity: None,
             star_count: 0,
         },
         object_name,
@@ -2007,6 +2029,9 @@ pub struct StarDetectionResultApi {
     pub median_hfr: f64,
     pub median_fwhm: f64,
     pub median_snr: f64,
+    /// Per-frame median star eccentricity (0.0 = round, →1.0 = trailed).
+    /// `None` when too few reliable stars to honestly measure.
+    pub median_eccentricity: Option<f64>,
     pub background: f64,
     pub noise: f64,
 }
@@ -2103,6 +2128,7 @@ pub async fn api_detect_stars_in_file(
         median_hfr: result.median_hfr,
         median_fwhm: result.median_fwhm,
         median_snr: result.median_snr,
+        median_eccentricity: result.median_eccentricity,
         background: result.background,
         noise: result.noise,
     })
@@ -2399,7 +2425,9 @@ pub async fn api_read_xisf_file(file_path: String) -> Result<XisfReadResult, Nig
             mean: stats.mean,
             median: stats.median,
             std_dev: stats.std_dev,
+            // XISF load runs no star detection: honest None for both.
             hfr: None,
+            eccentricity: None,
             star_count: 0,
         },
         properties,
@@ -3735,7 +3763,9 @@ pub fn api_get_image_stats(
         mean: stats.mean,
         median: stats.median,
         std_dev: stats.std_dev,
+        // Basic-stats path runs no star detection: honest None for both.
         hfr: None,
+        eccentricity: None,
         star_count: 0,
     })
 }
@@ -4920,6 +4950,7 @@ mod unified_image_storage_tests {
                 median: 0.0,
                 std_dev: 0.0,
                 hfr: None,
+                eccentricity: None,
                 star_count: 0,
             },
             exposure_time: 0.1,

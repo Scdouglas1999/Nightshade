@@ -23,11 +23,17 @@ class RunDashboardCloudMotionPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NightshadeColors.of(context);
     final coverAsync = ref.watch(cloudCoverPercentageProvider);
-    final motionAsync = ref.watch(analyzeCloudMotionProvider);
+    final motionAsync = ref.watch(analyzeCloudMotionDetailedProvider);
 
     final cover = coverAsync.valueOrNull;
-    final motion = motionAsync.valueOrNull;
+    final motionResult = motionAsync.valueOrNull;
+    final motion = motionResult?.motion;
     final arrivalMins = motion?.etaToLocation?.inMinutes;
+    // When the analyzer could not produce a real motion estimate it returns an
+    // explicit reason. Surface it honestly instead of silently showing
+    // "No prediction" — the operator needs to know whether the predictive
+    // cloud-arrival pause is actually available tonight.
+    final unavailableReason = motionResult?.unavailableReason;
 
     final (coverLabel, coverColor) = _coverColor(cover, colors);
 
@@ -44,7 +50,7 @@ class RunDashboardCloudMotionPanel extends ConsumerWidget {
                 child: Text(
                   'CLOUD MOTION',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.6,
                     color: colors.textMuted,
@@ -61,7 +67,7 @@ class RunDashboardCloudMotionPanel extends ConsumerWidget {
                 child: Text(
                   coverLabel,
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     fontWeight: FontWeight.w700,
                     color: coverColor,
                   ),
@@ -89,6 +95,17 @@ class RunDashboardCloudMotionPanel extends ConsumerWidget {
                 ? colors.error
                 : colors.textPrimary,
           ),
+          if (motion == null && unavailableReason != null) ...[
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            Text(
+              'Cloud-motion unavailable: ${_reasonLabel(unavailableReason)}',
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                fontStyle: FontStyle.italic,
+                color: colors.textMuted,
+              ),
+            ),
+          ],
           const SizedBox(height: NightshadeTokens.spaceXs),
           _row(
             colors,
@@ -130,19 +147,32 @@ class RunDashboardCloudMotionPanel extends ConsumerWidget {
         Expanded(
           child: Text(
             label,
-            style: TextStyle(fontSize: 11, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
           ),
         ),
         Text(
           value,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: highlight ?? colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: highlight ?? colors.textPrimary),
         ),
       ],
     );
+  }
+
+  /// Human-readable explanation of why cloud-motion prediction is unavailable.
+  /// Mirrors [CloudMotionUnavailableReason] one-to-one so a new enum value
+  /// would surface as a (compile-time-flagged) missing case rather than a
+  /// silent blank.
+  String _reasonLabel(CloudMotionUnavailableReason reason) {
+    switch (reason) {
+      case CloudMotionUnavailableReason.insufficientFrames:
+        return 'not enough radar frames yet';
+      case CloudMotionUnavailableReason.noCloudsDetected:
+        return 'no clouds to track (clear sky)';
+      case CloudMotionUnavailableReason.noSpatialData:
+        return 'no spatial radar data';
+      case CloudMotionUnavailableReason.noResolvableMotion:
+        return 'clouds not moving enough to predict';
+    }
   }
 
   /// Green < 20%, yellow 20-50%, red > 50%. Matches the brief.

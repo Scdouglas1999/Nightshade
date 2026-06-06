@@ -85,67 +85,74 @@ mixin _GuidingDesktopSections
       ),
       child: Row(
         children: [
-          // Connection status indicator
-          Container(
-            width: 10,
-            height: 10,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: isConnected ? colors.success : colors.error,
-            ),
-          ),
-          const SizedBox(width: 10),
-          if (!isMobile)
-            Text(
-              isConnected ? 'PHD2 Connected' : 'PHD2 Disconnected',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontWeight: FontWeight.w500,
-                fontSize: 13,
-              ),
-            ),
-          SizedBox(width: isMobile ? 8 : 20),
-          // State indicator pill — flexible so a long label (e.g.
-          // "Calibrating") ellipsizes instead of overflowing on a narrow phone.
-          Flexible(
-            child: Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: isMobile ? 8 : 12,
-                vertical: 5,
-              ),
-              decoration: NightshadeDecorations.statusChip(
-                stateColor,
-                borderRadius: BorderRadius.circular(6),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: stateColor,
+          // Leading status group (connection dot, label, state pill). Wrapped
+          // in Expanded so it claims ALL horizontal slack and the trailing
+          // action buttons (Connect/Disconnect + Settings) pin to the far
+          // right of the bar. A bare Spacer here would split the slack with the
+          // loose state pill, leaving the actions floating near the centre.
+          Expanded(
+            child: Row(
+              children: [
+                // Connection status indicator
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isConnected ? colors.success : colors.error,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                if (!isMobile)
+                  Text(
+                    isConnected ? 'PHD2 Connected' : 'PHD2 Disconnected',
+                    style: NightshadeTypography.label.copyWith(color: colors.textPrimary),
+                  ),
+                SizedBox(width: isMobile ? 8 : 20),
+                // State indicator pill — flexible so a long label (e.g.
+                // "Calibrating") ellipsizes instead of overflowing on a narrow
+                // phone.
+                Flexible(
+                  child: Container(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: isMobile ? 8 : 12,
+                      vertical: 5,
+                    ),
+                    decoration: NightshadeDecorations.statusChip(
+                      stateColor,
+                      borderRadius: NightshadeTokens.borderRadiusMd,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: stateColor,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            _getStateLabel(phd2State),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: stateColor,
+                              fontWeight: FontWeight.w600,
+                              fontSize: isMobile ? 11 : 12,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      _getStateLabel(phd2State),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: stateColor,
-                        fontWeight: FontWeight.w600,
-                        fontSize: isMobile ? 11 : 12,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
-          const Spacer(),
           // RMS display - compact on mobile (key only on mobile, desktop uses graph header)
           if (phd2State == Phd2State.guiding) ...[
             if (isMobile) ...[
@@ -158,7 +165,7 @@ mixin _GuidingDesktopSections
               ),
             ] else ...[
               // Desktop shows RMS in graph header, not here
-              _buildRmsChip('RA', guideStats.rmsRa, Colors.redAccent, colors),
+              _buildRmsChip('RA', guideStats.rmsRa, colors.error, colors),
               const SizedBox(width: 10),
               _buildRmsChip('Dec', guideStats.rmsDec, colors.info, colors),
               const SizedBox(width: 10),
@@ -177,13 +184,13 @@ mixin _GuidingDesktopSections
               ),
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: NightshadeTokens.borderRadiusInline4,
               ),
               child: Text(
                 'RMS: --',
                 style: TextStyle(
                   color: colors.textMuted,
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                 ),
               ),
             ),
@@ -194,7 +201,7 @@ mixin _GuidingDesktopSections
             NightshadeButton(
               key: GuidingTutorialKeys.connectBtn,
               label: isMobile ? '' : 'Connect',
-              icon: LucideIcons.plug,
+              icon: NightshadeIcons.connected,
               size: ButtonSize.small,
               onPressed: () => connectPhd2(ref, context: context),
             )
@@ -211,10 +218,10 @@ mixin _GuidingDesktopSections
           Container(
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NightshadeTokens.borderRadiusInline8,
             ),
             child: IconButton(
-              icon: Icon(LucideIcons.settings,
+              icon: Icon(NightshadeIcons.settings,
                   color: colors.textSecondary, size: 18),
               onPressed: () => _showConnectionDialog(),
               tooltip: 'Connection Settings',
@@ -241,7 +248,7 @@ mixin _GuidingDesktopSections
       ),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: NightshadeTokens.borderRadiusInline4,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -279,10 +286,10 @@ mixin _GuidingDesktopSections
           _buildGlassCard(
             colors,
             title: 'Guide Star',
-            icon: LucideIcons.star,
+            icon: NightshadeIcons.star,
             trailing: isConnected
                 ? IconButton(
-                    icon: Icon(LucideIcons.refreshCw,
+                    icon: Icon(NightshadeIcons.refresh,
                         size: 14, color: colors.textSecondary),
                     onPressed: () =>
                         ref.read(starImageProvider.notifier).refresh(),
@@ -322,7 +329,7 @@ mixin _GuidingDesktopSections
           _buildGlassCard(
             colors,
             title: 'Target Display',
-            icon: LucideIcons.target,
+            icon: NightshadeIcons.target,
             child: AspectRatio(
               aspectRatio: 1,
               child: GuideTargetDisplay(
@@ -346,7 +353,7 @@ mixin _GuidingDesktopSections
           _buildGlassCard(
             colors,
             title: 'Star Statistics',
-            icon: LucideIcons.activity,
+            icon: NightshadeIcons.activity,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -383,12 +390,9 @@ mixin _GuidingDesktopSections
     final titleFontSize = isMobile ? 12.0 : 13.0;
     final contentPadding = isMobile ? 8.0 : 12.0;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusInline8,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
@@ -407,7 +411,7 @@ mixin _GuidingDesktopSections
                   padding: EdgeInsets.all(iconPadding),
                   decoration: BoxDecoration(
                     color: colors.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: NightshadeTokens.borderRadiusMd,
                   ),
                   child: Icon(icon, size: iconSize, color: colors.primary),
                 ),
@@ -448,12 +452,9 @@ mixin _GuidingDesktopSections
     final iconPadding = isMobile ? 4.0 : 6.0;
     final titleFontSize = isMobile ? 12.0 : 13.0;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusInline8,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -474,9 +475,9 @@ mixin _GuidingDesktopSections
                   padding: EdgeInsets.all(iconPadding),
                   decoration: BoxDecoration(
                     color: colors.primary.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: NightshadeTokens.borderRadiusMd,
                   ),
-                  child: Icon(LucideIcons.lineChart,
+                  child: Icon(NightshadeIcons.chart,
                       size: iconSize, color: colors.primary),
                 ),
                 const SizedBox(width: 8),
@@ -500,7 +501,7 @@ mixin _GuidingDesktopSections
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           _buildCompactRms(
-                              'RA', stats.rmsRa, Colors.redAccent, colors),
+                              'RA', stats.rmsRa, colors.error, colors),
                           const SizedBox(width: 12),
                           _buildCompactRms(
                               'Dec', stats.rmsDec, colors.info, colors),
@@ -556,7 +557,7 @@ mixin _GuidingDesktopSections
       children: [
         Text(
           '$label:',
-          style: TextStyle(color: colors.textMuted, fontSize: 11),
+          style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
         ),
         const SizedBox(width: 4),
         Text(
@@ -618,7 +619,7 @@ mixin _GuidingDesktopSections
         NightshadeButton(
           key: GuidingTutorialKeys.brainBtn,
           label: _showBrainPanel ? 'Hide Brain Settings' : 'Brain Settings',
-          icon: LucideIcons.brain,
+          icon: NightshadeIcons.brain,
           variant: ButtonVariant.outline,
           onPressed: () => setState(() => _showBrainPanel = !_showBrainPanel),
         ),
@@ -667,7 +668,7 @@ mixin _GuidingDesktopSections
                   height: 36,
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: NightshadeTokens.borderRadiusMd,
                   ),
                 ),
               ),
@@ -676,10 +677,49 @@ mixin _GuidingDesktopSections
         ),
       ),
       error: (e, _) => Center(
-        child: Text('Failed to load brain params',
-            style: TextStyle(color: colors.error)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(NightshadeIcons.warning, color: colors.error, size: 28),
+              const SizedBox(height: 10),
+              Text(
+                'Failed to load brain settings',
+                textAlign: TextAlign.center,
+                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
+              ),
+              const SizedBox(height: 6),
+              // Surface the real error so the user can act on it instead of
+              // staring at a generic "failed" message (silent fallbacks hide
+              // bugs). Common cause: PHD2 connected but no equipment profile.
+              Text(
+                _brainErrorMessage(e),
+                textAlign: TextAlign.center,
+                style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
+              ),
+              const SizedBox(height: 14),
+              NightshadeButton(
+                label: 'Retry',
+                icon: NightshadeIcons.refresh,
+                size: ButtonSize.small,
+                variant: ButtonVariant.outline,
+                onPressed: () =>
+                    ref.read(brainParamsProvider.notifier).fetch(),
+              ),
+            ],
+          ),
+        ),
       ),
     );
+  }
+
+  /// Pull a human-readable message out of whatever the brain-params fetch
+  /// threw. `StateError` (our explicit empty-dump guard) carries a clean
+  /// sentence; everything else falls back to its string form.
+  String _brainErrorMessage(Object error) {
+    if (error is StateError) return error.message;
+    return error.toString();
   }
 
   Widget _buildStatRow(
@@ -691,7 +731,7 @@ mixin _GuidingDesktopSections
           flex: 1,
           child: Text(
             label,
-            style: TextStyle(color: colors.textSecondary, fontSize: 12),
+            style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize12),
             overflow: TextOverflow.ellipsis,
           ),
         ),

@@ -41,21 +41,17 @@ class _ExposureProgressPanel extends StatelessWidget {
           // Header
           Row(
             children: [
-              Icon(Icons.camera, size: 16, color: colors.success),
+              Icon(NightshadeIcons.camera, size: 16, color: colors.success),
               const SizedBox(width: 8),
               Text(
                 'Exposure: ${node.filter ?? 'No Filter'}',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
               ),
               const Spacer(),
               Text(
                 '$currentFrame / $totalFrames frames',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   color: colors.textMuted,
                 ),
               ),
@@ -135,7 +131,7 @@ class _FrameGrid extends StatelessWidget {
                 : isCurrent
                     ? colors.info
                     : colors.surface,
-            borderRadius: BorderRadius.circular(3),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
             border: Border.all(
               color: isCompleted
                   ? colors.success

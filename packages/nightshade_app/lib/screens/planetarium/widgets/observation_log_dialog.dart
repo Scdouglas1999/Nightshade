@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -101,12 +100,12 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
       backgroundColor: colors.surface,
       title: Row(
         children: [
-          Icon(LucideIcons.bookOpen, color: colors.primary, size: 20),
+          Icon(NightshadeIcons.book, color: colors.primary, size: 20),
           const SizedBox(width: 8),
           const Expanded(
             child: Text(
               'Log Observation',
-              style: TextStyle(fontSize: 18),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize18),
             ),
           ),
         ],
@@ -157,11 +156,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
               // Rating
               Text(
                 'Rating',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: 8),
               Row(
@@ -173,11 +168,11 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: Icon(
                         starNum <= _rating
-                            ? LucideIcons.star
-                            : LucideIcons.star,
+                            ? NightshadeIcons.star
+                            : NightshadeIcons.star,
                         size: 28,
                         color: starNum <= _rating
-                            ? Colors.amber
+                            ? colors.warning
                             : colors.textSecondary.withValues(alpha: 0.3),
                       ),
                     ),
@@ -190,11 +185,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
               // Seeing conditions
               Text(
                 'Seeing',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: 8),
               _ConditionSelector(
@@ -209,11 +200,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
               // Transparency
               Text(
                 'Transparency',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: 8),
               _ConditionSelector(
@@ -228,11 +215,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
               // Notes
               Text(
                 'Notes',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textSecondary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
               ),
               const SizedBox(height: 8),
               TextField(
@@ -244,20 +227,20 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
                   filled: true,
                   fillColor: colors.background,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.primary),
                   ),
                   contentPadding: const EdgeInsets.all(12),
                 ),
-                style: TextStyle(color: colors.textPrimary, fontSize: 14),
+                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize14),
               ),
             ],
           ),
@@ -306,7 +289,7 @@ class _InfoRow extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
             ),
           ),
@@ -314,11 +297,7 @@ class _InfoRow extends StatelessWidget {
         Expanded(
           child: Text(
             value,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w500,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.label.copyWith(color: colors.textPrimary),
           ),
         ),
       ],
@@ -353,7 +332,7 @@ class _ConditionSelector extends StatelessWidget {
               color: isSelected
                   ? colors.primary.withValues(alpha: 0.2)
                   : colors.background,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               border: Border.all(
                 color: isSelected
                     ? colors.primary
@@ -363,7 +342,7 @@ class _ConditionSelector extends StatelessWidget {
             child: Text(
               option[0].toUpperCase() + option.substring(1),
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                 color: isSelected ? colors.primary : colors.textSecondary,
               ),

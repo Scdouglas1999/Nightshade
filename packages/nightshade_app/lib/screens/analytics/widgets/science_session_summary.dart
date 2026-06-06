@@ -86,7 +86,7 @@ class ScienceSessionSummary extends ConsumerWidget {
     return NightshadeCard(
       child: InkWell(
         onTap: onOpenSciencePressed,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
@@ -102,7 +102,7 @@ class ScienceSessionSummary extends ConsumerWidget {
                     style: TextStyle(
                       color: colors.textPrimary,
                       fontWeight: FontWeight.w700,
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                     ),
                   ),
                   const Spacer(),
@@ -120,7 +120,7 @@ class ScienceSessionSummary extends ConsumerWidget {
                       label: Text(
                         'Target campaign',
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: colors.textSecondary,
                           fontWeight: FontWeight.w600,
                         ),
@@ -130,7 +130,7 @@ class ScienceSessionSummary extends ConsumerWidget {
                     Text(
                       'Open Science tab →',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: colors.primary,
                         fontWeight: FontWeight.w600,
                       ),
@@ -319,7 +319,7 @@ class _MetricTile extends StatelessWidget {
               Text(
                 label.toUpperCase(),
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: NightshadeTypography.fontSize9,
                   letterSpacing: 0.6,
                   color: colors.textMuted,
                   fontWeight: FontWeight.w700,
@@ -331,7 +331,7 @@ class _MetricTile extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              fontSize: 18,
+              fontSize: NightshadeTypography.fontSize18,
               fontWeight: FontWeight.w700,
               color: tone,
             ),
@@ -342,7 +342,7 @@ class _MetricTile extends StatelessWidget {
               child: Text(
                 sub!,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   color: colors.textSecondary,
                 ),
               ),

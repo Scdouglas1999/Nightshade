@@ -254,7 +254,7 @@ class _DriftWarningBanner extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: NightshadeDecorations.emphasisSurface(
         colors.warning,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -265,7 +265,7 @@ class _DriftWarningBanner extends StatelessWidget {
             child: Text(
               message,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textPrimary,
               ),
             ),
@@ -350,7 +350,7 @@ class _ModelViewerState extends State<_ModelViewer> {
                             'Run autofocus across a few temperatures and they will '
                             'appear here.',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: NightshadeColors.of(context).textSecondary,
                     ),
                   ),
@@ -427,7 +427,7 @@ class _ModelRowState extends State<_ModelRow> {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: c.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: c.border),
       ),
       child: Column(
@@ -439,11 +439,7 @@ class _ModelRowState extends State<_ModelRow> {
               const SizedBox(width: 8),
               Text(
                 m.filterName,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: c.textPrimary,
-                ),
+                style: NightshadeTypography.labelStrong.copyWith(color: c.textPrimary),
               ),
               const SizedBox(width: 12),
               _stat('Slope', '${m.slopeStepsPerC.toStringAsFixed(1)} steps/°C', c),
@@ -497,7 +493,7 @@ class _ModelRowState extends State<_ModelRow> {
                 icon: Icon(LucideIcons.refreshCw, size: 13, color: c.warning),
                 label: Text(
                   'Re-train',
-                  style: TextStyle(fontSize: 11, color: c.warning),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: c.warning),
                 ),
               ),
             ],
@@ -512,7 +508,7 @@ class _ModelRowState extends State<_ModelRow> {
                 Text(
                   'Drift: ${m.consecutiveBadPredictions} consecutive bad '
                   'predictions; ${m.accumulatedDriftSteps} accumulated steps',
-                  style: TextStyle(fontSize: 11, color: c.warning),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: c.warning),
                 ),
               ],
             ),
@@ -522,7 +518,7 @@ class _ModelRowState extends State<_ModelRow> {
             Text(
               'Last used: ${_formatTimeAgo(m.lastUsedAt!)} · '
               'Last trained: ${_formatTimeAgo(m.lastTrainedAt)}',
-              style: TextStyle(fontSize: 10, color: c.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: c.textMuted),
             ),
           ],
           if (_expanded) ...[
@@ -539,11 +535,11 @@ class _ModelRowState extends State<_ModelRow> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(label, style: TextStyle(fontSize: 9, color: c.textMuted)),
+        Text(label, style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: c.textMuted)),
         Text(
           value,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: FontWeight.w600,
             color: c.textPrimary,
             fontFeatures: const [FontFeature.tabularFigures()],
@@ -592,31 +588,30 @@ class _SampleScatter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return Container(
+    return SizedBox(
       height: 140,
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: colors.border),
+      child: NightshadeCard(
+        variant: CardVariant.subtle,
+        borderRadius: NightshadeTokens.radiusInline4,
+        padding: const EdgeInsets.all(8),
+        child: samples.isEmpty
+            ? Center(
+                child: Text(
+                  'No samples',
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
+                ),
+              )
+            : CustomPaint(
+                size: Size.infinite,
+                painter: _ScatterPainter(
+                  samples: samples,
+                  model: model,
+                  pointColor: colors.accent,
+                  lineColor: colors.primary,
+                  gridColor: colors.border,
+                ),
+              ),
       ),
-      child: samples.isEmpty
-          ? Center(
-              child: Text(
-                'No samples',
-                style: TextStyle(fontSize: 11, color: colors.textMuted),
-              ),
-            )
-          : CustomPaint(
-              size: Size.infinite,
-              painter: _ScatterPainter(
-                samples: samples,
-                model: model,
-                pointColor: colors.accent,
-                lineColor: colors.primary,
-                gridColor: colors.border,
-              ),
-            ),
     );
   }
 }

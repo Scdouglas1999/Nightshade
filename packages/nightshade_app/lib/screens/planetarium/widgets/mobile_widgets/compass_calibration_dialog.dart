@@ -9,16 +9,16 @@ class CompassCalibrationDialog extends StatelessWidget {
     final colors = NightshadeColors.of(context);
     return AlertDialog(
       backgroundColor: colors.surfaceOverlay,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       title: Row(
         children: [
-          Icon(LucideIcons.compass, color: colors.info, size: 24),
+          Icon(NightshadeIcons.compass, color: colors.info, size: 24),
           const SizedBox(width: 12),
           Expanded(
             child: Text(
               'Compass Calibration',
               style: TextStyle(
-                fontSize: 18,
+                fontSize: NightshadeTypography.fontSize18,
                 fontWeight: FontWeight.bold,
                 color: colors.textPrimary,
               ),
@@ -38,7 +38,7 @@ class CompassCalibrationDialog extends StatelessWidget {
             Text(
               'For accurate sky aiming, calibrate your compass by moving your device in a figure-8 pattern several times.',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: NightshadeTypography.fontSize14,
                 height: 1.4,
                 color: colors.textPrimary,
               ),
@@ -52,11 +52,7 @@ class CompassCalibrationDialog extends StatelessWidget {
                 children: [
                   Text(
                     'Tips for best results:',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: colors.info,
-                    ),
+                    style: NightshadeTypography.h6.copyWith(color: colors.info),
                   ),
                   const SizedBox(height: 8),
                   const _CalibrationTip(
@@ -75,7 +71,7 @@ class CompassCalibrationDialog extends StatelessWidget {
             Text(
               'Accuracy of a few degrees is typical for phone compasses. This mode is best for quick sky orientation, not precision pointing.',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
                 height: 1.3,
               ),
@@ -113,13 +109,13 @@ class _CalibrationTip extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.only(top: 4),
-            child: Icon(LucideIcons.check, size: 12, color: accent),
+            child: Icon(NightshadeIcons.check, size: 12, color: accent),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(fontSize: 12, height: 1.3),
+              style: const TextStyle(fontSize: NightshadeTypography.fontSize12, height: 1.3),
             ),
           ),
         ],

@@ -31,7 +31,7 @@ class SessionChart extends StatelessWidget {
     required this.title,
     required this.yAxisLabel,
     required this.dataPoints,
-    this.lineColor = Colors.blue,
+    this.lineColor = NightshadeChartColors.seriesBlue,
     this.minY,
     this.maxY,
   });
@@ -49,9 +49,7 @@ class SessionChart extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.h5.copyWith(
                   color: colors.textPrimary,
                 ),
               ),
@@ -61,12 +59,12 @@ class SessionChart extends StatelessWidget {
                 child: Container(
                   decoration: BoxDecoration(
                     color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   ),
                   child: Center(
                     child: Text(
                       'No data',
-                      style: TextStyle(fontSize: 12, color: colors.textMuted),
+                      style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
                     ),
                   ),
                 ),
@@ -103,9 +101,7 @@ class SessionChart extends StatelessWidget {
           children: [
             Text(
               title,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
+              style: NightshadeTypography.h5.copyWith(
                 color: colors.textPrimary,
               ),
             ),
@@ -156,7 +152,7 @@ class SessionChart extends StatelessWidget {
                                   : '${minutes}m',
                               style: TextStyle(
                                 color: colors.textSecondary,
-                                fontSize: 10,
+                                fontSize: NightshadeTypography.fontSize10,
                               ),
                             ),
                           );
@@ -173,7 +169,7 @@ class SessionChart extends StatelessWidget {
                             value.toStringAsFixed(1),
                             style: TextStyle(
                               color: colors.textSecondary,
-                              fontSize: 10,
+                              fontSize: NightshadeTypography.fontSize10,
                             ),
                           );
                         },
@@ -215,10 +211,8 @@ class SessionChart extends StatelessWidget {
                               : '${minutes}m';
                           return LineTooltipItem(
                             '$yAxisLabel\n${spot.y.toStringAsFixed(2)}\n$timeStr',
-                            TextStyle(
+                            NightshadeTypography.labelQuiet.copyWith(
                               color: colors.textPrimary,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w500,
                             ),
                           );
                         }).toList();
@@ -255,7 +249,7 @@ class HfrChart extends StatelessWidget {
       title: 'Image Quality',
       yAxisLabel: 'HFR (px)',
       dataPoints: dataPoints,
-      lineColor: Colors.blue,
+      lineColor: NightshadeChartColors.seriesBlue,
     );
   }
 }
@@ -280,7 +274,7 @@ class TemperatureChart extends StatelessWidget {
       title: 'Temperature',
       yAxisLabel: '°C',
       dataPoints: dataPoints,
-      lineColor: Colors.orange,
+      lineColor: NightshadeChartColors.seriesOrange,
     );
   }
 }
@@ -305,7 +299,7 @@ class GuidingRmsChart extends StatelessWidget {
       title: 'Guiding Performance',
       yAxisLabel: 'RMS (")',
       dataPoints: dataPoints,
-      lineColor: Colors.green,
+      lineColor: NightshadeChartColors.seriesGreen,
     );
   }
 }

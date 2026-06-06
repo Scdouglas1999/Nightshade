@@ -167,7 +167,7 @@ class _BannerRow extends StatelessWidget {
                     Text(
                       event.category,
                       style: TextStyle(
-                        fontSize: 9,
+                        fontSize: NightshadeTypography.fontSize9,
                         fontWeight: FontWeight.w800,
                         color: colors.error,
                         letterSpacing: 0.6,
@@ -178,7 +178,7 @@ class _BannerRow extends StatelessWidget {
                       child: Text(
                         event.title,
                         style: TextStyle(
-                          fontSize: compact ? 12 : 14,
+                          fontSize: compact ? NightshadeTypography.fontSize12 : NightshadeTypography.fontSize14,
                           fontWeight: FontWeight.w700,
                           color: colors.textPrimary,
                         ),
@@ -201,7 +201,7 @@ class _BannerRow extends StatelessWidget {
                   Text(
                     event.message,
                     style: TextStyle(
-                      fontSize: compact ? 11 : 12,
+                      fontSize: compact ? NightshadeTypography.fontSize11 : NightshadeTypography.fontSize12,
                       color: colors.textSecondary,
                     ),
                     maxLines: 2,
@@ -268,7 +268,7 @@ class _MorePill extends StatelessWidget {
             Text(
               '+$count more',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w700,
                 color: colors.error,
               ),

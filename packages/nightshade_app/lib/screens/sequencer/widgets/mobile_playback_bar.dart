@@ -31,6 +31,7 @@ class MobilePlaybackBar extends ConsumerWidget {
         border: Border(bottom: BorderSide(color: colors.border)),
         boxShadow: [
           BoxShadow(
+            // absolute: drop-shadow scrim (theme-independent)
             color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 4,
             offset: const Offset(0, 2),
@@ -206,7 +207,7 @@ class _MobilePlaybackButton extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: effectiveEnabled ? onPressed : null,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           child: Container(
             width: buttonSize,
             height: buttonSize,
@@ -215,13 +216,13 @@ class _MobilePlaybackButton extends StatelessWidget {
               color: isActive
                   ? NightshadeDecorations.statusChip(
                       colors.success,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                       bordered: false,
                     ).color
                   : effectiveEnabled
                       ? colors.surfaceAlt
                       : colors.surface,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(
                 color: isActive
                     ? colors.success.withValues(alpha: 0.5)
@@ -268,7 +269,7 @@ class _InfoChip extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: horizontalPadding, vertical: 4),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -348,7 +349,7 @@ class _StatusBadge extends StatelessWidget {
       height: badgeSize,
       decoration: NightshadeDecorations.statusChip(
         badgeColor,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
       ),
       child: state == SequenceExecutionState.running
           ? _PulsingIcon(color: badgeColor, icon: icon, size: iconSize)

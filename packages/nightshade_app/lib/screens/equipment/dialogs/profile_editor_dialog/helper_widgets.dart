@@ -26,12 +26,9 @@ class _SectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusInline8,
       child: Column(
         children: [
           // Header (always visible, clickable to toggle)
@@ -39,7 +36,7 @@ class _SectionCard extends StatelessWidget {
             onTap: onToggle,
             borderRadius: isExpanded
                 ? const BorderRadius.vertical(top: Radius.circular(8))
-                : BorderRadius.circular(8),
+                : BorderRadius.circular(NightshadeTokens.radiusInline8),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -49,7 +46,7 @@ class _SectionCard extends StatelessWidget {
                     height: 32,
                     decoration: NightshadeDecorations.tintedBadge(
                       colors.primary,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     ),
                     child: Icon(icon, size: 16, color: colors.primary),
                   ),
@@ -60,11 +57,7 @@ class _SectionCard extends StatelessWidget {
                       children: [
                         Text(
                           title,
-                          style: TextStyle(
-                            color: colors.textPrimary,
-                            fontWeight: FontWeight.w600,
-                            fontSize: 14,
-                          ),
+                          style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                         ),
                         if (!isExpanded) ...[
                           const SizedBox(height: 2),
@@ -72,7 +65,7 @@ class _SectionCard extends StatelessWidget {
                             summary,
                             style: TextStyle(
                               color: colors.textMuted,
-                              fontSize: 12,
+                              fontSize: NightshadeTypography.fontSize12,
                             ),
                           ),
                         ],
@@ -128,7 +121,7 @@ class _IconOption extends StatelessWidget {
           color: isSelected
               ? colors.primary.withValues(alpha: 0.2)
               : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(
             color: isSelected ? colors.primary : colors.border,
             width: isSelected ? 2 : 1,
@@ -143,7 +136,7 @@ class _IconOption extends StatelessWidget {
                 )
               : Text(
                   icon,
-                  style: const TextStyle(fontSize: 20),
+                  style: const TextStyle(fontSize: NightshadeTypography.fontSize20),
                 ),
         ),
       ),
@@ -226,7 +219,7 @@ class _ComputedValue extends StatelessWidget {
           label,
           style: TextStyle(
             color: colors.textMuted,
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
           ),
         ),
         const SizedBox(height: 2),
@@ -234,7 +227,7 @@ class _ComputedValue extends StatelessWidget {
           value,
           style: TextStyle(
             color: colors.primary,
-            fontSize: 16,
+            fontSize: NightshadeTypography.fontSize16,
             fontWeight: FontWeight.bold,
           ),
         ),
@@ -244,7 +237,7 @@ class _ComputedValue extends StatelessWidget {
             subtitle!,
             style: TextStyle(
               color: colors.textMuted,
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
             ),
           ),
         ],
@@ -281,7 +274,7 @@ class _DeviceRow extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(
           color: deviceId != null
               ? colors.primary.withValues(alpha: 0.3)
@@ -299,7 +292,7 @@ class _DeviceRow extends StatelessWidget {
                 height: 28,
                 decoration: NightshadeDecorations.tintedBadge(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Icon(icon, size: 14, color: colors.primary),
               ),
@@ -310,11 +303,7 @@ class _DeviceRow extends StatelessWidget {
                   children: [
                     Text(
                       type,
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: NightshadeTypography.labelQuiet.copyWith(color: colors.textSecondary),
                     ),
                     const SizedBox(height: 4),
                     // Friendly name text field
@@ -324,27 +313,27 @@ class _DeviceRow extends StatelessWidget {
                         controller: nameController,
                         style: TextStyle(
                           color: colors.textPrimary,
-                          fontSize: 13,
+                          fontSize: NightshadeTypography.fontSize13,
                         ),
                         decoration: InputDecoration(
                           hintText: 'Friendly name...',
                           hintStyle: TextStyle(
                             color: colors.textMuted,
-                            fontSize: 13,
+                            fontSize: NightshadeTypography.fontSize13,
                           ),
                           isDense: true,
                           contentPadding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 6),
                           border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                             borderSide: BorderSide(color: colors.border),
                           ),
                           enabledBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                             borderSide: BorderSide(color: colors.border),
                           ),
                           focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(4),
+                            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                             borderSide: BorderSide(color: colors.primary),
                           ),
                           filled: true,
@@ -385,7 +374,7 @@ class _DeviceRow extends StatelessWidget {
                 deviceId!,
                 style: TextStyle(
                   color: colors.textMuted,
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   fontFamily: 'monospace',
                 ),
                 maxLines: 1,
@@ -471,7 +460,7 @@ class _DeviceDropdown extends StatelessWidget {
                   ),
                   Text(
                     device.activeBackend.shortLabel,
-                    style: TextStyle(color: colors.textMuted, fontSize: 11),
+                    style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
                   ),
                 ],
               ),
@@ -510,7 +499,7 @@ class _DeviceDropdown extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
           border: Border.all(color: colors.border),
         ),
         child: Row(
@@ -520,7 +509,7 @@ class _DeviceDropdown extends StatelessWidget {
               deviceId != null ? 'Selected' : 'Select...',
               style: TextStyle(
                 color: deviceId != null ? colors.textPrimary : colors.textMuted,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
             const SizedBox(width: 4),
@@ -605,7 +594,7 @@ class _FilterRow extends StatelessWidget {
               '$index',
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
               ),
             ),
           ),
@@ -615,23 +604,23 @@ class _FilterRow extends StatelessWidget {
               height: 32,
               child: TextField(
                 controller: nameController,
-                style: TextStyle(color: colors.textPrimary, fontSize: 13),
+                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize13),
                 decoration: InputDecoration(
                   hintText: 'Filter name',
-                  hintStyle: TextStyle(color: colors.textMuted, fontSize: 13),
+                  hintStyle: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize13),
                   isDense: true,
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     borderSide: BorderSide(color: colors.primary),
                   ),
                   filled: true,
@@ -647,25 +636,25 @@ class _FilterRow extends StatelessWidget {
             child: TextField(
               controller: offsetController,
               keyboardType: const TextInputType.numberWithOptions(signed: true),
-              style: TextStyle(color: colors.textPrimary, fontSize: 13),
+              style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize13),
               decoration: InputDecoration(
                 hintText: '0',
-                hintStyle: TextStyle(color: colors.textMuted, fontSize: 13),
+                hintStyle: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize13),
                 suffixText: 'steps',
-                suffixStyle: TextStyle(color: colors.textMuted, fontSize: 10),
+                suffixStyle: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize10),
                 isDense: true,
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                   borderSide: BorderSide(color: colors.border),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                   borderSide: BorderSide(color: colors.border),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                   borderSide: BorderSide(color: colors.primary),
                 ),
                 filled: true,

@@ -156,7 +156,7 @@ class _StatusBarState extends ConsumerState<StatusBar>
       _divider(colors),
       const SizedBox(width: 12),
       _StatusPillButton(
-        icon: LucideIcons.camera,
+        icon: NightshadeIcons.camera,
         label: 'Camera',
         value: cameraConnected
             ? _getDeviceDisplayName(
@@ -180,7 +180,7 @@ class _StatusBarState extends ConsumerState<StatusBar>
       ),
       const SizedBox(width: 8),
       _StatusPillButton(
-        icon: LucideIcons.crosshair,
+        icon: NightshadeIcons.crosshair,
         label: 'Guider',
         value: guiderConnected
             ? (guiderState.isGuiding ? 'Guiding' : 'Ready')
@@ -191,7 +191,7 @@ class _StatusBarState extends ConsumerState<StatusBar>
       ),
       const SizedBox(width: 8),
       _StatusPillButton(
-        icon: LucideIcons.focus,
+        icon: NightshadeIcons.focuser,
         label: 'Focus',
         value: focuserConnected
             ? (focuserState.position?.toString() ?? 'Ready')
@@ -219,7 +219,7 @@ class _StatusBarState extends ConsumerState<StatusBar>
         const SizedBox(width: 8),
       ],
       _InfoChip(
-        icon: LucideIcons.thermometer,
+        icon: NightshadeIcons.temperature,
         value: cameraConnected && cameraState.temperature != null
             ? '${cameraState.temperature!.toStringAsFixed(1)}\u00B0C'
             : '---',
@@ -228,7 +228,7 @@ class _StatusBarState extends ConsumerState<StatusBar>
       const SizedBox(width: 12),
       if (!widget.compact)
         _InfoChip(
-          icon: savePathExists ? LucideIcons.folderOpen : LucideIcons.folderX,
+          icon: savePathExists ? NightshadeIcons.folderOpen : LucideIcons.folderX,
           value: savePathLabel,
           tooltip: savePathTooltip,
           colors: colors,

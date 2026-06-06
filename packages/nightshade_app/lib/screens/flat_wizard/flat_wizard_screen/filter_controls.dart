@@ -12,11 +12,7 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       title,
-      style: TextStyle(
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-        color: colors.textSecondary,
-      ),
+      style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
     );
   }
 }
@@ -35,13 +31,10 @@ class _FilterSelector extends ConsumerWidget {
         ? state.filterSettings[state.currentFilterIndex]
         : null;
 
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.standard,
+      borderRadius: NightshadeTokens.radiusInline8,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
       child: Row(
         children: [
           Icon(LucideIcons.filter, size: 18, color: colors.textSecondary),
@@ -52,7 +45,7 @@ class _FilterSelector extends ConsumerWidget {
                   fwState.currentFilterName ??
                   'No filter',
               style: TextStyle(
-                fontSize: 14,
+                fontSize: NightshadeTypography.fontSize14,
                 color: colors.textPrimary,
               ),
             ),
@@ -77,21 +70,18 @@ class _FilterChecklist extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         ),
         child: Text(
           'No filters available. Connect a filter wheel.',
-          style: TextStyle(color: colors.textMuted, fontSize: 13),
+          style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize13),
         ),
       );
     }
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
+    return NightshadeCard(
+      variant: CardVariant.standard,
+      borderRadius: NightshadeTokens.radiusInline8,
       child: Column(
         children: [
           for (int i = 0; i < state.filterSettings.length; i++)
@@ -139,7 +129,7 @@ class _FilterChecklistItem extends StatelessWidget {
             child: Text(
               filter.filterName,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: filter.enabled ? colors.textPrimary : colors.textMuted,
               ),
             ),
@@ -148,7 +138,7 @@ class _FilterChecklistItem extends StatelessWidget {
             Text(
               '~${filter.suggestedExposure!.toStringAsFixed(1)}s',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
                 fontFamily: 'monospace',
               ),

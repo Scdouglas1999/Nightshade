@@ -181,15 +181,11 @@ class SettingsErrorState extends StatelessWidget {
         ),
         child: Padding(
           padding: EdgeInsets.all(horizontalPadding),
-          child: Container(
+          child: NightshadeCard(
+            variant: CardVariant.subtle,
             padding: EdgeInsets.all(isMobile
                 ? NightshadeTokens.spaceXl
                 : NightshadeTokens.space2xl),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              borderRadius: NightshadeTokens.borderRadiusMd,
-              border: Border.all(color: colors.border),
-            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -212,7 +208,7 @@ class SettingsErrorState extends StatelessWidget {
                   style: NightshadeTypography.bold(
                     isMobile
                         ? NightshadeTypography.bodyLg
-                        : NightshadeTypography.bodyLg.copyWith(fontSize: 18),
+                        : NightshadeTypography.bodyLg.copyWith(fontSize: NightshadeTypography.fontSize18),
                   ).copyWith(color: colors.textPrimary),
                 ),
                 const SizedBox(height: NightshadeTokens.spaceSm),

@@ -31,7 +31,7 @@ class _QueueTable extends ConsumerWidget {
             'Remove $targetName from the scheduler? Integration goals and '
             'constraints will be deleted; the target itself stays in your '
             'catalog.',
-            style: TextStyle(color: colors.textSecondary, fontSize: 13),
+            style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13),
           ),
           actions: [
             NightshadeButton(
@@ -82,7 +82,7 @@ class _QueueTable extends ConsumerWidget {
             'Clear all targets from the scheduler? Integration goals and '
             'constraints will be deleted; targets themselves stay in your '
             'catalog.',
-            style: TextStyle(color: colors.textSecondary, fontSize: 13),
+            style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize13),
           ),
           actions: [
             NightshadeButton(
@@ -122,7 +122,7 @@ class _QueueTable extends ConsumerWidget {
       padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -136,7 +136,7 @@ class _QueueTable extends ConsumerWidget {
               Text(
                 'Target queue',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: NightshadeTypography.fontSize16,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                 ),
@@ -148,7 +148,7 @@ class _QueueTable extends ConsumerWidget {
                       const EdgeInsets.only(right: NightshadeTokens.spaceSm),
                   child: Text(
                     'Last evaluation ${_formatTime(decision!.evaluatedAt)}',
-                    style: TextStyle(fontSize: 11, color: colors.textMuted),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                   ),
                 ),
               if (hasRows)
@@ -180,7 +180,7 @@ class _QueueTable extends ConsumerWidget {
                 padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
                 child: Text(
                   'Failed to load integration goals: $e',
-                  style: TextStyle(fontSize: 12, color: colors.error),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.error),
                 ),
               ),
               data: (goals) {
@@ -238,7 +238,7 @@ class _ColumnHeaders extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     TextStyle h() => TextStyle(
-          fontSize: 11,
+          fontSize: NightshadeTypography.fontSize11,
           fontWeight: FontWeight.w700,
           color: colors.textMuted,
           letterSpacing: 0.4,

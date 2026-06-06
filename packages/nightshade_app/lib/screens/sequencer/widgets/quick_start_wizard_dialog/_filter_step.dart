@@ -17,11 +17,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
         if (hasFilters) ...[
           Text(
             'Quick Presets',
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-            ),
+            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 8),
           Wrap(
@@ -31,7 +27,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
               final isSelected = _selectedPreset == preset;
               return InkWell(
                 onTap: () => _applyPreset(preset),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -39,11 +35,11 @@ extension _FilterStep on _QuickStartWizardDialogState {
                     color: isSelected
                         ? NightshadeDecorations.statusChip(
                             colors.primary,
-                            borderRadius: BorderRadius.circular(8),
+                            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                             bordered: false,
                           ).color
                         : colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     border: Border.all(
                       color: isSelected ? colors.primary : colors.border,
                     ),
@@ -53,16 +49,11 @@ extension _FilterStep on _QuickStartWizardDialogState {
                     children: [
                       Text(
                         preset.label,
-                        style: TextStyle(
-                          color:
-                              isSelected ? colors.primary : colors.textPrimary,
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: NightshadeTypography.h6.copyWith(color: isSelected ? colors.primary : colors.textPrimary),
                       ),
                       Text(
                         preset.description,
-                        style: TextStyle(color: colors.textMuted, fontSize: 10),
+                        style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize10),
                       ),
                     ],
                   ),
@@ -75,11 +66,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
 
         Text(
           hasFilters ? 'Filter Exposures' : 'Exposure Settings',
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
+          style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 8),
 
@@ -91,22 +78,22 @@ extension _FilterStep on _QuickStartWizardDialogState {
               Expanded(
                 flex: 3,
                 child: Text('Filter',
-                    style: TextStyle(color: colors.textMuted, fontSize: 11)),
+                    style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11)),
               ),
               Expanded(
                 flex: 2,
                 child: Text('Exposure',
-                    style: TextStyle(color: colors.textMuted, fontSize: 11)),
+                    style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11)),
               ),
               Expanded(
                 flex: 2,
                 child: Text('Count',
-                    style: TextStyle(color: colors.textMuted, fontSize: 11)),
+                    style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11)),
               ),
               Expanded(
                 flex: 2,
                 child: Text('Binning',
-                    style: TextStyle(color: colors.textMuted, fontSize: 11)),
+                    style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11)),
               ),
               const SizedBox(width: 60),
             ],
@@ -124,11 +111,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
         // Loop settings
         Text(
           'Loop Settings',
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
+          style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 8),
         Row(
@@ -137,15 +120,15 @@ extension _FilterStep on _QuickStartWizardDialogState {
               child: DropdownButtonFormField<LoopConditionType>(
                 initialValue: _loopType,
                 dropdownColor: colors.surfaceAlt,
-                style: TextStyle(color: colors.textPrimary, fontSize: 13),
+                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize13),
                 decoration: InputDecoration(
                   labelText: 'Loop Type',
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   filled: true,
@@ -183,17 +166,17 @@ extension _FilterStep on _QuickStartWizardDialogState {
                 child: TextField(
                   controller:
                       TextEditingController(text: _loopCount.toString()),
-                  style: TextStyle(color: colors.textPrimary, fontSize: 13),
+                  style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize13),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                   decoration: InputDecoration(
                     labelText: 'Iterations',
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                       borderSide: BorderSide(color: colors.border),
                     ),
                     enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                       borderSide: BorderSide(color: colors.border),
                     ),
                     filled: true,
@@ -242,7 +225,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
               config.filterName,
               style: TextStyle(
                 color: config.enabled ? colors.textPrimary : colors.textMuted,
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
               ),
             ),
           ),
@@ -254,17 +237,17 @@ extension _FilterStep on _QuickStartWizardDialogState {
                 controller: TextEditingController(
                     text: config.exposureSecs.round().toString()),
                 enabled: config.enabled,
-                style: TextStyle(color: colors.textPrimary, fontSize: 12),
+                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize12),
                 keyboardType: TextInputType.number,
                 decoration: InputDecoration(
                   suffixText: 's',
-                  suffixStyle: TextStyle(color: colors.textMuted, fontSize: 11),
+                  suffixStyle: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize11),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   filled: true,
@@ -292,16 +275,16 @@ extension _FilterStep on _QuickStartWizardDialogState {
                 controller:
                     TextEditingController(text: config.count.toString()),
                 enabled: config.enabled,
-                style: TextStyle(color: colors.textPrimary, fontSize: 12),
+                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize12),
                 keyboardType: TextInputType.number,
                 inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   filled: true,
@@ -327,14 +310,14 @@ extension _FilterStep on _QuickStartWizardDialogState {
               child: DropdownButtonFormField<BinningMode>(
                 initialValue: config.binning,
                 dropdownColor: colors.surfaceAlt,
-                style: TextStyle(color: colors.textPrimary, fontSize: 12),
+                style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize12),
                 decoration: InputDecoration(
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   enabledBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                     borderSide: BorderSide(color: colors.border),
                   ),
                   filled: true,
@@ -368,7 +351,7 @@ extension _FilterStep on _QuickStartWizardDialogState {
               _formatFilterTotal(config),
               style: TextStyle(
                 color: config.enabled ? colors.textSecondary : colors.textMuted,
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
               ),
               textAlign: TextAlign.right,
             ),

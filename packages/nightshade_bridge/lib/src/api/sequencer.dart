@@ -291,6 +291,24 @@ Future<void> apiSequencerUpdateCloudMotion(
         predictedClearSkyAlt: predictedClearSkyAlt,
         predictedClearSkyAz: predictedClearSkyAz);
 
+/// Full-night audit 2026-06-04 (defense-in-depth) — push the Dart-side
+/// weather-safety verdict into the executor.
+///
+/// The in-sequencer `WeatherUnsafe` trigger keys off the hardware
+/// `safety_is_safe` poll only; a rig WITHOUT a hardware safety device never
+/// aborts via that trigger even when `weatherSafetyProvider` computed UNSAFE
+/// from the user's configured thresholds + API/cloud sources. This carries
+/// that verdict as an additional unsafe source folded (OR-of-unsafe) into the
+/// trigger evaluation — it can only make the rig safer, never less safe than
+/// the hardware reading.
+///
+/// `unsafe_override = Some(true)` => Dart computed UNSAFE; `Some(false)` =>
+/// Dart computed SAFE; `None` => Dart abstains (provider disabled / no data)
+/// and this layer is inert.
+Future<void> apiSequencerUpdateWeatherVerdict({bool? unsafeOverride}) =>
+    RustLib.instance.api.crateApiSequencerApiSequencerUpdateWeatherVerdict(
+        unsafeOverride: unsafeOverride);
+
 /// Wave 5 Agent 4 — JSON-serialised cloud-motion snapshot for the run
 /// dashboard. Returns `Ok(None)` when no data has been pushed yet.
 Future<String?> apiSequencerGetCloudMotionJson() =>

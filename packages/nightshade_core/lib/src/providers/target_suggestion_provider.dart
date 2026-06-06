@@ -59,6 +59,12 @@ Future<List<db.Target>>? _catalogTargetsLoadFuture;
 
 /// Provider that generates target suggestions for tonight's imaging session.
 ///
+/// ADVISORY night-outlook supplement (architecture-unification plan, §1): this
+/// is NOT the authoritative "what runs tonight" order. The headline pick comes
+/// from `schedulerPreviewDecisionProvider` (a read-only preview of the live
+/// autopilot). These suggestions add whole-night context — peak altitude,
+/// transit time, imaging-window hours, framing-fit — beneath that headline.
+///
 /// This provider:
 /// - Watches the suggestion config for filter/sort settings
 /// - Watches app settings for observer latitude/longitude

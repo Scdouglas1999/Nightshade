@@ -30,6 +30,48 @@ abstract final class NightshadeTypography {
   static const String fontFamilyMono = 'SplineSansMono';
 
   // ===========================================================================
+  // Font-size scale (numeric tokens — in-use, value-preserving)
+  // ===========================================================================
+  //
+  // The named TextStyle scale below (h1..h6, body*, label*, mono*, ...) is the
+  // GO-FORWARD typography intent — a migrating screen should prefer adopting a
+  // full named style (e.g. `NightshadeTypography.bodySm`) over re-specifying a
+  // bare fontSize. But the screen layer still carries ~580 inline
+  // `TextStyle(fontSize: N, ...)` literals whose surrounding properties
+  // (custom weight/height/color/family) don't always line up with a single
+  // named style. For those, replacing the bare `fontSize: 13` with
+  // `fontSize: NightshadeTypography.fontSize13` is an EXACT-valued,
+  // zero-visual-change swap that still kills the magic number.
+  //
+  // Every fontSize literal currently used in `nightshade_app/lib/screens` has a
+  // token here (8, 9, 9.5, 10, 11, 11.5, 12, 12.5, 13, 14, 15, 16, 17, 18, 20,
+  // 22, 24, 26, 28). They are value-named on purpose: their job is to enable a
+  // mechanical, look-preserving migration, after which a design pass can fold
+  // call sites onto the semantic named styles. Do NOT introduce new off-scale
+  // sizes in fresh code — adopt a named style instead. Full literal→token
+  // mapping table: docs/design/token-migration-map.md.
+
+  static const double fontSize8 = 8.0;
+  static const double fontSize9 = 9.0;
+  static const double fontSize9_5 = 9.5;
+  static const double fontSize10 = 10.0;
+  static const double fontSize11 = 11.0;
+  static const double fontSize11_5 = 11.5;
+  static const double fontSize12 = 12.0;
+  static const double fontSize12_5 = 12.5;
+  static const double fontSize13 = 13.0;
+  static const double fontSize14 = 14.0;
+  static const double fontSize15 = 15.0;
+  static const double fontSize16 = 16.0;
+  static const double fontSize17 = 17.0;
+  static const double fontSize18 = 18.0;
+  static const double fontSize20 = 20.0;
+  static const double fontSize22 = 22.0;
+  static const double fontSize24 = 24.0;
+  static const double fontSize26 = 26.0;
+  static const double fontSize28 = 28.0;
+
+  // ===========================================================================
   // Heading Styles
   // ===========================================================================
 
@@ -177,6 +219,37 @@ abstract final class NightshadeTypography {
     fontFamily: fontFamily,
     fontSize: 11,
     fontWeight: FontWeight.w500,
+    height: 1.27,
+    letterSpacing: 0.1,
+  );
+
+  /// Label strong - Emphasized small label / inline value (13px, Semi-bold).
+  ///
+  /// The semibold-small style the screens reach for most after the named
+  /// scale — a strong key/value label or list-row title. It fills the 13/w600
+  /// gap between [label] (13/w500) and [h6] (12/w600). The screen layer carries
+  /// ~27 inline `TextStyle(fontSize: 13, fontWeight: w600, color: …)` literals
+  /// that this folds; apply the call-site color with `.copyWith(color:)` /
+  /// `.colored(…)`. (Folding adopts this role's line-height/tracking from the
+  /// label family — a deliberate, imperceptible refinement, NOT the purely
+  /// mechanical numeric-token swap. See docs/design/token-migration-map.md.)
+  static const TextStyle labelStrong = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 13,
+    fontWeight: FontWeight.w600,
+    height: 1.38,
+    letterSpacing: 0.1,
+  );
+
+  /// Label strong small - Emphasized tiny label (11px, Semi-bold).
+  ///
+  /// The 11/w600 sibling of [labelStrong] — small section headers and emphasized
+  /// chips/badges. Folds the ~29 inline `TextStyle(fontSize: 11, fontWeight:
+  /// w600, …)` literals in the screens (same folding caveat as [labelStrong]).
+  static const TextStyle labelStrongSm = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
     height: 1.27,
     letterSpacing: 0.1,
   );

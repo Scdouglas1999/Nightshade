@@ -169,16 +169,14 @@ class _SessionStatusIndicator extends StatelessWidget {
             children: [
               Text(
                 isCapturing ? l10n.text('capturing') : l10n.text('idle'),
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                style: NightshadeTypography.labelStrong.copyWith(
                   color: isCapturing ? colors.success : colors.textSecondary,
                 ),
               ),
               Text(
                 targetName,
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: colors.textMuted,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -306,7 +304,7 @@ class _CommandBarStat extends StatelessWidget {
             Text(
               value,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
                 fontFeatures: const [FontFeature.tabularFigures()],
@@ -314,7 +312,7 @@ class _CommandBarStat extends StatelessWidget {
             ),
             Text(
               label,
-              style: TextStyle(fontSize: 9, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: colors.textMuted),
             ),
           ],
         ),
@@ -407,9 +405,7 @@ class CompactDashboardCommandBar extends ConsumerWidget {
                   children: [
                     Text(
                       isCapturing ? l10n.text('capturing') : l10n.text('idle'),
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
+                      style: NightshadeTypography.labelSm.copyWith(
                         color:
                             isCapturing ? colors.success : colors.textSecondary,
                       ),
@@ -418,7 +414,7 @@ class CompactDashboardCommandBar extends ConsumerWidget {
                       Text(
                         targetName,
                         style: TextStyle(
-                          fontSize: 10,
+                          fontSize: NightshadeTypography.fontSize10,
                           color: colors.textMuted,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -446,7 +442,7 @@ class CompactDashboardCommandBar extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: colors.surface.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               ),
               // Use FittedBox to scale down stats on very narrow screens
               child: FittedBox(
@@ -506,14 +502,14 @@ class _MobileStatChip extends StatelessWidget {
         Text(
           '$label: ',
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             color: colors.textMuted,
           ),
         ),
         Text(
           value,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
             fontFeatures: const [FontFeature.tabularFigures()],

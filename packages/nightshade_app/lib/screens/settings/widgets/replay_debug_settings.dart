@@ -145,11 +145,7 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
                 children: [
                   Text(
                     'Clear all replay history',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 4),
                   Text(
@@ -157,7 +153,7 @@ class _ReplayDebugSettingsState extends ConsumerState<ReplayDebugSettings> {
                     'This does not delete captured images, sessions, or '
                     'session notes — only the replay log.',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: colors.textSecondary,
                     ),
                   ),

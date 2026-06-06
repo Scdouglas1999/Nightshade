@@ -35,11 +35,7 @@ class _StepChip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-          color: fg,
-        ),
+        style: NightshadeTypography.labelQuiet.copyWith(color: fg),
       ),
     );
   }
@@ -67,7 +63,7 @@ class _SettingsRow extends StatelessWidget {
               label,
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
           ),
@@ -122,7 +118,9 @@ class _CompactNumberFieldState extends State<_CompactNumberField> {
             keyboardType: const TextInputType.numberWithOptions(
               decimal: true,
             ),
-            style: TextStyle(fontSize: 12, color: colors.textPrimary),
+            style: TextStyle(
+                fontSize: NightshadeTypography.fontSize12,
+                color: colors.textPrimary),
             decoration: InputDecoration(
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(
@@ -130,7 +128,8 @@ class _CompactNumberFieldState extends State<_CompactNumberField> {
                 vertical: 6,
               ),
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
             ),
             onSubmitted: (text) {
@@ -147,7 +146,9 @@ class _CompactNumberFieldState extends State<_CompactNumberField> {
           const SizedBox(width: 4),
           Text(
             widget.suffix,
-            style: TextStyle(color: colors.textSecondary, fontSize: 11),
+            style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: NightshadeTypography.fontSize11),
           ),
         ],
       ],
@@ -164,7 +165,7 @@ class _MissingLocationCard extends StatelessWidget {
       padding: const EdgeInsets.all(14),
       decoration: NightshadeDecorations.emphasisSurface(
         colors.warning,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         children: [
@@ -175,7 +176,9 @@ class _MissingLocationCard extends StatelessWidget {
               'No observer location set — open Settings → Location and '
               'enter your latitude / longitude. Smart Night needs them to '
               'compute the dark window.',
-              style: TextStyle(color: colors.textPrimary, fontSize: 13),
+              style: TextStyle(
+                  color: colors.textPrimary,
+                  fontSize: NightshadeTypography.fontSize13),
             ),
           ),
         ],
@@ -209,7 +212,9 @@ class _MissingProfileCard extends StatelessWidget {
               'Open the Equipment screen and activate a profile before '
               'running Smart Night.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: colors.textSecondary, fontSize: 12),
+              style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: NightshadeTypography.fontSize12),
             ),
           ],
         ),
@@ -275,10 +280,12 @@ class _EmptyTargetsCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Add targets in the Targets tab or lower the min-altitude / '
+              'Add targets in the Planner or lower the min-altitude / '
               'min-score knobs in suggestion settings.',
               textAlign: TextAlign.center,
-              style: TextStyle(color: colors.textSecondary, fontSize: 12),
+              style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: NightshadeTypography.fontSize12),
             ),
           ],
         ),
@@ -315,18 +322,15 @@ class _ProfileRow extends StatelessWidget {
               label,
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
           ),
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
+              style: NightshadeTypography.labelSm
+                  .copyWith(color: colors.textPrimary),
             ),
           ),
         ],
@@ -355,7 +359,7 @@ class _StrategyTile extends StatelessWidget {
     final descriptors = _descriptors(strategy);
     return InkWell(
       onTap: filtersAvailable ? onSelected : null,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
@@ -363,10 +367,11 @@ class _StrategyTile extends StatelessWidget {
           color: isSelected
               ? NightshadeDecorations.tintedBadge(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ).color
               : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(
             color: isSelected ? colors.primary : colors.border,
           ),
@@ -397,7 +402,7 @@ class _StrategyTile extends StatelessWidget {
                     descriptors.subtitle,
                     style: TextStyle(
                       color: colors.textSecondary,
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                     ),
                   ),
                 ],
@@ -509,7 +514,7 @@ class _TargetTile extends StatelessWidget {
     final autoBorder = (isAutoMode && autoPickedTop);
     return InkWell(
       onTap: isAutoMode ? null : onToggle,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       child: Container(
         margin: const EdgeInsets.only(bottom: 6),
         padding: const EdgeInsets.all(10),
@@ -517,10 +522,11 @@ class _TargetTile extends StatelessWidget {
           color: isSelected
               ? NightshadeDecorations.tintedBadge(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ).color
               : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(
             color: autoBorder
                 ? colors.primary
@@ -539,11 +545,8 @@ class _TargetTile extends StatelessWidget {
               alignment: Alignment.center,
               child: Text(
                 '#$rank',
-                style: TextStyle(
-                  color: colors.textMuted,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 11,
-                ),
+                style: NightshadeTypography.labelStrongSm
+                    .copyWith(color: colors.textMuted),
               ),
             ),
             const SizedBox(width: 4),
@@ -553,11 +556,8 @@ class _TargetTile extends StatelessWidget {
                 children: [
                   Text(
                     suggestion.targetName,
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
+                    style: NightshadeTypography.labelStrong
+                        .copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -569,7 +569,7 @@ class _TargetTile extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: colors.textSecondary,
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                     ),
                   ),
                 ],
@@ -580,15 +580,13 @@ class _TargetTile extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: NightshadeDecorations.emphasisSurface(
                 colors.primary,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
               child: Text(
                 '${suggestion.totalScore.toStringAsFixed(0)}/100',
-                style: TextStyle(
-                  color: colors.primary,
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: NightshadeTypography.labelStrongSm
+                    .copyWith(color: colors.primary),
               ),
             ),
           ],
@@ -634,73 +632,67 @@ class _PlannedTargetCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 10),
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(LucideIcons.target, size: 16, color: colors.primary),
-              const SizedBox(width: 8),
-              Expanded(
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: NightshadeCard(
+        padding: const EdgeInsets.all(12),
+        borderRadius: NightshadeTokens.radiusInline8,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(LucideIcons.target, size: 16, color: colors.primary),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    planned.suggestion.targetName,
+                    style: NightshadeTypography.h5
+                        .copyWith(color: colors.textPrimary),
+                  ),
+                ),
+                Text(
+                  '${planned.suggestion.totalScore.toStringAsFixed(0)}/100',
+                  style:
+                      NightshadeTypography.h6.copyWith(color: colors.primary),
+                ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              planned.rationale,
+              style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: NightshadeTypography.fontSize11),
+            ),
+            const SizedBox(height: 8),
+            _WindowBar(
+              start: planned.windowStart,
+              end: planned.windowEnd,
+              colors: colors,
+            ),
+            const SizedBox(height: 10),
+            for (var i = 0; i < planned.filterPlans.length; i++)
+              _FilterRow(
+                plan: planned.filterPlans[i],
+                colors: colors,
+                onAdjust: (delta) => onCountChanged(i, delta),
+              ),
+            if (planned.filterPlans.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
                 child: Text(
-                  planned.suggestion.targetName,
+                  'Total: '
+                  '${(planned.integrationSecs / 3600).toStringAsFixed(1)}h '
+                  'across ${planned.filterPlans.length} filter(s).',
                   style: TextStyle(
-                    color: colors.textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
+                    color: colors.textMuted,
+                    fontSize: NightshadeTypography.fontSize11,
                   ),
                 ),
               ),
-              Text(
-                '${planned.suggestion.totalScore.toStringAsFixed(0)}/100',
-                style: TextStyle(
-                  color: colors.primary,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(
-            planned.rationale,
-            style: TextStyle(color: colors.textSecondary, fontSize: 11),
-          ),
-          const SizedBox(height: 8),
-          _WindowBar(
-            start: planned.windowStart,
-            end: planned.windowEnd,
-            colors: colors,
-          ),
-          const SizedBox(height: 10),
-          for (var i = 0; i < planned.filterPlans.length; i++)
-            _FilterRow(
-              plan: planned.filterPlans[i],
-              colors: colors,
-              onAdjust: (delta) => onCountChanged(i, delta),
-            ),
-          if (planned.filterPlans.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: Text(
-                'Total: '
-                '${(planned.integrationSecs / 3600).toStringAsFixed(1)}h '
-                'across ${planned.filterPlans.length} filter(s).',
-                style: TextStyle(
-                  color: colors.textMuted,
-                  fontSize: 11,
-                ),
-              ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -729,16 +721,14 @@ class _FilterRow extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: NightshadeDecorations.tintedBadge(
               colors.primary,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius:
+                  BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             alignment: Alignment.center,
             child: Text(
               plan.filterName,
-              style: TextStyle(
-                color: colors.primary,
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
+              style: NightshadeTypography.labelStrongSm
+                  .copyWith(color: colors.primary),
             ),
           ),
           const SizedBox(width: 12),
@@ -753,11 +743,8 @@ class _FilterRow extends StatelessWidget {
             child: Text(
               '${plan.count} × ${plan.durationSecs.toStringAsFixed(0)}s',
               textAlign: TextAlign.center,
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
+              style: NightshadeTypography.labelSm
+                  .copyWith(color: colors.textPrimary),
             ),
           ),
           IconButton(
@@ -775,7 +762,7 @@ class _FilterRow extends StatelessWidget {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
               ),
             ),
           ),
@@ -808,7 +795,7 @@ class _WindowBar extends StatelessWidget {
           '(${(mins / 60).toStringAsFixed(1)}h)',
           style: TextStyle(
             color: colors.textSecondary,
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
           ),
         ),
       ],
@@ -849,17 +836,14 @@ class _SummaryRow extends StatelessWidget {
               label,
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
           ),
           Text(
             value,
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w500,
-            ),
+            style: NightshadeTypography.labelSm
+                .copyWith(color: colors.textPrimary),
           ),
         ],
       ),

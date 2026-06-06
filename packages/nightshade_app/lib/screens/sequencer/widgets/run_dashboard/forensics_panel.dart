@@ -116,7 +116,7 @@ class _ForensicsPanelBody extends StatelessWidget {
               Text(
                 'WHY DID THIS FRAME FAIL?',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
                   color: colors.textMuted,
@@ -172,7 +172,7 @@ class _CauseDistributionBar extends StatelessWidget {
                 margin: const EdgeInsets.symmetric(horizontal: 1),
                 decoration: BoxDecoration(
                   color: forensicsCauseColor(e.key, colors),
-                  borderRadius: BorderRadius.circular(3),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
                 ),
               ),
             );
@@ -191,7 +191,7 @@ class _CauseDistributionBar extends StatelessWidget {
                   height: 8,
                   decoration: BoxDecoration(
                     color: forensicsCauseColor(e.key, colors),
-                    borderRadius: BorderRadius.circular(2),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
                   ),
                 ),
                 const SizedBox(width: 4),
@@ -243,7 +243,7 @@ class _ForensicsRow extends StatelessWidget {
               margin: const EdgeInsets.only(right: NightshadeTokens.spaceMd),
               decoration: BoxDecoration(
                 color: causeColor,
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
               ),
             ),
             Expanded(
@@ -255,11 +255,7 @@ class _ForensicsRow extends StatelessWidget {
                     children: [
                       Text(
                         record.likelyCause.humanLabel,
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: causeColor,
-                        ),
+                        style: NightshadeTypography.h6.copyWith(color: causeColor),
                       ),
                       const SizedBox(width: NightshadeTokens.spaceSm),
                       Text(
@@ -287,7 +283,7 @@ class _ForensicsRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textSecondary,
                     ),
                   ),
@@ -328,7 +324,7 @@ class _ErrorBanner extends StatelessWidget {
             child: Text(
               'Forensics unavailable: $message',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.error,
               ),
             ),

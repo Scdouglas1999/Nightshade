@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'run_dashboard/observatory_format.dart';
 import 'run_dashboard/run_dashboard_format.dart';
 
 /// Compact telemetry strip showing live device state: camera temperature,
@@ -42,6 +43,13 @@ class EquipmentTelemetryStrip extends ConsumerWidget {
     final filterWheelState = ref.watch(filterWheelStateProvider);
     final guiderState = ref.watch(guiderStateProvider);
     final rotatorState = ref.watch(rotatorStateProvider);
+    // Observatory devices — surfaced exactly like the six core devices,
+    // each gated on its own connection state so an unattended-night
+    // operator can confirm the dome shutter, flat cover, and power switches
+    // at a glance instead of having to open the Equipment screen.
+    final domeState = ref.watch(domeStateProvider);
+    final coverState = ref.watch(coverCalibratorStateProvider);
+    final switchState = ref.watch(switchStateProvider);
     final afResult = ref.watch(autofocusResultProvider);
     final exposureProgress = ref.watch(exposureProgressProvider);
 
@@ -53,7 +61,10 @@ class EquipmentTelemetryStrip extends ConsumerWidget {
             filterWheelState.connectionState ==
                 DeviceConnectionState.connected ||
             rotatorState.connectionState == DeviceConnectionState.connected ||
-            guiderState.connectionState == DeviceConnectionState.connected;
+            guiderState.connectionState == DeviceConnectionState.connected ||
+            domeState.connectionState == DeviceConnectionState.connected ||
+            coverState.connectionState == DeviceConnectionState.connected ||
+            switchState.connectionState == DeviceConnectionState.connected;
 
     if (direction == Axis.vertical) {
       return _VerticalLayout(
@@ -64,6 +75,9 @@ class EquipmentTelemetryStrip extends ConsumerWidget {
         filterWheel: filterWheelState,
         guider: guiderState,
         rotator: rotatorState,
+        dome: domeState,
+        cover: coverState,
+        switchDevice: switchState,
         afResult: afResult,
         exposureProgress: exposureProgress,
         hasAnyDevice: hasAnyDevice,
@@ -80,6 +94,9 @@ class EquipmentTelemetryStrip extends ConsumerWidget {
       focuser: focuserState,
       filterWheel: filterWheelState,
       guider: guiderState,
+      dome: domeState,
+      cover: coverState,
+      switchDevice: switchState,
     );
   }
 }
@@ -91,6 +108,9 @@ class _HorizontalStrip extends StatelessWidget {
   final FocuserState focuser;
   final FilterWheelState filterWheel;
   final GuiderState guider;
+  final DomeState dome;
+  final CoverCalibratorState cover;
+  final SwitchState switchDevice;
 
   const _HorizontalStrip({
     required this.colors,
@@ -99,6 +119,9 @@ class _HorizontalStrip extends StatelessWidget {
     required this.focuser,
     required this.filterWheel,
     required this.guider,
+    required this.dome,
+    required this.cover,
+    required this.switchDevice,
   });
 
   @override
@@ -117,7 +140,7 @@ class _HorizontalStrip extends StatelessWidget {
           Text(
             'TELEMETRY',
             style: TextStyle(
-              fontSize: 9,
+              fontSize: NightshadeTypography.fontSize9,
               fontWeight: FontWeight.w700,
               color: colors.textMuted,
               letterSpacing: 0.8,
@@ -185,6 +208,32 @@ class _HorizontalStrip extends StatelessWidget {
                           ? colors.textMuted
                           : colors.error,
             ),
+          if (dome.connectionState == DeviceConnectionState.connected)
+            _TelemetryItem(
+              colors: colors,
+              icon: LucideIcons.warehouse,
+              label: 'Dome',
+              value: observatoryDomeShutterLabel(dome),
+              valueColor: observatoryDomeShutterColor(dome, colors),
+            ),
+          if (cover.connectionState == DeviceConnectionState.connected &&
+              cover.hasCover)
+            _TelemetryItem(
+              colors: colors,
+              icon: LucideIcons.panelTopClose,
+              label: 'Cover',
+              value: observatoryCoverStatusLabel(cover.coverStatus),
+              valueColor: observatoryCoverStatusColor(cover.coverStatus, colors),
+            ),
+          if (switchDevice.connectionState ==
+                  DeviceConnectionState.connected &&
+              switchDevice.channelCount > 0)
+            _TelemetryItem(
+              colors: colors,
+              icon: LucideIcons.toggleLeft,
+              label: 'Switch',
+              value: observatorySwitchSummaryLabel(switchDevice),
+            ),
           const Spacer(),
         ],
       ),
@@ -200,6 +249,9 @@ class _VerticalLayout extends StatelessWidget {
   final FilterWheelState filterWheel;
   final GuiderState guider;
   final RotatorState rotator;
+  final DomeState dome;
+  final CoverCalibratorState cover;
+  final SwitchState switchDevice;
   final AutofocusResult? afResult;
   final ExposureProgress exposureProgress;
   final bool hasAnyDevice;
@@ -212,6 +264,9 @@ class _VerticalLayout extends StatelessWidget {
     required this.filterWheel,
     required this.guider,
     required this.rotator,
+    required this.dome,
+    required this.cover,
+    required this.switchDevice,
     required this.afResult,
     required this.exposureProgress,
     required this.hasAnyDevice,
@@ -406,6 +461,86 @@ class _VerticalLayout extends StatelessWidget {
               ),
           ],
         ),
+      if (dome.connectionState == DeviceConnectionState.connected)
+        _DeviceBlock(
+          colors: colors,
+          icon: LucideIcons.warehouse,
+          name: 'Dome',
+          deviceName: dome.deviceName,
+          statusText: observatoryDomeStatusText(dome),
+          statusColor: observatoryDomeShutterColor(dome, colors),
+          rows: [
+            _TelemetryRow(
+              colors: colors,
+              label: 'Shutter',
+              value: observatoryDomeShutterLabel(dome),
+              valueColor: observatoryDomeShutterColor(dome, colors),
+            ),
+            if (dome.azimuth != null)
+              _TelemetryRow(
+                colors: colors,
+                label: 'Azimuth',
+                value: '${dome.azimuth!.toStringAsFixed(1)}°',
+              ),
+            _TelemetryRow(
+              colors: colors,
+              label: 'Slaved',
+              value: dome.isSlaved ? 'Yes' : 'No',
+              valueColor: dome.isSlaved ? colors.success : colors.textSecondary,
+            ),
+          ],
+        ),
+      if (cover.connectionState == DeviceConnectionState.connected &&
+          (cover.hasCover || cover.hasCalibrator))
+        _DeviceBlock(
+          colors: colors,
+          icon: LucideIcons.panelTopClose,
+          name: 'Cover / flat panel',
+          deviceName: cover.deviceName,
+          statusText: cover.hasCover
+              ? observatoryCoverStatusLabel(cover.coverStatus)
+              : observatoryCalibratorStatusLabel(cover.calibratorStatus),
+          statusColor: cover.hasCover
+              ? observatoryCoverStatusColor(cover.coverStatus, colors)
+              : observatoryCalibratorStatusColor(
+                  cover.calibratorStatus, colors),
+          rows: [
+            if (cover.hasCover)
+              _TelemetryRow(
+                colors: colors,
+                label: 'Cover',
+                value: observatoryCoverStatusLabel(cover.coverStatus),
+                valueColor:
+                    observatoryCoverStatusColor(cover.coverStatus, colors),
+              ),
+            if (cover.hasCalibrator)
+              _TelemetryRow(
+                colors: colors,
+                label: 'Flat light',
+                value:
+                    observatoryCalibratorStatusLabel(cover.calibratorStatus),
+                valueColor: observatoryCalibratorStatusColor(
+                    cover.calibratorStatus, colors),
+              ),
+            if (cover.hasCalibrator && cover.isCalibratorOn)
+              _TelemetryRow(
+                colors: colors,
+                label: 'Brightness',
+                value: '${cover.brightness}/${cover.maxBrightness}',
+              ),
+          ],
+        ),
+      if (switchDevice.connectionState == DeviceConnectionState.connected &&
+          switchDevice.channelCount > 0)
+        _DeviceBlock(
+          colors: colors,
+          icon: LucideIcons.toggleLeft,
+          name: 'Switches',
+          deviceName: switchDevice.deviceName,
+          statusText: observatorySwitchSummaryLabel(switchDevice),
+          statusColor: colors.textSecondary,
+          rows: _switchTelemetryRows(switchDevice, colors),
+        ),
     ];
 
     return NightshadeCard(
@@ -420,7 +555,7 @@ class _VerticalLayout extends StatelessWidget {
               Text(
                 'Equipment',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
                   color: colors.textMuted,
@@ -432,7 +567,7 @@ class _VerticalLayout extends StatelessWidget {
           if (blocks.isEmpty)
             Text(
               'No equipment connected',
-              style: TextStyle(fontSize: 12, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
             )
           else
             for (var i = 0; i < blocks.length; i++) ...[
@@ -463,6 +598,29 @@ Color? _guidingRmsColor(GuiderState state, NightshadeColors colors) {
   return colors.error;
 }
 
+// Observatory device formatting (dome / cover / switch) lives in
+// `run_dashboard/observatory_format.dart` so the strip and the dedicated
+// Observatory cockpit panel share one source of truth. This local helper just
+// adapts the shared switch-channel data into the strip's `_TelemetryRow`.
+List<_TelemetryRow> _switchTelemetryRows(
+    SwitchState sw, NightshadeColors colors) {
+  final channels = observatorySwitchChannels(sw);
+  final shown = channels.where((c) => !c.isOverflow).length;
+  return [
+    for (final ch in channels)
+      _TelemetryRow(
+        colors: colors,
+        label: ch.isOverflow ? '…' : ch.label,
+        value: ch.isOverflow
+            ? '+${sw.channelStates.length - shown} more'
+            : (ch.on ? 'On' : 'Off'),
+        valueColor: ch.isOverflow
+            ? colors.textSecondary
+            : (ch.on ? colors.success : colors.textMuted),
+      ),
+  ];
+}
+
 class _TelemetryItem extends StatelessWidget {
   final NightshadeColors colors;
   final IconData icon;
@@ -490,7 +648,7 @@ class _TelemetryItem extends StatelessWidget {
           Text(
             '$label: ',
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: colors.textMuted,
               fontWeight: FontWeight.w500,
             ),
@@ -498,7 +656,7 @@ class _TelemetryItem extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: valueColor ?? colors.textSecondary,
               fontWeight: FontWeight.w600,
               fontFeatures: const [FontFeature.tabularFigures()],
@@ -556,11 +714,7 @@ class _DeviceBlock extends StatelessWidget {
             Expanded(
               child: Text(
                 name,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
@@ -575,7 +729,7 @@ class _DeviceBlock extends StatelessWidget {
               child: Text(
                 statusText,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   fontWeight: FontWeight.w700,
                   color: statusColor,
                   letterSpacing: 0.4,
@@ -589,7 +743,7 @@ class _DeviceBlock extends StatelessWidget {
           Text(
             deviceName!,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: colors.textMuted,
             ),
             overflow: TextOverflow.ellipsis,
@@ -626,7 +780,7 @@ class _TelemetryRow extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textMuted,
             ),
           ),
@@ -634,7 +788,7 @@ class _TelemetryRow extends StatelessWidget {
           Text(
             value,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w600,
               color: valueColor ?? colors.textSecondary,
               fontFeatures: const [FontFeature.tabularFigures()],

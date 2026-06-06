@@ -278,7 +278,7 @@ class _LightCurveChartCard extends StatelessWidget {
                           return Text(
                             '${mins}m',
                             style: TextStyle(
-                              fontSize: 10,
+                              fontSize: NightshadeTypography.fontSize10,
                               color: colors.textSecondary,
                             ),
                           );
@@ -289,7 +289,7 @@ class _LightCurveChartCard extends StatelessWidget {
                       axisNameWidget: Text(
                         'dMag',
                         style: TextStyle(
-                            color: colors.textSecondary, fontSize: 10),
+                            color: colors.textSecondary, fontSize: NightshadeTypography.fontSize10),
                       ),
                       sideTitles: SideTitles(
                         showTitles: true,
@@ -297,7 +297,7 @@ class _LightCurveChartCard extends StatelessWidget {
                         getTitlesWidget: (value, meta) => Text(
                           (-value).toStringAsFixed(1),
                           style: TextStyle(
-                            fontSize: 10,
+                            fontSize: NightshadeTypography.fontSize10,
                             color: colors.textSecondary,
                           ),
                         ),
@@ -489,14 +489,14 @@ class _PsfHeatmapGrid extends StatelessWidget {
                     margin: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.85),
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     ),
                     child: Center(
                       child: Text(
                         tile == null ? '-' : fwhm.toStringAsFixed(2),
                         style: TextStyle(
                           color: labelColor,
-                          fontSize: 10,
+                          fontSize: NightshadeTypography.fontSize10,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -577,7 +577,7 @@ class _ResidualCard extends StatelessWidget {
                   : 'RMS: ${rms.toStringAsFixed(3)}" across ${residuals.length} samples',
               style: TextStyle(
                 color: colors.textSecondary,
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
               ),
             ),
             const SizedBox(height: 8),
@@ -586,7 +586,7 @@ class _ResidualCard extends StatelessWidget {
                 'Latest recommendation: ${residuals.last.recommendationCode ?? 'none'}',
                 style: TextStyle(
                   color: colors.textMuted,
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                 ),
               ),
           ],
@@ -634,7 +634,7 @@ class _MovingObjectCard extends StatelessWidget {
             if (moving.isEmpty)
               Text(
                 'No candidates detected in current session window.',
-                style: TextStyle(color: colors.textMuted, fontSize: 12),
+                style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
               )
             else
               ...moving.take(6).map(
@@ -645,10 +645,8 @@ class _MovingObjectCard extends StatelessWidget {
                           Expanded(
                             child: Text(
                               candidate.objectName ?? candidate.candidateId,
-                              style: TextStyle(
+                              style: NightshadeTypography.labelSm.copyWith(
                                 color: colors.textPrimary,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -657,7 +655,7 @@ class _MovingObjectCard extends StatelessWidget {
                             '${(candidate.confidence * 100).toStringAsFixed(0)}%',
                             style: TextStyle(
                               color: colors.textSecondary,
-                              fontSize: 11,
+                              fontSize: NightshadeTypography.fontSize11,
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -665,7 +663,7 @@ class _MovingObjectCard extends StatelessWidget {
                             '${candidate.motionArcsecPerMinute.toStringAsFixed(2)}"/min',
                             style: TextStyle(
                               color: colors.textMuted,
-                              fontSize: 11,
+                              fontSize: NightshadeTypography.fontSize11,
                             ),
                           ),
                         ],
@@ -751,7 +749,7 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
                   _statusMessage!,
                   style: TextStyle(
                     color: widget.colors.textMuted,
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                   ),
                 ),
               ),
@@ -762,14 +760,14 @@ class _LineRatioCardState extends ConsumerState<_LineRatioCard> {
                   'Feature disabled globally. Turn on Narrowband line ratios in Settings > Science.',
                   style: TextStyle(
                     color: widget.colors.textMuted,
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                   ),
                 ),
               ),
             if (latest == null)
               Text(
                 'No line-ratio products generated yet.',
-                style: TextStyle(color: widget.colors.textMuted, fontSize: 12),
+                style: TextStyle(color: widget.colors.textMuted, fontSize: NightshadeTypography.fontSize12),
               )
             else ...[
               _MetricLine(
@@ -913,15 +911,13 @@ class _MetricLine extends StatelessWidget {
             label,
             style: TextStyle(
               color: colors.textSecondary,
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
             ),
           ),
           Text(
             value.toStringAsFixed(3),
-            style: TextStyle(
+            style: NightshadeTypography.h6.copyWith(
               color: colors.textPrimary,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
             ),
           ),
         ],

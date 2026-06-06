@@ -249,7 +249,7 @@ class _AutofocusProperties extends ConsumerWidget {
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border.withValues(alpha: 0.5)),
       ),
       child: Column(
@@ -605,7 +605,7 @@ class _SlewProperties extends ConsumerWidget {
                 padding: const EdgeInsets.all(12),
                 decoration: NightshadeDecorations.tintedBadge(
                   targetGroup != null ? colors.success : colors.warning,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
                 child: Row(
                   children: [
@@ -873,7 +873,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
           padding: const EdgeInsets.all(12),
           decoration: NightshadeDecorations.tintedBadge(
             colors.info,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1077,7 +1077,7 @@ class _PolarAlignmentProperties extends ConsumerWidget {
           padding: const EdgeInsets.all(12),
           decoration: NightshadeDecorations.tintedBadge(
             colors.info,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,

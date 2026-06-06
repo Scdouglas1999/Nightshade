@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -20,6 +19,7 @@ class FullscreenImageViewer extends StatelessWidget {
     return Navigator.of(context, rootNavigator: true).push<void>(
       PageRouteBuilder<void>(
         opaque: true,
+        // absolute: fullscreen image is viewed on pure black, not theme surface
         barrierColor: Colors.black,
         transitionDuration: const Duration(milliseconds: 180),
         pageBuilder: (_, __, ___) => FullscreenImageViewer(image: image),
@@ -33,6 +33,7 @@ class FullscreenImageViewer extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     return Scaffold(
+      // absolute: image canvas backdrop stays pure black regardless of theme
       backgroundColor: Colors.black,
       body: Stack(
         children: [
@@ -59,7 +60,7 @@ class FullscreenImageViewer extends StatelessWidget {
                   color: colors.surface.withValues(alpha: 0.72),
                   shape: const CircleBorder(),
                   child: IconButton(
-                    icon: Icon(LucideIcons.x, color: colors.textPrimary),
+                    icon: Icon(NightshadeIcons.close, color: colors.textPrimary),
                     tooltip: 'Close',
                     onPressed: () => Navigator.of(context).pop(),
                   ),

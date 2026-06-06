@@ -385,6 +385,25 @@ pub trait DeviceOps: Send + Sync {
         image_data: &ImageData,
     ) -> DeviceResult<Vec<(f64, f64, f64)>>;
 
+    /// Measure the per-frame median star eccentricity (0.0 = round,
+    /// →1.0 = trailed/elongated).
+    ///
+    /// Returns `Ok(None)` when the metric cannot be honestly measured for
+    /// this frame (no stars, or too few reliable stars to form a stable
+    /// median). This feeds `FrameMetrics.eccentricity`, which the grading
+    /// gate treats as "unknown — do not reject". The default implementation
+    /// returns `Ok(None)`; the real backend (`UnifiedDeviceOps`) overrides
+    /// it to run the shape-moment detector. Callers MUST distinguish a real
+    /// `Some(ecc)` from `None` so a configured eccentricity gate is never
+    /// silently bypassed.
+    async fn measure_frame_eccentricity(
+        &self,
+        image_data: &ImageData,
+    ) -> DeviceResult<Option<f64>> {
+        let _ = image_data;
+        Ok(None)
+    }
+
     // =========================================================================
     // COVER CALIBRATOR (FLAT PANEL / DUST COVER) OPERATIONS
     // =========================================================================
@@ -973,6 +992,98 @@ pub async fn try_park_with_retry(
     }
 }
 
+/// Outcome of a [`park_and_close_safe_state`] sweep.
+///
+/// Each field captures the result of one safe-state step so the caller can
+/// preserve its own (historically divergent) event-stream wording while the
+/// *sequence of device calls* itself is centralised. A `None` cover/dome error
+/// means "that device was absent or closed cleanly"; `Some(err)` means the
+/// close was attempted and the driver returned an error.
+#[derive(Debug, Clone)]
+pub struct SafeStateOutcome {
+    /// Park result, present iff a `mount_id` was supplied. `None` means no
+    /// mount was configured, so the caller should surface its own
+    /// "cannot park" message.
+    pub park: Option<ParkRetryResult>,
+    /// Error returned by `cover_calibrator_close_cover`, if a cover was
+    /// configured and the close failed.
+    pub cover_close_error: Option<String>,
+    /// Error returned by `dome_close`, if a dome was configured and the
+    /// close failed.
+    pub dome_close_error: Option<String>,
+}
+
+impl SafeStateOutcome {
+    /// True iff every attempted step succeeded (or was absent). A `false`
+    /// result means at least one piece of hardware may be in an unsafe
+    /// position and the operator needs to intervene.
+    pub fn fully_safe(&self) -> bool {
+        let park_ok = self.park.as_ref().map(|p| p.success).unwrap_or(true);
+        park_ok && self.cover_close_error.is_none() && self.dome_close_error.is_none()
+    }
+}
+
+/// Drive the rig into a SAFE end-state: park the mount, then close the
+/// flat-panel cover, then close the dome shutter — in that order.
+///
+/// This is the single source of truth for the "abandon the rig safely"
+/// sequence that fires from three executor paths:
+///   1. `RecoveryAction::ParkAndAbort` (weather/safety trigger termination),
+///   2. recovery loop give-up (attempts/time budget exhausted), and
+///   3. meridian-flip `AbortAndPark` failure handling.
+///
+/// Why the strict order: parking first stops the OTA tracking toward a limit /
+/// the Sun at dawn; closing the cover before the dome protects the optics; the
+/// dome shutter closes last so the scope is never left exposed under an open
+/// roof. Leaving any of these undone re-exposes the rig to the exact condition
+/// (rain / cloud / dawn) that triggered the safe-state in the first place.
+///
+/// Each step is best-effort and independent: a park failure does NOT skip the
+/// cover/dome closes (the roof must close even if the mount is stuck). The
+/// returned [`SafeStateOutcome`] reports every step so the caller can emit its
+/// own operator-facing error events.
+///
+/// # Arguments
+/// * `device_ops` - Shared device operations handle.
+/// * `mount_id` - The mount to park, or `None` if no mount is configured.
+/// * `cover_id` - The cover-calibrator to close, or `None`.
+/// * `dome_id` - The dome to close, or `None`.
+/// * `park_max_retries` / `park_retry_delay_secs` - forwarded to
+///   [`try_park_with_retry`]. The give-up path historically used 2 retries; the
+///   ParkAndAbort path used 1. The caller passes its established value so this
+///   refactor changes no observable retry behaviour.
+pub async fn park_and_close_safe_state(
+    device_ops: &SharedDeviceOps,
+    mount_id: Option<&str>,
+    cover_id: Option<&str>,
+    dome_id: Option<&str>,
+    park_max_retries: u32,
+    park_retry_delay_secs: f64,
+) -> SafeStateOutcome {
+    let park = match mount_id {
+        Some(id) => Some(
+            try_park_with_retry(device_ops, id, park_max_retries, park_retry_delay_secs).await,
+        ),
+        None => None,
+    };
+
+    let cover_close_error = match cover_id {
+        Some(id) => device_ops.cover_calibrator_close_cover(id).await.err(),
+        None => None,
+    };
+
+    let dome_close_error = match dome_id {
+        Some(id) => device_ops.dome_close(id).await.err(),
+        None => None,
+    };
+
+    SafeStateOutcome {
+        park,
+        cover_close_error,
+        dome_close_error,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1195,6 +1306,9 @@ mod tests {
         }
         async fn detect_stars_in_image(&self, d: &ImageData) -> DeviceResult<Vec<(f64, f64, f64)>> {
             self.inner.detect_stars_in_image(d).await
+        }
+        async fn measure_frame_eccentricity(&self, d: &ImageData) -> DeviceResult<Option<f64>> {
+            self.inner.measure_frame_eccentricity(d).await
         }
         async fn cover_calibrator_open_cover(&self, id: &str) -> DeviceResult<()> {
             self.inner.cover_calibrator_open_cover(id).await

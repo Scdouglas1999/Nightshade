@@ -707,6 +707,9 @@ impl DeviceOps for UnifiedDeviceOps {
                 &nightshade_imaging::StarDetectionConfig::default(),
             );
             let star_count = stars.len() as u32;
+            // Per-frame median eccentricity from the same detected stars.
+            // Fails closed (None) when too few reliable stars — never faked.
+            let median_eccentricity = nightshade_imaging::frame_eccentricity(&stars);
 
             let mut histogram = vec![0u32; 256];
             for &pixel in &display_data_raw {
@@ -729,6 +732,7 @@ impl DeviceOps for UnifiedDeviceOps {
                     median: stats.median,
                     std_dev: stats.std_dev,
                     hfr: None,
+                    eccentricity: median_eccentricity,
                     star_count,
                 },
                 exposure_time: duration_secs,
@@ -1506,6 +1510,27 @@ impl DeviceOps for UnifiedDeviceOps {
         let result: Vec<(f64, f64, f64)> = stars.iter().map(|s| (s.x, s.y, s.hfr)).collect();
 
         Ok(result)
+    }
+
+    async fn measure_frame_eccentricity(
+        &self,
+        image_data: &ImageData,
+    ) -> DeviceResult<Option<f64>> {
+        use nightshade_imaging::{detect_stars, frame_eccentricity, StarDetectionConfig};
+
+        let img = nightshade_imaging::ImageData::from_u16(
+            image_data.width,
+            image_data.height,
+            1,
+            &image_data.data,
+        );
+
+        let config = StarDetectionConfig::default();
+        let stars = detect_stars(&img, &config);
+
+        // frame_eccentricity fails closed (returns None) when too few reliable
+        // stars are present — never a fabricated value.
+        Ok(frame_eccentricity(&stars))
     }
 
     // =========================================================================

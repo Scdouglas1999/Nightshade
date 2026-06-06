@@ -155,6 +155,7 @@ mod tests {
                 iterations: Some(iterations),
                 condition: LoopCondition::Count,
                 condition_value: None,
+                horizon_profile: None,
             }),
             enabled: true,
             children: vec![],

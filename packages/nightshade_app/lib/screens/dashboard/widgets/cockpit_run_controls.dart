@@ -76,7 +76,7 @@ class CockpitRunControls extends ConsumerWidget {
           Expanded(
             child: Text(
               'Sequence ready — start tonight’s run.',
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -197,7 +197,7 @@ class _ReadyBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: NightshadeDecorations.statusChip(
         colors.info,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -207,7 +207,7 @@ class _ReadyBadge extends StatelessWidget {
           Text(
             'Ready',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w700,
               color: colors.info,
               letterSpacing: 0.3,
@@ -244,7 +244,7 @@ class _ControlButton extends StatelessWidget {
         color: Colors.transparent,
         child: InkWell(
           onTap: isEnabled ? onPressed : null,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           child: Container(
             height: 36,
             padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -255,7 +255,7 @@ class _ControlButton extends StatelessWidget {
                   : isEnabled
                       ? colors.surface
                       : colors.surface.withValues(alpha: 0.5),
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(
                 color: isActive
                     ? colors.success.withValues(alpha: 0.5)
@@ -277,9 +277,7 @@ class _ControlButton extends StatelessWidget {
                 const SizedBox(width: 6),
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
+                  style: NightshadeTypography.h6.copyWith(
                     color: isActive
                         ? colors.success
                         : isEnabled
@@ -348,7 +346,7 @@ class _StateBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: NightshadeDecorations.statusChip(
         color,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -364,7 +362,7 @@ class _StateBadge extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               fontWeight: FontWeight.w700,
               color: color,
               letterSpacing: 0.3,

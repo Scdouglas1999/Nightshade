@@ -92,7 +92,7 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
 
     return Dialog(
       backgroundColor: widget.colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8)),
       child: ConstrainedBox(
         constraints: AdaptiveDialogConstraints.hybrid(
           context,
@@ -112,7 +112,7 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
                     height: 40,
                     decoration: NightshadeDecorations.tintedBadge(
                       widget.colors.primary,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                     ),
                     child: Icon(
                       LucideIcons.save,
@@ -127,7 +127,7 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
                       Text(
                         'Save as Template',
                         style: TextStyle(
-                          fontSize: 18,
+                          fontSize: NightshadeTypography.fontSize18,
                           fontWeight: FontWeight.w700,
                           color: widget.colors.textPrimary,
                         ),
@@ -135,7 +135,7 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
                       Text(
                         'Save this sequence for later reuse',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           color: widget.colors.textMuted,
                         ),
                       ),
@@ -149,24 +149,20 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
               // Name field
               Text(
                 'Template Name',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: widget.colors.textSecondary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: widget.colors.textSecondary),
               ),
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
                   color: widget.colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                   border: Border.all(color: widget.colors.border),
                 ),
                 child: TextField(
                   controller: _nameController,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                     color: widget.colors.textPrimary,
                   ),
                   decoration: InputDecoration(
@@ -185,25 +181,21 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
               // Description field
               Text(
                 'Description',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: widget.colors.textSecondary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: widget.colors.textSecondary),
               ),
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14),
                 decoration: BoxDecoration(
                   color: widget.colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                   border: Border.all(color: widget.colors.border),
                 ),
                 child: TextField(
                   controller: _descriptionController,
                   maxLines: 3,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                     color: widget.colors.textPrimary,
                   ),
                   decoration: InputDecoration(
@@ -224,7 +216,7 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   color: widget.colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                 ),
                 child: Row(
                   children: [
@@ -234,7 +226,7 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
                       child: Text(
                         'This will save ${widget.sequence.nodes.length} nodes from the current sequence.',
                         style: TextStyle(
-                          fontSize: 12,
+                          fontSize: NightshadeTypography.fontSize12,
                           color: widget.colors.textSecondary,
                         ),
                       ),
@@ -306,10 +298,10 @@ class _TargetOptionState extends State<_TargetOption> {
             color: _isHovered
                 ? NightshadeDecorations.tintedBadge(
                     widget.colors.warning,
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
                   ).color
                 : widget.colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             border: Border.all(
               color: _isHovered ? widget.colors.warning : widget.colors.border,
               width: _isHovered ? 1.5 : 1,
@@ -322,7 +314,7 @@ class _TargetOptionState extends State<_TargetOption> {
                 height: 32,
                 decoration: NightshadeDecorations.statusChip(
                   widget.colors.warning,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                   bordered: false,
                 ),
                 child: Icon(
@@ -338,16 +330,12 @@ class _TargetOptionState extends State<_TargetOption> {
                   children: [
                     Text(
                       widget.target.targetName,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: widget.colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.labelStrong.copyWith(color: widget.colors.textPrimary),
                     ),
                     Text(
                       'RA: ${_formatRA(widget.target.raHours)} · Dec: ${_formatDec(widget.target.decDegrees)}',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: widget.colors.textMuted,
                       ),
                     ),

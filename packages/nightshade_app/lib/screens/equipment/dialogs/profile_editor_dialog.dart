@@ -319,10 +319,11 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
         ),
         decoration: BoxDecoration(
           color: colors.background,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(color: colors.border),
           boxShadow: [
             BoxShadow(
+              // absolute: drop-shadow tone is a theme-independent black scrim
               color: Colors.black.withValues(alpha: 0.5),
               blurRadius: 24,
               offset: const Offset(0, 8),

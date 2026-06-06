@@ -33,7 +33,6 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -128,7 +127,7 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
             child: hasTarget
                 ? _TargetSummary(colors: colors, target: target)
                 : const EmptyState.compact(
-                    icon: LucideIcons.target,
+                    icon: NightshadeIcons.target,
                     title: 'No target selected',
                     body: 'Search for an object or enter coordinates to begin '
                         'framing.',
@@ -243,7 +242,7 @@ class _FramingActionRailState extends ConsumerState<FramingActionRail> {
                       targetRotation: framingState.rotation != 0
                           ? framingState.rotation
                           : null,
-                      icon: LucideIcons.compass,
+                      icon: NightshadeIcons.compass,
                       label: 'Slew to Target',
                     ),
                   )
@@ -388,7 +387,7 @@ class _StepRow extends StatelessWidget {
             // reading 'Resolved' / 'Loaded' / 'Ready' rather than repeating the
             // step name. (StatusPill renders value-only when label is empty.)
             StatusPill(
-              icon: isDone ? LucideIcons.check : LucideIcons.circle,
+              icon: isDone ? NightshadeIcons.check : NightshadeIcons.circle,
               label: '',
               value: statusValue,
               status: status,
@@ -438,7 +437,7 @@ class _StepBadge extends StatelessWidget {
         border: Border.all(color: borderColor),
       ),
       child: isDone
-          ? Icon(LucideIcons.check, size: NightshadeTokens.iconXs, color: fg)
+          ? Icon(NightshadeIcons.check, size: NightshadeTokens.iconXs, color: fg)
           : Text(
               '$number',
               style: NightshadeTypography.labelSm.copyWith(color: fg),
@@ -555,7 +554,7 @@ class _SolveStep extends StatelessWidget {
           width: double.infinity,
           child: NightshadeButton(
             label: 'Solve current frame',
-            icon: LucideIcons.crosshair,
+            icon: NightshadeIcons.crosshair,
             variant: ButtonVariant.outline,
             isLoading: isSolving,
             onPressed: canSolve ? onSolve : null,

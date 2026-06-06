@@ -70,7 +70,7 @@ class _AdaptiveExposureSectionState
       decoration: BoxDecoration(
         color: colors.surface.withValues(alpha: 0.4),
         border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       padding: const EdgeInsets.all(12),
       child: Column(
@@ -95,7 +95,7 @@ class _AdaptiveExposureSectionState
               const SizedBox(width: 8),
               Text(
                 _hasOverride ? 'Per-node' : 'Inherit',
-                style: TextStyle(fontSize: 10, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
               ),
               const SizedBox(width: 6),
               NightshadeSwitch(
@@ -116,7 +116,7 @@ class _AdaptiveExposureSectionState
               padding: const EdgeInsets.only(top: 6, left: 22),
               child: Text(
                 'Inheriting global default from Settings → Adaptive Exposure.',
-                style: TextStyle(fontSize: 11, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
               ),
             ),
           if (_hasOverride) ...[
@@ -218,7 +218,7 @@ class _AdaptiveExposureSectionState
         child: Text(
           'No filter wheel on active profile — adaptive applies to every '
           'capture (mono camera assumption).',
-          style: TextStyle(fontSize: 11, color: colors.textMuted),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
         ),
       );
     }
@@ -227,11 +227,7 @@ class _AdaptiveExposureSectionState
       children: [
         Text(
           'Per-filter overrides',
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: colors.textSecondary,
-          ),
+          style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textSecondary),
         ),
         const SizedBox(height: 6),
         for (final filter in filterNames)
@@ -295,7 +291,7 @@ class _AdaptiveExposureSectionState
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
         color: colors.background.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -306,7 +302,7 @@ class _AdaptiveExposureSectionState
               const SizedBox(width: 6),
               Expanded(
                 child:
-                    Text(preview, style: TextStyle(fontSize: 11, color: color)),
+                    Text(preview, style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: color)),
               ),
             ],
           ),
@@ -322,7 +318,7 @@ class _AdaptiveExposureSectionState
                     'Nominal duration (${widget.node.durationSecs.toStringAsFixed(0)}s) '
                     'is outside the adaptive [${min.toStringAsFixed(0)}, ${max.toStringAsFixed(0)}]s '
                     'bounds — every frame will be clamped.',
-                    style: TextStyle(fontSize: 11, color: colors.warning),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.warning),
                   ),
                 ),
               ],
@@ -362,7 +358,7 @@ class _PerFilterRow extends StatelessWidget {
             child: Text(
               filter,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textPrimary,
                 fontFamily: 'monospace',
               ),

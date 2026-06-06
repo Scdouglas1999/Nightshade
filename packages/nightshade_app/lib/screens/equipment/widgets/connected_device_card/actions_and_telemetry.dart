@@ -261,18 +261,14 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: colors.background,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Additional Info',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: colors.textMuted,
-              ),
+              style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textMuted),
             ),
             const SizedBox(height: 8),
             ..._buildExpandedTelemetry(colors),

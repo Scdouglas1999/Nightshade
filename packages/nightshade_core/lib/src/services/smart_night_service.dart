@@ -14,6 +14,8 @@ import '../providers/profiles_provider.dart' show EquipmentProfileModel;
 import 'logging_service.dart';
 import 'pre_session_simulator.dart';
 import 'session_optimizer_service.dart' show SmartNightExposureContext;
+import 'smart_night/dark_library_coverage.dart'
+    show SmartNightFlatPlan, SmartNightFlatExposure;
 import 'smart_night/exposure_calculator.dart';
 import 'smart_night/hardware_specs_service.dart';
 import 'smart_night_models.dart';
@@ -237,6 +239,7 @@ class SmartNightService {
     required SmartNightStrategy strategy,
     required SmartNightSettings settings,
     SmartNightExposureContext? exposureContext,
+    SmartNightFlatPlan? flatPlan,
   }) {
     _validateInputs(
       profile: profile,
@@ -278,13 +281,34 @@ class SmartNightService {
     final cameraSpec =
         exposureContext?.camera ?? _cameraSpecFromProfile(profile);
 
+    // Guide-RMS ceiling: the mount-tracking exposure limit only engages when
+    // we actually know the mount's recent guide RMS. The cross-system
+    // [context] carries it when the caller populated it, but the wizard's
+    // main path builds the context from weather/dark-library data and does
+    // NOT thread guide history into it — that lives on [exposureContext]
+    // (guideRmsArcsec / guideSampleCount, sourced from the PHD2 / guide-stats
+    // history). Fall back to the exposure context so the tracking-limited
+    // ceiling is honoured instead of being permanently dead. This mirrors
+    // [previewTargetIntegration] and [buildSingleTargetSequence], which
+    // already read the guide RMS off [exposureContext].
+    final recentGuideRmsArcsec =
+        context.recentGuideRmsArcsec ?? exposureContext?.guideRmsArcsec;
+    final recentGuideSamples = context.recentGuideSamples > 0
+        ? context.recentGuideSamples
+        : (exposureContext?.guideSampleCount ?? 0);
+
     if (focalLength <= 0 || aperture <= 0 || pixelSizeUm <= 0) {
       throw SmartNightBuildException(
         'Equipment profile "${profile.name}" is missing aperture, focal '
         'length, or pixel size — these are required to compute exposure '
         'recommendations. Aperture=$aperture mm, '
         'focal length=$focalLength mm, '
-        'pixel size=$pixelSizeUm µm.',
+        'pixel size=$pixelSizeUm µm.'
+        '${pixelSizeUm <= 0 ? ' The camera '
+            '"${profile.cameraName ?? profile.cameraId ?? "<unknown>"}" is not '
+            'in the bundled hardware catalog — connect the camera so its real '
+            'pixel size is read, or add it to the Smart Night camera '
+            'overrides. Smart Night will not guess a pixel size.' : ''}',
       );
     }
 
@@ -351,8 +375,8 @@ class SmartNightService {
         apertureMm: aperture,
         pixelSizeUm: pixelSizeUm,
         bortleClass: context.bortleClass,
-        recentGuideRmsArcsec: context.recentGuideRmsArcsec,
-        recentGuideSamples: context.recentGuideSamples,
+        recentGuideRmsArcsec: recentGuideRmsArcsec,
+        recentGuideSamples: recentGuideSamples,
         settings: settings,
       );
       if (filterPlans.isEmpty) continue;
@@ -438,8 +462,25 @@ class SmartNightService {
         'reference — adaptive exposures will be enabled on each target.',
       );
     }
-    if (context.recentGuideRmsArcsec == null ||
-        context.recentGuideSamples < 3) {
+    if (settings.includeFlatsAtEnd && settings.hasCoverCalibrator) {
+      final flatFilters = <String>{
+        for (final p in planned)
+          for (final fp in p.filterPlans) fp.filterName,
+      };
+      final missingFlatCalibration = flatFilters
+          .where((f) => (flatPlan?.perFilter[f]?.exposureSecs ?? 0) <= 0)
+          .toList()
+        ..sort();
+      if (missingFlatCalibration.isNotEmpty) {
+        warnings.add(
+          'No ADU-calibrated flat exposure exists for: '
+          '${missingFlatCalibration.join(", ")}. Smart Night will NOT shoot '
+          'blind flats — run the Flat Wizard once for these filters so the '
+          'target-ADU exposure + panel brightness are learned and reused.',
+        );
+      }
+    }
+    if (recentGuideRmsArcsec == null || recentGuideSamples < 3) {
       warnings.add(
         'Mount guide-RMS history is sparse — exposure recommendations '
         'use the user cap rather than the mount-tracking ceiling. The '
@@ -453,6 +494,7 @@ class SmartNightService {
       settings: settings,
       context: context,
       planned: planned,
+      flatPlan: flatPlan,
     );
     final simulation = const PreSessionSimulator().simulate(
       sequence,
@@ -777,13 +819,36 @@ class SmartNightService {
     return maxEnd.isBefore(windowEnd) ? maxEnd : windowEnd;
   }
 
+  /// Resolve the camera pixel size (µm) for [profile] WITHOUT a live
+  /// exposure context.
+  ///
+  /// Order of truth:
+  ///   1. The bundled hardware catalog match for the profile's camera —
+  ///      this is the camera's REAL physical pixel pitch.
+  ///   2. Otherwise `0`, a deliberate "unknown" sentinel.
+  ///
+  /// We intentionally do NOT fall back to a hardcoded pitch (the old code
+  /// returned 3.76µm — the ASI2600 pitch — for every unknown camera, which
+  /// silently mis-scaled the sky-limited exposure math for anyone on a
+  /// different sensor). Returning `0` makes every caller's
+  /// `pixelSizeUm <= 0` guard fire loudly: [build] /
+  /// [buildSingleTargetSequence] throw a [SmartNightBuildException] naming
+  /// pixel size, and [previewTargetIntegration] returns null. The real
+  /// value normally arrives via `exposureContext.pixelSizeMicrons` (derived
+  /// from the bridge camera profile); this path only runs when no exposure
+  /// context is available AND the camera isn't in the catalog.
   double _pixelSize(EquipmentProfileModel profile) {
-    // The DB-friendly EquipmentProfileModel doesn't carry pixel size
-    // directly; we fall back to a typical CMOS pixel pitch when it's
-    // missing. The exposure calculator will surface this in caveats.
-    // 3.76µm is the canonical "ASI2600 / IMX571" pitch — a reasonable
-    // mid-point until the user sets a real value in the bridge profile.
-    return 3.76;
+    final match = _hardwareSpecs.matchCamera(
+      cameraName: profile.cameraName,
+      cameraId: profile.cameraId,
+      gain: profile.defaultGain,
+    );
+    if (match != null && match.pixelSizeMicrons > 0) {
+      return match.pixelSizeMicrons;
+    }
+    // Genuinely unknown — fail loud via the caller's pixelSize guard rather
+    // than inventing a pitch.
+    return 0;
   }
 
   /// Map the strategy to the filter rotation that matters for this rig.

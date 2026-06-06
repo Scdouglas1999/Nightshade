@@ -182,7 +182,7 @@ class _MeridianFlipProgressDialogState
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: SizedBox(
         width: dialogSize.width,
@@ -242,7 +242,7 @@ class _MeridianFlipProgressDialogState
             padding: const EdgeInsets.all(10),
             decoration: NightshadeDecorations.tintedBadge(
               statusColor,
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             ),
             child: _isComplete || _hasFailed
                 ? Icon(statusIcon, color: statusColor, size: 20)
@@ -266,11 +266,7 @@ class _MeridianFlipProgressDialogState
                       : _hasFailed
                           ? 'Meridian Flip Failed'
                           : 'Meridian Flip in Progress',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
                 ),
                 Text(
                   _isComplete
@@ -279,7 +275,7 @@ class _MeridianFlipProgressDialogState
                           ? 'An error occurred'
                           : 'Please wait while the mount flips',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -304,7 +300,7 @@ class _MeridianFlipProgressDialogState
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -316,11 +312,7 @@ class _MeridianFlipProgressDialogState
               const SizedBox(width: 8),
               Text(
                 'Target: $_targetName',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -371,7 +363,7 @@ class _MeridianFlipProgressDialogState
         Text(
           'Steps',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: FontWeight.w600,
             color: colors.textSecondary,
             letterSpacing: 0.5,
@@ -394,7 +386,7 @@ class _MeridianFlipProgressDialogState
               child: Text(
                 'Initializing...',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textSecondary,
                   fontStyle: FontStyle.italic,
                 ),
@@ -410,7 +402,7 @@ class _MeridianFlipProgressDialogState
       padding: const EdgeInsets.all(14),
       decoration: NightshadeDecorations.statusChip(
         colors.error,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -423,17 +415,13 @@ class _MeridianFlipProgressDialogState
               children: [
                 Text(
                   'Error',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.error,
-                  ),
+                  style: NightshadeTypography.h6.copyWith(color: colors.error),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   _errorMessage ?? 'Unknown error',
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textPrimary,
                   ),
                 ),
@@ -442,7 +430,7 @@ class _MeridianFlipProgressDialogState
                   Text(
                     'Action: $_actionTaken',
                     style: TextStyle(
-                      fontSize: 11,
+                      fontSize: NightshadeTypography.fontSize11,
                       color: colors.textSecondary,
                       fontStyle: FontStyle.italic,
                     ),
@@ -460,7 +448,7 @@ class _MeridianFlipProgressDialogState
     return Column(
       children: [
         ClipRRect(
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
           child: LinearProgressIndicator(
             value: _progressPercent / 100.0,
             backgroundColor: colors.surfaceAlt,
@@ -476,11 +464,7 @@ class _MeridianFlipProgressDialogState
           children: [
             Text(
               '$_progressPercent%',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: colors.textSecondary,
-              ),
+              style: NightshadeTypography.h6.copyWith(color: colors.textSecondary),
             ),
           ],
         ),
@@ -499,7 +483,7 @@ class _MeridianFlipProgressDialogState
         Text(
           'Elapsed: $elapsedStr',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,
           ),
         ),
@@ -507,7 +491,7 @@ class _MeridianFlipProgressDialogState
         Text(
           stepStr,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,
           ),
         ),
@@ -650,7 +634,7 @@ class _StepRow extends StatelessWidget {
             child: Text(
               _stepLabel(step.step),
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: step.status == StepStatus.pending
                     ? colors.textMuted
                     : colors.textPrimary,
@@ -664,7 +648,7 @@ class _StepRow extends StatelessWidget {
             Text(
               '${step.durationSecs!.toStringAsFixed(1)}s',
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 color: colors.textMuted,
               ),
             ),
@@ -675,12 +659,12 @@ class _StepRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: NightshadeDecorations.tintedBadge(
                   colors.success,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
                   'done',
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: NightshadeTypography.fontSize9,
                     color: colors.success,
                     fontWeight: FontWeight.w600,
                   ),
@@ -694,12 +678,12 @@ class _StepRow extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: NightshadeDecorations.tintedBadge(
                   colors.error,
-                  borderRadius: BorderRadius.circular(4),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 ),
                 child: Text(
                   'failed',
                   style: TextStyle(
-                    fontSize: 9,
+                    fontSize: NightshadeTypography.fontSize9,
                     color: colors.error,
                     fontWeight: FontWeight.w600,
                   ),
@@ -753,7 +737,7 @@ class _InfoChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -762,18 +746,14 @@ class _InfoChip extends StatelessWidget {
           Text(
             label,
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: colors.textMuted,
             ),
           ),
           const SizedBox(width: 6),
           Text(
             value,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
           ),
         ],
       ),

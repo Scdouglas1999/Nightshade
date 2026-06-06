@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -59,7 +58,7 @@ class OnboardingDriverStep extends ConsumerWidget {
             padding: const EdgeInsets.only(top: 8),
             child: Row(
               children: [
-                Icon(LucideIcons.info,
+                Icon(NightshadeIcons.info,
                     size: 14, color: colors.textSecondary),
                 const SizedBox(width: 8),
                 Expanded(
@@ -98,18 +97,18 @@ class _DriverTile extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 8),
       child: InkWell(
         onTap: onToggle,
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: NightshadeTokens.borderRadiusLg,
         child: Container(
           padding: const EdgeInsets.all(12),
           decoration: selected
               ? NightshadeDecorations.selectedSurface(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: NightshadeTokens.borderRadiusLg,
                   fillAlpha: 0.08,
                 )
               : BoxDecoration(
                   color: colors.surface,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: NightshadeTokens.borderRadiusLg,
                   border: Border.all(color: colors.border),
                 ),
           child: Row(

@@ -24,7 +24,7 @@ class _ResultColumn extends StatelessWidget {
             label,
             style: TextStyle(
               color: colors.textSecondary,
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
             ),
           ),
           const SizedBox(height: 2),
@@ -32,7 +32,7 @@ class _ResultColumn extends StatelessWidget {
             value,
             style: TextStyle(
               color: colors.textPrimary,
-              fontSize: 16,
+              fontSize: NightshadeTypography.fontSize16,
               fontWeight: FontWeight.w700,
               fontFeatures: const [FontFeature.tabularFigures()],
             ),
@@ -42,7 +42,7 @@ class _ResultColumn extends StatelessWidget {
             detail,
             style: TextStyle(
               color: colors.textMuted,
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
             ),
             textAlign: TextAlign.center,
           ),
@@ -70,13 +70,13 @@ class _BlsStat extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(color: colors.textSecondary, fontSize: 10),
+          style: TextStyle(color: colors.textSecondary, fontSize: NightshadeTypography.fontSize10),
         ),
         Text(
           value,
           style: TextStyle(
             color: colors.textPrimary,
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w600,
             fontFeatures: const [FontFeature.tabularFigures()],
           ),

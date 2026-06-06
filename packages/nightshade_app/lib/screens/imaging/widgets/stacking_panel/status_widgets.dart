@@ -13,7 +13,7 @@ class _ErrorBanner extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 16),
       decoration: NightshadeDecorations.emphasisSurface(
         colors.error,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         children: [
@@ -22,7 +22,7 @@ class _ErrorBanner extends StatelessWidget {
           Expanded(
             child: Text(
               message,
-              style: TextStyle(fontSize: 12, color: colors.error),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.error),
             ),
           ),
         ],
@@ -50,14 +50,10 @@ class _StatRow extends StatelessWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Text(label,
-            style: TextStyle(fontSize: 12, color: colors.textSecondary)),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary)),
         Text(
           value,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w500,
-            color: valueColor ?? colors.textPrimary,
-          ),
+          style: NightshadeTypography.labelSm.copyWith(color: valueColor ?? colors.textPrimary),
         ),
       ],
     );
@@ -94,13 +90,13 @@ class _RejectionWarning extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: NightshadeDecorations.emphasisSurface(
         accent,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(
-            isError ? LucideIcons.alertOctagon : LucideIcons.alertTriangle,
+            isError ? NightshadeIcons.critical : NightshadeIcons.warning,
             size: 14,
             color: accent,
           ),
@@ -111,17 +107,13 @@ class _RejectionWarning extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: accent,
-                  ),
+                  style: NightshadeTypography.labelStrongSm.copyWith(color: accent),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   detail,
                   style: TextStyle(
-                    fontSize: 10,
+                    fontSize: NightshadeTypography.fontSize10,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -187,17 +179,14 @@ class _AlignmentQualityBar extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text('Alignment Quality',
-                style: TextStyle(fontSize: 11, color: colors.textSecondary)),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary)),
             Text(qualityLabel,
-                style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: qualityColor)),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: qualityColor)),
           ],
         ),
         const SizedBox(height: 6),
         ClipRRect(
-          borderRadius: BorderRadius.circular(3),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
           child: LinearProgressIndicator(
             value: quality,
             minHeight: 6,

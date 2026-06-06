@@ -1,0 +1,944 @@
+//! Device / disconnect SIMULATION HARNESS — unattended-night safety + recovery.
+//!
+//! These tests convert the unattended-night failure modes from
+//! "believed to work, needs hardware" into "proven in software". They drive the
+//! real, reachable executor recovery seams — `run_recovery_attempt`,
+//! `recover_guide_star`, and `device_ops::park_and_close_safe_state` — through a
+//! scriptable [`ScriptedDeviceOps`] whose behaviour can be changed MID-RUN
+//! (disconnect a device at a chosen point then reconnect; flip weather
+//! safe/unsafe; lose then re-lock the guide star; fail park/close). Each test is
+//! a named scenario that asserts BOTH the device-call sequence AND the final
+//! state.
+//!
+//! Scenario coverage (cluster brief):
+//!   1) USB/comms DISCONNECT during exposure -> recovery promotes -> reconnect
+//!      -> sequence RESUMES & re-runs the failed node (W1 disconnect-resume).
+//!   2) WEATHER UNSAFE (device safety OR pushed Dart verdict) -> PAUSE +
+//!      mount PARKS + cover/dome CLOSE (W1 ParkAndAbort safe-state).
+//!   3) Pushed verdict `Some(true)` that goes STALE -> stays paused fail-closed
+//!      + emits the stale warning, never auto-resumes (staleness observability).
+//!   4) DAWN / end-of-night -> the trigger fires and the park path runs.
+//!   5) GUIDE STAR LOST -> recovery re-acquires (guider re-locks) or fails closed.
+//!   6) GuideStarLost / disconnect recovery EXHAUSTION -> safe end-state
+//!      (park + close), not an unsafe abort.
+//!
+//! Scenarios 2 and 3 are exercised here at BOTH the trigger-evaluation seam
+//! (`Trigger::check` / `is_weather_verdict_stale_unsafe`) AND the executor
+//! recovery-gate (`run_recovery_attempt(WeatherUnsafe, ...)`) plus the
+//! ParkAndAbort device-sweep (`park_and_close_safe_state`). The portion of the
+//! ParkAndAbort/give-up flow that lives inline in the 7000-line trigger-monitor
+//! closure cannot be invoked as a unit; the device-call sequence it performs is
+//! `park_and_close_safe_state`, which IS invoked directly here, so the proven
+//! call sequence is identical to what the closure runs.
+
+use super::*;
+use crate::device_ops::{
+    park_and_close_safe_state, DeviceOps, DeviceResult, GuidingCalibration, GuidingStatus,
+    ImageData, NullDeviceOps, PlateSolveResult, SharedDeviceOps,
+};
+use crate::recovery::{AttemptOutcome, RecoveryCause};
+use crate::{Trigger, TriggerManager, TriggerState, TriggerType};
+use async_trait::async_trait;
+use std::collections::HashSet;
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
+use std::sync::{Arc, Mutex};
+
+/// Scriptable device-ops double. Records every safety-relevant device call into
+/// a shared log and lets the test flip device state MID-RUN (the whole point of
+/// a disconnect-simulation harness). Everything not explicitly scripted
+/// delegates to [`NullDeviceOps`] so the surface stays small.
+struct ScriptedDeviceOps {
+    inner: Arc<NullDeviceOps>,
+    /// Ordered record of safety-relevant calls (e.g. `"mount_park:mount-1"`,
+    /// `"connect_device:cam-1"`). Scenario assertions match against this.
+    calls: Arc<Mutex<Vec<String>>>,
+    /// Device ids currently reporting "connected". A disconnect removes the id;
+    /// `connect_device` (or a scripted auto-reconnect) re-adds it.
+    connected: Arc<Mutex<HashSet<String>>>,
+    /// When true, `connect_device` actually reconnects (re-adds to `connected`).
+    /// When false it records the attempt but leaves the device disconnected —
+    /// models a dead USB hub that no reconnect can revive (-> exhaustion).
+    connect_succeeds: Arc<AtomicBool>,
+    /// Hardware safety-monitor verdict returned by `safety_is_safe`.
+    weather_safe: Arc<AtomicBool>,
+    /// Guider lock state reported by `guider_get_status`.
+    guiding: Arc<AtomicBool>,
+    /// If > 0, the guider auto-re-locks after this many `guider_start` calls
+    /// (models PHD2 re-acquiring a star). 0 = never auto-relock.
+    relock_after_starts: Arc<AtomicU32>,
+    guider_start_count: Arc<AtomicU32>,
+    /// When true, `mount_park` fails (models a stuck mount). Used by the
+    /// exhaustion / unsafe-park scenarios.
+    park_fails: Arc<AtomicBool>,
+    /// When true, `cover_calibrator_close_cover` and `dome_close` fail.
+    close_fails: Arc<AtomicBool>,
+}
+
+impl ScriptedDeviceOps {
+    fn new() -> Self {
+        Self {
+            inner: Arc::new(NullDeviceOps),
+            calls: Arc::new(Mutex::new(Vec::new())),
+            connected: Arc::new(Mutex::new(HashSet::new())),
+            connect_succeeds: Arc::new(AtomicBool::new(true)),
+            weather_safe: Arc::new(AtomicBool::new(true)),
+            guiding: Arc::new(AtomicBool::new(true)),
+            relock_after_starts: Arc::new(AtomicU32::new(0)),
+            guider_start_count: Arc::new(AtomicU32::new(0)),
+            park_fails: Arc::new(AtomicBool::new(false)),
+            close_fails: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    fn record(&self, call: impl Into<String>) {
+        self.calls.lock().unwrap().push(call.into());
+    }
+
+    fn calls(&self) -> Vec<String> {
+        self.calls.lock().unwrap().clone()
+    }
+
+    fn call_count(&self, prefix: &str) -> usize {
+        self.calls
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|c| c.starts_with(prefix))
+            .count()
+    }
+
+    fn index_of(&self, call: &str) -> Option<usize> {
+        self.calls.lock().unwrap().iter().position(|c| c == call)
+    }
+
+    fn set_connected(&self, id: &str, connected: bool) {
+        let mut set = self.connected.lock().unwrap();
+        if connected {
+            set.insert(id.to_string());
+        } else {
+            set.remove(id);
+        }
+    }
+}
+
+#[async_trait]
+impl DeviceOps for ScriptedDeviceOps {
+    // === scripted, recorded methods ===
+
+    async fn device_is_connected(&self, device_id: &str) -> DeviceResult<bool> {
+        self.record(format!("device_is_connected:{device_id}"));
+        Ok(self.connected.lock().unwrap().contains(device_id))
+    }
+
+    async fn connect_device(&self, device_id: &str) -> DeviceResult<()> {
+        self.record(format!("connect_device:{device_id}"));
+        if self.connect_succeeds.load(Ordering::SeqCst) {
+            self.set_connected(device_id, true);
+            Ok(())
+        } else {
+            Err(format!("simulated reconnect failure for {device_id}"))
+        }
+    }
+
+    async fn safety_is_safe(&self, _safety_id: Option<&str>) -> DeviceResult<bool> {
+        let safe = self.weather_safe.load(Ordering::SeqCst);
+        self.record(format!("safety_is_safe->{safe}"));
+        Ok(safe)
+    }
+
+    async fn guider_get_status(&self) -> DeviceResult<GuidingStatus> {
+        let guiding = self.guiding.load(Ordering::SeqCst);
+        self.record(format!("guider_get_status->{guiding}"));
+        Ok(GuidingStatus {
+            is_guiding: guiding,
+            rms_ra: 0.5,
+            rms_dec: 0.4,
+            rms_total: 0.64,
+        })
+    }
+
+    async fn guider_get_calibration(&self) -> DeviceResult<GuidingCalibration> {
+        self.inner.guider_get_calibration().await
+    }
+
+    async fn guider_start(&self, sp: f64, st: f64, sto: f64) -> DeviceResult<()> {
+        self.record("guider_start");
+        let n = self.guider_start_count.fetch_add(1, Ordering::SeqCst) + 1;
+        let relock_after = self.relock_after_starts.load(Ordering::SeqCst);
+        if relock_after > 0 && n >= relock_after {
+            // PHD2 re-acquired a star — flip the lock so the post-start poll
+            // sees `is_guiding == true`.
+            self.guiding.store(true, Ordering::SeqCst);
+        }
+        // No real settle wait; keep the inner call for signature parity but it
+        // is a no-op against NullDeviceOps under tokio::time::pause.
+        let _ = (sp, st, sto);
+        Ok(())
+    }
+
+    async fn guider_stop(&self) -> DeviceResult<()> {
+        self.record("guider_stop");
+        Ok(())
+    }
+
+    async fn mount_park(&self, mount_id: &str) -> DeviceResult<()> {
+        self.record(format!("mount_park:{mount_id}"));
+        if self.park_fails.load(Ordering::SeqCst) {
+            Err(format!("simulated park failure for {mount_id}"))
+        } else {
+            Ok(())
+        }
+    }
+
+    async fn mount_is_tracking(&self, mount_id: &str) -> DeviceResult<bool> {
+        self.record(format!("mount_is_tracking:{mount_id}"));
+        self.inner.mount_is_tracking(mount_id).await
+    }
+
+    async fn mount_set_tracking(&self, mount_id: &str, enabled: bool) -> DeviceResult<()> {
+        self.record(format!("mount_set_tracking:{mount_id}:{enabled}"));
+        Ok(())
+    }
+
+    async fn cover_calibrator_close_cover(&self, device_id: &str) -> DeviceResult<()> {
+        self.record(format!("cover_close:{device_id}"));
+        if self.close_fails.load(Ordering::SeqCst) {
+            Err(format!("simulated cover-close failure for {device_id}"))
+        } else {
+            Ok(())
+        }
+    }
+
+    async fn dome_close(&self, dome_id: &str) -> DeviceResult<()> {
+        self.record(format!("dome_close:{dome_id}"));
+        if self.close_fails.load(Ordering::SeqCst) {
+            Err(format!("simulated dome-close failure for {dome_id}"))
+        } else {
+            Ok(())
+        }
+    }
+
+    // === delegating methods (kept minimal; only those a scenario might hit) ===
+
+    async fn mount_slew_to_coordinates(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
+        self.inner.mount_slew_to_coordinates(id, ra, dec).await
+    }
+    async fn mount_abort_slew(&self, id: &str) -> DeviceResult<()> {
+        self.inner.mount_abort_slew(id).await
+    }
+    async fn mount_get_coordinates(&self, id: &str) -> DeviceResult<(f64, f64)> {
+        self.inner.mount_get_coordinates(id).await
+    }
+    async fn mount_sync(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
+        self.inner.mount_sync(id, ra, dec).await
+    }
+    async fn mount_unpark(&self, id: &str) -> DeviceResult<()> {
+        self.inner.mount_unpark(id).await
+    }
+    async fn mount_is_slewing(&self, id: &str) -> DeviceResult<bool> {
+        self.inner.mount_is_slewing(id).await
+    }
+    async fn mount_is_parked(&self, id: &str) -> DeviceResult<bool> {
+        self.inner.mount_is_parked(id).await
+    }
+    async fn mount_can_flip(&self, id: &str) -> DeviceResult<bool> {
+        self.inner.mount_can_flip(id).await
+    }
+    async fn mount_side_of_pier(&self, id: &str) -> DeviceResult<crate::meridian::PierSide> {
+        self.inner.mount_side_of_pier(id).await
+    }
+    async fn camera_start_exposure(
+        &self,
+        id: &str,
+        d: f64,
+        g: Option<i32>,
+        o: Option<i32>,
+        bx: i32,
+        by: i32,
+    ) -> DeviceResult<ImageData> {
+        self.inner.camera_start_exposure(id, d, g, o, bx, by).await
+    }
+    async fn camera_abort_exposure(&self, id: &str) -> DeviceResult<()> {
+        self.inner.camera_abort_exposure(id).await
+    }
+    async fn camera_set_cooler(&self, id: &str, e: bool, t: f64) -> DeviceResult<()> {
+        self.inner.camera_set_cooler(id, e, t).await
+    }
+    async fn camera_get_temperature(&self, id: &str) -> DeviceResult<f64> {
+        self.inner.camera_get_temperature(id).await
+    }
+    async fn camera_get_cooler_power(&self, id: &str) -> DeviceResult<f64> {
+        self.inner.camera_get_cooler_power(id).await
+    }
+    async fn focuser_move_to(&self, id: &str, p: i32) -> DeviceResult<()> {
+        self.inner.focuser_move_to(id, p).await
+    }
+    async fn focuser_get_position(&self, id: &str) -> DeviceResult<i32> {
+        self.inner.focuser_get_position(id).await
+    }
+    async fn focuser_is_moving(&self, id: &str) -> DeviceResult<bool> {
+        self.inner.focuser_is_moving(id).await
+    }
+    async fn focuser_get_temperature(&self, id: &str) -> DeviceResult<Option<f64>> {
+        self.inner.focuser_get_temperature(id).await
+    }
+    async fn focuser_halt(&self, id: &str) -> DeviceResult<()> {
+        self.inner.focuser_halt(id).await
+    }
+    async fn filterwheel_set_position(&self, id: &str, p: i32) -> DeviceResult<()> {
+        self.inner.filterwheel_set_position(id, p).await
+    }
+    async fn filterwheel_get_position(&self, id: &str) -> DeviceResult<i32> {
+        self.inner.filterwheel_get_position(id).await
+    }
+    async fn filterwheel_get_names(&self, id: &str) -> DeviceResult<Vec<String>> {
+        self.inner.filterwheel_get_names(id).await
+    }
+    async fn filterwheel_set_filter_by_name(&self, id: &str, n: &str) -> DeviceResult<i32> {
+        self.inner.filterwheel_set_filter_by_name(id, n).await
+    }
+    async fn rotator_move_to(&self, id: &str, a: f64) -> DeviceResult<()> {
+        self.inner.rotator_move_to(id, a).await
+    }
+    async fn rotator_move_relative(&self, id: &str, d: f64) -> DeviceResult<()> {
+        self.inner.rotator_move_relative(id, d).await
+    }
+    async fn rotator_get_angle(&self, id: &str) -> DeviceResult<f64> {
+        self.inner.rotator_get_angle(id).await
+    }
+    async fn rotator_halt(&self, id: &str) -> DeviceResult<()> {
+        self.inner.rotator_halt(id).await
+    }
+    async fn guider_dither(
+        &self,
+        p: f64,
+        sp: f64,
+        st: f64,
+        sto: f64,
+        ra: bool,
+    ) -> DeviceResult<()> {
+        self.inner.guider_dither(p, sp, st, sto, ra).await
+    }
+    async fn plate_solve(
+        &self,
+        d: &ImageData,
+        ra: Option<f64>,
+        dec: Option<f64>,
+        s: Option<f64>,
+    ) -> DeviceResult<PlateSolveResult> {
+        self.inner.plate_solve(d, ra, dec, s).await
+    }
+    async fn save_fits(
+        &self,
+        d: &ImageData,
+        f: &str,
+        ctx: &crate::scheduling::FrameContext,
+    ) -> DeviceResult<()> {
+        self.inner.save_fits(d, f, ctx).await
+    }
+    async fn send_notification(
+        &self,
+        l: &str,
+        t: &str,
+        m: &str,
+        x: Option<&[String]>,
+    ) -> DeviceResult<()> {
+        self.inner.send_notification(l, t, m, x).await
+    }
+    fn calculate_altitude(&self, r: f64, d: f64, la: f64, lo: f64) -> f64 {
+        self.inner.calculate_altitude(r, d, la, lo)
+    }
+    fn get_observer_location(&self) -> Option<(f64, f64)> {
+        self.inner.get_observer_location()
+    }
+    async fn polar_align_update(
+        &self,
+        r: &crate::polar_align::PolarAlignResult,
+    ) -> DeviceResult<()> {
+        self.inner.polar_align_update(r).await
+    }
+    async fn dome_open(&self, id: &str) -> DeviceResult<()> {
+        self.inner.dome_open(id).await
+    }
+    async fn dome_park(&self, id: &str) -> DeviceResult<()> {
+        self.inner.dome_park(id).await
+    }
+    async fn dome_get_shutter_status(&self, id: &str) -> DeviceResult<String> {
+        self.inner.dome_get_shutter_status(id).await
+    }
+    async fn calculate_image_hfr(&self, d: &ImageData) -> DeviceResult<Option<f64>> {
+        self.inner.calculate_image_hfr(d).await
+    }
+    async fn detect_stars_in_image(&self, d: &ImageData) -> DeviceResult<Vec<(f64, f64, f64)>> {
+        self.inner.detect_stars_in_image(d).await
+    }
+    async fn cover_calibrator_open_cover(&self, id: &str) -> DeviceResult<()> {
+        self.inner.cover_calibrator_open_cover(id).await
+    }
+    async fn cover_calibrator_halt_cover(&self, id: &str) -> DeviceResult<()> {
+        self.inner.cover_calibrator_halt_cover(id).await
+    }
+    async fn cover_calibrator_calibrator_on(&self, id: &str, b: i32) -> DeviceResult<()> {
+        self.inner.cover_calibrator_calibrator_on(id, b).await
+    }
+    async fn cover_calibrator_calibrator_off(&self, id: &str) -> DeviceResult<()> {
+        self.inner.cover_calibrator_calibrator_off(id).await
+    }
+    async fn cover_calibrator_get_cover_state(&self, id: &str) -> DeviceResult<i32> {
+        self.inner.cover_calibrator_get_cover_state(id).await
+    }
+    async fn cover_calibrator_get_calibrator_state(&self, id: &str) -> DeviceResult<i32> {
+        self.inner.cover_calibrator_get_calibrator_state(id).await
+    }
+    async fn cover_calibrator_get_brightness(&self, id: &str) -> DeviceResult<i32> {
+        self.inner.cover_calibrator_get_brightness(id).await
+    }
+    async fn cover_calibrator_get_max_brightness(&self, id: &str) -> DeviceResult<i32> {
+        self.inner.cover_calibrator_get_max_brightness(id).await
+    }
+}
+
+/// Build a `TriggerManager` whose shared `TriggerState` we can mutate to push a
+/// Dart weather verdict — used by the WeatherUnsafe recovery-gate scenarios.
+async fn manager_with_state() -> (Arc<RwLock<TriggerManager>>, Arc<RwLock<TriggerState>>) {
+    let manager = TriggerManager::new();
+    let state = manager.state();
+    (Arc::new(RwLock::new(manager)), state)
+}
+
+// =============================================================================
+// SCENARIO 1 — USB/comms DISCONNECT during an exposure -> recovery promotes ->
+// reconnect -> sequence RESUMES (recovery attempt returns Succeeded, which the
+// executor driver turns into `Recovering -> Running`, re-running the failed
+// node). This is the W1 disconnect-resume fix.
+// =============================================================================
+
+#[tokio::test]
+async fn scenario1_usb_disconnect_during_exposure_reconnects_and_resumes() {
+    let ops_concrete = Arc::new(ScriptedDeviceOps::new());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+    let cam = "native:zwo:cam-1";
+
+    // The camera dropped out mid-exposure (USB hiccup). reconnect WILL succeed.
+    ops_concrete.set_connected(cam, false);
+    ops_concrete.connect_succeeds.store(true, Ordering::SeqCst);
+
+    let (manager, _state) = manager_with_state().await;
+
+    let outcome = super::run_recovery_attempt(
+        &RecoveryCause::DeviceDisconnected,
+        &ops,
+        Some("mount-1"),
+        &[cam.to_string()],
+        &manager,
+    )
+    .await;
+
+    // The recovery attempt succeeds -> the executor resumes (re-runs the node).
+    assert_eq!(
+        outcome,
+        AttemptOutcome::Succeeded,
+        "a reconnectable device must recover and let the sequence RESUME"
+    );
+
+    // It must ACTIVELY reconnect (not merely poll): connect_device fires BEFORE
+    // the verifying device_is_connected. Camera/focuser/FW default to
+    // auto_reconnect=false, so a passive poll would never recover them.
+    let calls = ops_concrete.calls();
+    let connect_idx = ops_concrete
+        .index_of(&format!("connect_device:{cam}"))
+        .expect("recovery must actively call connect_device");
+    let verify_idx = ops_concrete
+        .index_of(&format!("device_is_connected:{cam}"))
+        .expect("recovery must verify the reconnect");
+    assert!(
+        connect_idx < verify_idx,
+        "connect_device must precede the is_connected verification: {calls:?}"
+    );
+    // The device is connected again afterwards (the rig is whole, ready to resume).
+    assert!(ops_concrete.connected.lock().unwrap().contains(cam));
+}
+
+#[tokio::test]
+async fn scenario1b_disconnect_with_no_device_ids_fails_closed() {
+    // Edge of the same scenario: if the cause is DeviceDisconnected but no device
+    // ids were captured, the attempt must FAIL (not silently "succeed" and resume
+    // into a half-connected rig). Errors are a feature.
+    let ops_concrete = Arc::new(ScriptedDeviceOps::new());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+    let (manager, _state) = manager_with_state().await;
+
+    let outcome = super::run_recovery_attempt(
+        &RecoveryCause::DeviceDisconnected,
+        &ops,
+        Some("mount-1"),
+        &[],
+        &manager,
+    )
+    .await;
+
+    assert!(
+        matches!(outcome, AttemptOutcome::Failed { .. }),
+        "no device ids -> recovery cannot verify reconnect -> must fail closed"
+    );
+}
+
+// =============================================================================
+// SCENARIO 2 — WEATHER UNSAFE (device safety OR pushed Dart verdict) -> the run
+// PAUSES and the mount PARKS + cover/dome CLOSE (ParkAndAbort safe-state).
+// =============================================================================
+
+#[tokio::test]
+async fn scenario2_weather_unsafe_trigger_fires_from_hardware_and_from_verdict() {
+    // The WeatherUnsafe trigger is the gate the executor watches; it must fire on
+    // EITHER source. This is the OR-of-unsafe the executor promotes to
+    // ParkAndAbort.
+    let mut trigger = Trigger::new(
+        "weather",
+        "Weather",
+        TriggerType::WeatherUnsafe,
+        crate::RecoveryAction::ParkAndAbort,
+    );
+
+    // (a) hardware safety monitor unsafe, no Dart verdict.
+    let mut state = TriggerState::new();
+    state.weather_safe = false;
+    assert!(
+        trigger.check(&state).await,
+        "hardware-unsafe must fire WeatherUnsafe"
+    );
+
+    // (b) hardware safe, Dart verdict unsafe (rig with no safety device).
+    let mut state = TriggerState::new();
+    state.weather_safe = true;
+    state.update_weather_verdict(Some(true));
+    assert!(
+        trigger.check(&state).await,
+        "Dart-verdict-unsafe must fire WeatherUnsafe even when hardware reads safe"
+    );
+
+    // (c) both clear -> must NOT fire (no false safe-state at the worst time).
+    let mut state = TriggerState::new();
+    state.weather_safe = true;
+    state.update_weather_verdict(Some(false));
+    assert!(
+        !trigger.check(&state).await,
+        "both-clear must not fire WeatherUnsafe"
+    );
+}
+
+#[tokio::test]
+async fn scenario2_park_and_abort_safe_state_sweep_parks_then_closes_in_order() {
+    // The device-call sequence the executor's ParkAndAbort path performs IS
+    // `park_and_close_safe_state`. Prove it: park the mount, THEN close the
+    // cover, THEN close the dome — strict order, all succeed.
+    let ops_concrete = Arc::new(ScriptedDeviceOps::new());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+
+    let outcome = park_and_close_safe_state(
+        &ops,
+        Some("mount-1"),
+        Some("cover-1"),
+        Some("dome-1"),
+        1,
+        0.0,
+    )
+    .await;
+
+    assert!(outcome.fully_safe(), "all safe-state steps must succeed");
+    assert!(outcome.park.as_ref().unwrap().success);
+
+    let park_idx = ops_concrete.index_of("mount_park:mount-1").unwrap();
+    let cover_idx = ops_concrete.index_of("cover_close:cover-1").unwrap();
+    let dome_idx = ops_concrete.index_of("dome_close:dome-1").unwrap();
+    assert!(
+        park_idx < cover_idx && cover_idx < dome_idx,
+        "order must be park -> close cover -> close dome: {:?}",
+        ops_concrete.calls()
+    );
+}
+
+#[tokio::test]
+async fn scenario2_park_failure_still_closes_cover_and_dome() {
+    // A stuck mount must NOT abort the roof close — the shutter must close even if
+    // the mount can't park (otherwise rain hits the optics). park_fails=true,
+    // closes still fire; outcome reports the park failure loudly.
+    let ops_concrete = Arc::new(ScriptedDeviceOps::new());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+    ops_concrete.park_fails.store(true, Ordering::SeqCst);
+
+    let outcome = park_and_close_safe_state(
+        &ops,
+        Some("mount-1"),
+        Some("cover-1"),
+        Some("dome-1"),
+        1,
+        0.0,
+    )
+    .await;
+
+    assert!(
+        !outcome.fully_safe(),
+        "a failed park must report not-fully-safe (errors are a feature)"
+    );
+    assert!(!outcome.park.as_ref().unwrap().success);
+    assert!(outcome.park.as_ref().unwrap().last_error.is_some());
+    // The roof still closed despite the stuck mount.
+    assert!(ops_concrete.index_of("cover_close:cover-1").is_some());
+    assert!(ops_concrete.index_of("dome_close:dome-1").is_some());
+    assert!(outcome.cover_close_error.is_none());
+    assert!(outcome.dome_close_error.is_none());
+    // park retry honoured (1 retry -> 2 park calls).
+    assert_eq!(ops_concrete.call_count("mount_park:"), 2);
+}
+
+#[tokio::test]
+async fn scenario2_weather_recovery_gate_holds_while_dart_verdict_unsafe() {
+    // The executor's WeatherUnsafe recovery re-check requires BOTH the hardware
+    // poll AND the Dart verdict to be clear before resuming. With hardware safe
+    // but the verdict still Some(true), the attempt must FAIL (stay paused) — it
+    // must not resume into API-unsafe weather just because the hardware boolean
+    // reads safe.
+    let ops_concrete = Arc::new(ScriptedDeviceOps::new());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+    ops_concrete.weather_safe.store(true, Ordering::SeqCst); // hardware says safe
+
+    let (manager, state) = manager_with_state().await;
+    state.write().await.update_weather_verdict(Some(true)); // Dart says UNSAFE
+
+    let outcome = super::run_recovery_attempt(
+        &RecoveryCause::WeatherUnsafe,
+        &ops,
+        Some("mount-1"),
+        &[],
+        &manager,
+    )
+    .await;
+
+    assert!(
+        matches!(outcome, AttemptOutcome::Failed { .. }),
+        "verdict-unsafe must block resume even when hardware reads safe"
+    );
+
+    // Now the Dart verdict clears AND hardware reads safe -> resume permitted.
+    state.write().await.update_weather_verdict(Some(false));
+    let outcome2 = super::run_recovery_attempt(
+        &RecoveryCause::WeatherUnsafe,
+        &ops,
+        Some("mount-1"),
+        &[],
+        &manager,
+    )
+    .await;
+    assert_eq!(
+        outcome2,
+        AttemptOutcome::Succeeded,
+        "both sources clear -> weather recovery may resume"
+    );
+}
+
+// =============================================================================
+// SCENARIO 3 — pushed verdict Some(true) that goes STALE -> stays paused
+// fail-closed + emits the stale warning, never auto-resumes.
+// =============================================================================
+
+#[tokio::test]
+async fn scenario3_stale_unsafe_verdict_stays_paused_and_warns_never_resumes() {
+    let ops_concrete = Arc::new(ScriptedDeviceOps::new());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+    ops_concrete.weather_safe.store(true, Ordering::SeqCst); // hardware reads safe
+
+    let (manager, state) = manager_with_state().await;
+    state.write().await.update_weather_verdict(Some(true));
+
+    // Force the verdict push time into the past so it is STALE (a dead Dart feed).
+    state.write().await.weather_verdict_last_update =
+        Some(std::time::Instant::now() - std::time::Duration::from_secs(600));
+
+    // Observability: the stale-unsafe predicate must read TRUE and must NOT clear
+    // the unsafe verdict.
+    {
+        let guard = state.read().await;
+        assert!(
+            guard.is_weather_verdict_stale_unsafe(60),
+            "a 600s-old unsafe verdict with a 60s window must read stale"
+        );
+        assert_eq!(
+            guard.weather_verdict_unsafe,
+            Some(true),
+            "staleness must NOT clear the unsafe verdict"
+        );
+    }
+
+    // The stale-warning emitter fires on the rising edge (loud, fail-closed),
+    // carrying the window, then rate-limits.
+    let mut warned = false;
+    let msg = super::weather_verdict_stale_warning(true, 60, &mut warned)
+        .expect("stale-unsafe must emit a loud warning");
+    assert!(warned);
+    assert!(
+        msg.contains("stale") && msg.contains("paused") && msg.contains("60"),
+        "warning must frame the stale fail-closed hold + the window: {msg}"
+    );
+    assert!(
+        super::weather_verdict_stale_warning(true, 60, &mut warned).is_none(),
+        "a still-stale verdict must rate-limit (no per-poll spam)"
+    );
+
+    // CRITICAL: the recovery gate must still REFUSE to resume — staleness holds
+    // paused fail-closed, it never auto-resumes.
+    let outcome = super::run_recovery_attempt(
+        &RecoveryCause::WeatherUnsafe,
+        &ops,
+        Some("mount-1"),
+        &[],
+        &manager,
+    )
+    .await;
+    assert!(
+        matches!(outcome, AttemptOutcome::Failed { .. }),
+        "a stale unsafe verdict must NOT auto-resume the sequence"
+    );
+}
+
+// =============================================================================
+// SCENARIO 4 — DAWN / end-of-night -> the DawnApproaching trigger fires and the
+// park path runs. End-of-night scheduling lives partly on the Dart side, but the
+// trigger that fires the in-sequencer park IS in the sequencer and is asserted
+// here, together with the park device-call it drives.
+// =============================================================================
+
+#[tokio::test]
+async fn scenario4_dawn_approaching_fires_and_parks() {
+    // DawnApproaching{minutes_before:30} must fire once dawn is <30 min away, and
+    // must NOT fire once dawn has already passed (no daylight-long re-firing).
+    let mut trigger = Trigger::new(
+        "dawn",
+        "Dawn",
+        TriggerType::DawnApproaching {
+            minutes_before: 30.0,
+        },
+        crate::RecoveryAction::ParkAndAbort,
+    );
+
+    let now = chrono::Utc::now().timestamp();
+    let mut state = TriggerState::new();
+
+    // Dawn 15 min out -> fire.
+    state.dawn_time = Some(now + 15 * 60);
+    assert!(
+        trigger.check(&state).await,
+        "dawn 15 min away must fire DawnApproaching(30)"
+    );
+
+    // Dawn already passed -> must NOT fire.
+    let mut trigger2 = Trigger::new(
+        "dawn2",
+        "Dawn2",
+        TriggerType::DawnApproaching {
+            minutes_before: 30.0,
+        },
+        crate::RecoveryAction::ParkAndAbort,
+    );
+    let mut past = TriggerState::new();
+    past.dawn_time = Some(now - 5 * 60);
+    assert!(
+        !trigger2.check(&past).await,
+        "after dawn has passed the trigger must not fire through the day"
+    );
+
+    // The park path the dawn trigger drives: park the mount (end-of-night safe).
+    let ops_concrete = Arc::new(ScriptedDeviceOps::new());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+    let outcome =
+        park_and_close_safe_state(&ops, Some("mount-1"), Some("cover-1"), Some("dome-1"), 1, 0.0)
+            .await;
+    assert!(outcome.fully_safe(), "end-of-night park sweep must succeed");
+    assert!(ops_concrete.index_of("mount_park:mount-1").is_some());
+}
+
+// =============================================================================
+// SCENARIO 5 — GUIDE STAR LOST -> recovery re-acquires (guider re-locks) or
+// fails closed.
+// =============================================================================
+
+#[tokio::test(start_paused = true)]
+async fn scenario5_guide_star_lost_reacquires_when_guider_relocks() {
+    let ops_concrete = Arc::new(ScriptedDeviceOps::new());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+
+    // Star is lost now; PHD2 re-locks on the first guider_start.
+    ops_concrete.guiding.store(false, Ordering::SeqCst);
+    ops_concrete.relock_after_starts.store(1, Ordering::SeqCst);
+
+    let outcome = super::recover_guide_star(&ops).await;
+    assert_eq!(
+        outcome,
+        AttemptOutcome::Succeeded,
+        "a guider that re-locks after re-acquisition must recover"
+    );
+    // It actually issued a real re-acquisition.
+    assert!(
+        ops_concrete.index_of("guider_start").is_some(),
+        "guide-star recovery must issue guider_start"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn scenario5b_guide_star_already_recovered_skips_reacquire() {
+    // Fast-path: if the guider already re-locked on its own during the wait, we
+    // must NOT force a fresh guider_start (which can trigger an unnecessary
+    // re-calibration on some setups).
+    let ops_concrete = Arc::new(ScriptedDeviceOps::new());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+    ops_concrete.guiding.store(true, Ordering::SeqCst);
+
+    let outcome = super::recover_guide_star(&ops).await;
+    assert_eq!(outcome, AttemptOutcome::Succeeded);
+    assert!(
+        ops_concrete.index_of("guider_start").is_none(),
+        "an already-locked guider must not be force-restarted"
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn scenario5c_guide_star_never_relocks_fails_closed() {
+    // The star never comes back: recovery must FAIL (so the loop counts the
+    // attempt and eventually gives up to a safe state) — never silently succeed.
+    let ops_concrete = Arc::new(ScriptedDeviceOps::new());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+    ops_concrete.guiding.store(false, Ordering::SeqCst);
+    ops_concrete.relock_after_starts.store(0, Ordering::SeqCst); // never re-lock
+
+    let outcome = super::recover_guide_star(&ops).await;
+    assert!(
+        matches!(outcome, AttemptOutcome::Failed { .. }),
+        "a guider that never re-locks must fail closed, not fake success"
+    );
+}
+
+// =============================================================================
+// SCENARIO 6 — recovery EXHAUSTION (GuideStarLost / disconnect that never
+// recovers) -> safe end-state (park + close), not an unsafe abort.
+//
+// The recovery loop drives `run_recovery_attempt` repeatedly; once exhausted the
+// executor runs the give-up safe-state sweep, whose device sequence IS
+// `park_and_close_safe_state`. Here we (a) prove the attempt keeps FAILING when
+// the device can't reconnect, and (b) prove the give-up sweep that follows leaves
+// the rig SAFE.
+// =============================================================================
+
+#[tokio::test]
+async fn scenario6_disconnect_that_never_recovers_keeps_failing_then_parks_safe() {
+    let ops_concrete = Arc::new(ScriptedDeviceOps::new());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+    let cam = "native:zwo:cam-1";
+
+    // Dead USB hub: device stays disconnected and reconnect always fails.
+    ops_concrete.set_connected(cam, false);
+    ops_concrete.connect_succeeds.store(false, Ordering::SeqCst);
+
+    let (manager, _state) = manager_with_state().await;
+
+    // Every attempt fails (this is what burns the recovery budget toward
+    // exhaustion). Run a few to model the loop.
+    for _ in 0..3 {
+        let outcome = super::run_recovery_attempt(
+            &RecoveryCause::DeviceDisconnected,
+            &ops,
+            Some("mount-1"),
+            &[cam.to_string()],
+            &manager,
+        )
+        .await;
+        assert!(
+            matches!(outcome, AttemptOutcome::Failed { .. }),
+            "an unrecoverable device must keep failing recovery (never fake success)"
+        );
+    }
+
+    // Exhaustion give-up: the executor parks + closes. Give-up uses 2 park
+    // retries (matching the inline path) — model that here.
+    let safe = park_and_close_safe_state(
+        &ops,
+        Some("mount-1"),
+        Some("cover-1"),
+        Some("dome-1"),
+        2,
+        0.0,
+    )
+    .await;
+    assert!(
+        safe.fully_safe(),
+        "recovery exhaustion must leave the rig SAFE (parked + closed), not aborted unsafe"
+    );
+    let park_idx = ops_concrete.index_of("mount_park:mount-1").unwrap();
+    let cover_idx = ops_concrete.index_of("cover_close:cover-1").unwrap();
+    let dome_idx = ops_concrete.index_of("dome_close:dome-1").unwrap();
+    assert!(
+        park_idx < cover_idx && cover_idx < dome_idx,
+        "give-up safe-state order must be park -> cover -> dome: {:?}",
+        ops_concrete.calls()
+    );
+}
+
+#[tokio::test(start_paused = true)]
+async fn scenario6b_guide_star_exhaustion_then_safe_state_parks_and_closes() {
+    // GuideStarLost variant of exhaustion: the star never re-locks, so every
+    // attempt fails; the subsequent give-up sweep must park + close.
+    let ops_concrete = Arc::new(ScriptedDeviceOps::new());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+    ops_concrete.guiding.store(false, Ordering::SeqCst);
+    ops_concrete.relock_after_starts.store(0, Ordering::SeqCst);
+
+    // Attempts keep failing.
+    for _ in 0..2 {
+        let outcome = super::recover_guide_star(&ops).await;
+        assert!(matches!(outcome, AttemptOutcome::Failed { .. }));
+    }
+
+    // Give-up safe-state: park + close everything; report SAFE.
+    let safe = park_and_close_safe_state(
+        &ops,
+        Some("mount-1"),
+        Some("cover-1"),
+        Some("dome-1"),
+        2,
+        0.0,
+    )
+    .await;
+    assert!(
+        safe.fully_safe(),
+        "guide-star exhaustion must end in a SAFE parked+closed state"
+    );
+}
+
+#[tokio::test]
+async fn scenario6c_exhaustion_with_stuck_mount_still_closes_roof_and_reports_unsafe() {
+    // Worst case: recovery exhausted AND the mount is stuck. The give-up sweep
+    // must STILL close the roof (protect optics) and must report not-fully-safe so
+    // the operator is alerted to the stuck mount. This is the fail-loud contract.
+    let ops_concrete = Arc::new(ScriptedDeviceOps::new());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+    ops_concrete.park_fails.store(true, Ordering::SeqCst);
+
+    let safe = park_and_close_safe_state(
+        &ops,
+        Some("mount-1"),
+        Some("cover-1"),
+        Some("dome-1"),
+        2,
+        0.0,
+    )
+    .await;
+
+    assert!(
+        !safe.fully_safe(),
+        "a stuck mount during give-up must be reported (not silently 'safe')"
+    );
+    // Roof still closed despite the stuck mount.
+    assert!(ops_concrete.index_of("cover_close:cover-1").is_some());
+    assert!(ops_concrete.index_of("dome_close:dome-1").is_some());
+    // The mount park was retried to exhaustion (2 retries -> 3 calls).
+    assert_eq!(ops_concrete.call_count("mount_park:"), 3);
+}

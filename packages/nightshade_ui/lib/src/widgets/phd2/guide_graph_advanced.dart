@@ -192,34 +192,43 @@ class GuideGraphAdvanced extends StatelessWidget {
     bool compact = false,
   }) {
     final spacing = compact ? 8.0 : 16.0;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        _buildRmsValue(
-          'RA',
-          rmsRa,
-          colors.error,
-          colors: colors,
-          compact: compact,
-        ),
-        SizedBox(width: spacing),
-        _buildRmsValue(
-          'Dec',
-          rmsDec,
-          colors.info,
-          colors: colors,
-          compact: compact,
-        ),
-        SizedBox(width: spacing),
-        _buildRmsValue(
-          'Tot',
-          rmsTotal,
-          colors.textPrimary,
-          colors: colors,
-          bold: true,
-          compact: compact,
-        ),
-      ],
+    // The caller already constrains this in a Flexible + ClipRect. When the
+    // header row gets tight (narrow guiding panel, side-by-side with the scale
+    // selectors), the three RMS readouts can exceed the Flexible's width and
+    // log a RenderFlex overflow. Scale the whole block down to fit rather than
+    // clip a digit off a number — the values stay legible and aligned left.
+    return FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildRmsValue(
+            'RA',
+            rmsRa,
+            colors.error,
+            colors: colors,
+            compact: compact,
+          ),
+          SizedBox(width: spacing),
+          _buildRmsValue(
+            'Dec',
+            rmsDec,
+            colors.info,
+            colors: colors,
+            compact: compact,
+          ),
+          SizedBox(width: spacing),
+          _buildRmsValue(
+            'Tot',
+            rmsTotal,
+            colors.textPrimary,
+            colors: colors,
+            bold: true,
+            compact: compact,
+          ),
+        ],
+      ),
     );
   }
 
@@ -444,16 +453,22 @@ class _GraphPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     );
 
-    final now = DateTime.now();
+    // The X axis is elapsed time relative to *now*, which sits at the right
+    // edge (matching how _drawTrace positions points across `timeScale`). We
+    // count backwards from 0 on the right to -timeScale on the left, so the
+    // newest sample is always at "now" and older samples scroll left. This is
+    // the convention PHD2 / NINA / SkyGuide use and is stable across repaints,
+    // unlike the previous wall-clock MM:SS labels which appeared to "tick up"
+    // because they were recomputed from DateTime.now() every frame.
+    final totalSeconds = timeScale.duration.inSeconds;
     const numLabels = 5;
 
     for (int i = 0; i < numLabels; i++) {
-      final offsetMs = timeScale.duration.inMilliseconds *
-          (numLabels - 1 - i) ~/
-          (numLabels - 1);
-      final time = now.subtract(Duration(milliseconds: offsetMs));
-      final label =
-          '${time.minute.toString().padLeft(2, '0')}:${time.second.toString().padLeft(2, '0')}';
+      // i == 0 is the left edge (oldest, -totalSeconds); the last index is the
+      // right edge (newest, 0s).
+      final secondsAgo =
+          (totalSeconds * (numLabels - 1 - i) / (numLabels - 1)).round();
+      final label = secondsAgo == 0 ? '0s' : '-${_formatElapsed(secondsAgo)}';
 
       textPainter.text = TextSpan(
         text: label,
@@ -467,6 +482,17 @@ class _GraphPainter extends CustomPainter {
         Offset(x - textPainter.width / 2, graphRect.bottom + 4),
       );
     }
+  }
+
+  /// Format an elapsed-second count for an X-axis tick. Sub-minute spans read
+  /// as plain seconds ("30s"); minute-or-longer spans read as "m:ss" so the
+  /// 15m / 30m scales stay compact and legible.
+  String _formatElapsed(int seconds) {
+    if (seconds < 60) return '${seconds}s';
+    final minutes = seconds ~/ 60;
+    final remSeconds = seconds % 60;
+    if (remSeconds == 0) return '${minutes}m';
+    return '$minutes:${remSeconds.toString().padLeft(2, '0')}';
   }
 
   void _drawTrace(Canvas canvas, Rect graphRect, bool isRa) {

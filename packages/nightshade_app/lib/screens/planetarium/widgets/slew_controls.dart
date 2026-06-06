@@ -5,6 +5,12 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../../widgets/tutorial_keys/planetarium_keys.dart';
 
+// NOTE (design tokens): the `Colors.white*` / `Colors.black*` literals in this
+// file are canvas-absolute HUD colors for the floating slew controls over the
+// planetarium sky. The planetarium is wrapped in `_NightVisionFilter` (red
+// luminance conversion for dark adaptation), so they are intentionally NOT
+// mapped to the theme-relative semantic palette.
+
 /// Slew control buttons
 class SlewControls extends ConsumerWidget {
   final NightshadeColors colors;
@@ -31,7 +37,7 @@ class SlewControls extends ConsumerWidget {
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: 0.6),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: slewMode
             ? Border.all(color: const Color(0xFFFF9800), width: 2)
             : null,
@@ -44,7 +50,7 @@ class SlewControls extends ConsumerWidget {
             message: slewMode ? 'Disable slew mode' : 'Enable slew mode',
             child: SlewControlButton(
               key: PlanetariumTutorialKeys.slewBtn,
-              icon: LucideIcons.move,
+              icon: NightshadeIcons.move,
               isActive: slewMode,
               isEnabled: isConnected,
               onTap: isConnected ? onToggleSlewMode : null,
@@ -67,7 +73,7 @@ class SlewControls extends ConsumerWidget {
             const Text(
               'SLEW',
               style: TextStyle(
-                fontSize: 9,
+                fontSize: NightshadeTypography.fontSize9,
                 fontWeight: FontWeight.bold,
                 color: Color(0xFFFF9800),
               ),
@@ -125,7 +131,7 @@ class _SlewControlButtonState extends State<SlewControlButton> {
                 : _isHovered && widget.isEnabled
                     ? Colors.white.withValues(alpha: 0.1)
                     : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
           ),
           child: Icon(
             widget.icon,

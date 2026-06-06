@@ -11,7 +11,7 @@ class _DocsInfoChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       // Until the docs viewer ships, surface the anchor in a tooltip so
       // power users can see where the link will go without it appearing
       // broken on tap.
@@ -30,11 +30,7 @@ class _DocsInfoChip extends StatelessWidget {
                   'Learn more about optical diagnostics',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.accent,
-                    fontWeight: FontWeight.w500,
-                  ),
+                  style: NightshadeTypography.labelSm.copyWith(color: colors.accent),
                 ),
               ),
             ],
@@ -63,7 +59,7 @@ class _SessionSelector extends StatelessWidget {
     if (sessions.isEmpty) {
       return Text(
         context.l10n.text('diagnosticsNoSessions'),
-        style: TextStyle(color: colors.textMuted, fontSize: 12),
+        style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
       );
     }
 
@@ -92,7 +88,7 @@ class _SessionSelector extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         border: Border.all(color: colors.border),
       ),
       child: DropdownButtonHideUnderline(
@@ -104,10 +100,10 @@ class _SessionSelector extends StatelessWidget {
           isExpanded: true,
           hint: Text(
             context.l10n.text('diagnosticsSelectSession'),
-            style: TextStyle(color: colors.textMuted, fontSize: 13),
+            style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize13),
           ),
           dropdownColor: colors.surfaceElevated,
-          style: TextStyle(color: colors.textPrimary, fontSize: 13),
+          style: TextStyle(color: colors.textPrimary, fontSize: NightshadeTypography.fontSize13),
           icon:
               Icon(LucideIcons.chevronDown, size: 14, color: colors.textMuted),
           items: visibleSessions.map((session) {

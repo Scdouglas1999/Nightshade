@@ -37,9 +37,7 @@ class _ConfigExpansionState extends State<_ConfigExpansion> {
             size: NightshadeTokens.iconSm, color: colors.primary),
         title: Text(
           'Scoring weights',
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
+          style: NightshadeTypography.labelStrong.copyWith(
             color: colors.textPrimary,
           ),
         ),
@@ -124,7 +122,7 @@ class _WeightSlider extends StatelessWidget {
             width: 110,
             child: Text(
               label,
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
             ),
           ),
           Expanded(
@@ -143,7 +141,7 @@ class _WeightSlider extends StatelessWidget {
               value.toStringAsFixed(2),
               textAlign: TextAlign.right,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textPrimary,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
@@ -185,7 +183,7 @@ class _ParameterSlider extends StatelessWidget {
             width: 110,
             child: Text(
               label,
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
             ),
           ),
           Expanded(
@@ -204,7 +202,7 @@ class _ParameterSlider extends StatelessWidget {
               '${value.toStringAsFixed(2)}$suffix',
               textAlign: TextAlign.right,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textPrimary,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),

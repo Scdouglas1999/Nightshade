@@ -134,6 +134,51 @@ impl BudgetState {
     pub fn is_met(&self, budget: &IntegrationBudget) -> bool {
         matches!(self.evaluate(budget), BudgetEvaluation::Met { .. })
     }
+
+    /// Accepted-frame count completed for `filter`, derived from the
+    /// accumulated accepted-seconds and the configured per-sub length.
+    ///
+    /// The budget registry credits ACCEPTED-frame exposure time only
+    /// (rejected subs are subtracted upstream in the expose instruction), so
+    /// `floor(accepted_secs / sub_secs)` recovers the number of accepted subs
+    /// exactly when `sub_secs` matches the exposure's per-frame duration.
+    /// Returns `0` for a non-positive `sub_secs` (a misconfigured Count
+    /// entry) — fail closed rather than divide by zero.
+    pub fn accepted_frames(&self, filter: &str, sub_secs: f64) -> u32 {
+        if sub_secs <= 0.0 || !sub_secs.is_finite() {
+            return 0;
+        }
+        let done = self.completed_by_filter.get(filter).copied().unwrap_or(0.0);
+        // A tiny epsilon guards against IEEE-754 drift leaving e.g.
+        // 60 * 300.0 at 17999.9999997 after repeated additions.
+        ((done + 1e-6) / sub_secs).floor().max(0.0) as u32
+    }
+
+    /// Per-filter accepted-frame progress for every [`FilterBudgetEntry::Count`]
+    /// entry in `budget`, as `(filter, accepted_so_far, desired)`.
+    ///
+    /// Surfaced so the dashboard can render "Ha 47/60 accepted" rows. Filters
+    /// configured with the time-based [`FilterBudgetEntry::Absolute`] /
+    /// [`FilterBudgetEntry::Ratio`] variants are omitted (they have no
+    /// count target).
+    pub fn count_progress(&self, budget: &IntegrationBudget) -> Vec<(String, u32, u32)> {
+        let mut rows = Vec::new();
+        for (filter, entry) in &budget.per_filter {
+            if let crate::FilterBudgetEntry::Count {
+                desired_accepted,
+                sub_secs,
+            } = entry
+            {
+                rows.push((
+                    filter.clone(),
+                    self.accepted_frames(filter, *sub_secs),
+                    *desired_accepted,
+                ));
+            }
+        }
+        rows.sort_by(|a, b| a.0.cmp(&b.0));
+        rows
+    }
 }
 
 /// Why the budget was considered met. Surfaced to the dashboard so the
@@ -659,5 +704,177 @@ mod tests {
         let s = reg.record_exposure(Some("L"), 600.0).await.expect("active");
         assert_eq!(s.completed_by_filter.get("L").copied(), Some(15_000.0));
         assert!((s.completed_total_secs - 15_000.0).abs() < f64::EPSILON);
+    }
+
+    // ----- Count-based completion ("N accepted frames per filter") -----
+
+    fn count_budget(entries: &[(&str, u32, f64)]) -> IntegrationBudget {
+        IntegrationBudget {
+            total_secs: 0.0,
+            per_filter: entries
+                .iter()
+                .map(|(f, n, secs)| {
+                    (
+                        (*f).to_string(),
+                        FilterBudgetEntry::Count {
+                            desired_accepted: *n,
+                            sub_secs: *secs,
+                        },
+                    )
+                })
+                .collect(),
+            stop_on_budget_met: true,
+        }
+    }
+
+    #[test]
+    fn count_resolves_to_n_times_sub_secs_cap() {
+        // 60 x Ha 300s → cap = 18000s.
+        let b = count_budget(&[("Ha", 60, 300.0)]);
+        assert_eq!(b.resolved_filter_cap("Ha"), Some(18_000.0));
+        assert!(b.is_active());
+    }
+
+    #[test]
+    fn count_zero_frames_or_zero_secs_yields_no_cap() {
+        assert_eq!(count_budget(&[("Ha", 0, 300.0)]).resolved_filter_cap("Ha"), None);
+        assert_eq!(count_budget(&[("Ha", 60, 0.0)]).resolved_filter_cap("Ha"), None);
+        // Both-zero → not active at all.
+        assert!(!count_budget(&[("Ha", 0, 0.0)]).is_active());
+    }
+
+    #[test]
+    fn count_is_met_after_n_accepted_subs() {
+        // 5 x Ha 300s. Credit accepted-frame seconds one sub at a time; the
+        // budget must report met exactly at the 5th accepted sub, not the 4th.
+        let b = count_budget(&[("Ha", 5, 300.0)]);
+        let mut s = BudgetState::new("t");
+        for i in 1..=4 {
+            s.credit(Some("Ha"), 300.0);
+            assert!(!s.is_met(&b), "should not be met after {i} accepted subs");
+            assert_eq!(s.accepted_frames("Ha", 300.0), i);
+        }
+        s.credit(Some("Ha"), 300.0);
+        assert_eq!(s.accepted_frames("Ha", 300.0), 5);
+        assert!(s.is_met(&b), "must be met after the 5th accepted sub");
+        match s.evaluate(&b) {
+            BudgetEvaluation::Met { reason, .. } => {
+                assert_eq!(reason, BudgetMetReason::AllFiltersComplete)
+            }
+            BudgetEvaluation::Open { .. } => panic!("count budget should be met"),
+        }
+    }
+
+    #[test]
+    fn count_rejected_subs_do_not_advance_completion() {
+        // The expose instruction credits accepted-frame seconds only. Simulate
+        // a burst of 3 with one rejected: only 2 subs' worth of seconds land.
+        // After two such bursts, accepted = 4, not 6 — so a 5-sub Count budget
+        // is NOT met until a 5th accepted sub is credited.
+        let b = count_budget(&[("Ha", 5, 300.0)]);
+        let mut s = BudgetState::new("t");
+        s.credit(Some("Ha"), 2.0 * 300.0); // burst 1: 2 accepted
+        s.credit(Some("Ha"), 2.0 * 300.0); // burst 2: 2 accepted
+        assert_eq!(s.accepted_frames("Ha", 300.0), 4);
+        assert!(!s.is_met(&b));
+        s.credit(Some("Ha"), 300.0); // burst 3: 1 accepted → 5 total
+        assert_eq!(s.accepted_frames("Ha", 300.0), 5);
+        assert!(s.is_met(&b));
+    }
+
+    #[test]
+    fn count_multi_filter_all_must_complete() {
+        // 3 x Ha 300s AND 2 x OIII 600s — target completes only when BOTH
+        // filters reach their accepted-sub counts.
+        let b = count_budget(&[("Ha", 3, 300.0), ("OIII", 2, 600.0)]);
+        let mut s = BudgetState::new("t");
+        s.credit(Some("Ha"), 3.0 * 300.0); // Ha done
+        assert!(!s.is_met(&b), "OIII still open");
+        match s.evaluate(&b) {
+            BudgetEvaluation::Open {
+                filters_complete, ..
+            } => assert_eq!(filters_complete, vec!["Ha".to_string()]),
+            BudgetEvaluation::Met { .. } => panic!("not all filters complete yet"),
+        }
+        s.credit(Some("OIII"), 600.0); // 1 of 2
+        assert!(!s.is_met(&b));
+        s.credit(Some("OIII"), 600.0); // 2 of 2 → both complete
+        assert!(s.is_met(&b));
+    }
+
+    #[test]
+    fn count_progress_reports_accepted_over_desired() {
+        let b = count_budget(&[("Ha", 60, 300.0), ("OIII", 30, 600.0)]);
+        let mut s = BudgetState::new("t");
+        s.credit(Some("Ha"), 47.0 * 300.0);
+        s.credit(Some("OIII"), 5.0 * 600.0);
+        let rows = s.count_progress(&b);
+        assert_eq!(
+            rows,
+            vec![
+                ("Ha".to_string(), 47, 60),
+                ("OIII".to_string(), 5, 30),
+            ]
+        );
+    }
+
+    #[test]
+    fn count_accepted_frames_tolerates_float_drift() {
+        // Accumulating 60 credits of 300.0 should still floor to 60, not 59,
+        // despite IEEE-754 round-off.
+        let mut s = BudgetState::new("t");
+        for _ in 0..60 {
+            s.credit(Some("Ha"), 300.0);
+        }
+        assert_eq!(s.accepted_frames("Ha", 300.0), 60);
+    }
+
+    #[test]
+    fn count_total_cap_still_fires_first_when_combined() {
+        // A total cap combined with Count entries: the total wins when it is
+        // reached first (documented "strictest interpretation" behaviour).
+        let mut b = count_budget(&[("Ha", 100, 300.0)]);
+        b.total_secs = 600.0; // 2 subs worth
+        let mut s = BudgetState::new("t");
+        s.credit(Some("Ha"), 300.0);
+        s.credit(Some("Ha"), 300.0); // total 600 → total cap hit
+        match s.evaluate(&b) {
+            BudgetEvaluation::Met { reason, .. } => {
+                assert_eq!(reason, BudgetMetReason::TotalReached)
+            }
+            BudgetEvaluation::Open { .. } => panic!("total cap should fire first"),
+        }
+    }
+
+    #[test]
+    fn count_serde_roundtrips_through_wire_format() {
+        // Wire shape must match the externally-tagged enum the Dart side
+        // would emit: {"kind":"Count","value":{"desired_accepted":60,"sub_secs":300.0}}.
+        let entry = FilterBudgetEntry::Count {
+            desired_accepted: 60,
+            sub_secs: 300.0,
+        };
+        let json = serde_json::to_string(&entry).expect("ser");
+        assert!(json.contains("\"kind\":\"Count\""), "json: {json}");
+        assert!(json.contains("\"desired_accepted\":60"), "json: {json}");
+        let back: FilterBudgetEntry = serde_json::from_str(&json).expect("de");
+        assert_eq!(back, entry);
+    }
+
+    #[tokio::test]
+    async fn count_completion_works_end_to_end_through_record_exposure() {
+        // End-to-end through the registry credit hook the expose instruction
+        // uses: enter a target with a 3 x L 120s Count budget, record three
+        // accepted-frame bursts, and confirm is_met flips on the third.
+        let budget = count_budget(&[("L", 3, 120.0)]);
+        let reg = BudgetRegistry::new();
+        reg.enter_target("t1", Some(budget.clone())).await;
+        for i in 1..=2 {
+            let s = reg.record_exposure(Some("L"), 120.0).await.expect("active");
+            assert!(!s.is_met(&budget), "not met after {i} subs");
+        }
+        let s = reg.record_exposure(Some("L"), 120.0).await.expect("active");
+        assert!(s.is_met(&budget), "met after the 3rd accepted sub");
+        assert_eq!(s.accepted_frames("L", 120.0), 3);
     }
 }

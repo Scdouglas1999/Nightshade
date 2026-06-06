@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../widgets/pill_tab.dart';
@@ -24,11 +23,11 @@ class SidebarTabs extends StatelessWidget {
   const SidebarTabs({super.key, required this.colors});
 
   static const _tabs = [
-    (LucideIcons.moon, 'Tonight'),
-    (LucideIcons.bookOpen, 'Catalog'),
-    (LucideIcons.list, 'Lists'),
-    (LucideIcons.search, 'Search'),
-    (LucideIcons.info, 'Info'),
+    (NightshadeIcons.moon, 'Tonight'),
+    (NightshadeIcons.book, 'Catalog'),
+    (NightshadeIcons.list, 'Lists'),
+    (NightshadeIcons.search, 'Search'),
+    (NightshadeIcons.info, 'Info'),
   ];
 
   @override

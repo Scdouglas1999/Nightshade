@@ -37,9 +37,7 @@ class _SessionDetailDialog extends ConsumerWidget {
                       children: [
                         Text(
                           session.name ?? l10n.text('analyticsUnnamedSession'),
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
+                          style: NightshadeTypography.h4.copyWith(
                             color: colors.textPrimary,
                           ),
                         ),
@@ -48,7 +46,7 @@ class _SessionDetailDialog extends ConsumerWidget {
                           DateFormat('MMM d, yyyy HH:mm')
                               .format(session.startTime),
                           style: TextStyle(
-                              fontSize: 12, color: colors.textSecondary),
+                              fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
                         ),
                       ],
                     ),
@@ -129,9 +127,7 @@ class _SessionDetailDialog extends ConsumerWidget {
       children: [
         Text(
           l10n.text('analyticsStatistics'),
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
+          style: NightshadeTypography.h5.copyWith(
             color: colors.textPrimary,
           ),
         ),
@@ -184,13 +180,11 @@ class _SessionDetailDialog extends ConsumerWidget {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 11, color: colors.textSecondary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
         ),
         Text(
           value,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
+          style: NightshadeTypography.h5.copyWith(
             color: colors.textPrimary,
           ),
         ),
@@ -211,9 +205,7 @@ class _SessionDetailDialog extends ConsumerWidget {
             'analyticsImages',
             params: {'count': images.length.toString()},
           ),
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
+          style: NightshadeTypography.h5.copyWith(
             color: colors.textPrimary,
           ),
         ),

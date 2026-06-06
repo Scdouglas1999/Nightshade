@@ -32,11 +32,7 @@ class FramingMosaicSection extends ConsumerWidget {
             Expanded(
               child: Text(
                 'Mosaic',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
               ),
             ),
             NightshadeSwitch(
@@ -52,16 +48,16 @@ class FramingMosaicSection extends ConsumerWidget {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NightshadeTokens.borderRadiusInline8,
             ),
             child: Row(
               children: [
-                Icon(LucideIcons.info, size: 14, color: colors.textMuted),
+                Icon(NightshadeIcons.info, size: 14, color: colors.textMuted),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Configure equipment to enable mosaic planning',
-                    style: TextStyle(fontSize: 10, color: colors.textMuted),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
                   ),
                 ),
               ],
@@ -140,7 +136,7 @@ class FramingMosaicSection extends ConsumerWidget {
           // Start corner dropdown
           Text(
             'Start Corner',
-            style: TextStyle(fontSize: 10, color: colors.textSecondary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textSecondary),
           ),
           const SizedBox(height: 6),
           FramingStartCornerSelector(
@@ -151,28 +147,21 @@ class FramingMosaicSection extends ConsumerWidget {
           const SizedBox(height: 12),
 
           // Panel summary
-          Container(
+          NightshadeCard(
+            variant: CardVariant.standard,
+            borderRadius: NightshadeTokens.radiusInline8,
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: colors.border),
-            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(LucideIcons.layoutGrid,
+                    Icon(NightshadeIcons.layoutGrid,
                         size: 14, color: colors.primary),
                     const SizedBox(width: 8),
                     Text(
                       '${config.totalPanels} Panels',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
                     ),
                   ],
                 ),
@@ -199,7 +188,7 @@ class FramingMosaicSection extends ConsumerWidget {
                               color: isSelected
                                   ? colors.primary.withValues(alpha: 0.2)
                                   : Colors.transparent,
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: NightshadeTokens.borderRadiusInline4,
                             ),
                             child: Row(
                               children: [
@@ -211,7 +200,7 @@ class FramingMosaicSection extends ConsumerWidget {
                                     color: isSelected
                                         ? colors.primary
                                         : colors.surface,
-                                    borderRadius: BorderRadius.circular(4),
+                                    borderRadius: NightshadeTokens.borderRadiusInline4,
                                     border: Border.all(
                                       color: isSelected
                                           ? colors.primary
@@ -221,10 +210,10 @@ class FramingMosaicSection extends ConsumerWidget {
                                   child: Text(
                                     '${panel.index + 1}',
                                     style: TextStyle(
-                                      fontSize: 9,
+                                      fontSize: NightshadeTypography.fontSize9,
                                       fontWeight: FontWeight.w600,
                                       color: isSelected
-                                          ? Colors.white
+                                          ? colors.textPrimary
                                           : colors.textSecondary,
                                     ),
                                   ),
@@ -234,7 +223,7 @@ class FramingMosaicSection extends ConsumerWidget {
                                   child: Text(
                                     panel.raFormatted,
                                     style: TextStyle(
-                                      fontSize: 10,
+                                      fontSize: NightshadeTypography.fontSize10,
                                       fontFamily: 'monospace',
                                       color: colors.textSecondary,
                                     ),
@@ -243,7 +232,7 @@ class FramingMosaicSection extends ConsumerWidget {
                                 Text(
                                   panel.decFormatted,
                                   style: TextStyle(
-                                    fontSize: 10,
+                                    fontSize: NightshadeTypography.fontSize10,
                                     fontFamily: 'monospace',
                                     color: colors.textSecondary,
                                   ),
@@ -376,7 +365,7 @@ class FramingActionsPanel extends ConsumerWidget {
             const SizedBox(width: NightshadeTokens.spaceSm),
             Expanded(
               child: NightshadeButton(
-                icon: LucideIcons.download,
+                icon: NightshadeIcons.download,
                 label: 'Cache Image',
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
@@ -389,7 +378,7 @@ class FramingActionsPanel extends ConsumerWidget {
         SizedBox(
           width: double.infinity,
           child: NightshadeButton(
-            icon: LucideIcons.refreshCw,
+            icon: NightshadeIcons.refresh,
             label: 'Reload',
             variant: ButtonVariant.outline,
             size: ButtonSize.small,

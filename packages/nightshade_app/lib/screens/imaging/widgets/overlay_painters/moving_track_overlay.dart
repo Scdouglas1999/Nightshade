@@ -71,6 +71,7 @@ class ScienceMovingTrackOverlayPainter extends CustomPainter {
         Offset(x, y),
         3.6,
         Paint()
+          // absolute: track point outline over the image canvas
           ..color = Colors.black.withValues(alpha: 0.35)
           ..style = PaintingStyle.fill,
       );

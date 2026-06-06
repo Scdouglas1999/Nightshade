@@ -309,7 +309,7 @@ class _RailDraggableState extends ConsumerState<_RailDraggable> {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: NightshadeDecorations.selectedSurface(
             widget.tint,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             fillAlpha: 0.2,
           ),
           child: Row(
@@ -319,11 +319,7 @@ class _RailDraggableState extends ConsumerState<_RailDraggable> {
               const SizedBox(width: 6),
               Text(
                 widget.item.name,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: widget.colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelSm.copyWith(color: widget.colors.textPrimary),
               ),
             ],
           ),
@@ -345,10 +341,10 @@ class _RailDraggableState extends ConsumerState<_RailDraggable> {
                 color: _hovered
                     ? NightshadeDecorations.tintedBadge(
                         widget.tint,
-                        borderRadius: BorderRadius.circular(6),
+                        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                       ).color
                     : Colors.transparent,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 border: Border.all(
                   color: _hovered
                       ? widget.tint.withValues(alpha: 0.5)

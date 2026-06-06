@@ -298,7 +298,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
         return AlertDialog(
         backgroundColor: colors.surface,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           side: BorderSide(color: colors.border),
         ),
         title: Row(
@@ -307,7 +307,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
               padding: const EdgeInsets.all(8),
               decoration: NightshadeDecorations.tintedBadge(
                 colors.error,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Icon(LucideIcons.alertTriangle,
                   color: colors.error, size: 20),
@@ -315,11 +315,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
             const SizedBox(width: 12),
             Text(
               'Reset Tutorial Progress?',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-              ),
+              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
           ],
         ),
@@ -327,7 +323,7 @@ class HelpTutorialsSettings extends ConsumerWidget {
           'This will clear all tutorial progress and you will see the welcome tour again. This action cannot be undone.',
           style: TextStyle(
             color: colors.textSecondary,
-            fontSize: 13,
+            fontSize: NightshadeTypography.fontSize13,
           ),
         ),
         actions: [
@@ -435,11 +431,11 @@ class _TutorialRow extends StatelessWidget {
               decoration: isCompleted
                   ? NightshadeDecorations.tintedBadge(
                       colors.success,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     )
                   : BoxDecoration(
                       color: colors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(8),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                     ),
               child: Icon(
                 icon,
@@ -456,11 +452,7 @@ class _TutorialRow extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.label.copyWith(color: colors.textPrimary),
                   ),
                   const SizedBox(height: 2),
                   Row(
@@ -487,7 +479,7 @@ class _TutorialRow extends StatelessWidget {
                       Text(
                         _statusText,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: isCompleted
                               ? colors.success
                               : hasProgress

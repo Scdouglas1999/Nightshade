@@ -202,7 +202,7 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
               Text(
                 'Sequence Timeline',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w600,
                   color: widget.colors.textSecondary,
                   letterSpacing: 0.5,
@@ -212,7 +212,7 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
               Text(
                 _formatDuration(widget.totalDuration),
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   color: widget.colors.textMuted,
                   fontFeatures: const [FontFeature.tabularFigures()],
                 ),
@@ -228,11 +228,11 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
               height: 40,
               decoration: BoxDecoration(
                 color: widget.colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 border: Border.all(color: widget.colors.border),
               ),
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 child: Stack(
                   children: [
                     // Twilight overlay bands (behind the timeline segments)
@@ -260,7 +260,7 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
                             child: Text(
                               'No timed activities',
                               style: TextStyle(
-                                fontSize: 11,
+                                fontSize: NightshadeTypography.fontSize11,
                                 color: widget.colors.textMuted,
                               ),
                             ),
@@ -317,11 +317,15 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
               const SizedBox(width: 8),
               _LegendItem(
                 colors: widget.colors,
+                // domain: twilight-band hue (sibling of NightshadeChartColors.twilightAstro);
+                // no civil/nautical chart token exists yet, kept exact-valued.
                 color: Colors.lightBlue.withValues(alpha: 0.2),
                 label: 'Civil',
               ),
               _LegendItem(
                 colors: widget.colors,
+                // domain: twilight-band hue (sibling of NightshadeChartColors.twilightAstro);
+                // no civil/nautical chart token exists yet, kept exact-valued.
                 color: Colors.blue.withValues(alpha: 0.3),
                 label: 'Nautical',
               ),
@@ -376,6 +380,7 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
     addRegion(
       twilight.sunset,
       twilight.civilDusk,
+      // domain: twilight-band hue (sibling of NightshadeChartColors.twilightAstro).
       Colors.lightBlue.withValues(alpha: 0.2),
     );
 
@@ -383,6 +388,7 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
     addRegion(
       twilight.civilDusk,
       twilight.nauticalDusk,
+      // domain: twilight-band hue (sibling of NightshadeChartColors.twilightAstro).
       Colors.blue.withValues(alpha: 0.3),
     );
 
@@ -404,6 +410,7 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
     addRegion(
       twilight.nauticalDawn,
       twilight.civilDawn,
+      // domain: twilight-band hue (sibling of NightshadeChartColors.twilightAstro).
       Colors.blue.withValues(alpha: 0.3),
     );
 
@@ -411,6 +418,7 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
     addRegion(
       twilight.civilDawn,
       twilight.sunrise,
+      // domain: twilight-band hue (sibling of NightshadeChartColors.twilightAstro).
       Colors.lightBlue.withValues(alpha: 0.2),
     );
 
@@ -525,7 +533,7 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
               padding: const EdgeInsets.all(1),
               decoration: BoxDecoration(
                 color: color.withValues(alpha: 0.9),
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
               ),
               child: Icon(
                 icon,
@@ -611,7 +619,7 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
         Text(
           completionText,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: widget.colors.textMuted,
             fontFeatures: const [FontFeature.tabularFigures()],
           ),

@@ -146,10 +146,10 @@ class _NodeActionButtonState extends State<_NodeActionButton> {
               color: !disabled && _isHovered
                   ? NightshadeDecorations.tintedBadge(
                       color,
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     ).color
                   : Colors.transparent,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Icon(
               widget.icon,
@@ -243,7 +243,7 @@ class _DropZone extends ConsumerWidget {
           decoration: isOver
               ? NightshadeDecorations.selectedSurface(
                   colors.primary,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                   fillAlpha: 0.2,
                 ).copyWith(
                   border: Border.all(color: colors.primary, width: 2),
@@ -264,11 +264,7 @@ class _DropZone extends ConsumerWidget {
                       const SizedBox(width: 6),
                       Text(
                         'Insert here',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: colors.primary,
-                          fontWeight: FontWeight.w600,
-                        ),
+                        style: NightshadeTypography.labelStrongSm.copyWith(color: colors.primary),
                       ),
                     ],
                   ),
@@ -279,7 +275,7 @@ class _DropZone extends ConsumerWidget {
                           color: colors.primary.withValues(alpha: 0.5)),
                       child: Center(
                         child: Icon(
-                          Icons.add_circle_outline,
+                          LucideIcons.plusCircle,
                           size: 12,
                           color: colors.primary.withValues(alpha: 0.5),
                         ),
@@ -296,7 +292,7 @@ class _DropZone extends ConsumerWidget {
 BoxDecoration _dashedDropDecoration(NightshadeColors colors) {
   return NightshadeDecorations.tintedBadge(
     colors.primary,
-    borderRadius: BorderRadius.circular(6),
+    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
   );
 }
 
@@ -360,7 +356,7 @@ class _NodeColorLegend extends StatelessWidget {
       tooltip: 'Node color legend',
       offset: const Offset(0, 32),
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         side: BorderSide(color: colors.border),
       ),
       color: colors.surface,
@@ -369,7 +365,7 @@ class _NodeColorLegend extends StatelessWidget {
         height: 20,
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
           border: Border.all(color: colors.border),
         ),
         child: Icon(
@@ -389,7 +385,7 @@ class _NodeColorLegend extends StatelessWidget {
               Text(
                 'Node Colors',
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.w700,
                   color: colors.textPrimary,
                 ),
@@ -420,14 +416,14 @@ class _NodeColorLegend extends StatelessWidget {
           height: 10,
           decoration: BoxDecoration(
             color: color,
-            borderRadius: BorderRadius.circular(2),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
           ),
         ),
         const SizedBox(width: 8),
         Text(
           label,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textSecondary,
           ),
         ),
@@ -496,14 +492,11 @@ class _NodeValidationWrapper extends StatelessWidget {
                   if (i > 0) const TextSpan(text: '\n'),
                   TextSpan(
                     text: validationIssues![i].title,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 12,
-                    ),
+                    style: NightshadeTypography.h6,
                   ),
                   TextSpan(
                     text: ': ${validationIssues![i].description}',
-                    style: const TextStyle(fontSize: 11),
+                    style: const TextStyle(fontSize: NightshadeTypography.fontSize11),
                   ),
                 ],
               ],
@@ -527,7 +520,7 @@ class _NodeValidationWrapper extends StatelessWidget {
                     ? Text(
                         '${validationIssues!.length}',
                         style: TextStyle(
-                          fontSize: 9,
+                          fontSize: NightshadeTypography.fontSize9,
                           fontWeight: FontWeight.w700,
                           color: badgeForeground,
                         ),
@@ -609,7 +602,7 @@ class _MiniCountBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: NightshadeDecorations.statusChip(
         color,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         bordered: false,
       ),
       child: Row(
@@ -620,7 +613,7 @@ class _MiniCountBadge extends StatelessWidget {
           Text(
             count.toString(),
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               fontWeight: FontWeight.w700,
               color: color,
             ),
@@ -653,11 +646,11 @@ class _MinimapToggle extends ConsumerWidget {
             color: isVisible
                 ? NightshadeDecorations.statusChip(
                     colors.primary,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     bordered: false,
                   ).color
                 : colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             border: Border.all(
               color: isVisible
                   ? colors.primary.withValues(alpha: 0.4)
@@ -676,7 +669,7 @@ class _MinimapToggle extends ConsumerWidget {
               Text(
                 'Map',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   fontWeight: FontWeight.w600,
                   color: isVisible ? colors.primary : colors.textMuted,
                 ),
@@ -711,11 +704,11 @@ class _TimelineToggle extends ConsumerWidget {
             color: isVisible
                 ? NightshadeDecorations.statusChip(
                     colors.primary,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                     bordered: false,
                   ).color
                 : colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             border: Border.all(
               color: isVisible
                   ? colors.primary.withValues(alpha: 0.4)
@@ -734,7 +727,7 @@ class _TimelineToggle extends ConsumerWidget {
               Text(
                 'Timeline',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   fontWeight: FontWeight.w600,
                   color: isVisible ? colors.primary : colors.textMuted,
                 ),

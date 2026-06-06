@@ -42,7 +42,7 @@ class _ActionButtonState extends State<_ActionButton> {
                 : _isHovered
                     ? widget.colors.surfaceAlt
                     : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: widget.isPrimary
                 ? null
                 : Border.all(color: widget.colors.border),
@@ -59,13 +59,9 @@ class _ActionButtonState extends State<_ActionButton> {
               const SizedBox(width: 8),
               Text(
                 widget.label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                  color: widget.isPrimary
+                style: NightshadeTypography.labelSm.copyWith(color: widget.isPrimary
                       ? onPrimary
-                      : widget.colors.textSecondary,
-                ),
+                      : widget.colors.textSecondary),
               ),
             ],
           ),

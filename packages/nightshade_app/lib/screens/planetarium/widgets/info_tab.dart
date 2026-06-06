@@ -31,7 +31,7 @@ class InfoTab extends ConsumerWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(LucideIcons.info, size: 48, color: colors.textMuted),
+            Icon(NightshadeIcons.info, size: 48, color: colors.textMuted),
             const SizedBox(height: 16),
             Text(
               'Select an object',
@@ -40,7 +40,7 @@ class InfoTab extends ConsumerWidget {
             const SizedBox(height: 8),
             Text(
               'Click on the sky to select',
-              style: TextStyle(fontSize: 12, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
             ),
           ],
         ),
@@ -154,7 +154,7 @@ class InfoTab extends ConsumerWidget {
           Text(
             'Selected Coordinates',
             style: TextStyle(
-              fontSize: 18,
+              fontSize: NightshadeTypography.fontSize18,
               fontWeight: FontWeight.bold,
               color: colors.textPrimary,
             ),
@@ -162,7 +162,7 @@ class InfoTab extends ConsumerWidget {
           const SizedBox(height: 16),
           InfoCard(
             title: 'Coordinates',
-            icon: LucideIcons.compass,
+            icon: NightshadeIcons.compass,
             color: colors.info,
             colors: colors,
             child: Column(
@@ -247,7 +247,7 @@ class ImagingHistorySection extends ConsumerWidget {
         padding: const EdgeInsets.all(16),
         child: Text(
           'Failed to load imaging history: $error',
-          style: TextStyle(color: colors.error, fontSize: 12),
+          style: TextStyle(color: colors.error, fontSize: NightshadeTypography.fontSize12),
         ),
       ),
       data: (history) {
@@ -260,29 +260,24 @@ class ImagingHistorySection extends ConsumerWidget {
   }
 
   Widget _buildNoDataSection() {
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(6),
             decoration: BoxDecoration(
               color: colors.textMuted.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             ),
-            child: Icon(LucideIcons.camera, size: 14, color: colors.textMuted),
+            child: Icon(NightshadeIcons.camera, size: 14, color: colors.textMuted),
           ),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               'No imaging data',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textMuted,
               ),
             ),
@@ -306,13 +301,8 @@ class ImagingHistorySection extends ConsumerWidget {
       integrationStr = '${totalMinutes}m';
     }
 
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -323,19 +313,15 @@ class ImagingHistorySection extends ConsumerWidget {
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: colors.primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child:
-                    Icon(LucideIcons.camera, size: 14, color: colors.primary),
+                    Icon(NightshadeIcons.camera, size: 14, color: colors.primary),
               ),
               const SizedBox(width: 10),
               Text(
                 'Imaging History',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -347,13 +333,13 @@ class ImagingHistorySection extends ConsumerWidget {
               _buildStatChip(
                 label: 'Integration',
                 value: integrationStr,
-                icon: LucideIcons.clock,
+                icon: NightshadeIcons.clock,
               ),
               const SizedBox(width: 8),
               _buildStatChip(
                 label: 'Sessions',
                 value: history.sessionCount.toString(),
-                icon: LucideIcons.calendar,
+                icon: NightshadeIcons.calendar,
               ),
             ],
           ),
@@ -374,7 +360,7 @@ class ImagingHistorySection extends ConsumerWidget {
                 Text(
                   'Last imaged: ${DateFormat('MMM d, yyyy').format(history.lastImaged!.toLocal())}',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.textSecondary,
                   ),
                 ),
@@ -388,7 +374,7 @@ class ImagingHistorySection extends ConsumerWidget {
             Text(
               'Per-Filter Breakdown',
               style: TextStyle(
-                fontSize: 10,
+                fontSize: NightshadeTypography.fontSize10,
                 fontWeight: FontWeight.w600,
                 color: colors.textMuted,
                 letterSpacing: 0.5,
@@ -420,7 +406,7 @@ class ImagingHistorySection extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: colors.primary.withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           border: Border.all(
             color: colors.primary.withValues(alpha: 0.15),
           ),
@@ -437,14 +423,14 @@ class ImagingHistorySection extends ConsumerWidget {
                   Text(
                     label,
                     style: TextStyle(
-                      fontSize: 9,
+                      fontSize: NightshadeTypography.fontSize9,
                       color: colors.textMuted,
                     ),
                   ),
                   Text(
                     value,
                     style: TextStyle(
-                      fontSize: 13,
+                      fontSize: NightshadeTypography.fontSize13,
                       fontWeight: FontWeight.w600,
                       color: colors.textPrimary,
                       fontFeatures: const [ui.FontFeature.tabularFigures()],
@@ -481,14 +467,14 @@ class ImagingHistorySection extends ConsumerWidget {
             Text(
               'Completion',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textSecondary,
               ),
             ),
             Text(
               '$pct% of ${goalHours.toStringAsFixed(1)}h goal',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w500,
                 color: barColor,
                 fontFeatures: const [ui.FontFeature.tabularFigures()],
@@ -498,7 +484,7 @@ class ImagingHistorySection extends ConsumerWidget {
         ),
         const SizedBox(height: 4),
         ClipRRect(
-          borderRadius: BorderRadius.circular(3),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusXs),
           child: SizedBox(
             height: 6,
             child: LinearProgressIndicator(
@@ -535,7 +521,7 @@ class ImagingHistorySection extends ConsumerWidget {
             height: 8,
             decoration: BoxDecoration(
               color: _filterColor(filterName),
-              borderRadius: BorderRadius.circular(2),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline2),
             ),
           ),
           const SizedBox(width: 8),
@@ -543,7 +529,7 @@ class ImagingHistorySection extends ConsumerWidget {
             child: Text(
               filterName,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textPrimary,
               ),
             ),
@@ -551,7 +537,7 @@ class ImagingHistorySection extends ConsumerWidget {
           Text(
             '$frameCount subs',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textSecondary,
               fontFeatures: const [ui.FontFeature.tabularFigures()],
             ),
@@ -563,7 +549,7 @@ class ImagingHistorySection extends ConsumerWidget {
               integStr,
               textAlign: TextAlign.right,
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w500,
                 color: colors.textPrimary,
                 fontFeatures: const [ui.FontFeature.tabularFigures()],
@@ -575,27 +561,34 @@ class ImagingHistorySection extends ConsumerWidget {
     );
   }
 
-  /// Color for common astrophotography filter names.
+  /// Swatch color for common astrophotography filter names.
+  ///
+  /// These are fixed data-series (legend) colors that encode the filter's
+  /// optical wavelength, so they intentionally use literal hues rather than
+  /// the theme's semantic palette. They mirror the desaturated, palette-aligned
+  /// values used by the project-tracking filter chips for visual consistency.
+  /// The neutral L/default cases resolve from theme semantics so they still
+  /// re-tint under red-night mode.
   Color _filterColor(String name) {
     final lower = name.toLowerCase();
     if (lower == 'l' || lower == 'luminance' || lower == 'lum') {
-      return Colors.white70;
+      return colors.textSecondary;
     } else if (lower == 'r' || lower == 'red') {
-      return Colors.red;
+      return const Color(0xFFF87171);
     } else if (lower == 'g' || lower == 'green') {
-      return Colors.green;
+      return const Color(0xFF4ADE80);
     } else if (lower == 'b' || lower == 'blue') {
-      return Colors.blue;
+      return const Color(0xFF60A5FA);
     } else if (lower == 'ha' || lower.contains('alpha')) {
-      return Colors.redAccent;
+      return const Color(0xFFB91C1C);
     } else if (lower == 'oiii' || lower.contains('oxygen')) {
-      return Colors.tealAccent;
+      return const Color(0xFF2DD4BF);
     } else if (lower == 'sii' ||
         lower.contains('sulphur') ||
         lower.contains('sulfur')) {
-      return Colors.orangeAccent;
+      return const Color(0xFFFB923C);
     } else {
-      return Colors.purple;
+      return colors.textSecondary;
     }
   }
 }

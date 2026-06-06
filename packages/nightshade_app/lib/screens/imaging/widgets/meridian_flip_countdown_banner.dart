@@ -233,7 +233,7 @@ class _DismissButton extends StatelessWidget {
         containedInkWell: true,
         child: Padding(
           padding: const EdgeInsets.all(NightshadeTokens.spaceXs),
-          child: Icon(LucideIcons.x, size: NightshadeTokens.iconSm, color: color),
+          child: Icon(NightshadeIcons.close, size: NightshadeTokens.iconSm, color: color),
         ),
       ),
     );
@@ -383,7 +383,7 @@ class _PierSideChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(LucideIcons.move, size: NightshadeTokens.iconXs, color: colors.textMuted),
+          Icon(NightshadeIcons.move, size: NightshadeTokens.iconXs, color: colors.textMuted),
           const SizedBox(width: NightshadeTokens.spaceXs),
           Text(
             'Pier ${_pierLabel(sideOfPier)}',

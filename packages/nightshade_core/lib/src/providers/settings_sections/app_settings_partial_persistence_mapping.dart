@@ -1,10 +1,240 @@
 part of '../settings_provider.dart';
 
 extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
+  /// The set of database setting keys that the remote wire model
+  /// (`models.AppSettings`) can actually round-trip. Built from the fields
+  /// mapped in `_toRemoteSettings` / `_fromRemoteSettings`. Anything NOT in
+  /// here is dropped on the floor by a remote save, so we refuse to write it
+  /// rather than letting a phone silently fail to persist an
+  /// unattended-night knob.
+  ///
+  /// As of the 2026-06-05 full-parity pass, every setter-reachable
+  /// *user-config* setting is remotable. The fail-loud guard now fires only
+  /// for the TRUE residual — settings that are genuinely non-remotable by
+  /// nature, NOT merely un-wired:
+  ///   * Desktop-shell / window UI prefs that are host-machine-local and
+  ///     meaningless to drive from a phone: `start_minimized`,
+  ///     `sidebar_collapsed`, `auto_save_sequences`, `confirm_before_closing`.
+  ///   * Host-filesystem infra paths whose remote edit is unsafe / restart-
+  ///     affecting: `database_path`, `logs_path`, `sequences_path`.
+  ///     (`image_output_path` / `astap_path` / `astrometry_path` ARE remoted —
+  ///     they're per-run imaging config, not infra.)
+  ///   * The full 8-point horizon-mask blob `horizon_profile_json` — a larger
+  ///     JSON sub-model; the scalar `effective_horizon_deg` floor (used by the
+  ///     scheduler / dashboard / planetarium) IS remoted. Remoting the full
+  ///     mask wants its own typed wire field — tracked separately.
+  ///   * The Wave-8 adaptive-swap scheduler-SEED defaults
+  ///     (`adaptive_swap.enabled_by_default`, `adaptive_swap.default_threshold`,
+  ///     `adaptive_swap.default_hysteresis_secs`, `adaptive_swap.score_weights`)
+  ///     — these pre-fill a new TargetSchedulerNode and form a distinct
+  ///     map/JSON cluster that `_applySettingsMap` does not even map; tracked
+  ///     separately.
+  /// NOTE: weather threshold *values* live in a separate `WeatherSettings`
+  /// model with its own endpoint — remoting them is a distinct out-of-scope
+  /// item, not part of this allow-set.
+  ///
+  /// IMPORTANT: keep this in lock-step with `_toRemoteSettings`. A key added
+  /// to the wire model must be added here, or remote saves of it will throw.
+  static const Set<String> _remotableSettingKeys = {
+    // Appearance / general
+    'theme',
+    'language',
+    'auto_connect_equipment',
+    'auto_discover_on_launch',
+    'accent_color',
+    'font_size',
+    'ui_scale',
+    // Location
+    'observer_latitude',
+    'observer_longitude',
+    'observer_elevation',
+    // Imaging / sequencer basics
+    'file_naming_pattern',
+    'meridian_flip_minutes',
+    'auto_focus_every_minutes',
+    'dither_every_frames',
+    'safety_fail_mode',
+    // Plate solving
+    'plate_solve_timeout',
+    'plate_solve_search_radius',
+    'astap_path',
+    // Notifications
+    'discord_webhook',
+    'pushover_key',
+    'pushover_user',
+    // Protocol
+    'indi_server_host',
+    'indi_server_port',
+    'indi_auto_connect',
+    'alpaca_server_host',
+    'alpaca_server_port',
+    'alpaca_auto_discover',
+    // Sequencer execution / output
+    'use_native_execution',
+    'use_simulation_mode',
+    'image_output_path',
+    // Wave 3 Image Grading
+    'image_grading_enabled',
+    'image_grading_hfr_threshold_px',
+    'image_grading_hfr_baseline_percent',
+    'image_grading_eccentricity_threshold',
+    'image_grading_star_count_min',
+    'image_grading_max_consecutive_rejects',
+    'image_grading_reject_folder_path',
+    // Wave 5 Sky-brightness adaptive exposure
+    'adaptive_exposure_enabled',
+    'adaptive_exposure_target_snr',
+    'adaptive_exposure_reference_mag',
+    'adaptive_exposure_min_secs',
+    'adaptive_exposure_max_secs',
+    'adaptive_exposure_per_filter_enabled',
+    'adaptive_exposure_per_filter_min_secs',
+    'adaptive_exposure_per_filter_max_secs',
+    // Full-night audit 2026-06-04 follow-up — high-value unattended-night
+    // knobs now carried by models.AppSettings (autofocus / dither /
+    // weather-safety / recovery). Previously these threw via the fail-loud
+    // guard on a remote save; now they round-trip.
+    'park_on_unsafe_weather',
+    'auto_focus_on_filter_change',
+    'af_disable_guiding',
+    'dither_enabled',
+    'dither_scale',
+    'recovery_default_retry_interval_mins',
+    'recovery_default_max_duration_mins',
+    'recovery_stop_tracking_during_recovery',
+    'recovery_abort_on_meridian',
+    'recovery_audible_alert_when_entered',
+    // Full-night audit 2026-06-04 follow-up (long tail) — remaining
+    // high-value unattended-night knobs now carried by models.AppSettings.
+    // Weather-safety / dawn.
+    'park_before_dawn',
+    // Meridian flip detail.
+    'enable_meridian_flip',
+    // Focuser temp-comp + backlash (calibration).
+    'temp_compensation',
+    'temp_coefficient',
+    'backlash_compensation',
+    // Guider settle (calibration).
+    'settle_threshold',
+    'settle_timeout',
+    // Plate-solving extra.
+    'plate_solver',
+    'blind_solve',
+    // Site / horizon.
+    'bortle_class',
+    'effective_horizon_deg',
+    // Pre-flight.
+    'preflight_strictness',
+    'polar_alignment_max_age_days',
+    'optical_train_drift_threshold',
+    // Dark library.
+    'dark_library_min_coverage',
+    // Smart Night defaults.
+    'smart_night_max_session_hours',
+    'smart_night_default_af_cadence_frames',
+    'smart_night_default_integration_budget_mins_per_target',
+    'smart_night_include_flats_at_end',
+    'smart_night_use_scheduler_for_multi_target',
+    'smart_night_scheduler_target_threshold',
+    'smart_night_default_strategy',
+    'smart_night_polar_alignment_stale_after_days',
+    'smart_night_sub_exposure_floor_secs',
+    'smart_night_sub_exposure_ceiling_secs',
+    'smart_night_target_snr',
+    // Full remote-settings parity 2026-06-05 — the remaining setter-reachable
+    // unattended-night knobs now carried by models.AppSettings. Previously
+    // these threw via the fail-loud guard on a remote save; now they round-trip.
+    // Equipment defaults (camera).
+    'cooling_behavior',
+    'default_gain',
+    'default_offset',
+    // Remote access / web server.
+    'web_server_enabled',
+    'web_server_port',
+    // PHD2 connection.
+    'phd2_path',
+    'phd2_host',
+    'phd2_port',
+    // Notification toggles.
+    'notifications_enabled',
+    'notify_on_sequence_complete',
+    'notify_on_error',
+    'notify_on_meridian_flip',
+    'sound_enabled',
+    'audible_alerts_on_critical',
+    'critical_alert_sound',
+    'push_critical_alerts',
+    // Session-lifecycle + campaign-rollup prefs.
+    'smart_night.auto_prompt_enabled',
+    'notes.prompt_after_run',
+    'session.handoff_auto_prompt',
+    'campaign_rollup.surface_targets_tab',
+    'campaign_rollup.grouping_mode',
+    // Autofocus detailed sweep params.
+    'af_method',
+    'af_curve_fitting',
+    'af_step_size',
+    'af_exposure_time',
+    'af_initial_offset_steps',
+    'af_number_of_attempts',
+    'af_use_brightest_n_stars',
+    'af_outer_crop_ratio',
+    'af_inner_crop_ratio',
+    'af_binning',
+    'af_r_squared_threshold',
+    'af_focuser_settle_time_ms',
+    'af_exposures_per_point',
+    'af_backlash_comp_method',
+    'af_backlash_in',
+    'af_backlash_out',
+    'af_autofocus_filter_name',
+    'af_filter_settings',
+    'use_filter_focus_offsets',
+    // Misc FITS / imaging / plate-solve config.
+    'astrometry_path',
+    'observer_name',
+    'image_format',
+    'bit_depth',
+    'timezone',
+    'use_system_time',
+  };
+
+  /// FAIL-LOUD guard for the remote-write path. Throws an [UnsupportedError]
+  /// naming the offending key(s) when a caller tries to persist a setting the
+  /// wire model can't carry. Callers on the local (FFI / Drift) path never
+  /// invoke this — every DB key is persistable locally.
+  ///
+  /// Per CLAUDE.md "errors are a feature": a silent no-op here would mean a
+  /// user toggling (say) "park on unsafe weather" from their phone believes
+  /// it stuck when it never reached the host. Loud failure surfaces the gap.
+  void _assertKeysRemotable(Iterable<String> keys) {
+    final unsupported =
+        keys.where((k) => !_remotableSettingKeys.contains(k)).toList();
+    if (unsupported.isNotEmpty) {
+      throw UnsupportedError(
+        'Cannot persist setting(s) over a remote/network backend: '
+        '${unsupported.join(', ')}. These keys are not carried by the '
+        'remote settings wire model, so the write would be silently '
+        'dropped by the host. Extend models.AppSettings + _toRemoteSettings '
+        '(and _remotableSettingKeys) to remote them.',
+      );
+    }
+  }
+
+  /// Apply a DB-keyed partial settings patch onto [current] in-memory state.
+  ///
+  /// This helper is the remote-write applier: its only callers are
+  /// `_saveSetting` / `_saveSettings` inside the `NetworkBackend` branch of
+  /// [AppSettingsNotifier]. Because a remote write that names a key the wire
+  /// model can't carry would be silently lost on the host, we FAIL LOUD up
+  /// front via [_assertKeysRemotable] instead of mapping the key into state
+  /// and pretending it persisted. (Local/Drift writes go straight to the DAO
+  /// and never reach this method, so the guard never fires for them.)
   AppSettingsState _applySettingsMap(
     AppSettingsState current,
     Map<String, String> settings,
   ) {
+    _assertKeysRemotable(settings.keys);
     return current.copyWith(
       startMinimized: settings.containsKey('start_minimized')
           ? _parseBool(settings['start_minimized'], current.startMinimized)
@@ -37,6 +267,10 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
       language: settings['language'],
       accentColor: settings['accent_color'],
       fontSize: settings['font_size'],
+      // ui_scale is carried by the remote wire model, so the partial applier
+      // must map it too â€” otherwise a remote save of the UI scale passes the
+      // remotable-key guard but never reaches `_toRemoteSettings`.
+      uiScale: settings['ui_scale'],
       sidebarCollapsed: settings.containsKey('sidebar_collapsed')
           ? _parseBool(settings['sidebar_collapsed'], current.sidebarCollapsed)
           : null,
@@ -341,13 +575,18 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
               current.afRSquaredThreshold,
             )
           : null,
-      afDisableGuidingDuringAf:
-          settings.containsKey('af_disable_guiding_during_af')
-              ? _parseBool(
-                  settings['af_disable_guiding_during_af'],
-                  current.afDisableGuidingDuringAf,
-                )
-              : null,
+      // Canonical key is `af_disable_guiding` — matches the setter in
+      // autofocus.dart, the default-settings seed, and the stored-snapshot
+      // loader. The old `af_disable_guiding_during_af` key never matched
+      // anything written to disk, so toggling "disable guiding during AF"
+      // (especially over a remote/network backend, which routes its writes
+      // through this same partial-persistence helper) silently no-op'd.
+      afDisableGuidingDuringAf: settings.containsKey('af_disable_guiding')
+          ? _parseBool(
+              settings['af_disable_guiding'],
+              current.afDisableGuidingDuringAf,
+            )
+          : null,
       afFocuserSettleTimeMs: settings.containsKey('af_focuser_settle_time_ms')
           ? _parseInt(
               settings['af_focuser_settle_time_ms'],
@@ -421,6 +660,57 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
                   ? null
                   : settings['image_grading_reject_folder_path'])
               : _unset,
+      // Wave 5 Agent 2 â€” Sky-brightness adaptive exposure partial-update
+      // wire-up. Required so a remote save of an adaptive-exposure knob
+      // (which is carried by the wire model) actually reaches state and is
+      // then forwarded to the host by `_toRemoteSettings`.
+      adaptiveExposureEnabled: settings.containsKey('adaptive_exposure_enabled')
+          ? _parseBool(
+              settings['adaptive_exposure_enabled'],
+              current.adaptiveExposureEnabled,
+            )
+          : null,
+      adaptiveExposureTargetSnr:
+          settings.containsKey('adaptive_exposure_target_snr')
+              ? _parseDouble(
+                  settings['adaptive_exposure_target_snr'],
+                  current.adaptiveExposureTargetSnr,
+                )
+              : null,
+      adaptiveExposureReferenceMag:
+          settings.containsKey('adaptive_exposure_reference_mag')
+              ? _parseDouble(
+                  settings['adaptive_exposure_reference_mag'],
+                  current.adaptiveExposureReferenceMag,
+                )
+              : null,
+      adaptiveExposureMinSecs: settings.containsKey('adaptive_exposure_min_secs')
+          ? _parseDouble(
+              settings['adaptive_exposure_min_secs'],
+              current.adaptiveExposureMinSecs,
+            )
+          : null,
+      adaptiveExposureMaxSecs: settings.containsKey('adaptive_exposure_max_secs')
+          ? _parseDouble(
+              settings['adaptive_exposure_max_secs'],
+              current.adaptiveExposureMaxSecs,
+            )
+          : null,
+      adaptiveExposurePerFilterEnabled:
+          settings.containsKey('adaptive_exposure_per_filter_enabled')
+              ? _parseFilterBoolMap(
+                  settings['adaptive_exposure_per_filter_enabled'])
+              : null,
+      adaptiveExposurePerFilterMinSecs:
+          settings.containsKey('adaptive_exposure_per_filter_min_secs')
+              ? _parseFilterDoubleMap(
+                  settings['adaptive_exposure_per_filter_min_secs'])
+              : null,
+      adaptiveExposurePerFilterMaxSecs:
+          settings.containsKey('adaptive_exposure_per_filter_max_secs')
+              ? _parseFilterDoubleMap(
+                  settings['adaptive_exposure_per_filter_max_secs'])
+              : null,
       // Wave 5 Agent 3 â€” Pre-flight partial-update wire-up.
       preflightStrictness: settings.containsKey('preflight_strictness')
           ? _parsePreflightStrictness(settings['preflight_strictness'])

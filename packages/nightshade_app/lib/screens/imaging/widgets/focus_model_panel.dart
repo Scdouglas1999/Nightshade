@@ -2,7 +2,6 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
@@ -104,13 +103,13 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
   ) {
     return InkWell(
       onTap: () => setState(() => _isExpanded = !_isExpanded),
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       child: Row(
         children: [
           Icon(
             _isExpanded
-                ? LucideIcons.chevronDown
-                : LucideIcons.chevronRight,
+                ? NightshadeIcons.chevronDown
+                : NightshadeIcons.chevronRight,
             size: 16,
             color: colors.textMuted,
           ),
@@ -136,7 +135,7 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
             Text(
               '${model.slope.toStringAsFixed(1)} steps/°C  R²=${model.rSquared.toStringAsFixed(2)}',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
@@ -152,23 +151,18 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
     int totalPoints,
   ) {
     if (model == null) {
-      return Container(
+      return NightshadeCard(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: colors.border),
-        ),
         child: Row(
           children: [
-            Icon(LucideIcons.info, size: 14, color: colors.textMuted),
+            Icon(NightshadeIcons.info, size: 14, color: colors.textMuted),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 totalPoints == 0
                     ? 'No focus data collected yet. Run autofocus at different temperatures to build a model.'
                     : 'Collecting data ($totalPoints point${totalPoints == 1 ? '' : 's'}). Need at least 3 temperature buckets for a model.',
-                style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
               ),
             ),
           ],
@@ -255,18 +249,18 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
       height: isMobile ? 160 : 200,
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border),
       ),
       child: points.isEmpty
           ? Center(
               child: Text(
                 'No data points to display',
-                style: TextStyle(fontSize: 11, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
               ),
             )
           : ClipRRect(
-              borderRadius: BorderRadius.circular(5),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
               child: CustomPaint(
                 painter: _TemperatureFocusPlotPainter(
                   points: points,
@@ -292,19 +286,15 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
   ) {
     final currentTemp = focuserState.temperature;
     if (currentTemp == null) {
-      return Container(
+      return NightshadeCard(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(6),
-        ),
         child: Row(
           children: [
-            Icon(LucideIcons.thermometer, size: 14, color: colors.textMuted),
+            Icon(NightshadeIcons.temperature, size: 14, color: colors.textMuted),
             const SizedBox(width: 8),
             Text(
               'No temperature reading available from focuser',
-              style: TextStyle(fontSize: 12, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
             ),
           ],
         ),
@@ -317,24 +307,20 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
     );
 
     if (prediction == null) {
-      return Container(
+      return NightshadeCard(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(6),
-        ),
         child: Row(
           children: [
-            Icon(LucideIcons.thermometer, size: 14, color: colors.textMuted),
+            Icon(NightshadeIcons.temperature, size: 14, color: colors.textMuted),
             const SizedBox(width: 8),
             Text(
               'Current: ${currentTemp.toStringAsFixed(1)}°C',
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
             ),
             const SizedBox(width: 12),
             Text(
               'Model not yet reliable enough for predictions',
-              style: TextStyle(fontSize: 12, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
             ),
           ],
         ),
@@ -345,23 +331,23 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
       padding: const EdgeInsets.all(12),
       decoration: NightshadeDecorations.emphasisSurface(
         colors.primary,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
       ),
       child: Row(
         children: [
-          Icon(LucideIcons.thermometer, size: 16, color: colors.primary),
+          Icon(NightshadeIcons.temperature, size: 16, color: colors.primary),
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Current Temperature',
-                style: TextStyle(fontSize: 10, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
               ),
               Text(
                 '${currentTemp.toStringAsFixed(1)}°C',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: NightshadeTypography.fontSize14,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                   fontFeatures: const [FontFeature.tabularFigures()],
@@ -370,21 +356,21 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
             ],
           ),
           const SizedBox(width: 24),
-          Icon(LucideIcons.arrowRight, size: 14, color: colors.textMuted),
+          Icon(NightshadeIcons.arrowRight, size: 14, color: colors.textMuted),
           const SizedBox(width: 24),
-          Icon(LucideIcons.focus, size: 16, color: colors.primary),
+          Icon(NightshadeIcons.focuser, size: 16, color: colors.primary),
           const SizedBox(width: 10),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Predicted Focus',
-                style: TextStyle(fontSize: 10, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
               ),
               Text(
                 '${prediction.position}',
                 style: TextStyle(
-                  fontSize: 14,
+                  fontSize: NightshadeTypography.fontSize14,
                   fontWeight: FontWeight.w600,
                   color: colors.textPrimary,
                   fontFeatures: const [FontFeature.tabularFigures()],
@@ -397,14 +383,11 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: NightshadeDecorations.tintedBadge(
               _confidenceColor(prediction.confidence, colors),
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             ),
             child: Text(
               prediction.confidenceDescription,
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: _confidenceColor(prediction.confidence, colors),
+              style: NightshadeTypography.labelStrongSm.copyWith(color: _confidenceColor(prediction.confidence, colors),
               ),
             ),
           ),
@@ -429,7 +412,7 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
       children: [
         NightshadeButton(
           label: 'Clear Model',
-          icon: LucideIcons.trash2,
+          icon: NightshadeIcons.delete,
           size: ButtonSize.small,
           variant: ButtonVariant.outline,
           onPressed: dataPoints.isEmpty
@@ -479,7 +462,7 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
         if (dataPoints.isNotEmpty)
           Text(
             'Last updated: ${_formatLastUpdated(dataPoints.last.timestamp)}',
-            style: TextStyle(fontSize: 10, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
           ),
       ],
     );
@@ -532,12 +515,12 @@ class _TempCompBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: NightshadeDecorations.statusChip(
         badgeColor,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       ),
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 10,
+          fontSize: NightshadeTypography.fontSize10,
           fontWeight: FontWeight.w600,
           color: badgeColor,
         ),
@@ -568,13 +551,13 @@ class _ModelStat extends StatelessWidget {
       children: [
         Text(
           label,
-          style: TextStyle(fontSize: 10, color: colors.textMuted),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
         ),
         const SizedBox(height: 2),
         Text(
           value,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: FontWeight.w600,
             color: valueColor ?? colors.textPrimary,
             fontFeatures: const [FontFeature.tabularFigures()],
@@ -615,15 +598,11 @@ class _QualityBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: NightshadeDecorations.statusChip(
         badgeColor,
-        borderRadius: BorderRadius.circular(4),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: badgeColor,
-        ),
+        style: NightshadeTypography.labelStrongSm.copyWith(color: badgeColor),
       ),
     );
   }
@@ -652,21 +631,17 @@ class _FilterChip extends StatelessWidget {
         decoration: isSelected
             ? NightshadeDecorations.selectedSurface(
                 colors.primary,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 fillAlpha: 0.1,
               )
             : BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 border: Border.all(color: colors.border),
               ),
         child: Text(
           label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: isSelected ? colors.primary : colors.textSecondary,
-          ),
+          style: NightshadeTypography.labelQuiet.copyWith(color: isSelected ? colors.primary : colors.textSecondary),
         ),
       ),
     );
@@ -809,7 +784,7 @@ class _TemperatureFocusPlotPainter extends CustomPainter {
       final tp = TextPainter(
         text: TextSpan(
           text: pos.toInt().toString(),
-          style: TextStyle(fontSize: 9, color: textColor),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: textColor),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
@@ -834,7 +809,7 @@ class _TemperatureFocusPlotPainter extends CustomPainter {
       final tp = TextPainter(
         text: TextSpan(
           text: '${temp.toStringAsFixed(0)}°',
-          style: TextStyle(fontSize: 9, color: textColor),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: textColor),
         ),
         textDirection: TextDirection.ltr,
       )..layout();
@@ -915,7 +890,7 @@ class _TemperatureFocusPlotPainter extends CustomPainter {
     final xLabel = TextPainter(
       text: TextSpan(
         text: 'Temperature (°C)',
-        style: TextStyle(fontSize: 9, color: textColor),
+        style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: textColor),
       ),
       textDirection: TextDirection.ltr,
     )..layout();
@@ -934,7 +909,7 @@ class _TemperatureFocusPlotPainter extends CustomPainter {
     final yLabel = TextPainter(
       text: TextSpan(
         text: 'Focus Position',
-        style: TextStyle(fontSize: 9, color: textColor),
+        style: TextStyle(fontSize: NightshadeTypography.fontSize9, color: textColor),
       ),
       textDirection: TextDirection.ltr,
     )..layout();

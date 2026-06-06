@@ -391,7 +391,7 @@ class _AiAssistantSettingsState extends ConsumerState<AiAssistantSettings> {
                   'Nightshade never sends data automatically — every build '
                   'requires an explicit Submit click.',
                   style: TextStyle(
-                    fontSize: isMobile ? 11 : 12,
+                    fontSize: isMobile ? NightshadeTypography.fontSize11 : NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                     height: 1.4,
                   ),
@@ -505,7 +505,7 @@ class _LabeledTextFieldState extends State<_LabeledTextField> {
                 controller: _controller,
                 obscureText: widget.obscure,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: NightshadeColors.of(context).textPrimary,
                 ),
                 decoration: InputDecoration(
@@ -514,7 +514,7 @@ class _LabeledTextFieldState extends State<_LabeledTextField> {
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                   ),
                 ),
                 onChanged: widget.onChanged,
@@ -585,7 +585,7 @@ class _LabeledNumericField extends StatelessWidget {
               format(value),
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 fontWeight: FontWeight.w500,
                 color: colors.textPrimary,
                 fontFeatures: const [FontFeature.tabularFigures()],
@@ -621,7 +621,7 @@ class _TestResultBadge extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: NightshadeDecorations.statusChip(
           color,
-          borderRadius: BorderRadius.circular(4),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -632,11 +632,7 @@ class _TestResultBadge extends StatelessWidget {
               result.success
                   ? 'OK (${result.roundTripMs}ms)'
                   : 'Failed (${result.roundTripMs}ms)',
-              style: TextStyle(
-                fontSize: 11,
-                color: color,
-                fontWeight: FontWeight.w600,
-              ),
+              style: NightshadeTypography.labelStrongSm.copyWith(color: color),
             ),
           ],
         ),

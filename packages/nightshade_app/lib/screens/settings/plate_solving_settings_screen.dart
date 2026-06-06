@@ -9,6 +9,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../utils/snackbar_helper.dart';
+import 'widgets/plate_solve_parameters_section.dart';
 import 'widgets/settings_widgets.dart';
 import 'widgets/solver_detection_card.dart';
 
@@ -118,7 +119,7 @@ class _PlateSolvingSettingsScreenState
         iconTheme: IconThemeData(color: colors.textPrimary),
         titleTextStyle: TextStyle(
           color: colors.textPrimary,
-          fontSize: 18,
+          fontSize: NightshadeTypography.fontSize18,
           fontWeight: FontWeight.w600,
         ),
       ),
@@ -335,6 +336,8 @@ class _PlateSolvingSettingsScreenState
             ),
           ],
         ),
+        const SizedBox(height: 16),
+        const PlateSolveParametersSection(),
       ],
     );
   }
@@ -420,20 +423,17 @@ class _NoSolverQuickStart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    return Container(
+    return NightshadeCard(
+      variant: CardVariant.subtle,
+      borderRadius: NightshadeTokens.radiusLg,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colors.border),
-      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             'Get started in 3 steps',
             style: TextStyle(
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               fontWeight: FontWeight.w700,
               color: colors.textPrimary,
             ),
@@ -443,7 +443,7 @@ class _NoSolverQuickStart extends StatelessWidget {
             'Nightshade needs a plate solver to centre targets, verify '
             'framing, and run polar alignment. Follow these steps, then '
             'click Re-scan to detect the install.',
-            style: TextStyle(fontSize: 12, color: colors.textSecondary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
           ),
           const SizedBox(height: 14),
           _QuickStartStep(
@@ -525,13 +525,10 @@ class _QuickStartStep extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
-    final card = Container(
+    final card = NightshadeCard(
+      variant: CardVariant.standard,
+      borderRadius: NightshadeTokens.radiusInline8,
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -546,7 +543,7 @@ class _QuickStartStep extends StatelessWidget {
             child: Text(
               '$stepNumber',
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 fontWeight: FontWeight.w700,
                 color: colors.primary,
               ),
@@ -564,11 +561,7 @@ class _QuickStartStep extends StatelessWidget {
                     Expanded(
                       child: Text(
                         title,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                          color: colors.textPrimary,
-                        ),
+                        style: NightshadeTypography.labelStrong.copyWith(color: colors.textPrimary),
                       ),
                     ),
                   ],
@@ -577,7 +570,7 @@ class _QuickStartStep extends StatelessWidget {
                 Text(
                   body,
                   style: TextStyle(
-                    fontSize: 12,
+                    fontSize: NightshadeTypography.fontSize12,
                     color: colors.textSecondary,
                     height: 1.4,
                   ),
@@ -594,7 +587,7 @@ class _QuickStartStep extends StatelessWidget {
     if (onTap == null) return card;
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       child: card,
     );
   }
@@ -623,7 +616,7 @@ class _CatalogMissingHint extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: NightshadeDecorations.emphasisSurface(
         colors.warning,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -635,7 +628,7 @@ class _CatalogMissingHint extends StatelessWidget {
               'Searching for catalogs in $probed. If your catalog lives '
               'somewhere else, point Nightshade at it now.',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: NightshadeTypography.fontSize12,
                 color: colors.textPrimary,
                 height: 1.4,
               ),

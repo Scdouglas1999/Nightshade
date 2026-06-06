@@ -41,7 +41,7 @@ class _MeasurementProgressItem extends StatelessWidget {
           ),
           child: Center(
             child: isComplete
-                ? Icon(LucideIcons.check, size: 12, color: colors.background)
+                ? Icon(NightshadeIcons.check, size: 12, color: colors.background)
                 : isActive
                     ? SizedBox(
                         width: 10,
@@ -58,7 +58,7 @@ class _MeasurementProgressItem extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTypography.fontSize12,
             fontWeight: isActive ? FontWeight.w600 : FontWeight.normal,
             color:
                 isComplete || isActive ? colors.textPrimary : colors.textMuted,
@@ -66,7 +66,7 @@ class _MeasurementProgressItem extends StatelessWidget {
         ),
         if (isComplete) ...[
           const Spacer(),
-          Icon(LucideIcons.checkCircle, size: 14, color: colors.success),
+          Icon(NightshadeIcons.success, size: 14, color: colors.success),
         ],
       ],
     );
@@ -110,11 +110,11 @@ class _ProgressStep extends StatelessWidget {
           ),
           child: Center(
             child: isComplete
-                ? Icon(LucideIcons.check, size: 16, color: color)
+                ? Icon(NightshadeIcons.check, size: 16, color: color)
                 : Text(
                     number.toString(),
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       fontWeight: FontWeight.bold,
                       color: color,
                     ),
@@ -125,7 +125,7 @@ class _ProgressStep extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             color: color,
           ),
         ),
@@ -183,7 +183,7 @@ class _InstructionStep extends StatelessWidget {
               child: Text(
                 number.toString(),
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   fontWeight: FontWeight.bold,
                   color: colors.primary,
                 ),
@@ -195,7 +195,7 @@ class _InstructionStep extends StatelessWidget {
             child: Text(
               text,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: colors.textSecondary,
               ),
             ),
@@ -228,7 +228,7 @@ class _ErrorValue extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTypography.fontSize10,
             color: colors.textMuted,
           ),
         ),
@@ -302,14 +302,14 @@ class _SolveProgressIndicatorState extends State<_SolveProgressIndicator> {
                   Text(
                     widget.status,
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       color: widget.colors.textSecondary,
                     ),
                   ),
                   Text(
                     '${seconds}s elapsed',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: NightshadeTypography.fontSize10,
                       color: widget.colors.textMuted,
                     ),
                   ),

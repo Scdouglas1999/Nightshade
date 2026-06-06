@@ -200,7 +200,7 @@ class _SliderLabeled extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontSize: 11)),
+        Text(label, style: const TextStyle(fontSize: NightshadeTypography.fontSize11)),
         Slider(
           min: min,
           max: max,

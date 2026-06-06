@@ -153,7 +153,7 @@ extension _CenterPanel on _PolarAlignmentScreenState {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            isAllSky ? LucideIcons.globe : LucideIcons.compass,
+            isAllSky ? NightshadeIcons.globe : NightshadeIcons.compass,
             size: 64,
             color: colors.primary.withValues(alpha: 0.5),
           ),
@@ -164,7 +164,7 @@ extension _CenterPanel on _PolarAlignmentScreenState {
                 : 'Three-Point Polar Alignment',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 20,
+              fontSize: NightshadeTypography.fontSize20,
               fontWeight: FontWeight.bold,
               color: colors.textPrimary,
             ),
@@ -182,7 +182,7 @@ extension _CenterPanel on _PolarAlignmentScreenState {
                     'alignment error.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               color: colors.textSecondary,
               height: 1.5,
             ),

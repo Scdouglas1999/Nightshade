@@ -20,3 +20,11 @@ base64.workspace = true
 parking_lot = "0.12"
 nightshade_imaging = { path = "../imaging" }
 
+[dev-dependencies]
+# `test-util` is deliberately excluded from tokio's `full` feature, so the
+# scenario simulation harness (executor/scenario_sim_tests.rs) enables it here
+# to use `#[tokio::test(start_paused = true)]` — this lets the guide-star
+# re-acquisition poll loop's 120s deadline elapse in virtual time rather than
+# wall-clock, keeping the disconnect/recovery scenario tests fast. Test-only;
+# no effect on the production build.
+tokio = { workspace = true, features = ["test-util"] }

@@ -26,6 +26,8 @@ class _FakeSink implements SchedulerSequenceSink {
   Future<void> resumeSequence() async {}
   @override
   Future<void> stopSequence() async {}
+  @override
+  Future<void> parkForEndOfNight() async {}
 }
 
 /// In-memory fake of [IntegrationGoalService] for widget tests. Only

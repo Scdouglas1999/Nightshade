@@ -20,7 +20,7 @@ class _BlsSpectrumPainter extends StatelessWidget {
       return Center(
         child: Text(
           'No BLS data',
-          style: TextStyle(color: colors.textMuted, fontSize: 12),
+          style: TextStyle(color: colors.textMuted, fontSize: NightshadeTypography.fontSize12),
         ),
       );
     }
@@ -104,7 +104,7 @@ class _BlsSpectrumCustomPainter extends CustomPainter {
     }
 
     // Axis labels.
-    final textStyle = TextStyle(color: textColor, fontSize: 9);
+    final textStyle = TextStyle(color: textColor, fontSize: NightshadeTypography.fontSize9);
 
     // Y-axis.
     for (var i = 0; i <= 4; i++) {
@@ -184,7 +184,7 @@ class _BlsSpectrumCustomPainter extends CustomPainter {
         text:
             'P=${bestPeriod < 1 ? '${(bestPeriod * 24).toStringAsFixed(2)}h' : '${bestPeriod.toStringAsFixed(3)}d'}',
         style: TextStyle(
-            color: peakColor, fontSize: 9, fontWeight: FontWeight.w600),
+            color: peakColor, fontSize: NightshadeTypography.fontSize9, fontWeight: FontWeight.w600),
       ),
       textDirection: TextDirection.ltr,
     )..layout();

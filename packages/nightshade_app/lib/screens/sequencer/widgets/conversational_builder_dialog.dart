@@ -110,7 +110,7 @@ class _ConversationalBuilderDialogState
         Text(
           'Conversational Builder',
           style: TextStyle(
-            fontSize: 18,
+            fontSize: NightshadeTypography.fontSize18,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
@@ -120,12 +120,12 @@ class _ConversationalBuilderDialogState
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: NightshadeDecorations.tintedBadge(
             colors.primary,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
           ),
           child: Text(
             'AI',
             style: TextStyle(
-              fontSize: 10,
+              fontSize: NightshadeTypography.fontSize10,
               color: colors.primary,
               fontWeight: FontWeight.w700,
             ),
@@ -180,11 +180,7 @@ class _ConversationalBuilderDialogState
             const SizedBox(height: 16),
             Text(
               'No AI provider configured',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 8),
             Text(
@@ -197,7 +193,7 @@ class _ConversationalBuilderDialogState
               'Anthropic) or run a local model (Ollama) for full privacy.',
               textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 13,
+                fontSize: NightshadeTypography.fontSize13,
                 color: colors.textSecondary,
                 height: 1.5,
               ),
@@ -229,7 +225,7 @@ class _ConversationalBuilderDialogState
           Text(
             'Describe what you want to image tonight…',
             style: TextStyle(
-              fontSize: 13,
+              fontSize: NightshadeTypography.fontSize13,
               color: colors.textSecondary,
             ),
           ),
@@ -238,13 +234,13 @@ class _ConversationalBuilderDialogState
             controller: _promptController,
             minLines: 5,
             maxLines: 10,
-            style: TextStyle(fontSize: 13, color: colors.textPrimary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
             decoration: InputDecoration(
               hintText: 'e.g. "Plan a 4-hour session on the Heart Nebula '
                   'tonight, narrowband HOO with my Ha + OIII filters, '
                   'autofocus every 30 minutes, dither every 2 frames."',
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               ),
             ),
             inputFormatters: [
@@ -259,7 +255,7 @@ class _ConversationalBuilderDialogState
               padding: const EdgeInsets.all(12),
               decoration: NightshadeDecorations.iconChip(
                 colors.error,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 borderAlpha: 0.3,
               ),
               child: Row(
@@ -271,7 +267,7 @@ class _ConversationalBuilderDialogState
                     child: Text(
                       _error!,
                       style: TextStyle(
-                          fontSize: 12, color: colors.error, height: 1.4),
+                          fontSize: NightshadeTypography.fontSize12, color: colors.error, height: 1.4),
                     ),
                   ),
                 ],
@@ -359,7 +355,7 @@ class _ConversationalBuilderDialogState
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border),
       ),
       child: Row(
@@ -370,7 +366,7 @@ class _ConversationalBuilderDialogState
           Expanded(
             child: Text(
               'Candidate targets the AI will see: $preview$more',
-              style: TextStyle(fontSize: 11, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
             ),
           ),
         ],
@@ -393,13 +389,13 @@ class _ConversationalBuilderDialogState
             _activeRound <= 1
                 ? 'Asking the model…'
                 : 'Asking the model (round $_activeRound of up to 4)…',
-            style: TextStyle(fontSize: 13, color: colors.textPrimary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textPrimary),
           ),
           const SizedBox(height: 6),
           Text(
             'This can take 10–60s. Self-correction rounds run when the '
             'first reply fails validation.',
-            style: TextStyle(fontSize: 11, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
             textAlign: TextAlign.center,
           ),
         ],
@@ -450,29 +446,25 @@ class _ConversationalBuilderDialogState
         const SizedBox(width: 8),
         Text(
           headline,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h4.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(width: 12),
         if (result.totalUsage != null)
           Text(
             formatUsage(result.totalUsage!),
-            style: TextStyle(fontSize: 11, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
           ),
         const Spacer(),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
             border: Border.all(color: colors.border),
           ),
           child: Text(
             '${result.rounds} ${result.rounds == 1 ? "round" : "rounds"}',
-            style: TextStyle(fontSize: 11, color: colors.textSecondary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
           ),
         ),
       ],
@@ -489,7 +481,7 @@ class _ConversationalBuilderDialogState
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -497,17 +489,13 @@ class _ConversationalBuilderDialogState
         children: [
           Text(
             sequence.name,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
+            style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
           ),
           const SizedBox(height: 4),
           if (sequence.description.isNotEmpty)
             Text(
               sequence.description,
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
             ),
           const SizedBox(height: 12),
           Wrap(
@@ -553,7 +541,7 @@ class _ConversationalBuilderDialogState
             Text(
               'Targets',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w600,
                 color: colors.textMuted,
                 letterSpacing: 0.5,
@@ -572,7 +560,7 @@ class _ConversationalBuilderDialogState
                         '${t.targetName}'
                         '${t.minAltitude != null ? " (min alt ${t.minAltitude!.toStringAsFixed(0)}°)" : ""}',
                         style:
-                            TextStyle(fontSize: 12, color: colors.textPrimary),
+                            TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
                       ),
                     ),
                   ],
@@ -584,7 +572,7 @@ class _ConversationalBuilderDialogState
             Text(
               'Smart Exposures',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w600,
                 color: colors.textMuted,
                 letterSpacing: 0.5,
@@ -599,7 +587,7 @@ class _ConversationalBuilderDialogState
                       .map((p) =>
                           '${p.filterName}: ${p.count}x${p.durationSecs.toStringAsFixed(0)}s')
                       .join('  /  '),
-                  style: TextStyle(fontSize: 12, color: colors.textPrimary),
+                  style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
                 ),
               ),
           ],
@@ -621,15 +609,11 @@ class _ConversationalBuilderDialogState
         const SizedBox(width: 4),
         Text(
           '$label: ',
-          style: TextStyle(fontSize: 11, color: colors.textMuted),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
         ),
         Text(
           value,
-          style: TextStyle(
-            fontSize: 12,
-            color: colors.textPrimary,
-            fontWeight: FontWeight.w600,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
       ],
     );
@@ -649,7 +633,7 @@ class _ConversationalBuilderDialogState
             padding: const EdgeInsets.symmetric(vertical: 2),
             child: Text(
               '• [${issue.severity.name}] ${issue.title} — ${issue.description}',
-              style: TextStyle(fontSize: 11, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
             ),
           ),
         if (result.validationIssues.length > 8)
@@ -657,7 +641,7 @@ class _ConversationalBuilderDialogState
             padding: const EdgeInsets.only(top: 4),
             child: Text(
               '… and ${result.validationIssues.length - 8} more',
-              style: TextStyle(fontSize: 11, color: colors.textMuted),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
             ),
           ),
       ],
@@ -670,7 +654,7 @@ class _ConversationalBuilderDialogState
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -683,11 +667,7 @@ class _ConversationalBuilderDialogState
               const SizedBox(width: 8),
               Text(
                 'Refine',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
+                style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
               ),
             ],
           ),
@@ -696,12 +676,12 @@ class _ConversationalBuilderDialogState
             controller: _refineController,
             minLines: 2,
             maxLines: 4,
-            style: TextStyle(fontSize: 12, color: colors.textPrimary),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textPrimary),
             decoration: InputDecoration(
               hintText: 'e.g. "Use 300s subs instead of 180s" or "Drop SII '
                   'and rebalance the budget".',
               border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               ),
               isDense: true,
               contentPadding:
@@ -761,7 +741,7 @@ class _ConversationalBuilderDialogState
       child: ExpansionTile(
         title: Text(
           'Show conversation',
-          style: TextStyle(fontSize: 12, color: colors.textSecondary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
         ),
         tilePadding: EdgeInsets.zero,
         children: [
@@ -770,11 +750,7 @@ class _ConversationalBuilderDialogState
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Text(
                 'Round ${i + 1}',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textMuted,
-                ),
+                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textMuted),
               ),
             ),
             Container(
@@ -782,14 +758,14 @@ class _ConversationalBuilderDialogState
               decoration: BoxDecoration(
                 color: colors.surface,
                 border: Border.all(color: colors.border),
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
               ),
               child: SelectableText(
                 result.rawReplies[i].length > 4000
                     ? '${result.rawReplies[i].substring(0, 4000)}\n…(truncated)…'
                     : result.rawReplies[i],
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   fontFamily: 'monospace',
                   color: colors.textPrimary,
                 ),

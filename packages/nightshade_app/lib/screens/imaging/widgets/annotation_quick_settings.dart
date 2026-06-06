@@ -20,25 +20,25 @@ class AnnotationQuickSettingChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: isSelected
             ? NightshadeDecorations.selectedSurface(
                 colors.primary,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 fillAlpha: 0.18,
               )
             : BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(4),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                 border: Border.all(color: colors.border),
               ),
         child: Text(
           label,
           style: TextStyle(
             color: isSelected ? colors.primary : colors.textSecondary,
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
           ),
         ),

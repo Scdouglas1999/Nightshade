@@ -20,7 +20,7 @@ class _SimulationMetric extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
         border: Border.all(color: colors.border),
       ),
       child: Column(
@@ -29,13 +29,13 @@ class _SimulationMetric extends StatelessWidget {
         children: [
           Text(
             label,
-            style: TextStyle(fontSize: 10, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize10, color: colors.textMuted),
           ),
           const SizedBox(height: 2),
           Text(
             value,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               fontWeight: FontWeight.w700,
               color: valueColor,
             ),
@@ -61,7 +61,7 @@ class _SimulationTimeline extends StatelessWidget {
     if (totalMs <= 0) return const SizedBox.shrink();
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
       child: SizedBox(
         height: 18,
         child: Row(
@@ -140,7 +140,7 @@ class _SimulationIssueRow extends StatelessWidget {
           Expanded(
             child: Text(
               issue.message,
-              style: TextStyle(fontSize: 11, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
             ),
           ),
         ],

@@ -1087,6 +1087,18 @@ pub struct TargetSchedulerConfig {
     /// dispatch per (panel, filter) pair.
     #[serde(default)]
     pub filter_cycle_mode: FilterCycleMode,
+
+    /// Optional per-azimuth horizon mask (local obstructions: trees,
+    /// buildings, roof lines). When present, the scheduler marks any
+    /// target whose current altitude sits below the horizon's
+    /// min-altitude at the target's current azimuth as not-runnable
+    /// (with a skip reason naming the azimuth) — the Rust mirror of the
+    /// Dart `HorizonProfile.minAltitudeAt(az)` constraint. `None`
+    /// (default) keeps the flat-floor-only behaviour. Matches
+    /// NINA/SGP/Ekos horizon profiles. Wire format matches the Dart
+    /// `HorizonProfile` samples (`{"samples":[{"az":..,"alt":..}]}`).
+    #[serde(default)]
+    pub horizon_profile: Option<crate::scheduling::HorizonProfile>,
 }
 
 impl Default for TargetSchedulerConfig {
@@ -1109,6 +1121,7 @@ impl Default for TargetSchedulerConfig {
             brightness_tier_preferences: crate::scheduling::BrightnessTierPreferences::default(),
             max_conditions_score_age_secs: default_scheduler_max_score_age_secs(),
             filter_cycle_mode: FilterCycleMode::default(),
+            horizon_profile: None,
         }
     }
 }
@@ -1358,6 +1371,25 @@ pub enum FilterBudgetEntry {
     /// Ratio relative to other filters in the same target. Normalised at
     /// runtime: each ratio gets `(ratio / sum_of_ratios) * total_secs`.
     Ratio(f64),
+    /// Count-based completion: "N accepted frames of `sub_secs` each" — the
+    /// NINA Target Scheduler model ("60 x Ha 300s until N accepted"). The
+    /// budget registry credits ACCEPTED-frame exposure time only (rejected
+    /// subs are subtracted upstream in the expose instruction), so the
+    /// equivalent integration cap is `desired_accepted * sub_secs`: once the
+    /// accumulated accepted-seconds for the filter reach that product, the
+    /// filter has its N accepted subs. Resolving Count to a time cap lets the
+    /// existing time-based [`crate::scheduling::BudgetState::is_met`] machinery
+    /// enforce count completion without a parallel counter, and the
+    /// per-filter accepted-seconds persist across pause/resume and (via the
+    /// session-handoff carry-over seeding) across nights.
+    Count {
+        /// Number of ACCEPTED subs required for this filter.
+        desired_accepted: u32,
+        /// Per-sub exposure length (seconds). Must equal the exposure
+        /// node's `duration_secs` for this filter so the seconds→count
+        /// mapping is exact.
+        sub_secs: f64,
+    },
 }
 
 impl IntegrationBudget {
@@ -1369,6 +1401,16 @@ impl IntegrationBudget {
     pub fn resolved_filter_cap(&self, filter: &str) -> Option<f64> {
         match self.per_filter.get(filter) {
             Some(FilterBudgetEntry::Absolute(secs)) if *secs > 0.0 => Some(*secs),
+            // Count → equivalent accepted-integration time cap. Requires a
+            // positive frame count AND a positive per-sub length; either at
+            // zero means "no cap" (fail closed — the validator surfaces a
+            // misconfigured Count entry).
+            Some(FilterBudgetEntry::Count {
+                desired_accepted,
+                sub_secs,
+            }) if *desired_accepted > 0 && *sub_secs > 0.0 => {
+                Some(f64::from(*desired_accepted) * *sub_secs)
+            }
             Some(FilterBudgetEntry::Ratio(r)) if *r > 0.0 => {
                 let total = self.total_secs;
                 if total <= 0.0 {
@@ -1392,7 +1434,8 @@ impl IntegrationBudget {
                     }
                 }
             }
-            // `Absolute(0.0)`, `Ratio(0.0)`, missing entry: no cap.
+            // `Absolute(0.0)`, `Ratio(0.0)`, `Count` with a zero count or
+            // zero sub length, missing entry: no cap.
             _ => None,
         }
     }
@@ -1414,6 +1457,10 @@ impl IntegrationBudget {
             || self.per_filter.values().any(|e| match e {
                 FilterBudgetEntry::Absolute(s) => *s > 0.0,
                 FilterBudgetEntry::Ratio(r) => *r > 0.0,
+                FilterBudgetEntry::Count {
+                    desired_accepted,
+                    sub_secs,
+                } => *desired_accepted > 0 && *sub_secs > 0.0,
             })
     }
 }
@@ -1636,6 +1683,22 @@ pub struct LoopConfig {
     pub iterations: Option<u32>,
     pub condition: LoopCondition,
     pub condition_value: Option<f64>,
+    /// Optional per-azimuth local-horizon mask (trees, roofline, buildings).
+    ///
+    /// When present and the condition is [`LoopCondition::AltitudeAbove`] /
+    /// [`LoopCondition::AltitudeBelow`], the flat `condition_value` altitude
+    /// floor is replaced by the horizon's altitude at the target's *current*
+    /// azimuth (whichever is higher). This makes
+    /// "loop until the target rises above the local horizon at its current
+    /// azimuth" work behind a tree/roofline instead of a single flat floor.
+    ///
+    /// Crosses the FFI boundary inside the node-definition JSON string (the
+    /// node config is serialized to JSON in the bridge and deserialized back
+    /// here), so this field needs no FRB regen. `#[serde(default)]` keeps
+    /// legacy sequence files — which omit it — deserializing to `None`, which
+    /// preserves the prior flat-floor-only behaviour.
+    #[serde(default)]
+    pub horizon_profile: Option<crate::scheduling::HorizonProfile>,
 }
 
 impl Default for LoopConfig {
@@ -1644,6 +1707,7 @@ impl Default for LoopConfig {
             iterations: Some(1),
             condition: LoopCondition::Count,
             condition_value: None,
+            horizon_profile: None,
         }
     }
 }

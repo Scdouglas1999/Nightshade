@@ -9,6 +9,7 @@ import '../../models/scheduler/scheduler_status.dart';
 import '../../models/scheduler/target_constraint.dart';
 import '../../models/sequence/sequence_models.dart';
 import 'horizon_profile.dart';
+import 'sky_calculations.dart';
 
 part 'scheduler_engine/contracts.dart';
 part 'scheduler_engine/astronomy_helpers.dart';
@@ -36,6 +37,20 @@ class SchedulerEngine {
         _clock = clock ?? DateTime.now {
     if (triggerStream != null) {
       _triggerSubscription = triggerStream.listen((evt) {
+        // A natural sequence completion means the executor has STOPPED, but
+        // currentTargetId still names the just-finished target. A plain
+        // re-evaluation would then see isSwitch=false and never re-dispatch,
+        // leaving the rig idle for the rest of the night. Clear the current
+        // target (only while running, and only the autopilot's own target)
+        // so the next evaluation re-dispatches the winner — the same target's
+        // remaining work, or the next-best target if its goals are now done.
+        // Loop-safe: 'SequenceStopped' is not mapped to this trigger, so the
+        // engine's own stop-to-switch never reaches here.
+        if (evt == SchedulerTriggerEvent.sequenceCompleted &&
+            _status.state == SchedulerState.running &&
+            _status.currentTargetId != null) {
+          _updateStatus(_status.copyWith(clearCurrentTarget: true));
+        }
         _evaluateWithReason('trigger: ${evt.name}');
       });
     }
@@ -55,6 +70,13 @@ class SchedulerEngine {
   // should fire ONE re-evaluation, not N.
   static const Duration _reevaluationDebounce = Duration(milliseconds: 500);
   Timer? _reevaluationDebounceTimer;
+
+  // True once [SchedulerSequenceSink.parkForEndOfNight] has fired for the
+  // current dawn. Guards against re-parking on every subsequent tick while the
+  // Sun stays up (the empty-eligible path runs each tick). Re-armed (set false)
+  // the moment the engine successfully dispatches a target again — a new
+  // observing night has begun, so the next dawn must park afresh.
+  bool _parkedForEndOfNight = false;
 
   SchedulerStatus _status = const SchedulerStatus();
   final _statusController =
@@ -87,6 +109,9 @@ class SchedulerEngine {
 
   Future<void> start() async {
     if (_status.state == SchedulerState.running) return;
+    // Fresh run: re-arm the end-of-night park so a previous dawn's park does
+    // not suppress parking on this run's dawn.
+    _parkedForEndOfNight = false;
     _updateStatus(_status.copyWith(
       state: SchedulerState.running,
       clearError: true,
@@ -202,25 +227,76 @@ class SchedulerEngine {
   Future<void> _evaluateOnce(String reason) async {
     final now = _clock();
     final candidates = await _candidateLoader();
-    if (candidates.isEmpty) {
-      final decision = SchedulerDecision(
-        chosenTargetId: null,
-        chosenTargetName: null,
-        score: 0,
-        reasoning: const ['No candidate targets available'],
-        scoredCandidates: const [],
-        rejected: const [],
-        evaluatedAt: now,
-        isSwitch: _status.currentTargetId != null,
-      );
-      _publishDecision(decision);
-      if (_status.currentTargetId != null) {
-        _updateStatus(_status.copyWith(clearCurrentTarget: true));
-        if (_status.state == SchedulerState.running) {
-          await _sequenceSink.stopSequence();
-        }
-      }
+
+    // Pure, side-effect-free evaluation against the engine's CURRENT
+    // hysteresis state (_status.currentTargetId). This computes the exact
+    // decision the autopilot will act on; the side effects (publishing the
+    // decision, mutating _status, dispatching/parking) live below so the
+    // read-only preview path (previewDecision/previewRanking) can reuse the
+    // same _evaluate without ever touching them.
+    final outcome = _evaluate(
+      candidates: candidates,
+      now: now,
+      currentTargetId: _status.currentTargetId,
+      reason: reason,
+    );
+
+    _publishDecision(outcome.decision);
+
+    if (outcome.winner == null) {
+      await _handleNoEligibleTarget(now);
       return;
+    }
+
+    if (outcome.isSwitch) {
+      final winner = outcome.winner!;
+      _updateStatus(_status.copyWith(
+        currentTargetId: winner.targetId,
+        currentTargetName: winner.targetName,
+      ));
+      if (_status.state == SchedulerState.running) {
+        final chosenCandidate =
+            candidates.firstWhere((c) => c.targetId == winner.targetId);
+        final seq = buildSequenceForCandidate(chosenCandidate);
+        await _sequenceSink.dispatchSequence(seq);
+        // A target was dispatched: a (new) observing night is under way, so
+        // re-arm the end-of-night park for the next dawn.
+        _parkedForEndOfNight = false;
+      }
+    }
+  }
+
+  /// Pure, side-effect-free core of an evaluation: score every candidate,
+  /// apply the SAME hard gates the autopilot applies (via [_scoreCandidate]:
+  /// twilight Sun gate, min altitude, custom horizon, filter availability,
+  /// time-window, moon), apply the scheduled-window override and hysteresis
+  /// against [currentTargetId], and build the resulting [SchedulerDecision].
+  ///
+  /// This NEVER mutates `_status`, NEVER dispatches, and NEVER parks — those
+  /// effects are applied by [_evaluateOnce] using the returned outcome. The
+  /// read-only [previewDecision]/[previewRanking] reuse this verbatim so the
+  /// human-facing preview is the autopilot's decision by construction.
+  _EvaluationOutcome _evaluate({
+    required List<SchedulerCandidate> candidates,
+    required DateTime now,
+    required int? currentTargetId,
+    required String reason,
+  }) {
+    if (candidates.isEmpty) {
+      return _EvaluationOutcome(
+        decision: SchedulerDecision(
+          chosenTargetId: null,
+          chosenTargetName: null,
+          score: 0,
+          reasoning: const ['No candidate targets available'],
+          scoredCandidates: const [],
+          rejected: const [],
+          evaluatedAt: now,
+          isSwitch: currentTargetId != null,
+        ),
+        winner: null,
+        isSwitch: false,
+      );
     }
 
     final scored = <TargetScore>[];
@@ -254,28 +330,24 @@ class SchedulerEngine {
                     s.hardConstraintFailed ? null : 'no eligible winner',
               ))
           .toList();
-      final decision = SchedulerDecision(
-        chosenTargetId: null,
-        chosenTargetName: null,
-        score: 0,
-        reasoning: reasons,
-        scoredCandidates: scored,
-        rejected: rejectedAll,
-        evaluatedAt: now,
-        isSwitch: _status.currentTargetId != null,
+      return _EvaluationOutcome(
+        decision: SchedulerDecision(
+          chosenTargetId: null,
+          chosenTargetName: null,
+          score: 0,
+          reasoning: reasons,
+          scoredCandidates: scored,
+          rejected: rejectedAll,
+          evaluatedAt: now,
+          isSwitch: currentTargetId != null,
+        ),
+        winner: null,
+        isSwitch: false,
       );
-      _publishDecision(decision);
-      if (_status.currentTargetId != null) {
-        _updateStatus(_status.copyWith(clearCurrentTarget: true));
-        if (_status.state == SchedulerState.running) {
-          await _sequenceSink.stopSequence();
-        }
-      }
-      return;
     }
 
     final challenger = eligible.first;
-    final currentId = _status.currentTargetId;
+    final currentId = currentTargetId;
     TargetScore winner;
     bool isSwitch;
     // True when the chosen target was forced by an active scheduled
@@ -364,30 +436,107 @@ class SchedulerEngine {
       rejected.add(_buildRejection(s, chosenScore: winner.totalScore));
     }
 
-    final decision = SchedulerDecision(
-      chosenTargetId: winner.targetId,
-      chosenTargetName: winner.targetName,
-      score: winner.totalScore,
-      reasoning: reasoning,
-      scoredCandidates: orderedAll,
-      rejected: rejected,
-      evaluatedAt: now,
+    return _EvaluationOutcome(
+      decision: SchedulerDecision(
+        chosenTargetId: winner.targetId,
+        chosenTargetName: winner.targetName,
+        score: winner.totalScore,
+        reasoning: reasoning,
+        scoredCandidates: orderedAll,
+        rejected: rejected,
+        evaluatedAt: now,
+        isSwitch: isSwitch,
+      ),
+      winner: winner,
       isSwitch: isSwitch,
     );
-    _publishDecision(decision);
+  }
 
-    if (isSwitch) {
-      _updateStatus(_status.copyWith(
-        currentTargetId: winner.targetId,
-        currentTargetName: winner.targetName,
-      ));
-      if (_status.state == SchedulerState.running) {
-        final chosenCandidate =
-            candidates.firstWhere((c) => c.targetId == winner.targetId);
-        final seq = buildSequenceForCandidate(chosenCandidate);
-        await _sequenceSink.dispatchSequence(seq);
-      }
+  /// Read-only preview of the decision the autopilot WOULD make at [now] for
+  /// the current candidate set and the engine's CURRENT hysteresis state,
+  /// WITHOUT dispatching, parking, or mutating `_status`/`_lastDecision`.
+  ///
+  /// The Planner surfaces this so what the human sees IS what the rig will
+  /// slew to next: it runs the exact same [_evaluate] (same `_scoreCandidate`,
+  /// same hard gates, same scheduled-window override and hysteresis) the live
+  /// autopilot runs. The only inputs are `now` and the loaded candidates;
+  /// loading candidates is the same read the autopilot performs and carries no
+  /// side effects of its own.
+  Future<SchedulerDecision> previewDecision(DateTime now) async {
+    final candidates = await _candidateLoader();
+    final outcome = _evaluate(
+      candidates: candidates,
+      now: now,
+      currentTargetId: _status.currentTargetId,
+      reason: 'preview',
+    );
+    return outcome.decision;
+  }
+
+  /// Read-only ranked list of every eligible candidate at [now], best-first,
+  /// computed by the same pure [_evaluate] the autopilot uses (hard-rejected
+  /// candidates are omitted — they cannot be selected). The headline pick is
+  /// `result.first` and equals [previewDecision]'s `chosenTargetId` for the
+  /// same clock and candidate set. Side-effect-free.
+  Future<List<TargetScore>> previewRanking(DateTime now) async {
+    final candidates = await _candidateLoader();
+    final outcome = _evaluate(
+      candidates: candidates,
+      now: now,
+      currentTargetId: _status.currentTargetId,
+      reason: 'preview',
+    );
+    return outcome.decision.scoredCandidates
+        .where((s) => !s.hardConstraintFailed)
+        .toList();
+  }
+
+  /// True when the Sun has risen above the configured darkness limit at
+  /// [now] — i.e. the observing night is over. This reuses the exact gate the
+  /// per-candidate twilight check applies in [_scoreCandidate], so "every
+  /// candidate Sun-rejected" and "end of night" are the same condition by
+  /// construction. A transient empty-eligible at night (clouds rejecting a
+  /// weather constraint, every goal momentarily complete) is NOT end-of-night
+  /// because the Sun is still down, so this returns false and the engine only
+  /// stops the sequence rather than parking.
+  bool _isEndOfNight(DateTime now) {
+    final (sunAlt, _) = SkyCalculations.sunAltAz(
+      time: now,
+      latitudeDegrees: _site.latitudeDegrees,
+      longitudeDegrees: _site.longitudeDegrees,
+    );
+    return sunAlt > _config.maxSunAltitudeDegrees;
+  }
+
+  /// Shared handling for both empty paths in [_evaluateOnce] (no candidates at
+  /// all, and candidates present but none eligible). Clears the current target,
+  /// stops the running sequence, and — only when it is genuinely end-of-night
+  /// (Sun up) and we have not already parked for this dawn — invokes the
+  /// distinct end-of-night park hook exactly once.
+  Future<void> _handleNoEligibleTarget(DateTime now) async {
+    final running = _status.state == SchedulerState.running;
+    if (_status.currentTargetId != null) {
+      _updateStatus(_status.copyWith(clearCurrentTarget: true));
     }
+    if (!running) return;
+
+    if (_isEndOfNight(now)) {
+      // Dawn: park the mount so it stops tracking into the ground/daylight.
+      // Guarded so we park once per dawn, not on every subsequent tick while
+      // the Sun stays up. Park first (the safety-critical action), then the
+      // stopSequence below is redundant on the park path but harmless — the
+      // executor is idempotent on stop and parkForEndOfNight already pauses.
+      if (!_parkedForEndOfNight) {
+        _parkedForEndOfNight = true;
+        await _sequenceSink.parkForEndOfNight();
+      }
+      return;
+    }
+
+    // Transient no-eligible mid-night (clouds, all goals momentarily
+    // complete): stop the running sequence but never park — the night isn't
+    // over and the next tick may re-dispatch.
+    await _sequenceSink.stopSequence();
   }
 
   /// Returns true if the candidate has an enabled scheduledWindow
@@ -484,6 +633,22 @@ class SchedulerEngine {
     if (alt < _config.minAltitudeDegrees) {
       rejections.add(
           'altitude ${alt.toStringAsFixed(1)}° below site minimum ${_config.minAltitudeDegrees.toStringAsFixed(1)}°');
+    }
+
+    // Hard constraint: twilight / Sun altitude. Never image while the Sun is
+    // above the configured darkness threshold. This makes the engine wait for
+    // darkness at dusk and stop at dawn (the empty-eligible path in
+    // _evaluateOnce stops the running sequence once every candidate is
+    // rejected). Previously the engine scored at `now` with no Sun awareness
+    // and would slew + expose in full daylight.
+    final (sunAlt, _) = SkyCalculations.sunAltAz(
+      time: now,
+      latitudeDegrees: _site.latitudeDegrees,
+      longitudeDegrees: _site.longitudeDegrees,
+    );
+    if (sunAlt > _config.maxSunAltitudeDegrees) {
+      rejections.add(
+          'Sun ${sunAlt.toStringAsFixed(1)}° above darkness limit ${_config.maxSunAltitudeDegrees.toStringAsFixed(1)}° — too bright to image');
     }
 
     // Hard constraint: equipment / filter availability.
@@ -911,6 +1076,11 @@ class SchedulerEngine {
       decDegrees: c.decDegrees,
       priority: c.userPriority,
       childIds: [slewId, centerId, ...exposureIds],
+      // Attribute every captured frame to this DB target row so
+      // IntegrationGoalService.capturedFrameCount (WHERE target_id = ?)
+      // advances and goals complete — otherwise frames land with
+      // target_id=NULL and the engine images this one target all night.
+      catalogTargetId: c.targetId,
     );
     nodes[targetId] = target;
 

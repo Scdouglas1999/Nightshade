@@ -77,7 +77,7 @@ impl InstructionResult {
     /// Get the status, logging any failure or cancellation message.
     /// This ensures error messages are not silently discarded.
     pub fn log_and_get_status(self, node_name: &str) -> NodeStatus {
-        self.log_and_get_status_with_recovery(node_name, None)
+        self.log_and_get_status_with_recovery(node_name, None, None)
     }
 
     /// Get the status, logging failures and promoting disconnected-device
@@ -88,19 +88,34 @@ impl InstructionResult {
         node_name: &str,
         ctx: &InstructionContext,
     ) -> NodeStatus {
-        self.log_and_get_status_with_recovery(node_name, ctx.recovery_request_tx.as_ref())
+        self.log_and_get_status_with_recovery(
+            node_name,
+            ctx.recovery_request_tx.as_ref(),
+            Some(&ctx.device_disconnect_recovery_pending),
+        )
     }
 
     fn log_and_get_status_with_recovery(
         self,
         node_name: &str,
         recovery_request_tx: Option<&mpsc::Sender<crate::recovery::RecoveryCause>>,
+        device_disconnect_recovery_pending: Option<&Arc<AtomicBool>>,
     ) -> NodeStatus {
         match self.status {
             NodeStatus::Failure => {
                 if let Some(msg) = &self.message {
                     tracing::error!("{} failed: {}", node_name, msg);
                     if is_device_disconnected_message(msg) {
+                        // Mark the failure as a promoted device-disconnect BEFORE
+                        // returning, so the node-runtime retry wrapper knows to
+                        // wait for recovery + retry this instruction rather than
+                        // letting the Failure end the sequence. Set the flag even
+                        // when the recovery channel is absent so a future runtime
+                        // can still observe the cause; the actual recovery only
+                        // runs when the channel forwards the request.
+                        if let Some(flag) = device_disconnect_recovery_pending {
+                            flag.store(true, Ordering::Relaxed);
+                        }
                         request_device_disconnected_recovery(node_name, msg, recovery_request_tx);
                     }
                 } else {
@@ -185,6 +200,11 @@ pub struct InstructionContext {
     pub target_ra: Option<f64>,
     /// Target Dec in degrees
     pub target_dec: Option<f64>,
+    /// Target mechanical rotation angle in degrees (rotator position the frame
+    /// must be imaged at). `None` when the active target specifies no rotation,
+    /// in which case centering must NOT move the rotator. Sourced from the
+    /// TargetHeader's `target_rotation` via `ExecutionContext`.
+    pub target_rotation: Option<f64>,
     /// Target name
     pub target_name: Option<String>,
     /// Current filter
@@ -231,6 +251,13 @@ pub struct InstructionContext {
     pub event_tx: Option<tokio::sync::broadcast::Sender<crate::executor::ExecutorEvent>>,
     /// Recovery request channel for first-class recoverable instruction failures.
     pub recovery_request_tx: Option<mpsc::Sender<crate::recovery::RecoveryCause>>,
+    /// Shared flag set when a device-disconnect failure is promoted to a
+    /// `DeviceDisconnected` recovery. The node-runtime reads this to wait for
+    /// recovery + retry the failed instruction instead of aborting the
+    /// sequence. Shares its allocation with `ExecutionContext`. Defaults to a
+    /// fresh `false` Arc in standalone instruction contexts (tests / one-shot
+    /// bridge calls) where there is no runtime retry wrapper.
+    pub device_disconnect_recovery_pending: Arc<AtomicBool>,
     // -------------------------------------------------------------------
     // Wave 3 Image Grading: FITS-header metadata propagated from
     // ExecutionContext so `execute_exposure` can assemble a FrameContext
@@ -838,6 +865,93 @@ async fn wait_for_cancellation(token: Arc<AtomicBool>) {
 }
 
 // =============================================================================
+// ROTATOR MOVE + VERIFY (shared by RotateToAngle instruction and centering)
+// =============================================================================
+
+/// Tolerance (degrees) within which a rotator is considered "at" its target.
+const ROTATOR_TOLERANCE_DEG: f64 = 1.0;
+/// Maximum time to wait for a rotator to reach its target before failing closed.
+const ROTATOR_TIMEOUT_SECS: f64 = 120.0;
+/// Rotator arrival poll interval.
+const ROTATOR_POLL_SECS: f64 = 1.0;
+
+/// Normalise an angle into `[0, 360)`. Non-finite input collapses to 0.
+fn normalize_rotator_angle(a: f64) -> f64 {
+    let r = a.rem_euclid(360.0);
+    if r.is_finite() {
+        r
+    } else {
+        0.0
+    }
+}
+
+/// Smallest signed angular distance `a - b` in degrees, accounting for the
+/// 360° wrap. Result is in `[-180, 180]`.
+fn rotator_angle_diff(a: f64, b: f64) -> f64 {
+    (a - b + 540.0).rem_euclid(360.0) - 180.0
+}
+
+/// Move a rotator to an ABSOLUTE mechanical angle and block until it actually
+/// reaches it (or fail closed on error / timeout).
+///
+/// The driver-level `rotator_move_to` only ISSUES the move on ASCOM/Alpaca/INDI
+/// (it returns as soon as the command is accepted), so this helper polls
+/// `rotator_get_angle` until the achieved angle is within
+/// `ROTATOR_TOLERANCE_DEG` of the target. Used by both the explicit
+/// `RotateToAngle` instruction and by `execute_center` so a target's framing
+/// rotation is physically applied during centering.
+///
+/// `progress` is invoked with `(percent_0_to_100, message)` for UI feedback.
+async fn rotator_move_to_verified(
+    ctx: &InstructionContext,
+    rotator_id: &str,
+    target_abs_deg: f64,
+    mut progress: impl FnMut(f64, String),
+) -> Result<f64, InstructionResult> {
+    let target_abs = normalize_rotator_angle(target_abs_deg);
+
+    if let Err(e) = ctx.device_ops.rotator_move_to(rotator_id, target_abs).await {
+        return Err(InstructionResult::failure(format!(
+            "Rotator move failed: {}",
+            e
+        )));
+    }
+
+    let mut elapsed = 0.0_f64;
+    loop {
+        if let Some(result) = ctx.check_cancelled() {
+            return Err(result);
+        }
+        let current = match ctx.device_ops.rotator_get_angle(rotator_id).await {
+            Ok(a) => a,
+            Err(e) => {
+                return Err(InstructionResult::failure(format!(
+                    "Failed to read rotator angle during move: {}",
+                    e
+                )))
+            }
+        };
+        if rotator_angle_diff(current, target_abs).abs() <= ROTATOR_TOLERANCE_DEG {
+            progress(100.0, format!("Rotator at {:.1}°", current));
+            return Ok(current);
+        }
+        if elapsed >= ROTATOR_TIMEOUT_SECS {
+            return Err(InstructionResult::failure(format!(
+                "Rotator did not reach {:.1}° within {:.0}s (last {:.1}°)",
+                target_abs, ROTATOR_TIMEOUT_SECS, current
+            )));
+        }
+        let pct = (elapsed / ROTATOR_TIMEOUT_SECS * 95.0).min(95.0);
+        progress(
+            pct,
+            format!("Rotating to {:.1}° (at {:.1}°)", target_abs, current),
+        );
+        sleep(Duration::from_secs_f64(ROTATOR_POLL_SECS)).await;
+        elapsed += ROTATOR_POLL_SECS;
+    }
+}
+
+// =============================================================================
 // CENTER INSTRUCTION (Plate Solve + Sync + Slew Loop)
 // =============================================================================
 
@@ -997,6 +1111,20 @@ pub async fn execute_center(
 
         if separation_arcsec <= config.accuracy_arcsec {
             if let Some(cb) = progress_callback {
+                cb(95.0, format!("Centered: {:.1}\"", separation_arcsec));
+            }
+
+            // Apply the target's framing rotation as part of centering. On a
+            // rig with a rotator, imaging at the wrong camera angle breaks
+            // mosaics / framing, so the rotator must be moved to the target
+            // mechanical angle and VERIFIED before we declare the target
+            // centered. If the target specifies no rotation, or no rotator is
+            // configured, this is a clean skip (not an error).
+            if let Err(rotate_err) = apply_center_rotation(ctx, attempt, progress_callback).await {
+                return rotate_err;
+            }
+
+            if let Some(cb) = progress_callback {
                 cb(100.0, format!("Centered: {:.1}\"", separation_arcsec));
             }
             return InstructionResult::success_with_message(format!(
@@ -1091,6 +1219,72 @@ pub async fn execute_center(
         "Failed to center within {:.1}\" after {} attempts",
         config.accuracy_arcsec, config.max_attempts
     ))
+}
+
+/// Apply the active target's framing rotation during centering.
+///
+/// Returns `Ok(())` (leaving the rotator untouched — both are clean, expected
+/// skips, NOT errors) when:
+/// * the target specifies no rotation (`ctx.target_rotation` is `None`), or
+/// * no rotator device is configured (`ctx.rotator_id` is `None`).
+///
+/// When BOTH a target rotation and a rotator are present, the rotator is moved
+/// to the target mechanical angle and the achieved angle is verified within
+/// `ROTATOR_TOLERANCE_DEG`. Any move/read error or arrival timeout fails closed
+/// via the returned `Err(InstructionResult)` so the caller aborts centering
+/// rather than imaging at the wrong angle.
+async fn apply_center_rotation(
+    ctx: &InstructionContext,
+    attempt: u32,
+    progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
+) -> Result<(), InstructionResult> {
+    let Some(target_rotation) = ctx.target_rotation else {
+        // No framing rotation requested for this target — leave the rotator
+        // wherever it is.
+        return Ok(());
+    };
+    if !target_rotation.is_finite() {
+        return Err(InstructionResult::failure(format!(
+            "Target framing rotation is not a finite angle ({})",
+            target_rotation
+        )));
+    }
+    let Some(rotator_id) = ctx.rotator_id.as_deref() else {
+        // Target wants a specific angle but no rotator is configured. This is a
+        // clean skip: the rig physically cannot rotate, so centering succeeds
+        // on position alone (matches the behaviour of a non-rotator rig).
+        tracing::info!(
+            "Center: target requests rotation {:.1}° but no rotator is configured; \
+             skipping rotation",
+            target_rotation
+        );
+        return Ok(());
+    };
+
+    tracing::info!(
+        "Center: applying target framing rotation {:.1}° on attempt {}",
+        target_rotation,
+        attempt
+    );
+    if let Some(cb) = progress_callback {
+        cb(96.0, format!("Rotating to {:.1}°", target_rotation));
+    }
+
+    let achieved = rotator_move_to_verified(ctx, rotator_id, target_rotation, |pct, msg| {
+        if let Some(cb) = progress_callback {
+            // Map the rotator's 0-100 progress into the 96-99 tail of the
+            // centering bar so the final "Centered" cb keeps 100.
+            cb(96.0 + (pct / 100.0) * 3.0, msg);
+        }
+    })
+    .await?;
+
+    tracing::info!(
+        "Center: rotator verified at {:.1}° (target {:.1}°)",
+        achieved,
+        target_rotation
+    );
+    Ok(())
 }
 
 /// Calculate separation between two coordinates in arcseconds
@@ -1379,12 +1573,8 @@ pub async fn execute_exposure_with_renderer(
             }
         };
 
-        // Wave 3 Image Grading: derive star count from the star detector
-        // (cheap because the detector ran inside calculate_image_hfr and is
-        // cached) so the grading check can apply the star_count_min floor.
-        // Eccentricity is not yet measured by the existing star detector; left
-        // as `None` until that path is added in a follow-on (the grading
-        // logic treats None as "unknown, don't reject").
+        // Wave 3 Image Grading: derive star count from the star detector so
+        // the grading check can apply the star_count_min floor.
         let measured_star_count = match ctx.device_ops.detect_stars_in_image(&image_data).await {
             Ok(stars) => Some(stars.len() as u32),
             Err(e) => {
@@ -1397,9 +1587,28 @@ pub async fn execute_exposure_with_renderer(
                 None
             }
         };
+
+        // Per-frame eccentricity (0.0 = round, →1.0 = trailed) from the star
+        // shape moments. `None` is honest absence — no stars, or too few
+        // reliable stars to form a stable median — which `grade_frame` treats
+        // as "unknown, don't reject". With stars present this is a real
+        // measurement, so a configured `eccentricity_threshold` now fires.
+        let measured_eccentricity =
+            match ctx.device_ops.measure_frame_eccentricity(&image_data).await {
+                Ok(ecc) => ecc,
+                Err(e) => {
+                    tracing::debug!(
+                        "Frame {}/{} - eccentricity measurement failed for grading: {}",
+                        frame,
+                        config.count,
+                        e
+                    );
+                    None
+                }
+            };
         let metrics = crate::quality::FrameMetrics {
             hfr: measured_hfr,
-            eccentricity: None,
+            eccentricity: measured_eccentricity,
             star_count: measured_star_count,
         };
 
@@ -4083,21 +4292,11 @@ pub async fn execute_rotator_move(
         cb(0.0, format!("Moving to {:.1}", config.target_angle));
     }
 
-    // Normalise an angle into [0, 360).
-    let normalize = |a: f64| -> f64 {
-        let r = a.rem_euclid(360.0);
-        if r.is_finite() {
-            r
-        } else {
-            0.0
-        }
-    };
-
     // Resolve the ABSOLUTE target so we can verify arrival even for a relative
     // move — we must read the current angle BEFORE issuing the move.
     let target_abs = if config.relative {
         match ctx.device_ops.rotator_get_angle(&rotator_id).await {
-            Ok(current) => normalize(current + config.target_angle),
+            Ok(current) => normalize_rotator_angle(current + config.target_angle),
             Err(e) => {
                 return InstructionResult::failure(format!(
                     "Failed to read rotator angle before relative move: {}",
@@ -4106,69 +4305,28 @@ pub async fn execute_rotator_move(
             }
         }
     } else {
-        normalize(config.target_angle)
+        normalize_rotator_angle(config.target_angle)
     };
 
-    let move_result = if config.relative {
-        ctx.device_ops
-            .rotator_move_relative(&rotator_id, config.target_angle)
-            .await
-    } else {
-        ctx.device_ops
-            .rotator_move_to(&rotator_id, config.target_angle)
-            .await
-    };
-    if let Err(e) = move_result {
-        return InstructionResult::failure(format!("Rotator move failed: {}", e));
-    }
-
-    // Poll until the rotator actually REACHES the target angle. The move call
-    // only issues the move on most drivers (ASCOM/Alpaca/INDI return as soon
-    // as the command is accepted), so returning here previously let the next
-    // instruction (e.g. an exposure) start while the camera angle was still
-    // slewing — smearing field rotation across the frame and breaking any
-    // rotation-matched mosaic/flat. Verify arrival within tolerance and fail
-    // closed if it never settles.
-    const ROTATOR_TOLERANCE_DEG: f64 = 1.0;
-    const ROTATOR_TIMEOUT_SECS: f64 = 120.0;
-    const POLL_SECS: f64 = 1.0;
-    let mut elapsed = 0.0_f64;
-    loop {
-        if let Some(result) = ctx.check_cancelled() {
-            return result;
-        }
-        let current = match ctx.device_ops.rotator_get_angle(&rotator_id).await {
-            Ok(a) => a,
-            Err(e) => {
-                return InstructionResult::failure(format!(
-                    "Failed to read rotator angle during move: {}",
-                    e
-                ))
-            }
-        };
-        // Smallest signed angular distance, accounting for the 360° wrap.
-        let diff = (current - target_abs + 540.0).rem_euclid(360.0) - 180.0;
-        if diff.abs() <= ROTATOR_TOLERANCE_DEG {
-            if let Some(cb) = progress_callback {
-                cb(100.0, format!("At {:.1}", current));
-            }
-            return InstructionResult::success_with_message(format!(
-                "Rotator at {:.1} (target {:.1})",
-                current, target_abs
-            ));
-        }
-        if elapsed >= ROTATOR_TIMEOUT_SECS {
-            return InstructionResult::failure(format!(
-                "Rotator did not reach {:.1} within {:.0}s (last {:.1})",
-                target_abs, ROTATOR_TIMEOUT_SECS, current
-            ));
-        }
+    // Move to the absolute target and verify arrival within tolerance (fails
+    // closed on error / timeout). The driver move call only ISSUES the move on
+    // ASCOM/Alpaca/INDI, so without this verify the next instruction (e.g. an
+    // exposure) could start while the camera angle is still slewing — smearing
+    // field rotation across the frame and breaking any rotation-matched
+    // mosaic/flat. Issuing an absolute move (rather than the relative driver
+    // call) keeps the verified-target and the issued-target identical.
+    match rotator_move_to_verified(ctx, &rotator_id, target_abs, |pct, msg| {
         if let Some(cb) = progress_callback {
-            let pct = (elapsed / ROTATOR_TIMEOUT_SECS * 95.0).min(95.0);
-            cb(pct, format!("Moving to {:.1} (at {:.1})", target_abs, current));
+            cb(pct, msg);
         }
-        sleep(Duration::from_secs_f64(POLL_SECS)).await;
-        elapsed += POLL_SECS;
+    })
+    .await
+    {
+        Ok(current) => InstructionResult::success_with_message(format!(
+            "Rotator at {:.1} (target {:.1})",
+            current, target_abs
+        )),
+        Err(result) => result,
     }
 }
 
@@ -5733,14 +5891,58 @@ mod tests {
             .unwrap();
         rt.block_on(async {
             let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+            let pending = Arc::new(AtomicBool::new(false));
             let result = InstructionResult::failure("No camera connected");
-            let status = result.log_and_get_status_with_recovery("Exposure", Some(&tx));
+            let status =
+                result.log_and_get_status_with_recovery("Exposure", Some(&tx), Some(&pending));
 
             assert_eq!(status, NodeStatus::Failure);
+            // The disconnect failure must mark the shared pending flag so the
+            // node-runtime retry wrapper waits for recovery instead of letting
+            // the Failure end the sequence.
+            assert!(
+                pending.load(Ordering::Relaxed),
+                "device-disconnect failure must set the recovery-pending flag"
+            );
             assert_eq!(
                 rx.recv().await,
                 Some(crate::recovery::RecoveryCause::DeviceDisconnected)
             );
         });
+    }
+
+    #[test]
+    fn rotator_angle_diff_handles_360_wrap() {
+        // Shortest signed distance, wrapping at 360.
+        assert!((rotator_angle_diff(10.0, 350.0) - 20.0).abs() < 1e-9);
+        assert!((rotator_angle_diff(350.0, 10.0) - -20.0).abs() < 1e-9);
+        assert!((rotator_angle_diff(0.0, 0.0)).abs() < 1e-9);
+        // 179 vs 181 is a 2° gap (not 358°).
+        assert!((rotator_angle_diff(179.0, 181.0) - -2.0).abs() < 1e-9);
+        // Exactly opposite resolves to -180 (boundary).
+        assert!((rotator_angle_diff(0.0, 180.0) - -180.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn normalize_rotator_angle_wraps_into_unit_circle() {
+        assert!((normalize_rotator_angle(370.0) - 10.0).abs() < 1e-9);
+        assert!((normalize_rotator_angle(-10.0) - 350.0).abs() < 1e-9);
+        assert!((normalize_rotator_angle(0.0)).abs() < 1e-9);
+        // Non-finite collapses to 0 rather than poisoning the move target.
+        assert_eq!(normalize_rotator_angle(f64::NAN), 0.0);
+        assert_eq!(normalize_rotator_angle(f64::INFINITY), 0.0);
+    }
+
+    #[test]
+    fn non_disconnect_failure_does_not_set_recovery_pending() {
+        let pending = Arc::new(AtomicBool::new(false));
+        let result = InstructionResult::failure("Plate solve returned no solution");
+        let status =
+            result.log_and_get_status_with_recovery("Center", None, Some(&pending));
+        assert_eq!(status, NodeStatus::Failure);
+        assert!(
+            !pending.load(Ordering::Relaxed),
+            "a non-disconnect failure must NOT trigger device-disconnect recovery"
+        );
     }
 }

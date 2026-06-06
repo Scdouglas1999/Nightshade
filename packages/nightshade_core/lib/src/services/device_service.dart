@@ -26,6 +26,7 @@ import 'logging_service.dart';
 import 'error_service.dart';
 import 'phd2_launcher.dart';
 import 'phd2_status_poll.dart';
+import 'predictive_af_service.dart';
 import 'switch_channel_service.dart';
 import 'device_service_lifecycle.dart';
 
@@ -154,13 +155,23 @@ class DeviceService {
       backend: _backend,
     );
     _phd2Launcher = Phd2Launcher(ref: _ref);
+    // Construct the heartbeat router first so the reconnect coordinator
+    // can drive the "reconnecting" health indicator through it (the
+    // native HeartbeatReconnecting event is never emitted, so the Dart
+    // side surfaces that state from the reconnect signals it does see).
+    _heartbeat = DeviceHeartbeatRouter(ref: _ref, backend: _backend);
     _reconnectCoordinator = DeviceReconnectCoordinator(
       ref: _ref,
       backend: _backend,
       resumeSequence: resumeSequence,
       pauseSequence: pauseSequence,
+      surfaceReconnecting: (deviceId, {int attempt = 0, int maxAttempts = 0}) =>
+          _heartbeat.surfaceReconnecting(
+        deviceId: deviceId,
+        attempt: attempt,
+        maxAttempts: maxAttempts,
+      ),
     );
-    _heartbeat = DeviceHeartbeatRouter(ref: _ref, backend: _backend);
     _switchChannels = SwitchChannelService(ref: _ref, backend: _backend);
     DeviceServiceLifecycle.register(this);
     _initEventListening();

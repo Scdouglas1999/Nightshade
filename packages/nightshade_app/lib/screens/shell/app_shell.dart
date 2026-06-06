@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -200,12 +199,12 @@ class _AppShellState extends ConsumerState<AppShell> {
           return AlertDialog(
             backgroundColor: colors.surface,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NightshadeTokens.borderRadiusInline8,
               side: BorderSide(color: colors.border),
             ),
             title: Row(
               children: [
-                Icon(LucideIcons.alertTriangle,
+                Icon(NightshadeIcons.warning,
                     size: 22, color: colors.warning),
                 const SizedBox(width: 12),
                 Text(
@@ -222,17 +221,14 @@ class _AppShellState extends ConsumerState<AppShell> {
                   'A previous sequence was interrupted and can be resumed.',
                   style: TextStyle(
                     color: colors.textSecondary,
-                    fontSize: 13,
+                    fontSize: NightshadeTypography.fontSize13,
                   ),
                 ),
                 const SizedBox(height: 16),
-                Container(
+                NightshadeCard(
+                  variant: CardVariant.standard,
+                  borderRadius: NightshadeTokens.radiusInline8,
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: colors.surfaceAlt,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: colors.border),
-                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -286,21 +282,13 @@ class _AppShellState extends ConsumerState<AppShell> {
           width: 80,
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: 12,
-              color: colors.textMuted,
-              fontWeight: FontWeight.w500,
-            ),
+            style: NightshadeTypography.labelSm.copyWith(color: colors.textMuted),
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: TextStyle(
-              fontSize: 12,
-              color: colors.textPrimary,
-              fontWeight: FontWeight.w600,
-            ),
+            style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
           ),
         ),
       ],
@@ -447,11 +435,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     child: Text(
                       l10n.text('disconnectedBanner'),
                       textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onError,
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500,
-                      ),
+                      style: NightshadeTypography.labelQuiet.copyWith(color: Theme.of(context).colorScheme.onError),
                     ),
                   ),
 

@@ -24,7 +24,7 @@ class EquipmentSettingsTab extends ConsumerWidget {
                 height: 180,
                 decoration: BoxDecoration(
                   color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                 ),
               ),
             );
@@ -40,7 +40,7 @@ class EquipmentSettingsTab extends ConsumerWidget {
             Text(
               'Equipment Settings',
               style: TextStyle(
-                fontSize: 20,
+                fontSize: NightshadeTypography.fontSize20,
                 fontWeight: FontWeight.w600,
                 color: colors.textPrimary,
               ),
@@ -80,11 +80,7 @@ class _CameraSettingsCard extends ConsumerWidget {
           children: [
             Text(
               'Camera Settings',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             _SettingRow(
@@ -146,11 +142,7 @@ class _MountSettingsCard extends ConsumerWidget {
           children: [
             Text(
               'Mount Settings',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             NightshadeSwitchRow(
@@ -213,11 +205,7 @@ class _FocuserSettingsCard extends ConsumerWidget {
           children: [
             Text(
               'Focuser Settings',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             Tooltip(
@@ -286,11 +274,7 @@ class _GuiderSettingsCard extends ConsumerWidget {
           children: [
             Text(
               'Guider Settings',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
+              style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
             ),
             const SizedBox(height: 16),
             _SettingRow(
@@ -548,7 +532,7 @@ class _BuiltinGuiderSettingsCardState
         padding: const EdgeInsets.symmetric(vertical: 8),
         child: Text(
           'Failed to load built-in guider config: $_loadError',
-          style: TextStyle(fontSize: 12, color: colors.error),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.error),
         ),
       );
     } else {
@@ -632,18 +616,18 @@ class _BuiltinGuiderSettingsCardState
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: _initialized ? _resetDefaults : null,
-                  icon: const Icon(Icons.refresh, size: 14),
+                  icon: const Icon(NightshadeIcons.refresh, size: 14),
                   label: const Text('Reset',
-                      style: TextStyle(fontSize: 12)),
+                      style: TextStyle(fontSize: NightshadeTypography.fontSize12)),
                 ),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: FilledButton.icon(
                   onPressed: _initialized ? _applyConfig : null,
-                  icon: const Icon(Icons.check, size: 14),
+                  icon: const Icon(NightshadeIcons.check, size: 14),
                   label: const Text('Apply',
-                      style: TextStyle(fontSize: 12)),
+                      style: TextStyle(fontSize: NightshadeTypography.fontSize12)),
                 ),
               ),
             ],
@@ -663,11 +647,7 @@ class _BuiltinGuiderSettingsCardState
                 Expanded(
                   child: Text(
                     'Built-in Guider',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                   ),
                 ),
                 Container(
@@ -675,12 +655,12 @@ class _BuiltinGuiderSettingsCardState
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: NightshadeDecorations.tintedBadge(
                     isConnected ? colors.success : colors.textMuted,
-                    borderRadius: BorderRadius.circular(4),
+                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                   ),
                   child: Text(
                     isConnected ? 'Active' : 'Standby',
                     style: TextStyle(
-                      fontSize: 9,
+                      fontSize: NightshadeTypography.fontSize9,
                       fontWeight: FontWeight.w600,
                       color:
                           isConnected ? colors.success : colors.textSecondary,
@@ -694,7 +674,7 @@ class _BuiltinGuiderSettingsCardState
               'Multi-star software guider that uses the imaging camera and mount '
               'pulse-guide. No second guide camera required.',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 color: colors.textMuted,
               ),
             ),
@@ -705,7 +685,7 @@ class _BuiltinGuiderSettingsCardState
               Text(
                 'Last applied: ${_describeConfig(_lastApplied)}',
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   color: colors.textMuted,
                 ),
                 maxLines: 2,
@@ -741,7 +721,7 @@ Widget _builtinNumberField(
           : <TextInputFormatter>[
               FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]')),
             ],
-      style: const TextStyle(fontSize: 13),
+      style: const TextStyle(fontSize: NightshadeTypography.fontSize13),
       decoration: const InputDecoration(
         isDense: true,
         contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -788,7 +768,7 @@ class _SettingRow extends StatelessWidget {
               Text(
                 label,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   color: colors.textSecondary,
                 ),
               ),
@@ -805,7 +785,7 @@ class _SettingRow extends StatelessWidget {
               child: Text(
                 label,
                 style: TextStyle(
-                  fontSize: 13,
+                  fontSize: NightshadeTypography.fontSize13,
                   color: colors.textSecondary,
                 ),
               ),

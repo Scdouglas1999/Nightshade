@@ -1379,6 +1379,7 @@ typedef struct wire_cst_image_stats_result {
   double median;
   double std_dev;
   double *hfr;
+  double *eccentricity;
   uint32_t star_count;
 } wire_cst_image_stats_result;
 
@@ -2018,6 +2019,7 @@ typedef struct wire_cst_star_detection_result_api {
   double median_hfr;
   double median_fwhm;
   double median_snr;
+  double *median_eccentricity;
   double background;
   double noise;
 } wire_cst_star_detection_result_api;
@@ -3050,6 +3052,9 @@ void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_sky_brightness(int64_t port_,
                                                                                                double *mag);
 
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_weather_verdict(int64_t port_,
+                                                                                                bool *unsafe_override);
+
 void frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_set_camera_binning(int64_t port_,
                                                                                         struct wire_cst_list_prim_u_8_strict *device_id,
                                                                                         int32_t bin_x,
@@ -3972,6 +3977,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_recovery_config);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_reject_folder_path);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_sky_brightness);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_weather_verdict);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__session__api_end_session);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__session__api_get_session_state);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__session__api_start_session);

@@ -178,6 +178,7 @@ mixin _FfiDiscoveryCameraOperations on _FfiBackendBase {
         median: bridgeImage.stats.median,
         stdDev: bridgeImage.stats.stdDev,
         hfr: bridgeImage.stats.hfr,
+        eccentricity: bridgeImage.stats.eccentricity,
         starCount: bridgeImage.stats.starCount,
       ),
       exposureTime: bridgeImage.exposureTime,

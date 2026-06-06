@@ -1,10 +1,18 @@
-// System (mobile) push transport.
+// System (mobile) push transport — the SINGLE systemPush producer.
 //
-// Wraps the existing PushNotificationService so the routing matrix can
-// fire mobile-push for any category. The legacy service has its own
-// enqueue path for events the bridge doesn't classify as critical; we
-// reuse that path so paired phones see notifications via the same
-// WebSocket broadcast they already listen to.
+// Architecture-unification, Subsystem 3 (collapsed): all mobile pushes now
+// flow through this transport. The [NotificationRouter] routes a category to
+// this transport per the routing matrix; this transport then applies the
+// per-event [PushNotificationConfig] toggle, the historical priority, and
+// the per-category event kind, and broadcasts a [PushNotification] via
+// [PushNotificationService] (now a pure broadcaster). Paired phones receive
+// it over the same WebSocket envelope they already listen to.
+//
+// This used to be a thin wrapper that always enqueued a critical push while
+// a parallel PushNotificationService subscription independently classified
+// the raw event stream. That triple feed is gone — the per-category toggle
+// gate and priority that lived on the service's own subscription now live
+// here, so no information is lost in the collapse.
 
 import '../../../models/backend/event_types.dart' as core;
 import '../../../models/notification/notification_categories.dart';
@@ -22,11 +30,10 @@ class SystemPushTransport extends NotificationTransport {
   @override
   String get name => 'Mobile push';
 
-  /// Always configured: the legacy push service is part of the runtime.
-  /// If the user disabled push entirely the legacy service's enabled
-  /// flag swallows the enqueue call, so we still claim configured to
-  /// avoid greying out the test-send button when the user simply hasn't
-  /// reopened settings yet.
+  /// Always configured: the push broadcaster is part of the runtime. If the
+  /// user disabled push entirely the service's master `enabled` flag swallows
+  /// the enqueue, so we still claim configured to avoid greying out the
+  /// test-send button when the user simply hasn't reopened settings yet.
   @override
   bool get isConfigured => true;
 
@@ -36,15 +43,158 @@ class SystemPushTransport extends NotificationTransport {
     required String title,
     required String body,
   }) async {
-    final eventCategory = _mapCategory(category);
-    _service.enqueueCriticalNotification(
+    final spec = _pushSpecFor(category);
+    if (spec == null) {
+      // The matrix routed a category to systemPush that the mobile feed does
+      // not escalate. Treat as a no-op success so the matrix can list
+      // systemPush on the rule without this transport double-guessing intent.
+      return NotificationResult.ok();
+    }
+    if (!spec.enabled(_service.config)) {
+      // Per-event toggle is off — honour it. (The master `enabled` gate is
+      // additionally enforced inside the broadcaster.)
+      return NotificationResult.ok();
+    }
+
+    _service.enqueue(PushNotification(
       title: title,
       body: body,
+      priority: spec.priority,
       eventType: category.storageKey,
-      category: eventCategory,
-    );
+      category: _mapCategory(category),
+      timestamp: DateTime.now(),
+    ));
     return NotificationResult.ok();
   }
+
+  /// Enqueue an EXPLICIT, forced-priority phone push with already-rendered
+  /// copy, bypassing the per-category toggle/priority inference.
+  ///
+  /// Used only by the router's dashboard-bridge path: the Run Dashboard
+  /// escalates `isCriticalEvent` events (some of which — e.g. generic system
+  /// errors / FITS save failures — have no [NotificationCategory] and must
+  /// still page the operator at `critical` priority). The master `enabled`
+  /// gate is still enforced inside [PushNotificationService.enqueue].
+  void enqueueExplicit({
+    required String title,
+    required String body,
+    required String eventType,
+    required core.EventCategory eventCategory,
+    PushNotificationPriority priority = PushNotificationPriority.critical,
+  }) {
+    _service.enqueue(PushNotification(
+      title: title,
+      body: body,
+      priority: priority,
+      eventType: eventType,
+      category: eventCategory,
+      timestamp: DateTime.now(),
+    ));
+  }
+
+  /// Per-category push spec: the toggle gate + priority for each
+  /// [NotificationCategory] this mobile feed escalates. Returns `null` for
+  /// categories the feed intentionally does NOT push (they surface in-app
+  /// only), matching the historical [PushNotificationService] coverage.
+  ///
+  /// Title/body are NOT built here any more — the router renders them from
+  /// the per-category templates before calling [send], so the operator's
+  /// custom templates apply to the phone push too.
+  _PushSpec? _pushSpecFor(NotificationCategory category) {
+    switch (category) {
+      // ----- Critical-by-default categories (priority: critical) -----------
+      // The exactly-once canary pins that every critical category pushes at
+      // `critical` priority through this single producer.
+      case NotificationCategory.sequenceFailed:
+        return _PushSpec(
+          enabled: (c) => c.notifySequenceFailed,
+          priority: PushNotificationPriority.critical,
+        );
+      case NotificationCategory.exposureFailed:
+        return _PushSpec(
+          enabled: (c) => c.notifyExposureFailed,
+          priority: PushNotificationPriority.critical,
+        );
+      case NotificationCategory.guidingLost:
+        return _PushSpec(
+          enabled: (c) => c.notifyGuidingLost,
+          priority: PushNotificationPriority.critical,
+        );
+      case NotificationCategory.weatherUnsafe:
+        return _PushSpec(
+          enabled: (c) => c.notifyWeatherUnsafe,
+          priority: PushNotificationPriority.critical,
+        );
+      case NotificationCategory.autofocusFailed:
+        return _PushSpec(
+          enabled: (c) => c.notifyAutofocusFailed,
+          priority: PushNotificationPriority.critical,
+        );
+      case NotificationCategory.equipmentDisconnected:
+        return _PushSpec(
+          enabled: (c) => c.notifyEquipmentDisconnected,
+          priority: PushNotificationPriority.critical,
+        );
+      case NotificationCategory.recoveryGaveUp:
+      case NotificationCategory.diskSpaceLow:
+        // No dedicated PushNotificationConfig toggle historically; these are
+        // critical-by-default and always escalate when push is enabled.
+        return const _PushSpec(
+          enabled: _always,
+          priority: PushNotificationPriority.critical,
+        );
+
+      // ----- Non-critical categories the feed historically pushed ----------
+      case NotificationCategory.sequenceCompleted:
+        return _PushSpec(
+          enabled: (c) => c.notifySequenceCompleted,
+          priority: PushNotificationPriority.normal,
+        );
+      case NotificationCategory.targetCompleted:
+        return _PushSpec(
+          enabled: (c) => c.notifySequenceCompleted,
+          priority: PushNotificationPriority.low,
+        );
+      case NotificationCategory.meridianFlipPerformed:
+        return _PushSpec(
+          enabled: (c) => c.notifyMeridianFlip,
+          priority: PushNotificationPriority.normal,
+        );
+
+      // ----- Custom (user-defined NotificationNode / forwarded errors) -----
+      // Always allowed when push is enabled; the user explicitly opted a
+      // `custom` notification into systemPush via the matrix, so there is no
+      // separate toggle to consult.
+      case NotificationCategory.custom:
+        return const _PushSpec(
+          enabled: _always,
+          priority: PushNotificationPriority.high,
+        );
+
+      // Categories the mobile push feed intentionally does NOT escalate
+      // (they surface in-app only): sequence start/pause/resume, target
+      // start, frame captured/rejected, trigger fired, recovery
+      // started/recovered, guiding recovered, weather-safe-again, cloud,
+      // autofocus-completed.
+      case NotificationCategory.sequenceStarted:
+      case NotificationCategory.sequencePaused:
+      case NotificationCategory.sequenceResumed:
+      case NotificationCategory.targetStarted:
+      case NotificationCategory.autofocusCompleted:
+      case NotificationCategory.frameCaptured:
+      case NotificationCategory.frameRejected:
+      case NotificationCategory.recoveryStarted:
+      case NotificationCategory.recoveryRecovered:
+      case NotificationCategory.guidingRecovered:
+      case NotificationCategory.weatherSafeAgain:
+      case NotificationCategory.cloudArriving:
+      case NotificationCategory.cloudOpening:
+      case NotificationCategory.triggerFired:
+        return null;
+    }
+  }
+
+  static bool _always(PushNotificationConfig _) => true;
 
   core.EventCategory _mapCategory(NotificationCategory category) {
     switch (category) {
@@ -82,4 +232,16 @@ class SystemPushTransport extends NotificationTransport {
         return core.EventCategory.system;
     }
   }
+}
+
+/// Per-category systemPush spec: which [PushNotificationConfig] toggle gates
+/// it and the priority the phone push carries.
+class _PushSpec {
+  final bool Function(PushNotificationConfig) enabled;
+  final PushNotificationPriority priority;
+
+  const _PushSpec({
+    required this.enabled,
+    required this.priority,
+  });
 }

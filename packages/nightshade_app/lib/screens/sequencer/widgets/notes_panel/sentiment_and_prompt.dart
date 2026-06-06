@@ -22,23 +22,23 @@ class _SentimentPicker extends StatelessWidget {
             padding: const EdgeInsets.only(left: 4),
             child: InkWell(
               onTap: () => onChanged(value == opt ? null : opt),
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               child: Container(
                 padding: const EdgeInsets.all(6),
                 decoration: BoxDecoration(
                   color: value == opt
                       ? NightshadeDecorations.selectedSurface(
                           colors.primary,
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                           fillAlpha: 0.18,
                         ).color
                       : Colors.transparent,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                   border: Border.all(
                     color: value == opt ? colors.primary : colors.border,
                   ),
                 ),
-                child: Text(opt, style: const TextStyle(fontSize: 18)),
+                child: Text(opt, style: const TextStyle(fontSize: NightshadeTypography.fontSize18)),
               ),
             ),
           ),
@@ -79,7 +79,7 @@ class NotesQuickPromptDialog extends ConsumerWidget {
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         side: BorderSide(color: colors.border),
       ),
       child: ConstrainedBox(
@@ -102,7 +102,7 @@ class NotesQuickPromptDialog extends ConsumerWidget {
                     child: Text(
                       'How did this run go?',
                       style: TextStyle(
-                        fontSize: 17,
+                        fontSize: NightshadeTypography.fontSize17,
                         fontWeight: FontWeight.w700,
                         color: colors.textPrimary,
                       ),
@@ -118,7 +118,7 @@ class NotesQuickPromptDialog extends ConsumerWidget {
               const SizedBox(height: 4),
               Text(
                 'A quick note now is worth a long memory later.',
-                style: TextStyle(fontSize: 12, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
               ),
               const SizedBox(height: 14),
               FilledButton.icon(

@@ -170,7 +170,7 @@ class _SciencePhotometryPropertiesState
         Text(
           'Comparison stars for differential photometry. Order does not '
           'matter; the runtime extracts each independently.',
-          style: TextStyle(fontSize: 11, color: colors.textSecondary),
+          style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
         ),
         const SizedBox(height: 8),
         if (node.referenceStars.isEmpty)
@@ -178,7 +178,7 @@ class _SciencePhotometryPropertiesState
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
               border: Border.all(color: colors.border),
             ),
             child: Row(
@@ -190,7 +190,7 @@ class _SciencePhotometryPropertiesState
                   child: Text(
                     'No reference stars configured. Differential '
                     'photometry will fall back to instrumental magnitude only.',
-                    style: TextStyle(fontSize: 11, color: colors.textMuted),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                   ),
                 ),
               ],
@@ -410,7 +410,7 @@ class _SciencePhotometryPropertiesState
         Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             onTap: () =>
                 setState(() => _qualityExpanded = !_qualityExpanded),
             child: Padding(
@@ -428,7 +428,7 @@ class _SciencePhotometryPropertiesState
                   Text(
                     'Quality gates',
                     style: TextStyle(
-                      fontSize: 12,
+                      fontSize: NightshadeTypography.fontSize12,
                       fontWeight: FontWeight.w600,
                       color: colors.textSecondary,
                       letterSpacing: 0.4,
@@ -439,7 +439,7 @@ class _SciencePhotometryPropertiesState
                     '(SNR ≥ ${node.quality.minSnr.toStringAsFixed(0)}, '
                     'FWHM ≤ ${node.quality.maxFwhmArcsec.toStringAsFixed(1)}", '
                     'airmass ≤ ${node.quality.maxAirmass.toStringAsFixed(2)})',
-                    style: TextStyle(fontSize: 11, color: colors.textMuted),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                   ),
                 ],
               ),
@@ -537,7 +537,7 @@ class _SciencePhotometryPropertiesState
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: NightshadeDecorations.emphasisSurface(
               colors.warning,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             ),
             child: Row(
               children: [
@@ -548,11 +548,7 @@ class _SciencePhotometryPropertiesState
                   child: Text(
                     'Negative cadence gap is impossible — the executor '
                     'will reject this node at validation.',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colors.warning,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: NightshadeTypography.labelStrongSm.copyWith(color: colors.warning),
                   ),
                 ),
               ],
@@ -572,7 +568,7 @@ class _SciencePhotometryPropertiesState
       child: Text(
         label.toUpperCase(),
         style: TextStyle(
-          fontSize: 11,
+          fontSize: NightshadeTypography.fontSize11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.6,
           color: colors.textMuted,

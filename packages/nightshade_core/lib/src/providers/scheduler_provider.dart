@@ -12,6 +12,7 @@ import '../models/planning/project.dart';
 import '../models/sequence/sequence_models.dart';
 import '../services/planning/project_service.dart'
     show projectTargetsProjectIndexSql, projectTargetsSchemaSql, projectsSchemaSql;
+import '../services/safe_rig_service.dart';
 import '../services/scheduler/horizon_profile.dart';
 import '../services/scheduler/integration_goal_service.dart';
 import '../services/scheduler/scheduler_engine.dart';
@@ -89,8 +90,22 @@ SchedulerTriggerEvent? _mapEventToTrigger(NightshadeEvent event) {
         }
       }
       return null;
-    case EventCategory.imaging:
     case EventCategory.sequencer:
+      // A natural whole-sequence completion means the autopilot's dispatched
+      // work for the current target finished. Without reacting, the rig sits
+      // idle until the next periodic tick (and never re-dispatches a
+      // still-eligible target held by hysteresis). Match the precise
+      // SequencerEvent_Completed type only: SequencerEvent_Stopped is the
+      // scheduler's OWN stop when switching targets (reacting to it would make
+      // a dispatch feedback loop), and Node/Target/ExposureCompleted are
+      // sub-events, not the end of the run.
+      final payload = event.payload;
+      if (payload is EventPayload_Sequencer &&
+          payload.field0 is SequencerEvent_Completed) {
+        return SchedulerTriggerEvent.sequenceCompleted;
+      }
+      return null;
+    case EventCategory.imaging:
     case EventCategory.system:
     case EventCategory.polarAlignment:
       return null;
@@ -133,6 +148,29 @@ class _ExecutorSequenceSink implements SchedulerSequenceSink {
   Future<void> stopSequence() async {
     final executor = _ref.read(sequenceExecutorProvider);
     await executor.stop();
+  }
+
+  @override
+  Future<void> parkForEndOfNight() async {
+    // End of night: park the mount so it stops tracking into the ground at
+    // dawn, and notify the operator. We route through the shared
+    // SafeRigService so this uses the same fail-closed, loudly-erroring park
+    // path as the weather and low-disk watchdogs (pause sequence -> park mount,
+    // with a CRITICAL notification summarizing what happened). We intentionally
+    // do NOT close the dome/cover here: end-of-night is not a weather event,
+    // and the operator's morning flats workflow may still need the optics open.
+    //
+    // SafeRigService throws a SafeRigException when a step fails (after
+    // attempting every step). Errors are a feature — let it propagate to the
+    // engine's evaluation lifecycle so a failed dawn-park surfaces loudly
+    // rather than leaving the mount silently tracking past sunrise.
+    final safeRig = _ref.read(safeRigServiceProvider);
+    await safeRig.safeTheRig(
+      reason: 'End of observing night — parking the mount',
+      park: true,
+      closeDome: false,
+      closeCover: false,
+    );
   }
 }
 
@@ -503,6 +541,43 @@ class CurrentSchedulerDecisionNotifier
     super.dispose();
   }
 }
+
+/// Read-only PREVIEW of what the live autopilot would run right now.
+///
+/// This is the single source of truth for the Planner's "what will run
+/// tonight" headline: it runs the SchedulerEngine's pure, side-effect-free
+/// [SchedulerEngine.previewDecision] over the SAME candidate set the autopilot
+/// scores (goals / constraints / horizon / filters / scheduled windows /
+/// active-project scope), at the engine's current clock and hysteresis state.
+/// By construction the target the human sees here is the target the rig will
+/// slew to — no competing scorer.
+///
+/// It does NOT dispatch, park, or mutate engine status. It re-runs whenever
+/// the engine's last decision changes (so it stays in step with live ticks and
+/// trigger-driven re-evaluations) and whenever a candidate input changes; the
+/// auto-reeval listeners that poke the engine cover the underlying data edits.
+final schedulerPreviewDecisionProvider =
+    FutureProvider.autoDispose<SchedulerDecision>((ref) async {
+  final engine = ref.watch(schedulerEngineProvider);
+  final clock = ref.watch(clockProvider);
+  // Re-derive the preview each time the autopilot publishes a fresh decision
+  // so the read-only view tracks live evaluation. Watching the decision (not
+  // just reading it once) keeps the headline current after ticks/triggers.
+  ref.watch(currentSchedulerDecisionProvider);
+  return engine.previewDecision(clock.now());
+});
+
+/// Read-only ranked candidate list (best-first, eligible only) the autopilot
+/// would consider right now — the headline ordering for the Planner. Shares
+/// the preview decision's inputs and side-effect-free guarantee; the first
+/// entry equals [schedulerPreviewDecisionProvider]'s chosen target.
+final schedulerPreviewRankingProvider =
+    FutureProvider.autoDispose<List<TargetScore>>((ref) async {
+  final engine = ref.watch(schedulerEngineProvider);
+  final clock = ref.watch(clockProvider);
+  ref.watch(currentSchedulerDecisionProvider);
+  return engine.previewRanking(clock.now());
+});
 
 /// Quick-access provider for the list of all integration goals (refreshes
 /// when the operator edits them).

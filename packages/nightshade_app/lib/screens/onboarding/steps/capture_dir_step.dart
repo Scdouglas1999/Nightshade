@@ -107,19 +107,16 @@ class _OnboardingCaptureDirStepState
           ),
         ),
         const SizedBox(height: 16),
-        Container(
+        NightshadeCard(
+          variant: CardVariant.subtle,
+          borderRadius: NightshadeTokens.radiusLg,
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: colors.border),
-          ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(LucideIcons.folder,
+                  Icon(NightshadeIcons.folder,
                       color: colors.primary, size: 18),
                   const SizedBox(width: 8),
                   Expanded(
@@ -135,7 +132,7 @@ class _OnboardingCaptureDirStepState
                   ),
                   const SizedBox(width: 8),
                   NightshadeButton(
-                    icon: LucideIcons.folderOpen,
+                    icon: NightshadeIcons.folderOpen,
                     label: 'Browse',
                     variant: ButtonVariant.outline,
                     size: ButtonSize.small,
@@ -169,7 +166,7 @@ class _OnboardingCaptureDirStepState
                 const SizedBox(height: 10),
                 Row(
                   children: [
-                    Icon(LucideIcons.alertTriangle,
+                    Icon(NightshadeIcons.warning,
                         size: 16, color: colors.error),
                     const SizedBox(width: 8),
                     Expanded(

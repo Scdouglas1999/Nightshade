@@ -102,7 +102,7 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
       backgroundColor: colors.surface,
       title: Row(
         children: [
-          Icon(Icons.power, color: colors.primary, size: 24),
+          Icon(NightshadeIcons.power, color: colors.primary, size: 24),
           const SizedBox(width: 12),
           Text(
             'INDI Server Configuration',
@@ -121,19 +121,19 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
               padding: const EdgeInsets.all(12),
               decoration: NightshadeDecorations.emphasisSurface(
                 colors.primary,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline, color: colors.primary, size: 16),
+                  Icon(NightshadeIcons.info, color: colors.primary, size: 16),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
                       'INDI (Instrument Neutral Distributed Interface) provides '
                       'cross-platform access to astronomical equipment on Linux and macOS.',
                       style: TextStyle(
-                        fontSize: 11,
+                        fontSize: NightshadeTypography.fontSize11,
                         color: colors.textSecondary,
                       ),
                     ),
@@ -189,7 +189,7 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
               width: double.infinity,
               child: NightshadeButton(
                 onPressed: _testConnection,
-                icon: Icons.cloud_sync,
+                icon: NightshadeIcons.refresh,
                 label: _isConnecting ? 'Testing...' : 'Test Connection',
                 variant: ButtonVariant.outline,
                 isLoading: _isConnecting,
@@ -205,14 +205,14 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
                   (_connectionSuccess ?? false)
                       ? colors.success
                       : colors.error,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
                 ),
                 child: Row(
                   children: [
                     Icon(
                       (_connectionSuccess ?? false)
-                          ? Icons.check_circle
-                          : Icons.error,
+                          ? NightshadeIcons.success
+                          : NightshadeIcons.error,
                       size: 16,
                       color: (_connectionSuccess ?? false)
                           ? colors.success
@@ -223,7 +223,7 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
                       child: Text(
                         _statusMessage!,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: colors.textSecondary,
                         ),
                       ),

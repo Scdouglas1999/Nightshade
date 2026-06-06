@@ -74,18 +74,14 @@ class _PluginInstructionPropertiesState
       children: [
         Text(
           'Plugin Settings',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(color: colors.border),
           ),
           child: Column(
@@ -98,11 +94,7 @@ class _PluginInstructionPropertiesState
                   Expanded(
                     child: Text(
                       node.pluginName.isEmpty ? node.pluginId : node.pluginName,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
                     ),
                   ),
                 ],
@@ -110,7 +102,7 @@ class _PluginInstructionPropertiesState
               const SizedBox(height: 4),
               Text(
                 node.nodeTypeId,
-                style: TextStyle(fontSize: 11, color: colors.textMuted),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
               ),
             ],
           ),
@@ -139,7 +131,7 @@ class _PluginInstructionPropertiesState
                 Expanded(
                   child: Text(
                     _jsonError!,
-                    style: TextStyle(fontSize: 11, color: colors.error),
+                    style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.error),
                   ),
                 ),
               ],

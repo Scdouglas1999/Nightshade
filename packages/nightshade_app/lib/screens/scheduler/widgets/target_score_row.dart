@@ -39,7 +39,7 @@ class TargetScoreRow extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
         child: Container(
           padding: const EdgeInsets.symmetric(
             horizontal: NightshadeTokens.spaceLg,
@@ -49,7 +49,7 @@ class TargetScoreRow extends StatelessWidget {
             color: isCurrent
                 ? colors.primary.withValues(alpha: 0.08)
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
             border: Border.all(
               color: isCurrent
                   ? colors.primary.withValues(alpha: 0.35)
@@ -88,9 +88,7 @@ class TargetScoreRow extends StatelessWidget {
                   children: [
                     Text(
                       score.targetName,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
+                      style: NightshadeTypography.h5.copyWith(
                         color: eligible ? colors.textPrimary : colors.textMuted,
                       ),
                       overflow: TextOverflow.ellipsis,
@@ -101,7 +99,7 @@ class TargetScoreRow extends StatelessWidget {
                       Text(
                         score.rejectionReasons.first,
                         style: TextStyle(
-                          fontSize: 11,
+                          fontSize: NightshadeTypography.fontSize11,
                           color: colors.error,
                         ),
                         overflow: TextOverflow.ellipsis,
@@ -119,7 +117,7 @@ class TargetScoreRow extends StatelessWidget {
                   score.totalScore.toStringAsFixed(3),
                   textAlign: TextAlign.right,
                   style: TextStyle(
-                    fontSize: 14,
+                    fontSize: NightshadeTypography.fontSize14,
                     fontWeight: FontWeight.w600,
                     color: eligible ? colors.textPrimary : colors.textMuted,
                     fontFeatures: const [FontFeature.tabularFigures()],
@@ -212,13 +210,13 @@ class _StatusPill extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: color.withValues(alpha: 0.40)),
       ),
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: NightshadeTypography.fontSize11,
           fontWeight: FontWeight.w600,
           color: color,
           letterSpacing: 0.2,
@@ -241,7 +239,7 @@ class _GoalSummary extends StatelessWidget {
     if (progress.isEmpty) {
       return Text(
         'No integration goals',
-        style: TextStyle(fontSize: 12, color: colors.textMuted),
+        style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
       );
     }
     return Wrap(
@@ -255,7 +253,7 @@ class _GoalSummary extends StatelessWidget {
               color: p.isComplete
                   ? colors.success.withValues(alpha: 0.12)
                   : colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
               border: Border.all(
                 color: p.isComplete
                     ? colors.success.withValues(alpha: 0.4)
@@ -265,7 +263,7 @@ class _GoalSummary extends StatelessWidget {
             child: Text(
               '${p.goal.filter} ${p.capturedCount}/${p.goal.frameCount}',
               style: TextStyle(
-                fontSize: 11,
+                fontSize: NightshadeTypography.fontSize11,
                 fontWeight: FontWeight.w600,
                 color: p.isComplete ? colors.success : colors.textSecondary,
                 fontFeatures: const [FontFeature.tabularFigures()],

@@ -40,7 +40,7 @@ class ParallelProperties extends ConsumerWidget {
           padding: const EdgeInsets.all(12),
           decoration: NightshadeDecorations.tintedBadge(
             colors.info,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,

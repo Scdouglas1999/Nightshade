@@ -129,7 +129,7 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
                     message: 'Collapse panel',
                     child: InkWell(
                       onTap: widget.onCollapse,
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
                       child: Padding(
                         padding: const EdgeInsets.all(4),
                         child: Icon(

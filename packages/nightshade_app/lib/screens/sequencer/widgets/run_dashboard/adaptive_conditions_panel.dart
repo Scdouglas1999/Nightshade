@@ -50,7 +50,7 @@ class RunDashboardAdaptiveConditionsPanel extends ConsumerWidget {
           statusColor: colors.error,
           child: Text(
             error.toString(),
-            style: TextStyle(fontSize: 11, color: colors.error),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.error),
           ),
         ),
         data: (snapshot) => _SnapshotBody(colors: colors, snapshot: snapshot),
@@ -99,7 +99,7 @@ class _SnapshotBody extends StatelessWidget {
             const SizedBox(height: NightshadeTokens.spaceSm),
             Text(
               state!.lastDecisionReason!,
-              style: TextStyle(fontSize: 11, color: colors.textSecondary),
+              style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textSecondary),
             ),
           ],
           const SizedBox(height: NightshadeTokens.spaceXs),
@@ -249,7 +249,7 @@ class _Shell extends StatelessWidget {
               child: Text(
                 'ADAPTIVE CONDITIONS',
                 style: TextStyle(
-                  fontSize: 11,
+                  fontSize: NightshadeTypography.fontSize11,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.6,
                   color: colors.textMuted,
@@ -267,7 +267,7 @@ class _Shell extends StatelessWidget {
               child: Text(
                 statusLabel,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: NightshadeTypography.fontSize10,
                   fontWeight: FontWeight.w700,
                   color: statusColor,
                   letterSpacing: 0.4,
@@ -312,7 +312,7 @@ class _ScoreLine extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 5),
               child: Text(
                 value == null ? 'No score' : s!.qualityLabel,
-                style: TextStyle(fontSize: 12, color: colors.textSecondary),
+                style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
               ),
             ),
           ],
@@ -406,7 +406,7 @@ class _InfoRow extends StatelessWidget {
         Expanded(
           child: Text(
             label,
-            style: TextStyle(fontSize: 11, color: colors.textMuted),
+            style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
           ),
         ),
         const SizedBox(width: NightshadeTokens.spaceMd),

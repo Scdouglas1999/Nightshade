@@ -16,11 +16,7 @@ class _ScriptProperties extends ConsumerWidget {
       children: [
         Text(
           'Script Settings',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(
@@ -75,7 +71,7 @@ class _ScriptProperties extends ConsumerWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: colors.warning.withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -86,7 +82,7 @@ class _ScriptProperties extends ConsumerWidget {
                 child: Text(
                   'Scripts run with sequence context variables available as environment variables',
                   style: TextStyle(
-                    fontSize: 11,
+                    fontSize: NightshadeTypography.fontSize11,
                     color: colors.warning,
                   ),
                 ),
@@ -123,13 +119,9 @@ class _SimpleInstructionInfo extends StatelessWidget {
       icon = LucideIcons.settings;
     }
 
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colors.border),
-      ),
+      borderRadius: NightshadeTokens.radiusLg,
       child: Column(
         children: [
           Icon(icon, size: 32, color: colors.primary),
@@ -138,7 +130,7 @@ class _SimpleInstructionInfo extends StatelessWidget {
             description,
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
               height: 1.5,
             ),
@@ -187,11 +179,7 @@ class _DomeProperties extends ConsumerWidget {
       children: [
         Text(
           title,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         _PropertyField(
@@ -222,19 +210,15 @@ class _DomeProperties extends ConsumerWidget {
               ? 'Only operates the shutter, dome will not rotate'
               : 'Will operate both shutter and dome rotation',
           style: TextStyle(
-            fontSize: 11,
+            fontSize: NightshadeTypography.fontSize11,
             color: colors.textMuted,
             fontStyle: FontStyle.italic,
           ),
         ),
         const SizedBox(height: 16),
-        Container(
+        NightshadeCard(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: colors.border),
-          ),
+          borderRadius: NightshadeTokens.radiusLg,
           child: Column(
             children: [
               Icon(icon, size: 32, color: colors.primary),
@@ -243,7 +227,7 @@ class _DomeProperties extends ConsumerWidget {
                 description,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textSecondary,
                   height: 1.5,
                 ),
@@ -277,7 +261,7 @@ class _UnknownNodeProperties extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.warning.withValues(alpha: 0.08),
         border: Border.all(color: colors.warning.withValues(alpha: 0.4)),
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -290,17 +274,16 @@ class _UnknownNodeProperties extends StatelessWidget {
               children: [
                 Text(
                   'No property editor for $typeName',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colors.warning,
-                  ),
+                  style:
+                      NightshadeTypography.h6.copyWith(color: colors.warning),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   'This node will still run with its current values, but you cannot edit them here. '
                   'Save and re-load to keep its state; report this if you expected an editor.',
-                  style: TextStyle(fontSize: 11, color: colors.textSecondary),
+                  style: TextStyle(
+                      fontSize: NightshadeTypography.fontSize11,
+                      color: colors.textSecondary),
                 ),
               ],
             ),
@@ -413,18 +396,17 @@ class _CalibratorOnProperties extends ConsumerWidget {
                     child: Text(
                       '${node.brightness}',
                       textAlign: TextAlign.right,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                      style: NightshadeTypography.labelStrong
+                          .copyWith(color: colors.textPrimary),
                     ),
                   ),
                 ],
               ),
               Text(
                 '0 = off, 255 = maximum brightness',
-                style: TextStyle(fontSize: 11, color: colors.textMuted),
+                style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize11,
+                    color: colors.textMuted),
               ),
             ],
           ),
@@ -499,22 +481,14 @@ class _CoverCalibratorScaffold extends StatelessWidget {
       children: [
         Text(
           title,
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
         const SizedBox(height: 12),
         ...children,
         const SizedBox(height: 16),
-        Container(
+        NightshadeCard(
           padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: colors.border),
-          ),
+          borderRadius: NightshadeTokens.radiusLg,
           child: Column(
             children: [
               Icon(icon, size: 32, color: colors.primary),
@@ -523,7 +497,7 @@ class _CoverCalibratorScaffold extends StatelessWidget {
                 description,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: NightshadeTypography.fontSize12,
                   color: colors.textSecondary,
                   height: 1.5,
                 ),
@@ -576,13 +550,9 @@ class _InstructionSetInfo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return NightshadeCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colors.border),
-      ),
+      borderRadius: NightshadeTokens.radiusLg,
       child: Column(
         children: [
           Icon(LucideIcons.listTree, size: 32, color: colors.accent),
@@ -591,7 +561,7 @@ class _InstructionSetInfo extends StatelessWidget {
             'Container for sequential instructions. All children execute in order from top to bottom.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTypography.fontSize12,
               color: colors.textSecondary,
               height: 1.5,
             ),
@@ -600,7 +570,7 @@ class _InstructionSetInfo extends StatelessWidget {
           Text(
             '${node.childIds.length} children',
             style: TextStyle(
-              fontSize: 11,
+              fontSize: NightshadeTypography.fontSize11,
               color: colors.textMuted,
             ),
           ),

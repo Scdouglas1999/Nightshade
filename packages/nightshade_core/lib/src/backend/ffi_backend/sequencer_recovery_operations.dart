@@ -252,6 +252,17 @@ mixin _FfiSequencerRecoveryOperations on _FfiBackendBase {
   }
 
   @override
+  Future<void> sequencerUpdateWeatherVerdict({bool? unsafeOverride}) async {
+    // Full-night audit 2026-06-04 (defense-in-depth) — push the Dart-side
+    // weather-safety verdict into the Rust trigger state so the in-sequencer
+    // WeatherUnsafe trigger reacts even on rigs without a hardware safety
+    // device. Folded OR-of-unsafe with the hardware reading (never less safe).
+    await bridge_api.apiSequencerUpdateWeatherVerdict(
+      unsafeOverride: unsafeOverride,
+    );
+  }
+
+  @override
   Future<String?> sequencerGetCloudMotionJson() async {
     // Wave 5 Agent 4 — JSON-serialised cloud-motion snapshot for the run
     // dashboard. Returns null until the first push has been received.
