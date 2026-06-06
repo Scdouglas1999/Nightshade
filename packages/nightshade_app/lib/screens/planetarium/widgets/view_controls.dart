@@ -130,6 +130,25 @@ class ViewControls extends ConsumerWidget {
               );
             },
           ),
+          const SizedBox(height: 4),
+          // Planning overlays toggle: altitude track + meridian-flip marker for
+          // the selected target, plus the twilight (dusk/dawn) indicator.
+          Consumer(
+            builder: (context, ref, _) {
+              final config = ref.watch(skyRenderConfigProvider);
+              return ViewControlButton(
+                icon: NightshadeIcons.chart,
+                isActive: config.showPlanningOverlays,
+                onTap: () {
+                  ref
+                      .read(skyRenderConfigProvider.notifier)
+                      .togglePlanningOverlays();
+                },
+                tooltip: 'Toggle planning overlays (altitude track, '
+                    'meridian flip, twilight)',
+              );
+            },
+          ),
           const Divider(height: 16, color: Colors.white24),
           // Compass HUD toggle - wrapped in Consumer to scope rebuilds
           Consumer(

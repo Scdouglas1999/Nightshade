@@ -126,6 +126,10 @@ class SkyRenderConfigNotifier extends StateNotifier<SkyRenderConfig> {
   void toggleConstellationArt() {
     state = state.copyWith(showConstellationArt: !state.showConstellationArt);
   }
+
+  void togglePlanningOverlays() {
+    state = state.copyWith(showPlanningOverlays: !state.showPlanningOverlays);
+  }
 }
 
 final skyRenderConfigProvider =

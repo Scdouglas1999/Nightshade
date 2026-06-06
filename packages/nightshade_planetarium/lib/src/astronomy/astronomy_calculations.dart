@@ -1133,6 +1133,65 @@ class AstronomyCalculations {
   }
 
   // ============================================================================
+  // Meridian / Meridian-Flip Geometry
+  // ============================================================================
+
+  /// Hour angle of a target (degrees) for the given instant and location.
+  ///
+  /// HA = LST - RA, normalised to (-180, 180]. Negative means the target is
+  /// east of the local meridian (rising side); positive means west (setting
+  /// side); zero is the meridian transit. This is the quantity a German
+  /// equatorial mount uses to decide which side of the pier it must sit on, so
+  /// it is the geometric basis of the meridian-flip marker.
+  static double hourAngleDeg({
+    required double raDeg,
+    required DateTime dt,
+    required double longitudeDeg,
+  }) {
+    final lst = localSiderealTime(dt, longitudeDeg);
+    var ha = lst * 15 - raDeg;
+    ha = ha % 360;
+    if (ha > 180) ha -= 360;
+    if (ha <= -180) ha += 360;
+    return ha;
+  }
+
+  /// The meridian-flip window for a target on the local day of [date].
+  ///
+  /// The flip itself happens at the target's meridian transit (hour angle 0),
+  /// which is exactly the transit returned by [calculateObjectVisibility]. A
+  /// real GEM is usually allowed to track a little past the meridian before the
+  /// flip is forced; [pastMeridianMinutes] expresses that limit as the latest
+  /// time imaging can continue on the east side before the flip is required.
+  ///
+  /// Returns null when the target never transits on this day (never rises), so
+  /// callers can skip the marker entirely rather than draw a meaningless one.
+  static MeridianFlipWindow? calculateMeridianFlip({
+    required double raDeg,
+    required double decDeg,
+    required DateTime date,
+    required double latitudeDeg,
+    required double longitudeDeg,
+    double pastMeridianMinutes = 0,
+  }) {
+    final visibility = calculateObjectVisibility(
+      raDeg: raDeg,
+      decDeg: decDeg,
+      date: date,
+      latitudeDeg: latitudeDeg,
+      longitudeDeg: longitudeDeg,
+    );
+    final transit = visibility.transitTime;
+    if (transit == null) return null;
+    return MeridianFlipWindow(
+      transitTime: transit,
+      flipDeadline:
+          transit.add(Duration(minutes: pastMeridianMinutes.round())),
+      transitAltitude: visibility.transitAltitude,
+    );
+  }
+
+  // ============================================================================
   // Airmass Calculation
   // ============================================================================
 
@@ -1212,6 +1271,24 @@ class MoonTimes {
     this.moonset,
     required this.illumination,
     required this.phaseName,
+  });
+}
+
+/// Meridian-flip planning window for a target.
+///
+/// [transitTime] is the instant the target crosses the local meridian (hour
+/// angle 0) — the moment a German equatorial mount must flip. [flipDeadline]
+/// is the latest time tracking may continue past the meridian before the flip
+/// is forced (equal to [transitTime] when no past-meridian limit is given).
+class MeridianFlipWindow {
+  final DateTime transitTime;
+  final DateTime flipDeadline;
+  final double? transitAltitude;
+
+  const MeridianFlipWindow({
+    required this.transitTime,
+    required this.flipDeadline,
+    this.transitAltitude,
   });
 }
 

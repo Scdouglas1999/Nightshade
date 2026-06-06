@@ -59,6 +59,13 @@ class SkyRenderConfig {
   final bool showVariableStars;
   final bool showMinorPlanets;
   final bool showConstellationArt;
+
+  /// Whether to draw the selected target's planning overlays directly on the
+  /// sky: its altitude track for tonight, the meridian-flip / transit marker,
+  /// and the twilight (dusk/dawn) indicator. These are target-specific aids for
+  /// session planning, drawn on the animated overlay layer. Off by default.
+  final bool showPlanningOverlays;
+
   final Color groundColorDark;
   final Color groundColorLight;
   final Color horizonGlowColor;
@@ -97,6 +104,7 @@ class SkyRenderConfig {
     this.showVariableStars = false,
     this.showMinorPlanets = false,
     this.showConstellationArt = false,
+    this.showPlanningOverlays = false,
     this.groundColorDark = const Color(0xFF0A0805),
     this.groundColorLight = const Color(0xFF1A1510),
     this.horizonGlowColor = const Color(0xFF2A2015),
@@ -136,6 +144,7 @@ class SkyRenderConfig {
     bool? showVariableStars,
     bool? showMinorPlanets,
     bool? showConstellationArt,
+    bool? showPlanningOverlays,
     Color? groundColorDark,
     Color? groundColorLight,
     Color? horizonGlowColor,
@@ -178,6 +187,7 @@ class SkyRenderConfig {
       showVariableStars: showVariableStars ?? this.showVariableStars,
       showMinorPlanets: showMinorPlanets ?? this.showMinorPlanets,
       showConstellationArt: showConstellationArt ?? this.showConstellationArt,
+      showPlanningOverlays: showPlanningOverlays ?? this.showPlanningOverlays,
       groundColorDark: groundColorDark ?? this.groundColorDark,
       groundColorLight: groundColorLight ?? this.groundColorLight,
       horizonGlowColor: horizonGlowColor ?? this.horizonGlowColor,

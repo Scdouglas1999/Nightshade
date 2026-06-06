@@ -25,6 +25,7 @@ part 'sky_renderer/coordinate_layers.dart';
 part 'sky_renderer/horizon_layers.dart';
 part 'sky_renderer/constellation_layers.dart';
 part 'sky_renderer/solar_system_and_markers.dart';
+part 'sky_renderer/planning_overlays.dart';
 part 'sky_renderer/stellar_objects.dart';
 part 'sky_renderer/render_models.dart';
 part 'sky_renderer/render_cache.dart';

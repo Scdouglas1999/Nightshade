@@ -235,6 +235,16 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
     if (_drawOverlay && selectedObject != null) {
       _drawSelectionMarker(canvas, center, scale, selectedObject!);
     }
+
+    // Draw target planning overlays (altitude track + meridian-flip marker for
+    // the selected target, plus the twilight indicator). Overlay layer so they
+    // ride along with the selection without forcing a base repaint.
+    if (_drawOverlay && config.showPlanningOverlays) {
+      _drawTwilightIndicator(canvas, size);
+      if (selectedObject != null) {
+        _drawTargetPlanningTrack(canvas, size, center, scale);
+      }
+    }
     if (doTiming) {
       markerUs = sw!.elapsedMicroseconds;
       sw.stop();
@@ -334,6 +344,13 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
             selectedObject != oldDelegate.selectedObject ||
             highlightedObject != oldDelegate.highlightedObject ||
             !identical(stars, oldDelegate.stars)) {
+          return true;
+        }
+        // The planning overlays carry a wall-clock "now" marker on the twilight
+        // gauge and altitude track, so when they are on the overlay must also
+        // repaint as the observation minute advances.
+        if (config.showPlanningOverlays &&
+            observationTime.minute != oldDelegate.observationTime.minute) {
           return true;
         }
         return _overlayAnimationChanged(oldDelegate);
