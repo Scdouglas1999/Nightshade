@@ -1223,7 +1223,7 @@ mod tests {
         // must land closer to the true signal than a plain (Reject::None) mean.
         let n = 25;
         let signal = 800.0;
-        let mut lcg = Lcg(0xC0FF_EE);
+        let mut lcg = Lcg(0x00C0_FFEE);
         let mut bufs: Vec<Vec<f64>> = (0..n)
             .map(|_| vec![signal + lcg.next_gauss() * 20.0])
             .collect();
