@@ -22,6 +22,13 @@ const Size kBenchmarkCanvasSize = Size(1280, 800);
 /// Dense stars to a deep limit, many DSOs + labels, all grids, ecliptic,
 /// galactic plane, meridian, Milky Way band, constellation lines + art, horizon
 /// and ground plane.
+///
+/// [showPlanningOverlays] is on so the post-feature scene exercises the
+/// session-planning render path that the accurate body-aware astronomy feeds:
+/// the twilight (dusk/dawn) band gauge is drawn every frame from the observer
+/// site + time (no selected target needed, so it is deterministic in this
+/// headless scene). This is the realistic dense planning view a user actually
+/// composes a night against, so the optimization loop must defend it.
 const SkyRenderConfig kStressRenderConfig = SkyRenderConfig(
   showStars: true,
   showConstellationLines: true,
@@ -44,6 +51,7 @@ const SkyRenderConfig kStressRenderConfig = SkyRenderConfig(
   showGroundPlane: true,
   showMeridian: true,
   showConstellationArt: true,
+  showPlanningOverlays: true,
   starMagnitudeLimit: 13.0,
   dsoMagnitudeLimit: 13.0,
 );
@@ -53,13 +61,17 @@ const SkyRenderConfig kStressRenderConfig = SkyRenderConfig(
 /// extras, matching what users actually see.
 const RenderQualityConfig kBenchmarkQuality = RenderQualityConfig.balanced();
 
-/// At least one FOV overlay, per the stress-scene requirement. A camera
-/// rectangle plus Telrad rings — drawn by [FOVOverlayPainter] on top of the sky.
+/// The FOV overlay preset for the planning view, per the stress-scene
+/// requirement. A realistic multi-indicator rig that exercises every glyph
+/// branch of [FOVOverlayPainter]: a *rotated* camera sensor rectangle (corner
+/// brackets + crosshair + rotation path), the concentric Telrad rings, and an
+/// eyepiece circle. A user framing a target overlays exactly this kind of stack.
 const List<FOVIndicator> kBenchmarkFovIndicators = [
   FOVIndicator(
     type: FOVType.sensorRectangle,
     widthDegrees: 1.5,
     heightDegrees: 1.0,
+    rotation: 18.0,
     label: 'Camera',
   ),
   FOVIndicator(
@@ -67,6 +79,12 @@ const List<FOVIndicator> kBenchmarkFovIndicators = [
     widthDegrees: 4.0,
     heightDegrees: 4.0,
     label: 'Telrad',
+  ),
+  FOVIndicator(
+    type: FOVType.eyepieceCircle,
+    widthDegrees: 0.75,
+    heightDegrees: 0.75,
+    label: 'Eyepiece',
   ),
 ];
 
