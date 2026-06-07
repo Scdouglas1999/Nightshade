@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 688797454;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 885412650;
 
 // Section: executor
 
@@ -154,6 +154,27 @@ fn wire__crate__api__sequencer__api_broadcast_get_active_impl(
                     Result::<_, ()>::Ok(crate::api::sequencer::api_broadcast_get_active())?;
                 Ok(output_ok)
             })())
+        },
+    )
+}
+fn wire__crate__api__post_session__api_build_master_flat_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_build_master_flat",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok = crate::api::post_session::api_build_master_flat(api_args_json)?;
+                    Ok(output_ok)
+                })())
+            }
         },
     )
 }
@@ -4123,6 +4144,27 @@ fn wire__crate__api__init__api_init_with_logging_impl(
         },
     )
 }
+fn wire__crate__api__post_session__api_integrate_session_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_integrate_session",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok = crate::api::post_session::api_integrate_session(api_args_json)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__api_invalidate_discovery_cache_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
@@ -4333,6 +4375,27 @@ fn wire__crate__api__storage__api_load_profile_impl(
                     })()
                     .await,
                 )
+            }
+        },
+    )
+}
+fn wire__crate__api__post_session__api_master_accumulate_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_master_accumulate",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok = crate::api::post_session::api_master_accumulate(api_args_json)?;
+                    Ok(output_ok)
+                })())
             }
         },
     )
@@ -5655,6 +5718,27 @@ fn wire__crate__api__imaging__api_save_fits_from_last_capture_impl(
                     })()
                     .await,
                 )
+            }
+        },
+    )
+}
+fn wire__crate__api__post_session__api_save_fits_master_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_save_fits_master",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok = crate::api::post_session::api_save_fits_master(api_args_json)?;
+                    Ok(output_ok)
+                })())
             }
         },
     )
@@ -26650,6 +26734,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__post_session__api_build_master_flat(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__post_session__api_build_master_flat_impl(port_, args_json)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_build_sequence(
         id: *mut wire_cst_list_prim_u_8_strict,
         name: *mut wire_cst_list_prim_u_8_strict,
@@ -28226,6 +28318,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__post_session__api_integrate_session(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__post_session__api_integrate_session_impl(port_, args_json)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__api_invalidate_discovery_cache(
         port_: i64,
     ) {
@@ -28292,6 +28392,14 @@ mod io {
         profile_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
         wire__crate__api__storage__api_load_profile_impl(port_, profile_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__post_session__api_master_accumulate(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__post_session__api_master_accumulate_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]
@@ -28754,6 +28862,14 @@ mod io {
             file_path,
             header_data,
         )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__post_session__api_save_fits_master(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__post_session__api_save_fits_master_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]

@@ -2050,6 +2050,9 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__sequencer__api_b
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__sequencer__api_broadcast_get_active(void);
 
+void frbgen_nightshade_bridge_wire__crate__api__post_session__api_build_master_flat(int64_t port_,
+                                                                                    struct wire_cst_list_prim_u_8_strict *args_json);
+
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__sequencer__api_build_sequence(struct wire_cst_list_prim_u_8_strict *id,
                                                                                               struct wire_cst_list_prim_u_8_strict *name,
                                                                                               struct wire_cst_list_prim_u_8_strict *description,
@@ -2638,6 +2641,9 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__storage__api_ini
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__init__api_init_with_logging(struct wire_cst_list_prim_u_8_strict *log_directory);
 
+void frbgen_nightshade_bridge_wire__crate__api__post_session__api_integrate_session(int64_t port_,
+                                                                                    struct wire_cst_list_prim_u_8_strict *args_json);
+
 void frbgen_nightshade_bridge_wire__crate__api__api_invalidate_discovery_cache(int64_t port_);
 
 void frbgen_nightshade_bridge_wire__crate__api__connection__api_is_device_connected(int64_t port_,
@@ -2661,6 +2667,9 @@ void frbgen_nightshade_bridge_wire__crate__api__imaging__api_live_stacking_confi
 
 void frbgen_nightshade_bridge_wire__crate__api__storage__api_load_profile(int64_t port_,
                                                                           struct wire_cst_list_prim_u_8_strict *profile_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__post_session__api_master_accumulate(int64_t port_,
+                                                                                    struct wire_cst_list_prim_u_8_strict *args_json);
 
 void frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_mount_find_home(int64_t port_,
                                                                                          struct wire_cst_list_prim_u_8_strict *device_id);
@@ -2832,6 +2841,9 @@ void frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_fits_from_last
                                                                                          struct wire_cst_list_prim_u_8_strict *device_id,
                                                                                          struct wire_cst_list_prim_u_8_strict *file_path,
                                                                                          struct wire_cst_fits_write_header *header_data);
+
+void frbgen_nightshade_bridge_wire__crate__api__post_session__api_save_fits_master(int64_t port_,
+                                                                                   struct wire_cst_list_prim_u_8_strict *args_json);
 
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_jpeg_file(int64_t port_,
                                                                             struct wire_cst_list_prim_u_8_strict *file_path,
@@ -3905,6 +3917,10 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__polar_alignment__api_start_all_sky_polar_alignment);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__polar_alignment__api_start_polar_alignment);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__polar_alignment__api_stop_polar_alignment);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__post_session__api_build_master_flat);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__post_session__api_integrate_session);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__post_session__api_master_accumulate);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__post_session__api_save_fits_master);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_broadcast_deactivate);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_broadcast_get_active);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_build_sequence);

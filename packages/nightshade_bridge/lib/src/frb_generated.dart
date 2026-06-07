@@ -26,6 +26,7 @@ import 'api/init.dart';
 import 'api/phd2.dart';
 import 'api/plate_solve.dart';
 import 'api/polar_alignment.dart';
+import 'api/post_session.dart';
 import 'api/sequencer.dart';
 import 'api/session.dart';
 import 'api/storage.dart';
@@ -100,7 +101,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 688797454;
+  int get rustContentHash => 885412650;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -123,6 +124,9 @@ abstract class RustLibApi extends BaseApi {
   void crateApiSequencerApiBroadcastDeactivate();
 
   LiveStackingBroadcastSnapshot? crateApiSequencerApiBroadcastGetActive();
+
+  Future<String> crateApiPostSessionApiBuildMasterFlat(
+      {required String argsJson});
 
   String crateApiSequencerApiBuildSequence(
       {required String id,
@@ -705,6 +709,9 @@ abstract class RustLibApi extends BaseApi {
 
   void crateApiInitApiInitWithLogging({String? logDirectory});
 
+  Future<String> crateApiPostSessionApiIntegrateSession(
+      {required String argsJson});
+
   Future<void> crateApiApiInvalidateDiscoveryCache();
 
   Future<bool> crateApiConnectionApiIsDeviceConnected(
@@ -726,6 +733,9 @@ abstract class RustLibApi extends BaseApi {
   Future<ApiLiveStackingConfig> crateApiImagingApiLiveStackingConfigDefault();
 
   Future<void> crateApiStorageApiLoadProfile({required String profileId});
+
+  Future<String> crateApiPostSessionApiMasterAccumulate(
+      {required String argsJson});
 
   Future<void> crateApiDevicesSimulationApiMountFindHome(
       {required String deviceId});
@@ -879,6 +889,9 @@ abstract class RustLibApi extends BaseApi {
       {required String deviceId,
       required String filePath,
       required FitsWriteHeader headerData});
+
+  Future<String> crateApiPostSessionApiSaveFitsMaster(
+      {required String argsJson});
 
   Future<void> crateApiImagingApiSaveJpegFile(
       {required String filePath,
@@ -1524,6 +1537,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "api_broadcast_get_active",
         argNames: [],
+      );
+
+  @override
+  Future<String> crateApiPostSessionApiBuildMasterFlat(
+      {required String argsJson}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(argsJson);
+        return wire.wire__crate__api__post_session__api_build_master_flat(
+            port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_String,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPostSessionApiBuildMasterFlatConstMeta,
+      argValues: [argsJson],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPostSessionApiBuildMasterFlatConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_build_master_flat",
+        argNames: ["argsJson"],
       );
 
   @override
@@ -5812,6 +5850,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<String> crateApiPostSessionApiIntegrateSession(
+      {required String argsJson}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(argsJson);
+        return wire.wire__crate__api__post_session__api_integrate_session(
+            port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_String,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPostSessionApiIntegrateSessionConstMeta,
+      argValues: [argsJson],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPostSessionApiIntegrateSessionConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_integrate_session",
+        argNames: ["argsJson"],
+      );
+
+  @override
   Future<void> crateApiApiInvalidateDiscoveryCache() {
     return handler.executeNormal(NormalTask(
       callFfi: (port_) {
@@ -6039,6 +6102,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "api_load_profile",
         argNames: ["profileId"],
+      );
+
+  @override
+  Future<String> crateApiPostSessionApiMasterAccumulate(
+      {required String argsJson}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(argsJson);
+        return wire.wire__crate__api__post_session__api_master_accumulate(
+            port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_String,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPostSessionApiMasterAccumulateConstMeta,
+      argValues: [argsJson],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPostSessionApiMasterAccumulateConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_master_accumulate",
+        argNames: ["argsJson"],
       );
 
   @override
@@ -7306,6 +7394,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "api_save_fits_from_last_capture",
         argNames: ["deviceId", "filePath", "headerData"],
+      );
+
+  @override
+  Future<String> crateApiPostSessionApiSaveFitsMaster(
+      {required String argsJson}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(argsJson);
+        return wire.wire__crate__api__post_session__api_save_fits_master(
+            port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_String,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPostSessionApiSaveFitsMasterConstMeta,
+      argValues: [argsJson],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPostSessionApiSaveFitsMasterConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_save_fits_master",
+        argNames: ["argsJson"],
       );
 
   @override
