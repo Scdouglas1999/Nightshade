@@ -97,6 +97,17 @@ class SkyCanvasPainter extends CustomPainter {
   static const double _deg2rad = math.pi / 180;
   static const double _rad2deg = 180 / math.pi;
 
+  /// Memoized local sidereal time for the horizontal-mode projection.
+  ///
+  /// Computing sidereal time is comparatively expensive and, in
+  /// [SkyViewMode.horizontal], every projected object needs it to rotate its
+  /// RA/Dec into the local horizontal frame. Cached against the
+  /// (observationTime, longitude) it was computed for and shared across the
+  /// short-lived per-frame painter instances. Unused in equatorial mode.
+  static double? _lstCacheValue;
+  static DateTime? _lstCacheTime;
+  static double? _lstCacheLon;
+
   /// Label layout manager to avoid overlapping labels
   final LabelLayoutManager _labelManager = LabelLayoutManager();
 

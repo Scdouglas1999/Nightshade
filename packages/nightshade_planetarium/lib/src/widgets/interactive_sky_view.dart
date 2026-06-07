@@ -884,42 +884,85 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     final x = dx * math.cos(rotRad) - dy * math.sin(rotRad);
     final y = dx * math.sin(rotRad) + dy * math.cos(rotRad);
 
-    // Convert to RA/Dec (inverse of stereographic projection)
-    final centerRaDeg = viewState.centerRA * 15;
-    final centerDecDeg = viewState.centerDec;
-
-    final xRad = x * math.pi / 180;
-    final yRad = y * math.pi / 180;
-    final centerRaRad = centerRaDeg * math.pi / 180;
-    final centerDecRad = centerDecDeg * math.pi / 180;
-
-    final rho = math.sqrt(xRad * xRad + yRad * yRad);
-    if (rho < 0.0001) {
-      return CelestialCoordinate(
-          ra: viewState.centerRA, dec: viewState.centerDec);
+    if (viewState.viewMode == SkyViewMode.horizontal) {
+      // Invert the horizontal-mode projection: the forward path maps
+      // (-azimuth, altitude) through the stereographic projector, so undo it to
+      // (alt, az) then convert back to equatorial RA/Dec for the caller.
+      final location = ref.read(observerLocationProvider);
+      final time = ref.read(observationTimeProvider).time;
+      final lst =
+          AstronomyCalculations.localSiderealTime(time, location.longitude);
+      final (lon, lat) = _inverseStereographic(
+        x: x,
+        y: y,
+        centerLonDeg: -viewState.centerAz,
+        centerLatDeg: viewState.centerAltitude,
+      );
+      final az = -lon;
+      final (ra, dec) = AstronomyCalculations.horizontalToEquatorial(
+        altDeg: lat,
+        azDeg: az,
+        latitudeDeg: location.latitude,
+        lstHours: lst,
+      );
+      var raHours = ra / 15;
+      if (raHours < 0) raHours += 24;
+      if (raHours >= 24) raHours -= 24;
+      return CelestialCoordinate(ra: raHours, dec: dec.clamp(-90, 90));
     }
 
-    final c = 2 * math.atan(rho / 2);
+    // Convert to RA/Dec (inverse of stereographic projection)
+    final (raDeg, decDeg) = _inverseStereographic(
+      x: x,
+      y: y,
+      centerLonDeg: viewState.centerRA * 15,
+      centerLatDeg: viewState.centerDec,
+    );
 
-    final sinc = math.sin(c);
-    final cosc = math.cos(c);
-
-    final dec = math.asin(cosc * math.sin(centerDecRad) +
-        yRad * sinc * math.cos(centerDecRad) / rho);
-    final ra = centerRaRad +
-        math.atan2(
-          xRad * sinc,
-          rho * math.cos(centerDecRad) * cosc -
-              yRad * math.sin(centerDecRad) * sinc,
-        );
-
-    var raHours = ra * 180 / math.pi / 15;
+    var raHours = raDeg / 15;
     if (raHours < 0) raHours += 24;
     if (raHours >= 24) raHours -= 24;
 
-    final decDeg = dec * 180 / math.pi;
-
     return CelestialCoordinate(ra: raHours, dec: decDeg.clamp(-90, 90));
+  }
+
+  /// Inverse stereographic projection: screen-space offset ([x], [y], in the
+  /// same scaled degree units the forward projector emits) back to a sphere
+  /// point (longitude, latitude in degrees) about the projection center.
+  ///
+  /// Shared by both view modes — equatorial passes RA/Dec as the center,
+  /// horizontal passes (-azimuth, altitude) — so the inverse geometry, like the
+  /// forward geometry, lives in exactly one place.
+  (double lonDeg, double latDeg) _inverseStereographic({
+    required double x,
+    required double y,
+    required double centerLonDeg,
+    required double centerLatDeg,
+  }) {
+    final xRad = x * math.pi / 180;
+    final yRad = y * math.pi / 180;
+    final centerLonRad = centerLonDeg * math.pi / 180;
+    final centerLatRad = centerLatDeg * math.pi / 180;
+
+    final rho = math.sqrt(xRad * xRad + yRad * yRad);
+    if (rho < 0.0001) {
+      return (centerLonDeg, centerLatDeg);
+    }
+
+    final c = 2 * math.atan(rho / 2);
+    final sinc = math.sin(c);
+    final cosc = math.cos(c);
+
+    final lat = math.asin(cosc * math.sin(centerLatRad) +
+        yRad * sinc * math.cos(centerLatRad) / rho);
+    final lon = centerLonRad +
+        math.atan2(
+          xRad * sinc,
+          rho * math.cos(centerLatRad) * cosc -
+              yRad * math.sin(centerLatRad) * sinc,
+        );
+
+    return (lon * 180 / math.pi, lat * 180 / math.pi);
   }
 
   double _angularDistance(CelestialCoordinate a, CelestialCoordinate b) {

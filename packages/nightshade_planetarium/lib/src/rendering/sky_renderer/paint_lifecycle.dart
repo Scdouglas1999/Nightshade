@@ -12,9 +12,19 @@ extension _SkyCanvasPainterPaintLifecycle on SkyCanvasPainter {
 
     // Build the per-paint cull context (cheap reject before projection) and
     // prime the shared projection cache for this pose so projected offsets are
-    // reused within and across paints at the same pose.
-    _cull = _CullContext.build(viewState, size);
-    SkyCanvasPainter._projectionCache.ensurePose(viewState, size);
+    // reused within and across paints at the same pose. In horizontal mode the
+    // projection (and therefore the cull cone and cached positions) also depend
+    // on sidereal time, so the LST is threaded through both.
+    final lstHours = viewState.viewMode == SkyViewMode.horizontal
+        ? AstronomyCalculations.localSiderealTime(observationTime, longitude)
+        : null;
+    _cull = _CullContext.build(
+      viewState,
+      size,
+      lstHours: lstHours,
+      latitudeDeg: latitude,
+    );
+    SkyCanvasPainter._projectionCache.ensurePose(viewState, size, lstHours);
 
     // Use cached label layout if view hasn't moved significantly.
     // When the cache is valid (view moved <0.5 deg, zoom changed <5%),

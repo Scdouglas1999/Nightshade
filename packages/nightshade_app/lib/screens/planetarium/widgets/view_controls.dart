@@ -231,6 +231,25 @@ class ViewControls extends ConsumerWidget {
           const SizedBox(height: 4),
           QualitySettingsButton(colors: colors),
           const Divider(height: 16, color: Colors.white24),
+          // Alt/Az ("tonight from my site") view-mode toggle. Reframes the sky
+          // horizon-up / zenith-centered as the observer sees it; tap again to
+          // return to the equatorial (star-atlas) frame.
+          ViewControlButton(
+            icon: NightshadeIcons.layers,
+            isActive: viewState.viewMode == SkyViewMode.horizontal,
+            onTap: () {
+              final notifier = ref.read(skyViewStateProvider.notifier);
+              notifier.setViewMode(
+                viewState.viewMode == SkyViewMode.horizontal
+                    ? SkyViewMode.equatorial
+                    : SkyViewMode.horizontal,
+              );
+            },
+            tooltip: viewState.viewMode == SkyViewMode.horizontal
+                ? 'Alt/Az view (horizon-up) — tap for equatorial'
+                : 'Switch to Alt/Az view (tonight from my site)',
+          ),
+          const SizedBox(height: 4),
           ProjectionSelectorButton(colors: colors),
           const Divider(height: 16, color: Colors.white24),
           ExportChartButton(colors: colors),

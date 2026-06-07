@@ -3,8 +3,39 @@
 part of '../sky_renderer.dart';
 
 extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
+  /// Local sidereal time (hours) for this paint, computed once and memoized.
+  ///
+  /// Only used by the [SkyViewMode.horizontal] projection path, where every
+  /// object's RA/Dec must be rotated into the local horizontal frame. Cached so
+  /// the per-object alt/az conversion in a wide-field paint doesn't recompute
+  /// sidereal time thousands of times.
+  double get _lstHours {
+    final cached = SkyCanvasPainter._lstCacheValue;
+    if (cached != null &&
+        SkyCanvasPainter._lstCacheTime == observationTime &&
+        SkyCanvasPainter._lstCacheLon == longitude) {
+      return cached;
+    }
+    final lst =
+        AstronomyCalculations.localSiderealTime(observationTime, longitude);
+    SkyCanvasPainter._lstCacheValue = lst;
+    SkyCanvasPainter._lstCacheTime = observationTime;
+    SkyCanvasPainter._lstCacheLon = longitude;
+    return lst;
+  }
+
   Offset? _celestialToScreen(
       CelestialCoordinate coord, Offset center, double scale) {
+    if (viewState.viewMode == SkyViewMode.horizontal) {
+      final (alt, az) = AstronomyCalculations.equatorialToHorizontal(
+        raDeg: coord.ra * 15,
+        decDeg: coord.dec,
+        latitudeDeg: latitude,
+        lstHours: _lstHours,
+      );
+      return _horizontalToScreen(alt, az, center, scale);
+    }
+
     // Convert RA from hours to degrees
     final raDeg = coord.ra * 15;
     final decDeg = coord.dec;
@@ -13,11 +44,56 @@ extension _SkyCanvasPainterProjectionAndGlow on SkyCanvasPainter {
     final centerRaDeg = viewState.centerRA * 15;
     final centerDecDeg = viewState.centerDec;
 
-    // Gnomonic/stereographic projection
-    final ra1 = centerRaDeg * SkyCanvasPainter._deg2rad;
-    final dec1 = centerDecDeg * SkyCanvasPainter._deg2rad;
-    final ra2 = raDeg * SkyCanvasPainter._deg2rad;
-    final dec2 = decDeg * SkyCanvasPainter._deg2rad;
+    return _projectAroundCenter(
+      lonDeg: raDeg,
+      latDeg: decDeg,
+      centerLonDeg: centerRaDeg,
+      centerLatDeg: centerDecDeg,
+      center: center,
+      scale: scale,
+    );
+  }
+
+  /// Project a horizontal coordinate (alt/az, degrees) to the screen in the
+  /// [SkyViewMode.horizontal] frame.
+  ///
+  /// Azimuth plays the role of longitude and altitude the role of latitude in
+  /// the shared spherical projector, so the same stereographic / orthographic /
+  /// equidistant maths is reused. Azimuth is negated so that East (increasing
+  /// azimuth) maps to the right of the screen — the natural "looking outward"
+  /// orientation an observer expects — while altitude increases upward.
+  Offset? _horizontalToScreen(
+      double altDeg, double azDeg, Offset center, double scale) {
+    return _projectAroundCenter(
+      lonDeg: -azDeg,
+      latDeg: altDeg,
+      centerLonDeg: -viewState.centerAz,
+      centerLatDeg: viewState.centerAltitude,
+      center: center,
+      scale: scale,
+    );
+  }
+
+  /// Shared spherical-to-screen projector used by both view modes.
+  ///
+  /// Maps a sphere point ([lonDeg], [latDeg]) relative to the projection center
+  /// ([centerLonDeg], [centerLatDeg]) through the configured [SkyProjection],
+  /// then applies the view rotation, scale and screen centering. Both the
+  /// equatorial (RA/Dec) and horizontal (Az/Alt) paths feed this with their own
+  /// longitude/latitude pair so the projection geometry lives in exactly one
+  /// place.
+  Offset? _projectAroundCenter({
+    required double lonDeg,
+    required double latDeg,
+    required double centerLonDeg,
+    required double centerLatDeg,
+    required Offset center,
+    required double scale,
+  }) {
+    final ra1 = centerLonDeg * SkyCanvasPainter._deg2rad;
+    final dec1 = centerLatDeg * SkyCanvasPainter._deg2rad;
+    final ra2 = lonDeg * SkyCanvasPainter._deg2rad;
+    final dec2 = latDeg * SkyCanvasPainter._deg2rad;
 
     final cosc = math.sin(dec1) * math.sin(dec2) +
         math.cos(dec1) * math.cos(dec2) * math.cos(ra2 - ra1);

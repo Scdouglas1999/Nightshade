@@ -445,9 +445,31 @@ class _CullContext {
   const _CullContext(this.cx, this.cy, this.cz, this.cosCullRadius);
 
   /// Build a cull context for the given view state and canvas size.
-  factory _CullContext.build(SkyViewState viewState, Size size) {
-    final raRad = viewState.centerRA * 15 * (math.pi / 180);
-    final decRad = viewState.centerDec * (math.pi / 180);
+  ///
+  /// Objects are always culled in the equatorial frame (their RA/Dec is passed
+  /// to [isCulled]), so in [SkyViewMode.horizontal] the alt/az view center is
+  /// first converted back to equatorial via [lstHours]. Angular distance is
+  /// frame-invariant, so this yields the same cull cone the horizontal
+  /// projection actually shows. [lstHours] is required only in horizontal mode.
+  factory _CullContext.build(SkyViewState viewState, Size size,
+      {double? lstHours, double latitudeDeg = 0}) {
+    double centerRaDeg;
+    double centerDecDeg;
+    if (viewState.viewMode == SkyViewMode.horizontal) {
+      final (ra, dec) = AstronomyCalculations.horizontalToEquatorial(
+        altDeg: viewState.centerAltitude,
+        azDeg: viewState.centerAz,
+        latitudeDeg: latitudeDeg,
+        lstHours: lstHours ?? 0,
+      );
+      centerRaDeg = ra;
+      centerDecDeg = dec;
+    } else {
+      centerRaDeg = viewState.centerRA * 15;
+      centerDecDeg = viewState.centerDec;
+    }
+    final raRad = centerRaDeg * (math.pi / 180);
+    final decRad = centerDecDeg * (math.pi / 180);
     final cosDec = math.cos(decRad);
     final cx = cosDec * math.cos(raRad);
     final cy = cosDec * math.sin(raRad);
@@ -503,17 +525,30 @@ class _ProjectionCache {
   double _fov = double.nan;
   double _rotation = double.nan;
   SkyProjection _projection = SkyProjection.stereographic;
+  SkyViewMode _viewMode = SkyViewMode.equatorial;
+  double _centerAz = double.nan;
+  double _centerAltitude = double.nan;
+  double _lst = double.nan;
   Size _size = Size.zero;
   bool _valid = false;
 
   /// Ensure the cache matches the given pose; clear it if the pose changed.
-  void ensurePose(SkyViewState viewState, Size size) {
+  ///
+  /// In [SkyViewMode.horizontal] the projected screen position of a fixed
+  /// RA/Dec object changes as sidereal time advances, so [lstHours] is part of
+  /// the pose key (null in equatorial mode, where it never participates).
+  void ensurePose(SkyViewState viewState, Size size, double? lstHours) {
+    final lst = lstHours ?? double.nan;
     if (_valid &&
         _centerRA == viewState.centerRA &&
         _centerDec == viewState.centerDec &&
         _fov == viewState.fieldOfView &&
         _rotation == viewState.rotation &&
         _projection == viewState.projection &&
+        _viewMode == viewState.viewMode &&
+        _centerAz == viewState.centerAz &&
+        _centerAltitude == viewState.centerAltitude &&
+        (_lst == lst || (_lst.isNaN && lst.isNaN)) &&
         _size == size) {
       return;
     }
@@ -523,6 +558,10 @@ class _ProjectionCache {
     _fov = viewState.fieldOfView;
     _rotation = viewState.rotation;
     _projection = viewState.projection;
+    _viewMode = viewState.viewMode;
+    _centerAz = viewState.centerAz;
+    _centerAltitude = viewState.centerAltitude;
+    _lst = lst;
     _size = size;
     _valid = true;
   }

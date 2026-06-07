@@ -31,6 +31,25 @@ class SkyViewNotifier extends StateNotifier<SkyViewState> {
     state = state.copyWith(projection: projection);
   }
 
+  /// Switch between the equatorial (RA/Dec) and horizontal (alt/az) view
+  /// frames. The inactive frame's center is preserved, so toggling back returns
+  /// to the prior pose. No-op if already in [mode].
+  void setViewMode(SkyViewMode mode) {
+    if (state.viewMode == mode) return;
+    state = state.copyWith(viewMode: mode);
+  }
+
+  /// Set the horizontal-frame view center (alt/az, degrees). Altitude is clamped
+  /// to the visible hemisphere band and azimuth wraps to [0, 360).
+  void setHorizontalCenter(double azimuth, double altitude) {
+    var az = azimuth % 360;
+    if (az < 0) az += 360;
+    state = state.copyWith(
+      centerAz: az,
+      centerAltitude: altitude.clamp(-90, 90),
+    );
+  }
+
   void zoomIn({Offset? mousePosition, Size? viewSize}) {
     if (mousePosition != null && viewSize != null) {
       _zoomAtPosition(mousePosition, viewSize, 1.5);
@@ -51,6 +70,16 @@ class SkyViewNotifier extends StateNotifier<SkyViewState> {
 
   /// Zoom at a specific screen position, keeping that position fixed
   void _zoomAtPosition(Offset mousePosition, Size viewSize, double zoomFactor) {
+    // The cursor-anchored math inverts the equatorial projection self-contained
+    // (no time/location needed). The horizontal frame's inverse requires
+    // sidereal time, which this notifier does not hold, so fall back to a plain
+    // center zoom there — correct, just not cursor-anchored.
+    if (state.viewMode == SkyViewMode.horizontal) {
+      state = state.copyWith(
+          fieldOfView: (state.fieldOfView / zoomFactor).clamp(1, 180));
+      return;
+    }
+
     // Get the celestial coordinate at the mouse position before zoom
     final coordBefore = _screenToCelestial(mousePosition, viewSize);
     if (coordBefore == null) {
@@ -135,14 +164,31 @@ class SkyViewNotifier extends StateNotifier<SkyViewState> {
     return CelestialCoordinate(ra: raHours, dec: decDeg.clamp(-90, 90));
   }
 
-  void pan(double dRA, double dDec) {
-    var newRA = state.centerRA + dRA;
+  /// Pan the view center. In the equatorial frame [dLon] is an RA delta in
+  /// hours and [dLat] a Dec delta in degrees. In the horizontal frame [dLon] is
+  /// an azimuth delta expressed in the same hour-scaled units the drag handler
+  /// produces (so it is multiplied back to degrees here) and [dLat] an altitude
+  /// delta in degrees. Routing both frames through one method keeps the gesture
+  /// handlers frame-agnostic.
+  void pan(double dLon, double dLat) {
+    if (state.viewMode == SkyViewMode.horizontal) {
+      var newAz = state.centerAz + dLon * 15;
+      newAz = newAz % 360;
+      if (newAz < 0) newAz += 360;
+      state = state.copyWith(
+        centerAz: newAz,
+        centerAltitude: (state.centerAltitude + dLat).clamp(-90, 90),
+      );
+      return;
+    }
+
+    var newRA = state.centerRA + dLon;
     if (newRA < 0) newRA += 24;
     if (newRA >= 24) newRA -= 24;
 
     state = state.copyWith(
       centerRA: newRA,
-      centerDec: (state.centerDec + dDec).clamp(-90, 90),
+      centerDec: (state.centerDec + dLat).clamp(-90, 90),
     );
   }
 
@@ -164,6 +210,11 @@ final viewCenterAltAzProvider = Provider<(double, double)>((ref) {
   final location = ref.watch(observerLocationProvider);
   final time =
       ref.watch(_currentMinuteProvider); // Use minute precision instead
+
+  // In the horizontal frame the center is already alt/az.
+  if (viewState.viewMode == SkyViewMode.horizontal) {
+    return (viewState.centerAz, viewState.centerAltitude);
+  }
 
   // Convert view center (RA/Dec) to Alt/Az
   final lst = AstronomyCalculations.localSiderealTime(time, location.longitude);
