@@ -22,7 +22,9 @@ final loadedDsosProvider = FutureProvider<List<DeepSkyObject>>((ref) async {
 final starSpatialIndexProvider = FutureProvider<StarSpatialIndex>((ref) async {
   final stars = await ref.watch(loadedStarsProvider.future);
   final index = StarSpatialIndex();
-  index.addAll(stars);
+  // The loader isolate already returns stars sorted by magnitude (brightest
+  // first), so prime the magnitude view instead of re-sorting on the UI thread.
+  index.addAllPreSortedByMagnitude(stars);
   return index;
 });
 
@@ -30,7 +32,8 @@ final starSpatialIndexProvider = FutureProvider<StarSpatialIndex>((ref) async {
 final dsoSpatialIndexProvider = FutureProvider<DsoSpatialIndex>((ref) async {
   final dsos = await ref.watch(loadedDsosProvider.future);
   final index = DsoSpatialIndex();
-  index.addAll(dsos);
+  // Loader isolate returns DSOs magnitude-sorted; prime to skip a UI-thread sort.
+  index.addAllPreSortedByMagnitude(dsos);
   return index;
 });
 

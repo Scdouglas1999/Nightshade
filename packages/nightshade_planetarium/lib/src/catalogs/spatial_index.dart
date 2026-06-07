@@ -14,8 +14,14 @@ class CelestialSpatialIndex<T extends CelestialObject> {
   /// Number of cells along the Dec axis (-90 to +90 degrees)
   static const int decCells = 18;
 
-  /// Grid storage: [raCell][decCell] -> list of objects
-  final List<List<List<T>>> _grid;
+  /// Grid storage: [raCell][decCell] -> list of objects.
+  ///
+  /// Built LAZILY on first cell query ([queryViewport]); the wide-field
+  /// magnitude walk ([queryBrightestInViewport]) doesn't need it, so a
+  /// freshly-loaded index serving the default wide view never pays the grid
+  /// build cost on the UI thread at app open. Rebuilt on the next query after
+  /// the object set changes.
+  List<List<List<T>>>? _grid;
 
   /// All objects stored in the index
   final List<T> _allObjects = [];
@@ -24,41 +30,53 @@ class CelestialSpatialIndex<T extends CelestialObject> {
   /// [queryBrightestInViewport]. Invalidated whenever the object set changes.
   List<T>? _byMagnitude;
 
-  CelestialSpatialIndex()
-      : _grid = List.generate(
-          raCells,
-          (_) => List.generate(decCells, (_) => <T>[]),
-        );
+  CelestialSpatialIndex();
+
+  /// Build the grid from [_allObjects] on demand.
+  void _ensureGrid() {
+    if (_grid != null) return;
+    final grid = List.generate(
+      raCells,
+      (_) => List.generate(decCells, (_) => <T>[]),
+    );
+    for (final obj in _allObjects) {
+      grid[_raToCell(obj.coordinates.ra)][_decToCell(obj.coordinates.dec)]
+          .add(obj);
+    }
+    _grid = grid;
+  }
 
   /// Clear all objects from the index
   void clear() {
-    for (var ra = 0; ra < raCells; ra++) {
-      for (var dec = 0; dec < decCells; dec++) {
-        _grid[ra][dec].clear();
-      }
-    }
+    _grid = null;
     _allObjects.clear();
     _byMagnitude = null;
   }
 
   /// Add a single object to the index
   void add(T object) {
-    final raCell = _raToCell(object.coordinates.ra);
-    final decCell = _decToCell(object.coordinates.dec);
-    _grid[raCell][decCell].add(object);
     _allObjects.add(object);
+    _grid = null;
     _byMagnitude = null;
   }
 
   /// Add multiple objects to the index
   void addAll(List<T> objects) {
-    for (final obj in objects) {
-      final raCell = _raToCell(obj.coordinates.ra);
-      final decCell = _decToCell(obj.coordinates.dec);
-      _grid[raCell][decCell].add(obj);
-    }
     _allObjects.addAll(objects);
+    _grid = null;
     _byMagnitude = null;
+  }
+
+  /// Add objects that are ALREADY sorted ascending by magnitude (brightest
+  /// first), priming the magnitude-sorted view without an on-UI-thread re-sort.
+  ///
+  /// The loader isolate sorts the catalog once (off the UI thread), so the first
+  /// [queryBrightestInViewport] at app open doesn't sort 100k+ objects on the UI
+  /// thread (a measurable first-open hitch). The grid stays lazy.
+  void addAllPreSortedByMagnitude(List<T> objectsBrightestFirst) {
+    _allObjects.addAll(objectsBrightestFirst);
+    _grid = null;
+    _byMagnitude = objectsBrightestFirst;
   }
 
   /// Returns up to [maxResults] of the BRIGHTEST objects with magnitude
@@ -154,6 +172,7 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     double fovDegrees, {
     int? maxResults,
   }) {
+    _ensureGrid();
     // Calculate the RA and Dec ranges that might be visible.
     // Use a generous margin (1.5x FOV) to avoid clipping objects at viewport edges
     // — the stereographic projection shows objects beyond the nominal FOV circle.
@@ -183,7 +202,7 @@ class CelestialSpatialIndex<T extends CelestialObject> {
       for (var r = startCell; r <= endCell; r++) {
         for (var d = startDecCell; d <= endDecCell; d++) {
           if (maxResults != null && results.length >= maxResults) return;
-          results.addAll(_grid[r][d]);
+          results.addAll(_grid![r][d]);
         }
       }
     }
