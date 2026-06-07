@@ -138,6 +138,19 @@ class SkyRenderConfigNotifier extends StateNotifier<SkyRenderConfig> {
   void togglePlanningOverlays() {
     state = state.copyWith(showPlanningOverlays: !state.showPlanningOverlays);
   }
+
+  void toggleDsoLabels() {
+    state = state.copyWith(showDSOLabels: !state.showDSOLabels);
+  }
+
+  void toggleCardinalDirections() {
+    state =
+        state.copyWith(showCardinalDirections: !state.showCardinalDirections);
+  }
+
+  void toggleMeridian() {
+    state = state.copyWith(showMeridian: !state.showMeridian);
+  }
 }
 
 final skyRenderConfigProvider =

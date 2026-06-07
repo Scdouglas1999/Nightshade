@@ -28,12 +28,15 @@ import '../../services/mount_command_service.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/tutorial_keys/planetarium_keys.dart';
 import 'widgets/full_screen_sky_view.dart';
+import 'widgets/redesign/command_bar.dart';
+import 'widgets/redesign/layers_panel.dart';
 import '../imaging/centering_dialog.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 
 part 'planetarium_screen/actions.dart';
 part 'planetarium_screen/layouts.dart';
 part 'planetarium_screen/local_widgets.dart';
+part 'widgets/redesign/planetarium_shell.dart';
 
 /// Get display name and catalog tag for a DSO
 /// Returns (displayName, catalogTag)
@@ -96,8 +99,13 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
   // Track if initial sync has been done
   bool _initialSyncDone = false;
 
-  // Filter sidebar state
+  // Filter sidebar state (legacy desktop layout — retained, no longer mounted)
   bool _filterSidebarExpanded = false;
+
+  // Redesigned shell: which right-docked panel is open (desktop). Mutually
+  // exclusive; on phone these surface as bottom sheets instead.
+  bool _layersPanelOpen = false;
+  bool _planPanelOpen = false;
 
   // Help overlay state
   bool _showHelpOverlay = false;
@@ -235,23 +243,11 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
                 }
               }
             },
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                // Phone tier: the full-bleed sky canvas with floating,
-                // orientation-aware overlays. Tablets/desktop keep the
-                // resizable sidebar split, which already clamps its panel widths
-                // down to a 600 px window. Use device-class detection so a phone
-                // in LANDSCAPE (wide viewport) still gets the overlay layout
-                // rather than the desktop sidebar; a narrow desktop window
-                // (width < 600) also collapses to it.
-                final isPhone = Responsive.isPhone(context) ||
-                    BreakpointTokens.isPhone(constraints.maxWidth);
-                if (isPhone) {
-                  return _buildMobileLayout(context, colors, selectedObject);
-                }
-                return _buildDesktopLayout(context, colors, selectedObject);
-              },
-            ),
+            // Redesigned "top command bar + dockable panels" shell — ONE
+            // adaptive layout for desktop and phone. The legacy desktop/mobile
+            // layouts (`_buildDesktopLayout` / `_buildMobileLayout`) remain on
+            // disk but are no longer mounted.
+            child: _buildShell(context, colors, selectedObject),
           ),
         ),
       ),

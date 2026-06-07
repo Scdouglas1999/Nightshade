@@ -25,6 +25,13 @@ final starSpatialIndexProvider = FutureProvider<StarSpatialIndex>((ref) async {
   // The loader isolate already returns stars sorted by magnitude (brightest
   // first), so prime the magnitude view instead of re-sorting on the UI thread.
   index.addAllPreSortedByMagnitude(stars);
+  // Warm the grid off the critical path so the first zoom past the wide-field
+  // threshold (~12 deg) doesn't hitch building the grid mid-gesture.
+  Future.delayed(const Duration(milliseconds: 400), () {
+    try {
+      index.warmGrid();
+    } catch (_) {}
+  });
   return index;
 });
 
@@ -34,6 +41,12 @@ final dsoSpatialIndexProvider = FutureProvider<DsoSpatialIndex>((ref) async {
   final index = DsoSpatialIndex();
   // Loader isolate returns DSOs magnitude-sorted; prime to skip a UI-thread sort.
   index.addAllPreSortedByMagnitude(dsos);
+  // Warm the grid off the critical path (see starSpatialIndexProvider).
+  Future.delayed(const Duration(milliseconds: 400), () {
+    try {
+      index.warmGrid();
+    } catch (_) {}
+  });
   return index;
 });
 

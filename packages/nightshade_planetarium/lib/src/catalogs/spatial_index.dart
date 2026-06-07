@@ -32,6 +32,14 @@ class CelestialSpatialIndex<T extends CelestialObject> {
 
   CelestialSpatialIndex();
 
+  /// Eagerly build the grid off the critical path.
+  ///
+  /// The grid is normally built lazily on the first cell query
+  /// ([queryViewport]). Calling this from a deferred future after the index is
+  /// constructed warms the grid so the first zoom past the wide-field threshold
+  /// (~12 deg) doesn't pay the build cost on the UI thread mid-gesture.
+  void warmGrid() => _ensureGrid();
+
   /// Build the grid from [_allObjects] on demand.
   void _ensureGrid() {
     if (_grid != null) return;
