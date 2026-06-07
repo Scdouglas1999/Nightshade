@@ -119,7 +119,6 @@ extension _SkyCanvasPainterBackgroundLayers on SkyCanvasPainter {
 
   void _drawMilkyWay(Canvas canvas, Size size, Offset center, double scale) {
     if (milkyWayPoints == null) return;
-    if (celestialVisibility <= 0.0) return; // washed out by daylight
 
     // Check if we can reuse a cached Milky Way Picture.
     // The Milky Way is fixed on the sky, so it only needs redrawing when the view moves.

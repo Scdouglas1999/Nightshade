@@ -61,7 +61,6 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
 
   void _drawConstellationLines(
       Canvas canvas, Size size, Offset center, double scale) {
-    if (celestialVisibility <= 0.0) return; // hidden in daylight
     // Check if we can reuse a cached Picture of constellation lines.
     // Constellation lines are static relative to the sky — they only change
     // when the view moves, so caching saves redrawing hundreds of line segments.
@@ -119,7 +118,6 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
 
   void _drawConstellationLabels(
       Canvas canvas, Size size, Offset center, double scale) {
-    if (celestialVisibility <= 0.0) return; // hidden in daylight
     final textStyle = TextStyle(
       color: Colors.white.withValues(alpha: 0.5),
       fontSize: 10,
@@ -143,7 +141,6 @@ extension _SkyCanvasPainterConstellationLayers on SkyCanvasPainter {
 
   void _drawConstellationArt(
       Canvas canvas, Size size, Offset center, double scale) {
-    if (celestialVisibility <= 0.0) return; // hidden in daylight
     // Gold/amber fill with 20% opacity
     final fillPaint = Paint()
       ..color = const Color(0x33DAA520) // goldenrod at ~20% opacity

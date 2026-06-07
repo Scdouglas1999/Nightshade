@@ -20,11 +20,6 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
     // quality config's magnitude limit as an additional safeguard rather than
     // the static SkyRenderConfig.starMagnitudeLimit, which is a UI default
     // that doesn't account for zoom level.
-    // Daytime sky washes out the stars: skip the pass entirely in full daylight
-    // and fade through twilight (night is unaffected: factor == 1.0).
-    final skyVis = celestialVisibility;
-    if (skyVis <= 0.0) return;
-
     final maxStars = qualityConfig.maxStarsToRender;
     final magLimit = qualityConfig.starMagnitudeLimit;
 
@@ -152,8 +147,7 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       // Per-star tint: the sprite is white, so the atlas color IS the star color
       // with alpha = brightness. modulate multiplies white*color -> color, and
       // the additive composite sums overlaps.
-      final tint =
-          color.withValues(alpha: (brightness * skyVis).clamp(0.0, 1.0));
+      final tint = color.withValues(alpha: brightness.clamp(0.0, 1.0));
       final argb = tint.toARGB32();
 
       if (isBright) {
@@ -265,7 +259,6 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
   /// the magnitude-sorted list down to mag 2.0 and places non-overlapping names.
   void _drawBrightStarLabels(Canvas canvas, Size size, Offset center,
       double scale, int maxStars, double magLimit) {
-    if (celestialVisibility <= 0.0) return; // no star labels in daylight
     var processed = 0;
     for (final star in stars) {
       if (processed >= maxStars) break;
@@ -318,8 +311,6 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
   /// No circles, no PSF, no glow. Designed for Raspberry Pi at 30fps.
   void _drawStarsMinimal(
       Canvas canvas, Size size, Offset center, double scale) {
-    final skyVis = celestialVisibility;
-    if (skyVis <= 0.0) return; // washed out by daylight
     final maxStars = qualityConfig.maxStarsToRender;
     final magLimit = qualityConfig.starMagnitudeLimit;
 
@@ -350,7 +341,7 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
 
     // Single draw call for ALL stars as points
     final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.8 * skyVis)
+      ..color = Colors.white.withValues(alpha: 0.8)
       ..strokeWidth = 2.0
       ..strokeCap = StrokeCap.round;
     canvas.drawRawPoints(
@@ -409,8 +400,6 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
     // Respect quality config limits. DSO list is pre-filtered by the dynamic
     // magnitude provider (fovFilteredDsosProvider), so we use the quality
     // config's limit as a safeguard rather than the static SkyRenderConfig default.
-    final skyVis = celestialVisibility;
-    if (skyVis <= 0.0) return; // DSOs invisible in daylight
     var dsosDrawn = 0;
     final maxDsos = qualityConfig.maxDsosToRender;
     final magLimit = qualityConfig.dsoMagnitudeLimit;
@@ -470,9 +459,8 @@ extension _SkyCanvasPainterStellarObjects on SkyCanvasPainter {
       final sb = _surfaceBrightness(dso);
       final sbOpacity = _surfaceBrightnessOpacity(sb);
 
-      // Effective alpha (include pop-in if animating; fade out in daylight)
-      final effectiveAlpha =
-          (animating ? popinAlpha * sbOpacity : sbOpacity) * skyVis;
+      // Effective alpha (include pop-in if animating)
+      final effectiveAlpha = animating ? popinAlpha * sbOpacity : sbOpacity;
 
       // Apply pop-in scale animation by shrinking the glyph (the old code did a
       // canvas.scale around the DSO center; scaling displaySize is equivalent
