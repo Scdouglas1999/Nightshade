@@ -133,6 +133,15 @@ impl CoverageMask {
         self.valid.get(index).copied().unwrap_or(false)
     }
 
+    /// Whether the pixel at flat row-major `index` (= `y·width + x`) had valid
+    /// source support. Out-of-range indices are treated as uncovered. This is
+    /// the public accessor used by batch integration to skip pixels a given
+    /// frame did not cover after warping.
+    #[inline]
+    pub fn is_valid_at(&self, index: usize) -> bool {
+        self.is_valid(index)
+    }
+
     /// Width in pixels.
     pub fn width(&self) -> usize {
         self.width

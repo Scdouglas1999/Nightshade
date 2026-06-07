@@ -20,6 +20,7 @@ mod camera;
 mod debayer;
 mod fits;
 pub mod frame_weighting; // NEW: Per-sub quality weighting for batch integration
+pub mod integration; // NEW: Advanced weighted batch integration + pixel rejection
 mod naming;
 pub mod normalization; // NEW: Light-frame normalization to a reference (batch integration)
 mod phd2;
@@ -39,6 +40,7 @@ pub use camera::*;
 pub use debayer::*;
 pub use fits::*;
 pub use frame_weighting::*; // NEW: Export frame-weighting types
+pub use integration::*; // NEW: Export batch-integration types
 pub use naming::*;
 pub use normalization::*; // NEW: Export normalization types
 pub use phd2::*;
