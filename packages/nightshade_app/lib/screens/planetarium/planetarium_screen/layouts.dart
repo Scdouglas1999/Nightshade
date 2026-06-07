@@ -55,6 +55,7 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                       observedObjectIds: observedIds,
                       listedObjectIds: listedIds,
                       bortleClass: bortleClass,
+                      measurementMode: ref.watch(measurementModeProvider),
                       horizonAltitudes: horizonProfile.isFlat
                           ? null
                           : List<double>.generate(
@@ -355,6 +356,8 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                               onObjectTapped: _handleObjectTapped,
                               observedObjectIds: observedIds,
                               bortleClass: bortleClass,
+                              measurementMode:
+                                  ref.watch(measurementModeProvider),
                               horizonAltitudes: horizonProfile.isFlat
                                   ? null
                                   : List<double>.generate(

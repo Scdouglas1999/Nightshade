@@ -1226,6 +1226,37 @@ class AstronomyCalculations {
 
     return math.acos(cosSep.clamp(-1.0, 1.0)) * _rad2deg;
   }
+
+  /// Position angle of the second point as seen from the first, measured at the
+  /// first point from celestial North through East (degrees, 0–360).
+  ///
+  /// This is the standard astronomical convention used for double-star and
+  /// reference-frame measurements: 0° = the companion lies due north of the
+  /// primary, 90° = due east, 180° = south, 270° = west. The angle is computed
+  /// on the sphere (great-circle bearing), so it is exact for any separation
+  /// rather than a flat-sky approximation.
+  ///
+  /// Returns 0 when the two points coincide (degenerate, undefined PA).
+  static double positionAngle({
+    required double ra1Deg,
+    required double dec1Deg,
+    required double ra2Deg,
+    required double dec2Deg,
+  }) {
+    final dec1 = dec1Deg * _deg2rad;
+    final dec2 = dec2Deg * _deg2rad;
+    final deltaRa = (ra2Deg - ra1Deg) * _deg2rad;
+
+    final y = math.sin(deltaRa) * math.cos(dec2);
+    final x = math.cos(dec1) * math.sin(dec2) -
+        math.sin(dec1) * math.cos(dec2) * math.cos(deltaRa);
+
+    if (x.abs() < _epsilon && y.abs() < _epsilon) return 0;
+
+    var pa = math.atan2(y, x) * _rad2deg;
+    if (pa < 0) pa += 360;
+    return pa;
+  }
 }
 
 /// Twilight times container

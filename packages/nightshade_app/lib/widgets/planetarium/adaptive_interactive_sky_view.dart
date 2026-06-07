@@ -20,6 +20,7 @@ class AdaptiveInteractiveSkyView extends StatelessWidget {
     this.listedObjectIds = const {},
     this.bortleClass = 5,
     this.horizonAltitudes,
+    this.measurementMode = false,
     this.syncViewPoseFromV1 = false,
   });
 
@@ -39,6 +40,10 @@ class AdaptiveInteractiveSkyView extends StatelessWidget {
   final int bortleClass;
   final List<double>? horizonAltitudes;
 
+  /// When true, click-drag measures angular separation + position angle instead
+  /// of panning. Forwarded to the v1 [planetarium_v1.InteractiveSkyView].
+  final bool measurementMode;
+
   /// Retained for API compatibility with prior callers. No longer used: the
   /// v1 widget owns its own pose.
   final bool syncViewPoseFromV1;
@@ -57,6 +62,7 @@ class AdaptiveInteractiveSkyView extends StatelessWidget {
       listedObjectIds: listedObjectIds,
       bortleClass: bortleClass,
       horizonAltitudes: horizonAltitudes,
+      measurementMode: measurementMode,
     );
   }
 }

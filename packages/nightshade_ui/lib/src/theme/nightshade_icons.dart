@@ -115,6 +115,9 @@ abstract final class NightshadeIcons {
   /// Framing / field-of-view frame.
   static const IconData frame = LucideIcons.frame;
 
+  /// Angular measurement / ruler.
+  static const IconData ruler = LucideIcons.ruler;
+
   /// Geographic / sky location pin.
   static const IconData location = LucideIcons.mapPin;
 

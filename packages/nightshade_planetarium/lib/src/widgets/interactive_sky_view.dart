@@ -22,6 +22,7 @@ import '../providers/variable_star_providers.dart';
 import '../providers/minor_planet_providers.dart';
 
 part 'interactive_sky_view/fov_overlay_painter.dart';
+part 'interactive_sky_view/measurement_overlay_painter.dart';
 part 'interactive_sky_view/toolbar.dart';
 
 /// Interactive sky view widget with pan, zoom, and object selection
@@ -60,6 +61,10 @@ class InteractiveSkyView extends ConsumerStatefulWidget {
   /// When non-null, the ground plane follows this custom horizon profile.
   final List<double>? horizonAltitudes;
 
+  /// When true, click-drag measures the angular separation and position angle
+  /// between two sky points (drawn as an overlay ruler) instead of panning.
+  final bool measurementMode;
+
   const InteractiveSkyView({
     super.key,
     this.onObjectSelected,
@@ -72,6 +77,7 @@ class InteractiveSkyView extends ConsumerStatefulWidget {
     this.listedObjectIds = const {},
     this.bortleClass = 5,
     this.horizonAltitudes,
+    this.measurementMode = false,
   });
 
   @override
@@ -136,6 +142,14 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
 
   // Parallax effect - tracks current pan delta for dim star offset
   Offset _currentPanDelta = Offset.zero;
+
+  // Angular-measurement tool. Endpoints are stored as celestial coordinates so
+  // the ruler stays pinned to the sky under pan/zoom; the overlay re-projects
+  // them every paint. Both null when no measurement is active. Driven by
+  // setState because the ruler lives on the overlay layer, which rebuilds at
+  // animation cadence anyway — the extra setState only marks it dirty.
+  CelestialCoordinate? _measureStart;
+  CelestialCoordinate? _measureEnd;
 
   // Listenable driving ONLY the animated overlay layer (bright-star twinkle +
   // selection pulse). The static base layer is never a descendant of this, so
@@ -203,6 +217,19 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
 
     // Record frame timings for FPS/quality diagnostics.
     SchedulerBinding.instance.addTimingsCallback(_handleFrameTimings);
+  }
+
+  @override
+  void didUpdateWidget(InteractiveSkyView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Leaving measurement mode discards any drawn ruler so it doesn't linger
+    // over the normal interactive view.
+    if (oldWidget.measurementMode &&
+        !widget.measurementMode &&
+        (_measureStart != null || _measureEnd != null)) {
+      _measureStart = null;
+      _measureEnd = null;
+    }
   }
 
   @override
@@ -499,12 +526,44 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
             onScaleStart: (details) {
               // A new touch always cancels any in-flight momentum glide.
               _stopMomentum();
+
+              // Measurement mode: begin a ruler at the touch point instead of
+              // panning. The endpoint coincides with the start until the drag
+              // moves.
+              if (widget.measurementMode) {
+                final coord = _screenToCelestial(
+                  details.localFocalPoint,
+                  Size(constraints.maxWidth, constraints.maxHeight),
+                  viewState,
+                );
+                setState(() {
+                  _measureStart = coord;
+                  _measureEnd = coord;
+                });
+                return;
+              }
+
               _lastFocalPoint = details.focalPoint;
               _lastScale = 1.0;
               _panSamples.clear();
               _panSamples.add(_PanSample(details.focalPoint, DateTime.now()));
             },
             onScaleUpdate: (details) {
+              // Measurement mode: drag drives the ruler end point; the view
+              // pose is held still so the two sky anchors stay fixed.
+              if (widget.measurementMode) {
+                if (_measureStart == null) return;
+                final coord = _screenToCelestial(
+                  details.localFocalPoint,
+                  Size(constraints.maxWidth, constraints.maxHeight),
+                  viewState,
+                );
+                if (coord != null) {
+                  setState(() => _measureEnd = coord);
+                }
+                return;
+              }
+
               final viewNotifier = ref.read(skyViewStateProvider.notifier);
 
               // Distinguish a pinch-zoom from a one-finger drag.
@@ -565,6 +624,10 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
               }
             },
             onScaleEnd: (_) {
+              // Measurement mode never glides — the drag only positioned the
+              // ruler; the result stays on screen until cleared or remeasured.
+              if (widget.measurementMode) return;
+
               // Launch a momentum glide only for a real one-finger fling. The
               // pinch path clears _panSamples, so a pinch-release yields zero
               // velocity here and never glides.
@@ -596,6 +659,18 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
                   Size(constraints.maxWidth, constraints.maxHeight));
             },
             onTapUp: (details) {
+              // In measurement mode a single tap clears the current ruler so
+              // the user can start a fresh measurement; it never selects an
+              // object.
+              if (widget.measurementMode) {
+                if (_measureStart != null || _measureEnd != null) {
+                  setState(() {
+                    _measureStart = null;
+                    _measureEnd = null;
+                  });
+                }
+                return;
+              }
               _handleTap(details.localPosition,
                   Size(constraints.maxWidth, constraints.maxHeight));
             },
@@ -701,6 +776,26 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
                             milkyWayPoints: milkyWayPoints,
                             densityHotspots: densityHotspots,
                           ),
+                          // The angular-measurement ruler rides the overlay
+                          // layer's foreground so drawing/clearing it never
+                          // repaints the static base.
+                          foregroundPainter:
+                              (_measureStart != null && _measureEnd != null)
+                                  ? _MeasurementOverlayPainter(
+                                      viewState: viewState,
+                                      start: _measureStart!,
+                                      end: _measureEnd!,
+                                      latitude: location.latitude,
+                                      lstHours: viewState.viewMode ==
+                                              SkyViewMode.horizontal
+                                          ? AstronomyCalculations
+                                              .localSiderealTime(
+                                              observationMinute,
+                                              location.longitude,
+                                            )
+                                          : null,
+                                    )
+                                  : null,
                           size: Size.infinite,
                         ),
                       );

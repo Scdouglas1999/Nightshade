@@ -25,6 +25,14 @@ final nightVisionModeProvider = StateProvider<bool>((ref) => false);
 /// default.
 final showFovRingsProvider = StateProvider<bool>((ref) => false);
 
+/// Whether the angular-measurement tool is armed.
+///
+/// When enabled, a click-drag across the sky measures the angular separation
+/// and position angle between the two endpoints instead of panning the view.
+/// Off by default. The [InteractiveSkyView] reads this flag to switch its drag
+/// handling and draw the measurement overlay.
+final measurementModeProvider = StateProvider<bool>((ref) => false);
+
 // ============================================================================
 // Sky Render Config Provider
 // ============================================================================

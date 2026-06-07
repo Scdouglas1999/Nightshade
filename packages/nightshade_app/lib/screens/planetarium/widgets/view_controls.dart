@@ -101,6 +101,21 @@ class ViewControls extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 4),
+          // Angular-measurement tool toggle (separation + position angle).
+          Consumer(
+            builder: (context, ref, _) {
+              return ViewControlButton(
+                icon: NightshadeIcons.ruler,
+                isActive: ref.watch(measurementModeProvider),
+                onTap: () {
+                  final notifier = ref.read(measurementModeProvider.notifier);
+                  notifier.state = !notifier.state;
+                },
+                tooltip: 'Measure angular separation + position angle',
+              );
+            },
+          ),
+          const SizedBox(height: 4),
           // Night-vision (red) mode toggle
           Consumer(
             builder: (context, ref, _) {
