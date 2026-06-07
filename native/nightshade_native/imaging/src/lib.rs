@@ -21,6 +21,7 @@ mod debayer;
 mod fits;
 pub mod frame_weighting; // NEW: Per-sub quality weighting for batch integration
 mod naming;
+pub mod normalization; // NEW: Light-frame normalization to a reference (batch integration)
 mod phd2;
 mod platesolve;
 mod processing; // NEW: Tiled image processing
@@ -39,6 +40,7 @@ pub use debayer::*;
 pub use fits::*;
 pub use frame_weighting::*; // NEW: Export frame-weighting types
 pub use naming::*;
+pub use normalization::*; // NEW: Export normalization types
 pub use phd2::*;
 pub use platesolve::*;
 pub use processing::*; // NEW: Export processing types
