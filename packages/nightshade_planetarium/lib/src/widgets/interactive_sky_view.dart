@@ -89,6 +89,12 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
   double _targetFOV = 60.0;
   double _startFOV = 60.0;
 
+  // Smooth fly-to (animated re-center) for search/GoTo actions.
+  late AnimationController _flyToController;
+  Animation<double>? _flyToRaAnimation;
+  Animation<double>? _flyToDecAnimation;
+  int? _lastFlyToToken;
+
   // Star twinkle animation
   AnimationController? _twinkleController;
 
@@ -144,6 +150,13 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
       duration: const Duration(milliseconds: 300),
     )..addListener(_onZoomAnimation);
 
+    // Smooth fly-to glide from search/GoTo. 600ms easeInOutCubic feels like a
+    // deliberate camera move rather than a teleport.
+    _flyToController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..addListener(_onFlyToAnimation);
+
     // Twinkle animation cycles every 3 seconds
     // NOTE: We don't start the animation here - it will be started in build
     // if the quality config enables it. This prevents constant repaints when
@@ -196,6 +209,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
   void dispose() {
     SchedulerBinding.instance.removeTimingsCallback(_handleFrameTimings);
     _zoomController.dispose();
+    _flyToController.dispose();
     _twinkleController?.dispose();
     _selectionController.dispose();
     _momentumTicker.dispose();
@@ -348,6 +362,49 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     _zoomController.forward(from: 0.0);
   }
 
+  void _onFlyToAnimation() {
+    final raAnim = _flyToRaAnimation;
+    final decAnim = _flyToDecAnimation;
+    if (raAnim == null || decAnim == null) return;
+
+    // RA is animated in an unwrapped (possibly out-of-[0,24)) space so the
+    // glide takes the shortest path across the 0h/24h seam; setCenter wraps it
+    // back into range.
+    var ra = raAnim.value % 24;
+    if (ra < 0) ra += 24;
+    ref.read(skyViewStateProvider.notifier).setCenter(ra, decAnim.value);
+  }
+
+  /// Smoothly animate the view center to [target] (used by search/GoTo).
+  ///
+  /// Equatorial frame only: the horizontal frame's center is alt/az and would
+  /// need a sidereal-time conversion, so there we fall back to an instant jump
+  /// (correct, just not animated).
+  void _startFlyTo(CelestialCoordinate target) {
+    final viewState = ref.read(skyViewStateProvider);
+    if (viewState.viewMode == SkyViewMode.horizontal) {
+      ref.read(skyViewStateProvider.notifier).lookAt(target);
+      return;
+    }
+
+    final startRa = viewState.centerRA;
+    final startDec = viewState.centerDec;
+
+    // Choose the shortest RA direction across the 0h/24h wraparound.
+    var deltaRa = target.ra - startRa;
+    if (deltaRa > 12) deltaRa -= 24;
+    if (deltaRa < -12) deltaRa += 24;
+    final endRa = startRa + deltaRa;
+
+    final curve =
+        CurvedAnimation(parent: _flyToController, curve: Curves.easeInOutCubic);
+    _flyToRaAnimation = Tween<double>(begin: startRa, end: endRa).animate(curve);
+    _flyToDecAnimation =
+        Tween<double>(begin: startDec, end: target.dec).animate(curve);
+
+    _flyToController.forward(from: 0.0);
+  }
+
   /// Map provider mount status to renderer mount status
   MountRenderStatus _mapMountStatus(MountTrackingStatus status) {
     return switch (status) {
@@ -383,6 +440,15 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     final satellites = ref.watch(currentSatellitesProvider);
     final variableStars = ref.watch(variableStarDataProvider);
     final minorPlanets = ref.watch(currentMinorPlanetsProvider);
+
+    // React to fly-to (GoTo) requests by smoothly animating the view center.
+    // Tokens dedupe so a request only fires its glide once, even across the
+    // many rebuilds this widget performs.
+    ref.listen<FlyToRequest?>(flyToRequestProvider, (prev, next) {
+      if (next == null || next.token == _lastFlyToToken) return;
+      _lastFlyToToken = next.token;
+      _startFlyTo(next.target);
+    });
 
     // Handle selection animation
     if (qualityConfig.enableSelectionAnimation) {

@@ -202,6 +202,40 @@ final skyViewStateProvider =
   return SkyViewNotifier();
 });
 
+/// A request to smoothly animate the view center to a target coordinate.
+///
+/// The [token] is monotonically increasing so that requesting a fly-to to the
+/// same coordinate twice still notifies listeners (a plain coordinate-equality
+/// check would swallow the second request).
+class FlyToRequest {
+  final CelestialCoordinate target;
+  final int token;
+
+  const FlyToRequest({required this.target, required this.token});
+}
+
+/// Drives smooth "fly-to" view-center animations from search/GoTo actions.
+///
+/// The center animation itself lives in [InteractiveSkyView] (it owns the
+/// vsync/ticker); this notifier is just the request channel. Callers use
+/// [flyTo] to ask the view to glide to a coordinate, and the active sky view
+/// reacts by tweening its center there.
+class FlyToNotifier extends StateNotifier<FlyToRequest?> {
+  FlyToNotifier() : super(null);
+
+  int _token = 0;
+
+  /// Request a smooth animated re-center on [target].
+  void flyTo(CelestialCoordinate target) {
+    state = FlyToRequest(target: target, token: ++_token);
+  }
+}
+
+final flyToRequestProvider =
+    StateNotifierProvider<FlyToNotifier, FlyToRequest?>((ref) {
+  return FlyToNotifier();
+});
+
 /// Computed provider for current view center in horizontal coordinates
 /// Returns (azimuth, altitude) in degrees
 /// Uses minute precision to avoid excessive rebuilds from per-second time updates.

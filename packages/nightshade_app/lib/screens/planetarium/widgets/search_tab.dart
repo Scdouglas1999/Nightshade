@@ -62,7 +62,7 @@ class SearchResultsTab extends ConsumerWidget {
           colors: colors,
           onTap: () {
             ref.read(selectedObjectProvider.notifier).selectObject(obj);
-            ref.read(skyViewStateProvider.notifier).lookAt(obj.coordinates);
+            ref.read(flyToRequestProvider.notifier).flyTo(obj.coordinates);
           },
         );
       },

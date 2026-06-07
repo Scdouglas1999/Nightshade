@@ -9,6 +9,7 @@ import '../catalogs/star_catalog.dart';
 import '../catalogs/constellation_data.dart';
 import '../catalogs/catalog.dart';
 import '../catalogs/spatial_index.dart';
+import '../catalogs/minor_planet_catalog.dart';
 import '../astronomy/astronomy_calculations.dart';
 import '../astronomy/planetary_positions.dart';
 import '../astronomy/milky_way_data.dart';
