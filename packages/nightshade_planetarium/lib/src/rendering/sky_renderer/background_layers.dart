@@ -117,36 +117,22 @@ extension _SkyCanvasPainterBackgroundLayers on SkyCanvasPainter {
     }
   }
 
-  // Logical→texel downscale factor for the Milky Way offscreen. The band is a
-  // soft diffuse glow, so rasterizing its costly Gaussian blur at half linear
-  // resolution (quarter the pixels, half the sigma) and bilinear-upscaling on
-  // draw is perceptually indistinguishable from a full-resolution blur at a
-  // fraction of the fill-rate cost. This is the dominant per-frame render cost
-  // during pan/zoom, where the pose cache misses every frame.
-  static const double _milkyWayDownscale = 0.5;
-
   void _drawMilkyWay(Canvas canvas, Size size, Offset center, double scale) {
     if (milkyWayPoints == null) return;
 
-    final dst = Rect.fromLTWH(0, 0, size.width, size.height);
-
-    // Reuse the cached half-res band image while the view is effectively still.
+    // Check if we can reuse a cached Milky Way Picture.
+    // The Milky Way is fixed on the sky, so it only needs redrawing when the view moves.
     if (_milkyWayCache.isValid(
         viewState.centerRA, viewState.centerDec, viewState.fieldOfView, size)) {
-      _blitMilkyWay(canvas, _milkyWayCache.image!, dst);
+      canvas.drawPicture(_milkyWayCache.picture!);
       return;
     }
 
-    // Cache miss: rasterize the band into a half-resolution offscreen image.
-    // Half-resolution means every geometric quantity (projected position, point
-    // radius, blur sigma) is scaled by [_milkyWayDownscale] so that, once the
-    // image is upscaled 1/_milkyWayDownscale on draw, the on-screen size, blur
-    // extent and coverage match the original full-resolution band.
-    const ds = _milkyWayDownscale;
-    final texW = (size.width * ds).ceil();
-    final texH = (size.height * ds).ceil();
-    if (texW <= 0 || texH <= 0) return;
+    // Cache miss: record Milky Way into a Picture
+    final recorder = ui.PictureRecorder();
+    final recordCanvas = Canvas(recorder);
 
+    // Calculate appropriate blur and point size based on FOV
     final fovFactor = viewState.fieldOfView / 60;
     final blurRadius = (8 * fovFactor).clamp(4.0, 20.0);
     final pointRadius = (3 * fovFactor).clamp(2.0, 8.0);
@@ -154,9 +140,8 @@ extension _SkyCanvasPainterBackgroundLayers on SkyCanvasPainter {
     // Milky Way color - subtle blue-white glow
     const baseColor = Color(0xFF8090A8);
 
-    // Batch Milky Way points into Float32List groups by intensity bucket to
-    // minimize draw calls. Positions are projected at full screen scale (so the
-    // in-view test matches the visible canvas) then scaled into texel space.
+    // Batch Milky Way points into Float32List groups by intensity bucket
+    // to minimize draw calls
     final glowPoints = <double>[];
     final corePoints = <double>[];
 
@@ -164,23 +149,20 @@ extension _SkyCanvasPainterBackgroundLayers on SkyCanvasPainter {
       final offset = _celestialToScreen(point.coordinates, center, scale);
       if (offset == null || !_isInView(offset, size)) continue;
 
-      glowPoints.add(offset.dx * ds);
-      glowPoints.add(offset.dy * ds);
+      glowPoints.add(offset.dx);
+      glowPoints.add(offset.dy);
 
       if (point.intensity > 0.5) {
-        corePoints.add(offset.dx * ds);
-        corePoints.add(offset.dy * ds);
+        corePoints.add(offset.dx);
+        corePoints.add(offset.dy);
       }
     }
 
-    final recorder = ui.PictureRecorder();
-    final recordCanvas = Canvas(recorder);
-
-    // Draw all glow points as a single batch (sigma + size scaled to texel space)
+    // Draw all glow points as a single batch
     if (glowPoints.isNotEmpty) {
       final glowPaint =
-          _PaintCache.getBlurPaint(blurRadius * ds, baseColor, alpha: 0.12);
-      glowPaint.strokeWidth = pointRadius * 4 * ds;
+          _PaintCache.getBlurPaint(blurRadius, baseColor, alpha: 0.12);
+      glowPaint.strokeWidth = pointRadius * 4;
       glowPaint.strokeCap = StrokeCap.round;
       recordCanvas.drawRawPoints(
           ui.PointMode.points, Float32List.fromList(glowPoints), glowPaint);
@@ -189,31 +171,17 @@ extension _SkyCanvasPainterBackgroundLayers on SkyCanvasPainter {
     // Draw brighter core points as a second batch
     if (corePoints.isNotEmpty) {
       final corePaint =
-          _PaintCache.getBlurPaint(blurRadius * 0.5 * ds, baseColor, alpha: 0.18);
-      corePaint.strokeWidth = pointRadius * 2 * ds;
+          _PaintCache.getBlurPaint(blurRadius * 0.5, baseColor, alpha: 0.18);
+      corePaint.strokeWidth = pointRadius * 2;
       corePaint.strokeCap = StrokeCap.round;
       recordCanvas.drawRawPoints(
           ui.PointMode.points, Float32List.fromList(corePoints), corePaint);
     }
 
-    // Rasterize synchronously so the image is usable this frame (matches the
-    // sprite-atlas bake strategy), cache it, and blit upscaled.
-    final image = recorder.endRecording().toImageSync(texW, texH);
-    _milkyWayCache.store(image, viewState.centerRA, viewState.centerDec,
+    final picture = recorder.endRecording();
+    _milkyWayCache.store(picture, viewState.centerRA, viewState.centerDec,
         viewState.fieldOfView, size);
 
-    _blitMilkyWay(canvas, image, dst);
-  }
-
-  /// Bilinear-upscale the half-res Milky Way [image] to fill [dst].
-  void _blitMilkyWay(Canvas canvas, ui.Image image, Rect dst) {
-    final src =
-        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble());
-    canvas.drawImageRect(
-      image,
-      src,
-      dst,
-      Paint()..filterQuality = FilterQuality.medium,
-    );
+    canvas.drawPicture(picture);
   }
 }
