@@ -1,15 +1,22 @@
 // Core measurement loop for the planetarium paint benchmark.
 //
 // Headless and deterministic: builds the real [SkyCanvasPainter] (+ FOV overlay)
-// for each scripted camera frame, records paint() into a PictureRecorder canvas,
-// and times each paint with a high-resolution Stopwatch. A few warm-up frames
-// are discarded before timing so JIT/cache effects don't pollute the numbers.
+// for each scripted camera frame, records paint() into a PictureRecorder, then
+// RASTERIZES the recorded display list to a real bitmap (toImage) and reads the
+// pixels back (toByteData) so the actual fill/blend/glow/atlas-blit cost is
+// included — not just the cheap cost of building the op list. Each frame is
+// timed with a high-resolution Stopwatch. A few warm-up frames are discarded so
+// JIT/cache effects don't pollute the numbers.
 //
-// IMPORTANT: this measures CPU paint-pipeline time (the work CustomPainter does
-// building the Skia display list), NOT GPU rasterization or on-display frame
-// rate. That is the dominant, deterministic, reproducible lever for this
-// pipeline. Real end-to-end FPS is captured separately by the integration_test
-// using Flutter FrameTiming. See benchmark/README.md.
+// Why rasterize-and-read-back: recording paint() alone only builds a Skia
+// display list and finishes in ~1ms regardless of scene weight, so it is blind
+// to overdraw, blur passes and fill rate — the things optimization actually
+// changes. Forcing the pixels to materialize makes the timing track real render
+// work and respond to optimizations. This uses the software rasterizer under
+// `flutter test` (no GPU), so it is a CPU-side proxy for on-device GPU cost:
+// directionally faithful for overdraw/fill/blend and, crucially, deterministic
+// and responsive. True end-to-end GPU FPS is captured separately by the
+// integration_test using Flutter FrameTiming. See benchmark/README.md.
 
 import 'dart:io';
 import 'dart:ui' as ui;
@@ -67,18 +74,18 @@ class BenchmarkResult {
 /// [warmupFrames] paints are run and discarded before timing begins. The
 /// remaining [CameraFrame]s are each timed once. Returns the aggregated result;
 /// the caller decides whether to persist it.
-BenchmarkResult runPaintBenchmark({
+Future<BenchmarkResult> runPaintBenchmark({
   required StressFixture fixture,
   required List<CameraFrame> timeline,
   int warmupFrames = 8,
   String note = '',
-}) {
+}) async {
   const size = kBenchmarkCanvasSize;
 
-  // Warm-up: paint the first few frames without timing so lazy atlas baking,
+  // Warm-up: render the first few frames without timing so lazy atlas baking,
   // projection-cache priming and JIT warm-up don't land in the measured set.
   for (var i = 0; i < warmupFrames && i < timeline.length; i++) {
-    _paintFrame(fixture, timeline[i], size);
+    await _paintFrame(fixture, timeline[i], size);
   }
 
   final timingsMs = <double>[];
@@ -87,7 +94,7 @@ BenchmarkResult runPaintBenchmark({
 
   for (final frame in timeline) {
     final sw = Stopwatch()..start();
-    _paintFrame(fixture, frame, size);
+    await _paintFrame(fixture, frame, size);
     sw.stop();
     timingsMs.add(sw.elapsedMicroseconds / 1000.0);
 
@@ -117,17 +124,33 @@ BenchmarkResult runPaintBenchmark({
   );
 }
 
-/// Paint one frame (sky + FOV overlay) into a throwaway recorder. Used by both
-/// the warm-up and timed loops so they do identical work.
-void _paintFrame(StressFixture fixture, CameraFrame frame, ui.Size size) {
+/// Render one frame (sky + FOV overlay) and rasterize it to real pixels. Used by
+/// both the warm-up and timed loops so they do identical work.
+///
+/// The recorded display list is rasterized via [ui.Picture.toImage] and the
+/// pixels are read back with [ui.Image.toByteData], which forces the raster to
+/// actually execute (overdraw, blends, glow blur, atlas blits) rather than being
+/// deferred or elided. That readback is what makes the timing track real render
+/// cost. Everything is disposed each frame to avoid leaking images/pictures
+/// across the (potentially hundreds of) timed frames.
+Future<void> _paintFrame(
+    StressFixture fixture, CameraFrame frame, ui.Size size) async {
   final recorder = ui.PictureRecorder();
   final canvas = ui.Canvas(recorder);
   buildSkyPainter(fixture: fixture, frame: frame).paint(canvas, size);
   buildFovPainter(frame).paint(canvas, size);
-  // endRecording forces the display list to be finalised, so its cost is part
-  // of the measured paint-pipeline time. Dispose to avoid leaking pictures
-  // across the (potentially hundreds of) timed frames.
-  recorder.endRecording().dispose();
+  final picture = recorder.endRecording();
+  try {
+    final image = await picture.toImage(size.width.round(), size.height.round());
+    try {
+      // Force full rasterization to memory; the result is intentionally unused.
+      await image.toByteData();
+    } finally {
+      image.dispose();
+    }
+  } finally {
+    picture.dispose();
+  }
 }
 
 /// Number of catalog objects (stars + DSOs) whose centre falls within the

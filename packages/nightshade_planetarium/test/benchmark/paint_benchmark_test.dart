@@ -4,13 +4,13 @@
 //   flutter test test/benchmark/paint_benchmark_test.dart
 //
 // Loads the committed deterministic stress fixture, drives the scripted camera
-// timeline, times each paint() (CPU paint-pipeline time) and writes the
-// aggregated result to benchmark/results/latest.json. No GPU, window or network
-// is required.
+// timeline, times each frame's rasterize-and-readback (real fill/blend/glow
+// cost via the software rasterizer) and writes the aggregated result to
+// benchmark/results/latest.json. No GPU, window or network is required.
 //
-// Honesty note: this measures CPU paint time, not on-display FPS. See
-// benchmark/README.md and integration_test/frame_timing_test.dart for the real
-// FrameTiming measurement.
+// Honesty note: this is a CPU-side rasterization proxy, not on-device GPU FPS.
+// See benchmark/README.md and integration_test/frame_timing_test.dart for the
+// real FrameTiming measurement.
 
 import 'dart:io';
 
@@ -24,7 +24,7 @@ import '../../benchmark/src/stress_fixture.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('planetarium paint benchmark produces results JSON', () {
+  test('planetarium paint benchmark produces results JSON', () async {
     final fixture = StressFixture.load();
 
     // Sanity: the committed fixture must actually be the dense worst case.
@@ -40,12 +40,12 @@ void main() {
     );
     expect(timeline.length, 180);
 
-    final result = runPaintBenchmark(
+    final result = await runPaintBenchmark(
       fixture: fixture,
       timeline: timeline,
       warmupFrames: 8,
-      note: 'headless CPU paint-pipeline time; balanced quality; '
-          '$kBenchmarkCanvasDescription',
+      note: 'headless rasterize-and-readback time (CPU raster proxy); '
+          'balanced quality; $kBenchmarkCanvasDescription',
     );
 
     // The numbers must be real and sane.

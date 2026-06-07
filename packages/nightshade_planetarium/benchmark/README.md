@@ -7,12 +7,19 @@ time is attributable and reproducible.
 
 ## What it measures (and what it does NOT)
 
-* **Headless benchmark = CPU paint-pipeline time.** `flutter test` builds the
-  real `SkyCanvasPainter` (+ FOV overlay), records `paint()` into an offscreen
-  `PictureRecorder`, and times each paint with a high-resolution `Stopwatch`.
-  This is the work the `CustomPainter` does to build the Skia display list — the
-  dominant, deterministic, machine-stable lever for this pipeline. It does **not**
-  include GPU rasterization or vsync, so it is **not** an FPS measurement.
+* **Headless benchmark = CPU rasterization time (proxy).** `flutter test` builds
+  the real `SkyCanvasPainter` (+ FOV overlay), records `paint()` into an offscreen
+  `PictureRecorder`, then **rasterizes the display list to a real bitmap**
+  (`Picture.toImage`) and **reads the pixels back** (`Image.toByteData`) so the
+  actual fill/blend/glow-blur/atlas-blit cost is included — not just the cheap
+  cost of building the op list. Each frame is timed with a high-resolution
+  `Stopwatch`. This uses the **software rasterizer** (no GPU under `flutter test`),
+  so it is a CPU-side *proxy* for on-device GPU cost: directionally faithful for
+  overdraw / fill rate / blend and, crucially, deterministic, low-noise (~1% run
+  to run) and responsive to optimization. It is **not** vsync'd display FPS.
+  (Earlier revisions timed only `endRecording()` — display-list *recording* — which
+  finished in ~1 ms regardless of scene weight and was blind to the overdraw and
+  blur passes optimization actually changes; rasterize-and-read-back fixes that.)
 * **Integration test = real on-display FrameTiming.** For genuine end-to-end
   build+raster milliseconds (GPU included) on a machine with a display, run the
   integration test. This is **not** the loop's gate (it needs a display and
@@ -83,10 +90,10 @@ flutter test integration_test/frame_timing_test.dart -d windows
 
 ```json
 {
-  "p50Ms":  0.0,   // median per-frame CPU paint time (ms)
+  "p50Ms":  0.0,   // median per-frame CPU rasterize+readback time (ms)
   "p95Ms":  0.0,   // 95th percentile
   "p99Ms":  0.0,   // 99th percentile
-  "avgFps": 0.0,   // 1000 / meanMs (CPU-paint-bound ceiling, NOT display FPS)
+  "avgFps": 0.0,   // 1000 / meanMs (CPU-raster-bound ceiling, NOT display FPS)
   "rssMb":  0.0,   // peak ProcessInfo.currentRss during the run (MB)
   "objectsDrawn": 0, // catalog objects on-screen at the densest frame (proxy)
   "frames": 180,   // number of timed frames (warm-up excluded)
