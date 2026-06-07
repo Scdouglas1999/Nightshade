@@ -157,26 +157,57 @@ final bestTargetsProvider =
   final imagingTime = twilight.astronomicalDusk ??
       DateTime(currentDate.year, currentDate.month, currentDate.day, 21, 0);
 
-  final targetsWithVisibility = <(DeepSkyObject, ObjectVisibility)>[];
+  // Computing visibility (iterative rise/transit/set) for the full ~12k-DSO
+  // catalog is heavy; run it in an isolate so the first read (e.g. the first
+  // time the side panel opens) doesn't block/freeze the UI thread. Only the
+  // coordinate arrays are sent across (cheap) — not the DSO objects.
+  final args = _BestTargetsArgs(
+    raDeg: [for (final d in dsos) d.coordinates.raDegrees],
+    decDeg: [for (final d in dsos) d.coordinates.dec],
+    latitudeDeg: location.latitude,
+    longitudeDeg: location.longitude,
+    imagingTime: imagingTime,
+  );
+  final ranked = await compute(_computeBestTargetIndices, args);
+  return [for (final (i, v) in ranked) (dsos[i], v)];
+});
 
-  for (final dso in dsos) {
-    final visibility = AstronomyCalculations.calculateObjectVisibility(
-      raDeg: dso.coordinates.raDegrees,
-      decDeg: dso.coordinates.dec,
-      date: imagingTime,
-      latitudeDeg: location.latitude,
-      longitudeDeg: location.longitude,
-      minAltitude: 30, // Only consider objects above 30°
+/// Inputs for the off-thread best-targets computation. Only primitives + plain
+/// coordinate lists so the payload is cheap to send to the isolate.
+class _BestTargetsArgs {
+  final List<double> raDeg;
+  final List<double> decDeg;
+  final double latitudeDeg;
+  final double longitudeDeg;
+  final DateTime imagingTime;
+
+  const _BestTargetsArgs({
+    required this.raDeg,
+    required this.decDeg,
+    required this.latitudeDeg,
+    required this.longitudeDeg,
+    required this.imagingTime,
+  });
+}
+
+/// Isolate entry point: rank DSOs (by index) by transit altitude, keeping only
+/// those that rise above 30°. Returns the top 20 as (originalIndex, visibility).
+List<(int, ObjectVisibility)> _computeBestTargetIndices(_BestTargetsArgs a) {
+  final ranked = <(int, ObjectVisibility)>[];
+  for (var i = 0; i < a.raDeg.length; i++) {
+    final v = AstronomyCalculations.calculateObjectVisibility(
+      raDeg: a.raDeg[i],
+      decDeg: a.decDeg[i],
+      date: a.imagingTime,
+      latitudeDeg: a.latitudeDeg,
+      longitudeDeg: a.longitudeDeg,
+      minAltitude: 30,
     );
-
-    if (!visibility.neverRises && (visibility.transitAltitude ?? 0) > 30) {
-      targetsWithVisibility.add((dso, visibility));
+    if (!v.neverRises && (v.transitAltitude ?? 0) > 30) {
+      ranked.add((i, v));
     }
   }
-
-  // Sort by transit altitude (highest first)
-  targetsWithVisibility.sort((a, b) =>
-      (b.$2.transitAltitude ?? 0).compareTo(a.$2.transitAltitude ?? 0));
-
-  return targetsWithVisibility.take(20).toList();
-});
+  ranked.sort(
+      (x, y) => (y.$2.transitAltitude ?? 0).compareTo(x.$2.transitAltitude ?? 0));
+  return ranked.take(20).toList();
+}

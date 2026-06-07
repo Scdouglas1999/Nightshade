@@ -327,6 +327,9 @@ final dynamicMagnitudeLimitsProvider = Provider<(double, double)>((ref) {
   final location = ref.watch(observerLocationProvider);
   final time = ref.watch(_currentMinuteProvider);
   final fov = viewState.fieldOfView;
+  // When stars are hidden the sky has no star clutter to declutter against, so
+  // DSOs should be visible at any zoom rather than fading in as you zoom.
+  final showStars = ref.watch(skyRenderConfigProvider.select((c) => c.showStars));
 
   // Base limits from quality tier
   final baseStarLimit = quality.starMagnitudeLimit;
@@ -394,8 +397,12 @@ final dynamicMagnitudeLimitsProvider = Provider<(double, double)>((ref) {
   final starPenalty = skyBrightnessPenalty * 0.5;
   final dsoPenalty = skyBrightnessPenalty;
 
+  // Stars hidden -> use the maximum reveal factor for DSOs so they show at full
+  // depth at any zoom level (no need to zoom in to "pop" them in).
+  final dsoFovFactor = showStars ? fovFactor : 7.0;
+
   return (
     (baseStarLimit + fovFactor - starPenalty).clamp(2.0, 12.0),
-    (baseDsoLimit + fovFactor - dsoPenalty).clamp(4.0, 16.0),
+    (baseDsoLimit + dsoFovFactor - dsoPenalty).clamp(4.0, 16.0),
   );
 });
