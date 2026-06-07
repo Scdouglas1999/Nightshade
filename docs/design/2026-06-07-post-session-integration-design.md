@@ -2,7 +2,7 @@
 
 - **Date:** 2026-06-07
 - **Branch:** `roadmap/planetarium-atlas-and-perf`
-- **Status:** Design (no implementation yet)
+- **Status:** ✅ **SHIPPED end-to-end** (native + FFI + Dart pipeline + Session-Review UI; all gates green; not pushed). See §7 "What shipped & honest quality assessment" for the as-built record and PixInsight gap analysis. The original design (§0–§6) is preserved; the layout deviated from the proposed `integration/` subtree (the modules landed as flat top-level files — see §7.1).
 - **North star:** PixInsight-grade integration quality, advanced manual settings with smart defaults, and **multi-night master accumulation** (keep adding new captured subs to an existing master over time).
 
 ---
@@ -375,3 +375,93 @@ Each phase is independently committable and **must pass its gate before commit**
 **New Dart core:** `models/imaging/integration_settings.dart`, `services/post_session_integration_service.dart`, `services/master_accumulation_service.dart`, `services/flat_library_service.dart`, `database/tables/{integrated_masters,integrated_master_frames,flat_library}.dart` + DAOs; `database/database.dart` registration + migration (schemaVersion 40 → 41).
 **Reused Dart core (no rewrite):** `services/stack_light_selector.dart`, `services/calibration_service.dart`, `services/dark_library_service.dart`, auto-stretch path, `daos/images_dao.dart`, `daos/stacked_results_dao.dart`.
 **New/edited app UI:** `screens/session_review/` (screen + `integration_settings_panel.dart`, `master_library_panel.dart`), promote `analytics/widgets/image_thumbnail_strip.dart` + add blink/multi-select, lift reject-only gate in `sequencer/widgets/run_dashboard/frame_detail_dialog.dart`, reuse `stack_result/widgets/astro_image_viewer.dart` + `diagnostics/{psf_field_map,residual_vector}.dart`, auto-integrate hook in the run-completion path.
+
+---
+
+## 7. What shipped & honest quality assessment (as-built, 2026-06-07)
+
+This section records the **as-built** feature against the design above, verified by re-running every gate (not self-report). All work is on `roadmap/planetarium-atlas-and-perf`, not pushed.
+
+### 7.1 What shipped end-to-end
+
+**Native algorithm layer** (`native/nightshade_native/imaging/src/`, committed `1850a67a` -> `0ee6d0e9`). Landed as **flat top-level modules**, not the proposed `integration/` subtree (functionally identical; the flat layout matches the crate's existing convention â€” `stacking.rs`, `calibration.rs`, etc.):
+
+- `registration.rs` (1809 lines) â€” robust star detection + flux-weighted centroid refinement, **triangle/quad asterism matching** (rotation/scale/flip-invariant), **RANSAC over a model hierarchy** (`TransformModel` Similarity / Affine / Homography stored as a single 3x3 homogeneous matrix), least-squares inlier refinement, **Lanczos3 / Catmull-Rom resampling** with bounds clamping. Reports inlier count + RMS/peak residual.
+- `frame_weighting.rs` (826 lines) â€” `FrameQuality` (noise via **MAD of the 3x3-median residual**, SNR, FWHM/HFR, eccentricity, star count, background) -> scalar weight via `WeightFormula` (SNR / SNR^2 / FWHM-inverse / custom exponents) normalized to best-sub = 1.0, plus a `CullPolicy` recommendation.
+- `normalization.rs` (986 lines) â€” additive (background) + multiplicative (scale) match to reference via robust linear fit, **`CoverageMask`** so warp-border zero-fill never contaminates the fit, optional local grid.
+- `integration.rs` (1458 lines) â€” **batch** combine (mean/median) with all five rejection algorithms: `SigmaClip`, `WinsorizedSigmaClip`, `LinearFitClip`, `PercentileClip`, `MinMax`, plus `None`; weighted by per-sub weight x per-pixel coverage; emits the master (F32 linear) + **rejection-count map** + **coverage map** + per-frame records.
+- `master_accumulation.rs` (1578 lines) â€” serializable `IntegratedMaster` running weighted sums (`sum_w`, `sum_wx`, `sum_wx2`) -> **exactly accumulable weighted mean**; frozen normalization + geometry reference; online k-sigma clip on add (`AccumulationMode::RunningWeightedMean { clip }`); versioned `serialize`/`deserialize` with magic-byte container (mirrors `defect_map.rs`); the `None`-clip path is provably bit-equal to a single-batch weighted-mean integration.
+- `calibration_masters.rs` (853 lines) â€” `build_master_flat` (pedestal-subtract -> `combine_master_frames` Flat-kind -> **unit-mean normalize** so `divide_flat` works) + cosmetic hot/cold-pixel correction + defect map. Fails closed on degenerate input.
+- `fits.rs` â€” **F32 (BITPIX -32) read + write** so linear masters survive without quantization (the called-out gap).
+
+**FFI** (`bridge/src/api/post_session.rs`, 1981 lines, committed `3e0a5d19`; FRB regenerated + committed). Exactly **four** `String -> Result<String, String>` JSON entrypoints (all DTOs `#[frb(ignore)]`, so future knobs never trigger a regen â€” the live-stacker trick):
+
+- `api_integrate_session` â€” one-shot **calibrate -> register -> normalize -> weight -> integrate(reject)** into a 16-bit/float linear FITS master + stretched preview PNG + optional rejection-map FITS; returns frames integrated/rejected, total integration seconds, mean RMS residual, per-frame cull stats. Smart reject auto-select by sub count (percentile <8, winsorized-sigma 8-24, linear-fit >=25).
+- `api_master_accumulate` â€” create / add / finalize / info over `IntegratedMaster`; freezes a registration-reference companion FITS at create; resumable via the `.nsmaster` sidecar.
+- `api_build_master_flat` â€” unit-mean master-flat build (+ optional bias/dark-flat pedestal).
+- `api_save_fits_master` â€” re-export an in-memory F32/U16 buffer as a provenance-carrying FITS master.
+
+> **Known latent bug (out of scope, flagged):** the pre-existing `api_combine_master_frames` writes 9-char FITS keywords `INPUTMEAN` / `OUTPTMEAN` (FITS keywords max 8 chars). The new path writes the correct `INMEAN` / `OUTMEAN`. The old function should be fixed in a follow-up.
+
+**Dart pipeline** (`packages/nightshade_core/`, committed `7b8268e4`):
+
+- `IntegrationSettings` (816 lines) â€” every advanced knob + smart defaults + named presets (Fast / Balanced / Maximum-Quality / Few-Subs / Long-Night-Gradient); `smartDefaults()` resolves the auto-rejection rule by sub count; JSON round-trip + bridge-args.
+- `PostSessionSeam` / `BridgePostSessionSeam` â€” injectable interface over the four FFI calls (mirrors `StackingEngineSeam`, so the services are unit-testable without the native layer).
+- `PostSessionIntegrationService` â€” per-filter accepted-sub integration; resolves dark (DarkLibrary) + flat (FlatLibrary) calibration; persists an `integrated_masters` row + per-sub fold records.
+- `MasterAccumulationService` â€” multi-night create/add/finalize/info with **image-id dedup** via the join table (a sub is never double-folded).
+- `FlatLibraryService` + `flat_library` table â€” the missing master-flat artifact library; `findBestMatch` mirrors `DarkLibrary`.
+- New tables `integrated_masters` / `integrated_master_frames` / `flat_library` + DAOs (`integrated_masters_dao.dart`, `flat_library_dao.dart`) + **schemaVersion 40 -> 41** migration (`migration_v41.dart`, idempotent, runs from onCreate and onUpgrade).
+
+**UI** (`packages/nightshade_app/lib/screens/session_review/`, committed `97e50767`): Session Review / Morning Report screen + controller + auto-integration service, with `sub_gallery_panel` (quality badges, accept/reject cull, **blink mode**, bulk reject-above-HFR), `integration_settings_panel` (smart-default preset chips + collapsible Advanced section + live "will use N subs" readout), `master_library_panel`, `master_preview_view`. Reuses the existing `FrameDetailDialog`.
+
+### 7.2 Verification (gates re-run 2026-06-07, real output)
+
+| Gate | Command | Result |
+|---|---|---|
+| Native tests | `cargo test -p nightshade_imaging` | **308 + 12 + 1 = 321 pass / 0 fail** |
+| Native lint | `cargo clippy -p nightshade_imaging --all-features -- -D warnings` | **clean (exit 0)** |
+| Bridge build | `cargo build -p nightshade_bridge` | **clean (exit 0)** |
+| Core analyze | `flutter analyze` (nightshade_core) | **0 errors** (205 pre-existing infos/warnings in unrelated test files; 0 in any post-session file) |
+| App analyze | `flutter analyze` (nightshade_app) | **0 errors** (97 pre-existing infos in unrelated test files; 0 in any session_review file) |
+| Core tests (new) | settings / integration-service / accumulation / flat-library / migration | **35 pass** |
+| UI tests (new) | `test/screens/session_review/` | **8 pass** |
+| Desktop build | `flutter build windows --release` (apps/desktop) | **success** â€” `nightshade_desktop.exe` built fresh (88.9 s); **FRB bindings are fully regenerated and committed, no regen needed** |
+
+### 7.3 Honest quality assessment vs PixInsight
+
+**Algorithms that reach serious (PI-comparable) quality â€” sound, deterministic, unit-tested on synthetic data:**
+
+- **Registration.** Quad-asterism matching + RANSAC similarity/affine/homography is the documented astrometry.net / PixInsight `StarAlignment` approach. Synthetic tests recover known translation/rotation/scale within sub-pixel RMS and survive 30 % spurious stars. This is genuinely in the right algorithmic class.
+- **Resampling.** Lanczos3 (windowed-sinc) and Catmull-Rom are PixInsight's own registration interpolators; the per-channel f64 pipeline avoids intermediate quantization.
+- **Batch integration + rejection.** Weighted mean/median with Winsorized-sigma, linear-fit-clip, percentile, sigma, and min-max rejection â€” the same family PixInsight ships, with the same "linear-fit best for many subs" guidance baked into the smart default. Rejection + coverage maps are produced.
+- **Master-flat build** reuses the already-tested `combine_master_frames` and unit-mean normalizes correctly; **cosmetic/defect correction** reuses the tested `defect_map.rs`.
+- **Multi-night accumulation (weighted mean)** is *provably* accumulable: the `None`-clip path is bit-equal to a single-batch integration of the same frames (verified by the accumulate-in-batches == single-batch test), and the F32 linear FITS master is archival-grade.
+
+**Needs real-data / reference-stack validation before claiming parity (honest deferrals â€” flagged, not faked):**
+
+- **Weight/noise evaluator constants.** The SNR/FWHM/ecc weight exponents and the auto-cull percentiles are *defensible defaults*, not tuned against real sub sets. They are monotone and correct in direction (better SNR/FWHM => higher weight) but the exact curve needs A/B against PixInsight's PSF Signal Weight on real data. Knobs are exposed.
+- **Accumulation rejection != full batch re-clip.** The online k-sigma clip on `add_frames` is the accepted accumulation tradeoff, not bit-identical to re-integrating every night's full population. The master records `accumulation_mode` so a future "full re-integrate from archived subs" path can be offered when subs are still on disk.
+- **No on-sky end-to-end run yet.** Every test is synthetic-frame. Registration RMS, rejection of real satellite trails/planes, normalization under a moving-moon gradient, and preview-stretch aesthetics all need a real multi-sub night before a parity claim.
+
+**Designed but NOT shipped in this pass (off-by-default extras from the original P5/P9):**
+
+- **Drizzle** (`integration/drizzle.rs`) â€” not implemented. Correct reconstruction is well understood but pixfrac/scale sweet spots + the "is it actually under-sampled & dithered" auto-detector need on-sky validation; deferred.
+- **Thin-Plate-Spline distortion correction + local-normalization grid** â€” `TransformModel` stops at Homography; the local-norm grid scaffolding exists in `normalization.rs` but the TPS warp + auto-lambda are not wired. These are the wide-field/long-night extras; deferred behind would-be off-by-default presets.
+
+### 7.4 Advanced settings + smart defaults (as-built)
+
+`IntegrationSettings` exposes: transform model, resampler, RANSAC threshold, max ref stars, weighting formula + auto-cull + percentile, normalization mode, combine, **reject = AUTO** (resolved by sub count), reject low/high sigmas, rejection-map generation, output bit depth. **Smart-default rule:** `<8 subs -> PercentileClip`, `8-24 -> WinsorizedSigmaClip`, `>=25 -> LinearFitClip`; resampler `Lanczos3` unless the Fast preset; presets Fast / Balanced / Maximum-Quality / Few-Subs / Long-Night-Gradient. The settings panel surfaces the **auto-chosen reject algorithm for the current sub count** and a live "will use N of M subs" readout, so the smart default is transparent rather than hidden.
+
+### 7.5 Multi-night accumulation design (as-built)
+
+A `.nsmaster` sidecar holds the resumable per-pixel accumulator (`sum_w`, `sum_wx`, `sum_wx2`, coverage, rejected) + frozen normalization reference + frozen geometry reference + per-night log; the shareable artifact is the finalized F32 FITS. `create` freezes a registration-reference companion FITS so every later night aligns to the same grid; `add` normalizes incoming subs onto the frozen photometric anchor, online-clips, and folds; `finalize` divides out the weighted mean and writes the FITS + preview (re-openable for more adds). The Dart `integrated_master_frames` join dedups by image id so re-running an add never double-counts a sub.
+
+### 7.6 Follow-up list
+
+1. **On-sky validation run** â€” drive a real multi-night sub set through `PostSessionIntegrationService` end-to-end; measure registration RMS, confirm trail/plane rejection in the rejection map, eyeball the preview stretch. (Highest priority â€” converts "algorithmically sound" into "verified.")
+2. **Tune weight/cull constants** against real data + a PixInsight reference stack; revisit the SNR/FWHM/ecc exponents and auto-cull percentile.
+3. **Fix the latent `INPUTMEAN`/`OUTPTMEAN` 9-char FITS keyword bug** in the pre-existing `api_combine_master_frames` (the new path already uses `INMEAN`/`OUTMEAN`).
+4. **Drizzle** (P5) â€” implement `drizzle.rs` + the under-sampled/dithered auto-detector; ship off by default.
+5. **TPS distortion correction + local-normalization grid** (P9) â€” wire the TPS warp + auto-lambda and the local-norm grid into the pipeline behind the Long-Night-Gradient / wide-field presets.
+6. **"Full re-integrate from archived subs"** path for accumulating masters (re-clip the entire population when subs are still on disk), to close the online-clip vs batch-clip gap when the user wants it.
+7. **Auto-integrate-at-run-end** opt-in hook â€” the scaffolding `auto_integration_service.dart` exists; verify it is actually invoked from the sequencer run-completion flow and surfaced in the morning report.
