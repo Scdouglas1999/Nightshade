@@ -9,6 +9,7 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         await _ensureCapturedImagesProducingNodeColumns();
         await _createStackedResultsTable();
         await _createProjectsTables();
+        await _createPostSessionTables();
         await _createCustomIndexes();
         await _ensureDefaultSettings();
       },
@@ -50,6 +51,7 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         await _upgradeSchemaV18ToV22(m, from);
         await _upgradeSchemaV23ToV31(m, from);
         await _upgradeSchemaV32ToV40(m, from);
+        await _upgradeSchemaV41(m, from);
 
         await _ensureDefaultSettings();
         await _createCustomIndexes();

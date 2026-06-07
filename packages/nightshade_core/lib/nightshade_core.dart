@@ -49,6 +49,9 @@ export 'src/models/imaging/camera_preset.dart';
 export 'src/models/imaging/auto_stretch_settings.dart';
 // Stack-and-Share Loop (component C7): config, progress, result, export models.
 export 'src/models/imaging/stack_and_share_models.dart';
+// Post-session integration: advanced settings model + integrated-master models.
+export 'src/models/imaging/integration_settings.dart';
+export 'src/models/imaging/integrated_master.dart';
 // Wave 6E — push-based live-view streaming over WebSocket.
 export 'src/models/live_view/live_view_frame.dart';
 export 'src/models/calibration/dark_library_match_tolerances.dart';
@@ -468,6 +471,14 @@ export 'src/services/live_stacking_broadcast_service.dart';
 // Stack-and-Share Loop (components C6/C8): orchestrator + share/export service.
 export 'src/services/stack_and_share_service.dart';
 export 'src/services/stack_share_export_service.dart';
+// Post-session (offline/batch) integration: archival masters + multi-night
+// accumulation + master-flat library.
+export 'src/services/post_session_seam.dart';
+export 'src/services/post_session_integration_service.dart';
+export 'src/services/master_accumulation_service.dart';
+export 'src/services/flat_library_service.dart';
+export 'src/database/daos/integrated_masters_dao.dart';
+export 'src/database/daos/flat_library_dao.dart';
 export 'src/services/project_tracking_service.dart';
 export 'src/services/calibration/defect_map_service.dart';
 export 'src/services/disk_space_service.dart';
