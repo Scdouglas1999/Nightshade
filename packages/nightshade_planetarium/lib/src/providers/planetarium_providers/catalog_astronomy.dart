@@ -41,15 +41,19 @@ final fovFilteredStarsProvider = Provider<AsyncValue<List<Star>>>((ref) {
   final indexAsync = ref.watch(starSpatialIndexProvider);
   final (starMagLimit, _) = ref.watch(dynamicMagnitudeLimitsProvider);
   final viewState = ref.watch(skyViewStateProvider);
+  final maxStars = ref.watch(fovAdaptiveQualityProvider).maxStarsToRender;
 
   return indexAsync.whenData((index) {
-    final result = index.queryViewportFiltered(
+    // Return only the brightest [maxStars] in view — the exact set the renderer
+    // draws (it caps to maxStarsToRender). At wide fields this avoids gathering
+    // and full-sorting tens of thousands of stars every pan frame.
+    return index.queryBrightestInViewport(
       viewState.centerRA,
       viewState.centerDec,
       viewState.fieldOfView,
       maxMagnitude: starMagLimit,
+      maxResults: maxStars,
     );
-    return result;
   });
 });
 
@@ -61,13 +65,15 @@ final fovFilteredDsosProvider =
   final indexAsync = ref.watch(dsoSpatialIndexProvider);
   final (_, dsoMagLimit) = ref.watch(dynamicMagnitudeLimitsProvider);
   final viewState = ref.watch(skyViewStateProvider);
+  final maxDsos = ref.watch(fovAdaptiveQualityProvider).maxDsosToRender;
 
   return indexAsync.whenData((index) {
-    return index.queryViewportFiltered(
+    return index.queryBrightestInViewport(
       viewState.centerRA,
       viewState.centerDec,
       viewState.fieldOfView,
       maxMagnitude: dsoMagLimit,
+      maxResults: maxDsos,
     );
   });
 });

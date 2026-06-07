@@ -20,6 +20,10 @@ class CelestialSpatialIndex<T extends CelestialObject> {
   /// All objects stored in the index
   final List<T> _allObjects = [];
 
+  /// Lazily-built magnitude-sorted view (brightest first), used by
+  /// [queryBrightestInViewport]. Invalidated whenever the object set changes.
+  List<T>? _byMagnitude;
+
   CelestialSpatialIndex()
       : _grid = List.generate(
           raCells,
@@ -34,6 +38,7 @@ class CelestialSpatialIndex<T extends CelestialObject> {
       }
     }
     _allObjects.clear();
+    _byMagnitude = null;
   }
 
   /// Add a single object to the index
@@ -42,6 +47,7 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     final decCell = _decToCell(object.coordinates.dec);
     _grid[raCell][decCell].add(object);
     _allObjects.add(object);
+    _byMagnitude = null;
   }
 
   /// Add multiple objects to the index
@@ -52,6 +58,82 @@ class CelestialSpatialIndex<T extends CelestialObject> {
       _grid[raCell][decCell].add(obj);
     }
     _allObjects.addAll(objects);
+    _byMagnitude = null;
+  }
+
+  /// Returns up to [maxResults] of the BRIGHTEST objects with magnitude
+  /// `<= maxMagnitude` that fall within the viewport region (same generous
+  /// 1.5×-FOV bounds as [queryViewport]), brightest-first.
+  ///
+  /// This walks a magnitude-sorted view and stops as soon as [maxResults] are
+  /// collected or the magnitude limit is passed. At wide fields — where the
+  /// region can contain tens of thousands of stars but the renderer only draws
+  /// the brightest few thousand — this avoids gathering and full-sorting the
+  /// whole region every frame (the dominant per-frame pan cost). The result is
+  /// identical to taking the brightest [maxResults] of [queryViewportFiltered].
+  /// FOV (degrees) below which the grid-cell query is cheaper than walking the
+  /// magnitude-sorted list. At narrow fields few objects fall in view, so the
+  /// magnitude walk would scan most of the catalog before collecting
+  /// [maxResults]; the cell query touches only a handful of cells instead.
+  static const double _magWalkMinFovDegrees = 12.0;
+
+  List<T> queryBrightestInViewport(
+    double centerRA,
+    double centerDec,
+    double fovDegrees, {
+    required double maxMagnitude,
+    required int maxResults,
+  }) {
+    if (maxResults <= 0 || _allObjects.isEmpty) return const [];
+
+    // Narrow field: the grid cells already restrict to a small candidate set,
+    // so gather + sort + cap is cheaper than a whole-catalog magnitude walk.
+    if (fovDegrees < _magWalkMinFovDegrees) {
+      final candidates = queryViewport(centerRA, centerDec, fovDegrees);
+      final filtered = <T>[];
+      for (final o in candidates) {
+        if ((o.magnitude ?? 99.0) <= maxMagnitude) filtered.add(o);
+      }
+      filtered.sort(
+          (a, b) => (a.magnitude ?? 99.0).compareTo(b.magnitude ?? 99.0));
+      return filtered.length > maxResults
+          ? filtered.sublist(0, maxResults)
+          : filtered;
+    }
+
+    var sorted = _byMagnitude;
+    if (sorted == null) {
+      sorted = List<T>.of(_allObjects)
+        ..sort((a, b) =>
+            (a.magnitude ?? 99.0).compareTo(b.magnitude ?? 99.0));
+      _byMagnitude = sorted;
+    }
+
+    // Region bounds match queryViewport (1.5x FOV margin).
+    final queryFov = fovDegrees * 1.5;
+    final decRangeHalf = queryFov / 2;
+    final minDec = (centerDec - decRangeHalf).clamp(-90.0, 90.0);
+    final maxDec = (centerDec + decRangeHalf).clamp(-90.0, 90.0);
+    final cosDec = math.cos(centerDec.abs() * math.pi / 180);
+    final raRangeHalf =
+        cosDec > 0.1 ? (queryFov / 15 / cosDec).clamp(0.0, 12.0) / 2 : 12.0;
+    final raWrapsWholeSky = raRangeHalf >= 12.0;
+
+    final results = <T>[];
+    for (final obj in sorted) {
+      final mag = obj.magnitude ?? 99.0;
+      if (mag > maxMagnitude) break; // remaining are fainter — done
+      final c = obj.coordinates;
+      if (c.dec < minDec || c.dec > maxDec) continue;
+      if (!raWrapsWholeSky) {
+        var dRa = (c.ra - centerRA).abs();
+        if (dRa > 12) dRa = 24 - dRa; // RA wraparound at 0h/24h
+        if (dRa > raRangeHalf) continue;
+      }
+      results.add(obj);
+      if (results.length >= maxResults) break;
+    }
+    return results;
   }
 
   /// Get all objects in the index
