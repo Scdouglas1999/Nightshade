@@ -83,15 +83,31 @@ deterministically-measurable unit. Neither is blocked by anything shipped here.
 The perf pillar's foundation is `packages/nightshade_planetarium/benchmark` (harness
 `0924d1cd`, baseline `a95639da`). It has three layers, by design:
 
-### 3.1 Deterministic CPU-paint-time proxy (the optimization signal)
+### 3.1 Deterministic CPU-rasterization-time proxy (the optimization signal)
 
 `test/benchmark/paint_benchmark_test.dart` builds the **real** `SkyCanvasPainter`
-(+ `FOVOverlayPainter`), records `paint()` into an offscreen `PictureRecorder`, and
-times each paint with a high-resolution `Stopwatch`. This measures the CPU work the
-`CustomPainter` does to build the Skia display list — the dominant, machine-stable,
-deterministic lever for this pipeline. It deliberately excludes GPU rasterization and
-vsync, so it is **not** an FPS measurement; `avgFps` in the JSON is the paint-bound
-ceiling `1000/meanMs`, not on-display FPS.
+(+ `FOVOverlayPainter`), records `paint()` into an offscreen `PictureRecorder`,
+**rasterizes the recorded display list to a real bitmap** (`Picture.toImage`), and
+**reads the pixels back** (`Image.toByteData`) — each step timed with a
+high-resolution `Stopwatch`. This includes the actual fill / blend / glow-blur /
+atlas-blit cost, run through the software rasterizer under `flutter test`. It is a
+CPU-side *proxy* for on-device GPU cost: directionally faithful for overdraw / fill
+rate / blend, and deterministic and low-noise (~1% run to run). It deliberately
+excludes the real on-display GPU and vsync, so it is **not** an FPS measurement;
+`avgFps` in the JSON is the raster-bound ceiling `1000/meanMs`, not on-display FPS.
+
+> **Methodology correction (commit `89bad14f`).** The original harness timed only
+> `PictureRecorder.endRecording()` — i.e. *display-list recording*, the cost of
+> building the Skia op list. That finished in ~1 ms regardless of scene weight
+> (p95 ≈ 1.9 ms on the feature-complete scene) and was **blind to rasterization**:
+> the overdraw, blend and glow-blur passes an optimization actually changes were
+> never measured, and the number was noise-dominated. As a result the first
+> optimization pass against that signal found nothing actionable — there was no
+> real cost to attack in the measured quantity. `89bad14f` fixed the metric to
+> rasterize-and-read-back, which exposes a stable **~33.6 ms p95** worst-case
+> signal (median of ≥3 runs, ~1% spread). All numbers in §4 below are under this
+> **corrected** metric; the pre-`89bad14f` ~1.9 ms figures are obsolete and have
+> been removed.
 
 Determinism comes from:
 * A committed seeded fixture (`fixtures/stress_scene.json`, seed `0x5EED5301`):
@@ -136,46 +152,54 @@ the integration number is the on-hardware reality check.
 
 ---
 
-## 4. Before / after
+## 4. Before / after (corrected metric)
 
-All numbers are from the headless CPU-paint-time proxy (balanced quality, 1280×800,
-180 timed frames, warm-up excluded). They are **paint-bound CPU milliseconds, not
-on-display FPS.**
+All numbers are from the headless **CPU rasterize-and-read-back proxy** (balanced
+quality, 1280×800, 180 timed frames, warm-up excluded), under the corrected metric of
+§3.1. They are **CPU rasterization milliseconds, not on-display FPS.** Each row is the
+**median of 3 runs** (single-run spread ~1%), per the noise discipline.
 
-| Stage | Scene | p50 (ms) | p95 (ms) | p99 (ms) | avgFps (paint ceiling) | rss (MB) |
-|-------|-------|---------:|---------:|---------:|-----------------------:|---------:|
-| `baseline_v1` (pre-feature) | v1 atlas, no planning overlays | 0.659 | 1.091 | 1.573 | 1373.4 | 177.2 |
-| `post_feature` / `best` (feature-complete, frozen champion) | + twilight band gauge every frame + FOV preset every frame | 1.289 | 1.904 | 2.637 | 729.7 | 167.7 |
-| `latest` (fresh re-run, this verification) | feature-complete (same scene) | 1.481 | 2.294 | 2.775 | 626.1 | 161.9 |
+| Stage | Scene | p50 (ms) | p95 (ms) | p99 (ms) | avgFps (raster ceiling) | rss (MB) |
+|-------|-------|---------:|---------:|---------:|------------------------:|---------:|
+| `post_feature` / `best` (feature-complete reference) | twilight band gauge + FOV preset every frame | 18.18 | **33.566** | 37.095 | 49.8 | 184.6 |
+| `latest` (fresh 3-run median, this verification) | feature-complete (same scene) | 17.536 | **31.122** | 35.781 | 52.5 | 177.9 |
 
-### Reading the table honestly
+### Reading the table honestly — no safe optimization win was found
 
-The `baseline_v1 → post_feature` jump in paint time is **by design, not a
-regression.** The feature work made the stress scene do strictly more work every
-frame: the accurate twilight band gauge is now computed and drawn on every frame from
-the observer site + time, and the multi-rig FOV preset (rotated camera rectangle +
-Telrad + eyepiece) is exercised every frame. `post_feature.json` was deliberately
-re-frozen (`bd062b65`) as the new no-quality-loss reference precisely because the
-scene got heavier; it is the champion the future optimization loop must defend and
-beat, paired with the regenerated goldens.
+**The optimization pillar did not produce a paint-time speedup, and this document
+will not pretend otherwise.**
 
-* **Capability-adjusted cost:** p95 went from 1.091 ms → 1.904 ms (+0.81 ms, +75%)
-  to add the full live planning render path (real twilight + FOV framing) to the
-  worst-case scene. Even so the worst-case p95 stays well under 2 ms of CPU paint —
-  roughly two orders of magnitude under a 16.7 ms (60 Hz) frame budget — so the dense
-  planning view remains comfortably real-time on the CPU paint axis.
-* **Memory improved** across the work: peak RSS fell 177.2 → 167.7 MB at the freeze
-  and reads 161.9 MB on the fresh run, despite the richer scene — the atlas/layer
-  structure (static/animated RepaintBoundary split, cull-before-project, sprite-atlas
-  batching, projection cache from the v1 perf rework this branch builds on) holds
-  memory down while doing more.
-* **`latest` vs `best`** differ within headless run-to-run variance on the CPU proxy
-  (the harness reports the median/percentiles of 180 timed paints; absolute ms drift
-  a few tenths between hosts/runs). No optimization pass in this verification phase
-  changed paint logic, so `best.json` (== `post_feature.json`) remains the committed
-  champion; `latest.json` is the throwaway fresh artifact. The improvement the perf
-  pillar delivers is the *defensible measurement spine + memory headroom*, not a
-  fabricated paint-time speedup over the deliberately-heavier feature scene.
+* The renderer (`lib/rendering/**`, `lib/widgets/interactive_sky_view.dart`) is
+  **byte-for-byte unchanged** between the feature-complete freeze (`bd062b65`) and
+  HEAD — `git diff bd062b65 HEAD -- lib/rendering lib/widgets/interactive_sky_view.dart`
+  is empty. The only commit after the freeze touching the perf pillar is `89bad14f`,
+  which fixed the **benchmark**, not the paint code. `best.json` therefore still
+  equals `post_feature.json`: no pass cleared the "beat the reference by ≥5% over ≥3
+  runs without failing the golden gate" bar that overwrites the champion.
+* The first optimization attempt ran against the **broken** recording-only metric
+  (§3.1) and correctly found nothing: the quantity being measured (~1.9 ms display-
+  list build) had no rasterization cost in it to attack. Fixing the metric
+  (`89bad14f`) revealed the real ~33.6 ms p95 worst-case cost, but the candidate
+  wins that remained were all **forbidden by the golden anti-cheat gate** — they
+  reduced what is drawn (fewer faint stars, coarser glow, dropped labels, lower
+  magnitude limit, reduced resolution), which is visual-quality loss, not
+  optimization. The prior v1 perf rework this branch builds on had already taken the
+  free, lossless wins (static/animated `RepaintBoundary` split, cull-before-project,
+  `drawRawAtlas` sprite atlas, projection cache, scratch buffers); no further
+  pixel-identical structural win was found within this phase's scope.
+* The **~7% p95 difference** in the table (`33.566 → 31.122`) is **host/run variance
+  on the CPU proxy, not an optimization.** Because no paint logic changed, the only
+  cause is run-to-run drift; the corrected metric's ~1% per-run noise plus
+  cross-session host load comfortably spans this. It does **not** clear the ≥5%
+  champion-overwrite bar in a way attributable to code, so `best.json` is left at the
+  reference and is **not** overwritten by this verification.
+
+What the perf pillar actually delivers is the **defensible measurement spine**: a
+committed deterministic stress fixture + scripted camera timeline, a *corrected*
+rasterize-and-read-back signal that is responsive to overdraw/fill/blend/glow/atlas
+cost (the thing future optimization must move), and a perceptual-golden anti-cheat
+gate that makes "optimize by rendering less" fail loudly. That is the honest
+deliverable; there is no fabricated speedup over the feature-complete scene.
 
 ### Visual quality preserved — golden gate green
 
@@ -197,19 +221,20 @@ preserved.
 
 ---
 
-## 5. Verification gates (re-run for this record)
+## 5. Verification gates (re-run for this record, corrected metric)
 
-* Headless benchmark (`paint_benchmark_test.dart`): **pass** — wrote `latest.json`
-  (p50 1.481 / p95 2.294 / p99 2.775 ms, avgFps 626.1, rss 161.9 MB).
+* Headless benchmark (`paint_benchmark_test.dart`), **3 runs, median reported**:
+  **pass** — p95 = 31.122 / 30.947 / 32.761 ms (median **31.122**), p50 median
+  **17.536**, p99 median **35.781**, avgFps median **52.5**, rss median **177.9 MB**.
+  Reference `post_feature.json` p95 = 33.566 ms; the ~7% delta is host/run variance
+  (no paint code changed — see §4), so `best.json` is **not** overwritten.
 * Golden compare gate (`golden_compare_test.dart`): **pass** — 5/5 checkpoints
-  byte-identical (maxDelta=0).
+  byte-identical, `maxDelta=0 changed=0.0000%` (limit 0.20%). Visual quality
+  preserved; no "render less" cheat.
 * `flutter analyze` `packages/nightshade_planetarium`: **0 errors** (129 pre-existing
-  infos/test-file warnings only — e.g. `catalog_parsing_test.dart` unused-import/param
-  predate this branch).
-* `flutter analyze` `packages/nightshade_app`: **0 errors** (92 pre-existing
-  test-file infos only).
-* `flutter test` `packages/nightshade_planetarium`: **176/176 pass.**
-* `flutter test packages/nightshade_app/test/screens/planetarium/`: **28/28 pass.**
+  infos/test-file warnings only — e.g. `catalog_parsing_test.dart`
+  unused-param/`coordinate_system_test.dart` prefer-const, all under `test/`; **no
+  lib warnings introduced**).
 
-No `nightshade_ui` change was made in this phase (doc-only), so its suite was not
-re-run.
+No renderer or `nightshade_app`/`nightshade_ui` source change was made in this phase
+(benchmark fix + doc record), so those suites were not re-run for this record.
