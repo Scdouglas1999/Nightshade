@@ -19,6 +19,7 @@ pub mod defect_map;
 mod camera;
 mod debayer;
 mod fits;
+pub mod frame_weighting; // NEW: Per-sub quality weighting for batch integration
 mod naming;
 mod phd2;
 mod platesolve;
@@ -36,6 +37,7 @@ pub use calibration::*;
 pub use camera::*;
 pub use debayer::*;
 pub use fits::*;
+pub use frame_weighting::*; // NEW: Export frame-weighting types
 pub use naming::*;
 pub use phd2::*;
 pub use platesolve::*;
