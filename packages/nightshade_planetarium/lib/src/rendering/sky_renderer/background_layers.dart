@@ -101,18 +101,14 @@ extension _SkyCanvasPainterBackgroundLayers on SkyCanvasPainter {
         Color.lerp(const Color(0xFF1A1A40), const Color(0xFF252050), t)!,
         Color.lerp(const Color(0xFF2D2040), const Color(0xFF4A3048), t)!,
       );
-    } else if (sunAltitude <= 6) {
-      // Just after sunrise/before sunset - warm colors
-      final t = (sunAltitude / 6).clamp(0.0, 1.0); // 0 at 0, 1 at 6
-      return (
-        Color.lerp(const Color(0xFF252050), const Color(0xFF354080), t)!,
-        Color.lerp(const Color(0xFF4A3048), const Color(0xFF705040), t)!,
-      );
     } else {
-      // Full day - light blue sky (though planetarium usually used at night)
+      // Daytime (sun above the horizon): keep a dark star-chart sky instead of
+      // washing the field out with a bright blue. The planetarium is used as a
+      // planning chart, so the full sky (stars / DSOs / constellations) stays
+      // readable at any hour rather than vanishing into daylight.
       return (
-        const Color(0xFF4060A0), // Zenith: medium blue
-        const Color(0xFF8090B0), // Horizon: lighter blue
+        const Color(0xFF0A0A1A), // Zenith: very dark blue (same as full night)
+        const Color(0xFF0D0D20), // Horizon: slightly lighter dark blue
       );
     }
   }
