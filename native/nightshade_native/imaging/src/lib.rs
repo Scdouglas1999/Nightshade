@@ -25,6 +25,7 @@ mod platesolve;
 mod processing; // NEW: Tiled image processing
 mod raw; // NEW: RAW file support
 mod reader; // NEW: Memory-mapped readers
+pub mod registration; // NEW: High-quality star-based registration
 pub mod stacking;
 mod stats;
 mod stretch;
@@ -41,6 +42,7 @@ pub use platesolve::*;
 pub use processing::*; // NEW: Export processing types
 pub use raw::*; // NEW: Export RAW types
 pub use reader::*; // NEW: Export reader types
+pub use registration::*; // NEW: Export registration types
 pub use stats::*;
 pub use stretch::*;
 pub use xisf::*;
