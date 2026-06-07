@@ -343,15 +343,24 @@ class _ConstellationLineCache {
 }
 
 /// Cached Milky Way rendering using the same view-invalidation strategy.
+///
+/// Stores a HALF-RESOLUTION rasterized [ui.Image] of the band rather than a
+/// replayable [ui.Picture]: the band is a soft, low-frequency diffuse glow, so
+/// rendering its expensive Gaussian blur at half linear resolution (a quarter of
+/// the pixels, half the sigma) and bilinear-upscaling it on draw is
+/// perceptually indistinguishable from a full-resolution blur while costing a
+/// fraction of the fill rate. (A [ui.Picture] would re-rasterize the blur at
+/// full resolution on replay, defeating the optimization — only a pre-rasterized
+/// image keeps the work at half res.)
 class _MilkyWayCache {
-  ui.Picture? _picture;
+  ui.Image? _image;
   double _cachedCenterRA = double.nan;
   double _cachedCenterDec = double.nan;
   double _cachedFOV = double.nan;
   Size _cachedSize = Size.zero;
 
   bool isValid(double centerRA, double centerDec, double fov, Size size) {
-    if (_picture == null) return false;
+    if (_image == null) return false;
     if (size != _cachedSize) return false;
 
     final raDelta = (centerRA - _cachedCenterRA).abs();
@@ -364,21 +373,21 @@ class _MilkyWayCache {
     return raDeg < 0.5 && decDelta < 0.5 && fovRatio > 0.95 && fovRatio < 1.05;
   }
 
-  void store(ui.Picture picture, double centerRA, double centerDec, double fov,
+  void store(ui.Image image, double centerRA, double centerDec, double fov,
       Size size) {
-    _picture?.dispose();
-    _picture = picture;
+    _image?.dispose();
+    _image = image;
     _cachedCenterRA = centerRA;
     _cachedCenterDec = centerDec;
     _cachedFOV = fov;
     _cachedSize = size;
   }
 
-  ui.Picture? get picture => _picture;
+  ui.Image? get image => _image;
 
   void clear() {
-    _picture?.dispose();
-    _picture = null;
+    _image?.dispose();
+    _image = null;
   }
 }
 

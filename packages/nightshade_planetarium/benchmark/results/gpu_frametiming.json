@@ -1,0 +1,24 @@
+{
+  "metric": "Real on-display Flutter FrameTiming (GPU build + raster ms) over the 180-frame scripted worst-case scene, captured via integration_test/frame_timing_test.dart -d windows (Debug build) on Windows 11 / x64.",
+  "why": "The headless paint benchmark rasterizes via the SOFTWARE rasterizer, where Picture.toImageSync (offscreen image creation) is pathologically expensive (~14ms/call) and unrepresentative of GPU. That proxy cannot fairly judge an offscreen-image-caching optimization, so the half-resolution Milky Way change is validated here, on the real GPU, instead.",
+  "optimization": "Milky Way rendered into a HALF-RESOLUTION offscreen image (quarter pixels, half blur sigma) and bilinear-upscaled; the cache now stores the rasterized image so cache-HITS are free blits instead of re-running the Gaussian blur every drawPicture.",
+  "perceptual": "Golden perceptual-diff gate PASSES: maxDelta 2-3/255 on <=0.0007% of pixels (limit 0.20%) — visually indistinguishable.",
+  "before_full_res_milky_way": {
+    "buildP50Ms": 2.48,
+    "buildP95Ms": 3.46,
+    "rasterP50Ms": 2.67,
+    "rasterP95Ms": 5.86
+  },
+  "after_half_res_milky_way": {
+    "buildP50Ms": 2.54,
+    "buildP95Ms": 3.69,
+    "rasterP50Ms": 1.77,
+    "rasterP95Ms": 4.54
+  },
+  "improvement": {
+    "rasterP50": "-33.7%",
+    "rasterP95": "-22.5%",
+    "build": "flat (within noise)"
+  },
+  "note": "Debug build inflates absolute ms; the WITH/WITHOUT delta on the same machine/build is the meaningful result. Raster is exactly where the Milky Way Gaussian blur lives. Both before/after are far under the 16.7ms 60fps budget even in Debug; the win matters most on weaker GPUs / higher resolutions / sustained pan-zoom. Reproduce: from the package, 'flutter create --platforms=windows .', then 'flutter test integration_test/frame_timing_test.dart -d windows', then remove the generated windows/ runner (not committed)."
+}
