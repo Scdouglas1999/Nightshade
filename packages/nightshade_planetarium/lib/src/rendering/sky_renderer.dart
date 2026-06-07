@@ -183,6 +183,26 @@ class SkyCanvasPainter extends CustomPainter {
       renderScope == SkyRenderScope.overlay ||
       renderScope == SkyRenderScope.full;
 
+  /// Visibility multiplier (0..1) for "deep sky" content — stars, DSOs, the
+  /// Milky Way and constellation lines/labels — based on how bright the daytime
+  /// sky is. 1.0 at astronomical night (sun ≤ −18°) so night rendering is
+  /// unchanged; fades to 0.0 by sunrise (sun ≥ 0°) so a deep field doesn't
+  /// render at full strength over a bright daytime sky (the chart stays a clean
+  /// blue with just the Sun / Moon / planets, like the real sky). Computed once
+  /// per painter instance.
+  late final double celestialVisibility = _computeCelestialVisibility();
+
+  double _computeCelestialVisibility() {
+    final sunAlt = AstronomyCalculations.sunAltitude(
+      dt: observationTime,
+      latitudeDeg: latitude,
+      longitudeDeg: longitude,
+    );
+    if (sunAlt <= -18.0) return 1.0; // astronomical night — full
+    if (sunAlt >= 0.0) return 0.0; // daytime — hidden
+    return (-sunAlt / 18.0).clamp(0.0, 1.0); // twilight — fade
+  }
+
   // Frame time monitoring: rolling average to detect sustained budget overruns.
   // Static so it persists across painter instances (CustomPainter is recreated each frame).
   static final List<double> _paintTimings = [];
