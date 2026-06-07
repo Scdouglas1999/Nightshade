@@ -76,6 +76,7 @@ class _MeasurementOverlayPainter extends CustomPainter {
 
     _paintReadout(
       canvas,
+      size: size,
       anchor: p2,
       separationDeg: separationDeg,
       positionAngleDeg: positionAngleDeg,
@@ -139,6 +140,7 @@ class _MeasurementOverlayPainter extends CustomPainter {
 
   void _paintReadout(
     Canvas canvas, {
+    required Size size,
     required Offset anchor,
     required double separationDeg,
     required double positionAngleDeg,
@@ -158,14 +160,29 @@ class _MeasurementOverlayPainter extends CustomPainter {
     );
     textPainter.layout();
 
-    // Place the readout offset from the end marker, kept on-screen.
+    // Place the readout offset from the end marker, then nudge it back inside
+    // the canvas so a measurement near the right/bottom edge stays readable.
     const pad = 6.0;
+    final boxWidth = textPainter.width + pad * 2;
+    final boxHeight = textPainter.height + pad * 2;
     var origin = Offset(anchor.dx + 10, anchor.dy + 10);
+    if (origin.dx - pad + boxWidth > size.width) {
+      origin = Offset(size.width - boxWidth + pad, origin.dy);
+    }
+    if (origin.dx - pad < 0) {
+      origin = Offset(pad, origin.dy);
+    }
+    if (origin.dy - pad + boxHeight > size.height) {
+      origin = Offset(origin.dx, size.height - boxHeight + pad);
+    }
+    if (origin.dy - pad < 0) {
+      origin = Offset(origin.dx, pad);
+    }
     final bg = Rect.fromLTWH(
       origin.dx - pad,
       origin.dy - pad,
-      textPainter.width + pad * 2,
-      textPainter.height + pad * 2,
+      boxWidth,
+      boxHeight,
     );
 
     final bgPaint = Paint()..color = const Color(0xCC0B1622);

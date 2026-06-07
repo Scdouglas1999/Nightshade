@@ -404,13 +404,25 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
 
   /// Smoothly animate the view center to [target] (used by search/GoTo).
   ///
-  /// Equatorial frame only: the horizontal frame's center is alt/az and would
-  /// need a sidereal-time conversion, so there we fall back to an instant jump
-  /// (correct, just not animated).
+  /// Equatorial frame glides via the RA/Dec tween below. The horizontal frame's
+  /// center is alt/az, so there the target RA/Dec is converted to the local
+  /// alt/az for "now" and the view jumps to it instantly (the horizontal center
+  /// is not on the animated path, so an instant re-center is the honest result
+  /// rather than a no-op).
   void _startFlyTo(CelestialCoordinate target) {
     final viewState = ref.read(skyViewStateProvider);
     if (viewState.viewMode == SkyViewMode.horizontal) {
-      ref.read(skyViewStateProvider.notifier).lookAt(target);
+      final location = ref.read(observerLocationProvider);
+      final time = ref.read(observationTimeProvider).time;
+      final lst =
+          AstronomyCalculations.localSiderealTime(time, location.longitude);
+      final (alt, az) = AstronomyCalculations.equatorialToHorizontal(
+        raDeg: target.ra * 15,
+        decDeg: target.dec,
+        latitudeDeg: location.latitude,
+        lstHours: lst,
+      );
+      ref.read(skyViewStateProvider.notifier).setHorizontalCenter(az, alt);
       return;
     }
 
