@@ -14,6 +14,7 @@
 
 pub mod buffer_pool;
 pub mod calibration;
+pub mod calibration_masters; // NEW: Master-flat build + cosmetic (hot/cold) correction
 pub mod defect_map;
 
 mod camera;
@@ -37,6 +38,7 @@ mod xisf;
 
 pub use buffer_pool::*;
 pub use calibration::*;
+pub use calibration_masters::*; // NEW: Export master-flat / cosmetic-correction types
 pub use camera::*;
 pub use debayer::*;
 pub use fits::*;
