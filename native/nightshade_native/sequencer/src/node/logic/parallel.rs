@@ -37,6 +37,20 @@ pub async fn execute_parallel(
     update.total_children = Some(total_children);
     context.send_progress(update);
 
+    // P1-11/P2: honor an operator Pause / recovery freeze before launching the
+    // parallel branches, matching sequential.rs (which gates `wait_while_paused`
+    // at every child boundary). Without this gate a paused-then-executing
+    // parallel node spawns its branch tasks regardless of the pause flag, so a
+    // parallel subtree whose children are hardware instructions (slew, expose,
+    // dome control) keeps driving the rig while the UI reports "Paused". Block
+    // here until resumed; unwind (Cancelled) if the sequence is cancelled while
+    // paused. This is the sole pause-enforcement seam for parallel — it adds the
+    // missing gate without altering any W1-W5 decision/dispatch/enforcement math.
+    if !context.wait_while_paused().await {
+        tracing::debug!("Execution cancelled while paused before parallel branches");
+        return NodeStatus::Cancelled;
+    }
+
     let success_count = Arc::new(AtomicUsize::new(0));
     let cancelled = Arc::new(AtomicBool::new(false));
 
@@ -170,5 +184,153 @@ pub async fn execute_parallel(
             required
         );
         NodeStatus::Failure
+    }
+}
+
+#[cfg(test)]
+mod pause_gate_tests {
+    use super::*;
+    use crate::node::context::ExecutionContext;
+    use crate::node::Node;
+    use crate::{NodeId, NodeStatus, NodeType, ParallelConfig};
+    use async_trait::async_trait;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    /// Leaf spy that records how many times `execute` was actually entered.
+    /// Stands in for a hardware-instruction child (slew / expose / dome). If
+    /// the parallel pause gate fails, the spawned branch task reaches this
+    /// node and bumps the counter — exactly the "rig keeps moving while
+    /// Paused" violation P1-11 is about.
+    struct ExecSpy {
+        id: NodeId,
+        node_type: NodeType,
+        executed: Arc<AtomicUsize>,
+        no_children: Vec<Box<dyn Node>>,
+    }
+
+    impl ExecSpy {
+        fn new(id: &str, executed: Arc<AtomicUsize>) -> Self {
+            Self {
+                id: id.to_string(),
+                // Park is an inert NodeType for the trait surface; the spy
+                // overrides `execute` so the variant is never dispatched.
+                node_type: NodeType::Park,
+                executed,
+                no_children: Vec::new(),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Node for ExecSpy {
+        fn id(&self) -> &NodeId {
+            &self.id
+        }
+        fn name(&self) -> &str {
+            "exec-spy"
+        }
+        fn node_type(&self) -> &NodeType {
+            &self.node_type
+        }
+        fn is_enabled(&self) -> bool {
+            true
+        }
+        async fn execute(&mut self, _context: &mut ExecutionContext) -> NodeStatus {
+            self.executed.fetch_add(1, Ordering::SeqCst);
+            NodeStatus::Success
+        }
+        fn reset(&mut self) {}
+        async fn abort(&mut self) {}
+        fn children(&self) -> &[Box<dyn Node>] {
+            &self.no_children
+        }
+        fn children_mut(&mut self) -> &mut Vec<Box<dyn Node>> {
+            &mut self.no_children
+        }
+        fn mark_completed(&mut self, _node_id: &NodeId) {}
+    }
+
+    fn parallel_node_with_spies(spies: Vec<ExecSpy>) -> RuntimeNode {
+        let mut node = RuntimeNode::from_definition(crate::NodeDefinition {
+            id: "par".to_string(),
+            name: "par".to_string(),
+            node_type: NodeType::Parallel(ParallelConfig {
+                required_successes: None,
+            }),
+            enabled: true,
+            children: Vec::new(),
+        });
+        for spy in spies {
+            node.children.push(Box::new(spy));
+        }
+        node
+    }
+
+    /// P1-11: with the pause flag already set on entry, `execute_parallel` must
+    /// block on `wait_while_paused`; cancelling while paused must unwind to
+    /// Cancelled and NO branch may have executed (no exposure / slew). Without
+    /// the gate, the branches spawn and run regardless of the pause flag.
+    #[tokio::test]
+    async fn paused_parallel_does_not_spawn_branches_and_cancels() {
+        let executed = Arc::new(AtomicUsize::new(0));
+        let spy_a = ExecSpy::new("a", executed.clone());
+        let spy_b = ExecSpy::new("b", executed.clone());
+        let mut node = parallel_node_with_spies(vec![spy_a, spy_b]);
+
+        let mut ctx = ExecutionContext::new("par".to_string());
+        // Operator Pause is active before the node runs.
+        ctx.is_paused.store(true, Ordering::Relaxed);
+
+        let is_cancelled = ctx.is_cancelled.clone();
+        let resume_notify = ctx.resume_notify.clone();
+
+        // Operator never resumes — instead the sequence is cancelled while
+        // paused (e.g. they hit Stop). The gate must observe is_cancelled and
+        // return Cancelled.
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            is_cancelled.store(true, Ordering::Relaxed);
+            resume_notify.notify_waiters();
+        });
+
+        let cfg = ParallelConfig {
+            required_successes: None,
+        };
+        let status = execute_parallel(&mut node, cfg, &mut ctx).await;
+
+        assert_eq!(
+            status,
+            NodeStatus::Cancelled,
+            "cancel-while-paused before parallel branches must unwind to Cancelled"
+        );
+        assert_eq!(
+            executed.load(Ordering::SeqCst),
+            0,
+            "no parallel branch may execute while the node is paused (rig must stay frozen)"
+        );
+    }
+
+    /// Guard the happy path: with NO pause active, the gate is a no-op and the
+    /// branches run as before (the fix must not break normal parallel exec).
+    #[tokio::test]
+    async fn unpaused_parallel_runs_all_branches() {
+        let executed = Arc::new(AtomicUsize::new(0));
+        let spy_a = ExecSpy::new("a", executed.clone());
+        let spy_b = ExecSpy::new("b", executed.clone());
+        let mut node = parallel_node_with_spies(vec![spy_a, spy_b]);
+
+        let mut ctx = ExecutionContext::new("par".to_string());
+        let cfg = ParallelConfig {
+            required_successes: None,
+        };
+        let status = execute_parallel(&mut node, cfg, &mut ctx).await;
+
+        assert_eq!(status, NodeStatus::Success);
+        assert_eq!(
+            executed.load(Ordering::SeqCst),
+            2,
+            "both branches must run when not paused"
+        );
     }
 }

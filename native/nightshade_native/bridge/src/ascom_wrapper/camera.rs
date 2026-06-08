@@ -66,6 +66,50 @@ use std::thread;
 use std::time::Duration;
 use tokio::sync::{mpsc, oneshot};
 
+use crate::ascom_exposure_apply::ExposureApplyTarget;
+
+/// P0-5: bridge the real ASCOM COM camera to the platform-independent
+/// exposure-parameter apply function. Each method forwards to the matching
+/// ICameraV3 property setter/getter on the underlying COM object.
+impl ExposureApplyTarget for AscomCamera {
+    fn max_bin_x(&self) -> Result<i32, String> {
+        AscomCamera::max_bin_x(self)
+    }
+    fn max_bin_y(&self) -> Result<i32, String> {
+        AscomCamera::max_bin_y(self)
+    }
+    fn camera_x_size(&self) -> Result<i32, String> {
+        AscomCamera::camera_x_size(self)
+    }
+    fn camera_y_size(&self) -> Result<i32, String> {
+        AscomCamera::camera_y_size(self)
+    }
+    fn set_bin_x(&mut self, value: i32) -> Result<(), String> {
+        AscomCamera::set_bin_x(self, value)
+    }
+    fn set_bin_y(&mut self, value: i32) -> Result<(), String> {
+        AscomCamera::set_bin_y(self, value)
+    }
+    fn set_start_x(&mut self, value: i32) -> Result<(), String> {
+        AscomCamera::set_start_x(self, value)
+    }
+    fn set_start_y(&mut self, value: i32) -> Result<(), String> {
+        AscomCamera::set_start_y(self, value)
+    }
+    fn set_num_x(&mut self, value: i32) -> Result<(), String> {
+        AscomCamera::set_num_x(self, value)
+    }
+    fn set_num_y(&mut self, value: i32) -> Result<(), String> {
+        AscomCamera::set_num_y(self, value)
+    }
+    fn set_gain(&mut self, value: i32) -> Result<(), String> {
+        AscomCamera::set_gain(self, value)
+    }
+    fn set_offset(&mut self, value: i32) -> Result<(), String> {
+        AscomCamera::set_offset(self, value)
+    }
+}
+
 /// Compute remaining exposure time from ASCOM `PercentCompleted` (0..=100)
 /// and the total exposure duration we tracked at `StartExposure` time.
 ///
@@ -450,67 +494,20 @@ impl AscomCameraWrapper {
                             // matters on ASCOM: binning must be set before frame
                             // geometry because NumX/NumY are in *binned* pixels.
                             // Fail closed on any setter error.
-                            let mut apply = || -> Result<(), String> {
-                                // 1. Binning (validate against the driver max).
-                                let max_bin_x = cam.max_bin_x().unwrap_or(1);
-                                let max_bin_y = cam.max_bin_y().unwrap_or(1);
-                                if params.bin_x > max_bin_x || params.bin_y > max_bin_y {
-                                    return Err(format!(
-                                        "Binning {}x{} exceeds max {}x{}",
-                                        params.bin_x, params.bin_y, max_bin_x, max_bin_y
-                                    ));
-                                }
-                                cam.set_bin_x(params.bin_x)
-                                    .and_then(|_| cam.set_bin_y(params.bin_y))
-                                    .map_err(|e| format!("Failed to set binning: {}", e))?;
-
-                                // 2. Frame geometry, in binned pixels. A subframe
-                                // is validated against the binned sensor size;
-                                // None means full frame = sensor_size / bin.
-                                let bx = params.bin_x.max(1);
-                                let by = params.bin_y.max(1);
-                                let max_x = cam.camera_x_size().unwrap_or(1) / bx;
-                                let max_y = cam.camera_y_size().unwrap_or(1) / by;
-                                match &params.subframe {
-                                    Some(sf) => {
-                                        if sf.start_x as i32 + sf.width as i32 > max_x
-                                            || sf.start_y as i32 + sf.height as i32 > max_y
-                                        {
-                                            return Err(
-                                                "Subframe exceeds (binned) sensor bounds"
-                                                    .to_string(),
-                                            );
-                                        }
-                                        cam.set_start_x(sf.start_x as i32)
-                                            .and_then(|_| cam.set_start_y(sf.start_y as i32))
-                                            .and_then(|_| cam.set_num_x(sf.width as i32))
-                                            .and_then(|_| cam.set_num_y(sf.height as i32))
-                                            .map_err(|e| format!("Failed to set subframe: {}", e))?;
-                                    }
-                                    None => {
-                                        cam.set_start_x(0)
-                                            .and_then(|_| cam.set_start_y(0))
-                                            .and_then(|_| cam.set_num_x(max_x))
-                                            .and_then(|_| cam.set_num_y(max_y))
-                                            .map_err(|e| {
-                                                format!("Failed to reset to full frame: {}", e)
-                                            })?;
-                                    }
-                                }
-
-                                // 3. Gain / offset, only when the node specified
-                                // them (None = leave the camera's current value).
-                                if let Some(gain) = params.gain {
-                                    cam.set_gain(gain)
-                                        .map_err(|e| format!("Failed to set gain: {}", e))?;
-                                }
-                                if let Some(offset) = params.offset {
-                                    cam.set_offset(offset)
-                                        .map_err(|e| format!("Failed to set offset: {}", e))?;
-                                }
-                                Ok(())
-                            };
-                            if let Err(e) = apply() {
+                            //
+                            // The apply logic lives in the platform-independent
+                            // `ascom_exposure_apply` module so it is regression-
+                            // tested on every platform (this worker only compiles
+                            // on Windows); see P0-5.
+                            let apply_result = crate::ascom_exposure_apply::apply_exposure_params(
+                                cam,
+                                params.bin_x,
+                                params.bin_y,
+                                params.gain,
+                                params.offset,
+                                &params.subframe,
+                            );
+                            if let Err(e) = apply_result {
                                 tracing::error!("ASCOM: failed to apply exposure params: {}", e);
                                 let _ = reply.send(Err(format!(
                                     "Failed to apply exposure parameters: {}",

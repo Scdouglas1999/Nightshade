@@ -299,6 +299,14 @@ async fn execute_children_with_budget(
         if context.is_cancelled.load(Ordering::Relaxed) {
             return NodeStatus::Cancelled;
         }
+        // P1-11/P1-12: honor an operator Pause / recovery freeze at the
+        // child boundary, mirroring `execute_children_sequential` (sequential.rs:52).
+        // Without this, a TargetHeader carrying an integration budget keeps
+        // exposing/slewing while the UI shows "Paused". Block until resumed;
+        // unwind to Cancelled if the sequence is cancelled while paused.
+        if !context.wait_while_paused().await {
+            return NodeStatus::Cancelled;
+        }
         if context.is_skip_to_next_target_requested() {
             return NodeStatus::Skipped;
         }
@@ -400,6 +408,15 @@ async fn execute_children_with_end_when(
 
     for (i, child) in node.children.iter_mut().enumerate() {
         if context.is_cancelled.load(Ordering::Relaxed) {
+            return NodeStatus::Cancelled;
+        }
+        // P1-11/P1-12: honor an operator Pause / recovery freeze at the
+        // child boundary, mirroring `execute_children_sequential` (sequential.rs:52).
+        // Without this, a TargetHeader carrying an end_when trigger (exactly
+        // what the autopilot/scheduler builds) keeps exposing/slewing while
+        // the UI shows "Paused". Block until resumed; unwind to Cancelled if
+        // the sequence is cancelled while paused.
+        if !context.wait_while_paused().await {
             return NodeStatus::Cancelled;
         }
         if context.is_skip_to_next_target_requested() {
@@ -1126,6 +1143,208 @@ mod tests {
         let status = wait_for_trigger(&cfg, &ctx, &trigger, 1).await;
         canceller.await.unwrap();
         assert_eq!(status, NodeStatus::Cancelled);
+    }
+
+    // ====================================================================
+    // P1-11/P1-12 — operator Pause honored in the end_when / budget walkers
+    // ====================================================================
+
+    /// P1-11/P1-12 guard: a paused TargetHeader carrying an `end_when`
+    /// trigger must NOT execute its children, and must unwind to Cancelled
+    /// when the sequence is cancelled while paused. This exercises the
+    /// `execute_children_with_end_when` walker (end_when set, not satisfied
+    /// at entry), which previously checked only `is_cancelled` /
+    /// `is_skip_to_next_target` and ignored `is_paused` — so an operator
+    /// Pause on an autopilot/scheduler-built target (which always carries an
+    /// end_when) kept exposing/slewing while the UI showed "Paused".
+    ///
+    /// Discriminator: the walker emits a "Step 1/1" lifecycle update with
+    /// `current_child == Some(0)` immediately BEFORE executing the first
+    /// child, i.e. only AFTER it clears the pause boundary. While paused, no
+    /// such update fires. Without the fix the update fires immediately and
+    /// the child runs; with the fix the walker parks at the boundary and the
+    /// later cancel makes it return Cancelled.
+    #[tokio::test(start_paused = true)]
+    async fn paused_target_header_with_end_when_does_not_run_children_and_cancels() {
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        let clock = MockClock::at("2026-01-15T22:00:00Z");
+        let now_ts = clock.now_utc().timestamp();
+
+        // end_when in the FUTURE so it is NOT satisfied at entry — the body
+        // takes the `execute_children_with_end_when` path with `Some(end)`.
+        let header_def = NodeDefinition {
+            id: "tgt-paused".into(),
+            name: "M31".into(),
+            node_type: NodeType::TargetHeader(TargetHeaderConfig {
+                target_name: "M31".into(),
+                ra_hours: 0.7,
+                dec_degrees: 41.27,
+                end_when: Some(TargetTrigger::TimeAfter(now_ts + 86_400)),
+                ..TargetHeaderConfig::default()
+            }),
+            enabled: true,
+            children: vec![],
+        };
+        let mut node = crate::node::runtime::RuntimeNode::from_definition(header_def);
+        node.add_child(Box::new(
+            crate::node::runtime::RuntimeNode::from_definition(make_delay_node("d1")),
+        ));
+
+        let mut ctx = ExecutionContext::new("root".into()).with_clock(clock);
+        ctx.latitude = Some(40.0);
+        ctx.longitude = Some(-74.0);
+
+        // Record whenever the walker is about to execute a child (the
+        // "Step N/total" lifecycle update carries current_child).
+        let child_steps = Arc::new(AtomicUsize::new(0));
+        let child_steps_cb = child_steps.clone();
+        ctx.progress_callback = Some(Arc::new(move |update: ProgressUpdate| {
+            if update.current_child.is_some() && update.status == NodeStatus::Running {
+                child_steps_cb.fetch_add(1, Ordering::SeqCst);
+            }
+        }));
+
+        // Operator Pause BEFORE execution begins.
+        ctx.is_paused.store(true, Ordering::Relaxed);
+
+        let cancel = ctx.is_cancelled.clone();
+        let is_paused = ctx.is_paused.clone();
+        let resume_notify = ctx.resume_notify.clone();
+        let steps_for_controller = child_steps.clone();
+        let observed_running_while_paused = Arc::new(AtomicBool::new(false));
+        let observed_flag = observed_running_while_paused.clone();
+
+        // Controller: confirm the walker parked at the pause boundary (no
+        // child step fired while paused), then cancel and wake the waiter.
+        let controller = async move {
+            // Let the execution future run up to (and block at) the pause
+            // boundary. Under start_paused the runtime auto-advances virtual
+            // time across the 100ms wait_while_paused poll, so a few yields
+            // are enough for it to settle at the boundary.
+            for _ in 0..50 {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                tokio::task::yield_now().await;
+            }
+            // While still paused, the child step must NOT have been emitted.
+            if steps_for_controller.load(Ordering::SeqCst) == 0 && is_paused.load(Ordering::Relaxed)
+            {
+                observed_flag.store(true, Ordering::SeqCst);
+            }
+            // Cancel while paused — the walker must unwind to Cancelled.
+            cancel.store(true, Ordering::Relaxed);
+            resume_notify.notify_waiters();
+        };
+
+        let config = match &node.definition.node_type {
+            NodeType::TargetHeader(c) => c.clone(),
+            _ => unreachable!(),
+        };
+
+        let (status, ()) =
+            tokio::join!(execute_target_header(&mut node, config, &mut ctx), controller);
+
+        assert!(
+            observed_running_while_paused.load(Ordering::SeqCst),
+            "P1-11/P1-12: walker must park at the pause boundary — no child \
+             may begin executing while the operator Pause is active"
+        );
+        assert_eq!(
+            child_steps.load(Ordering::SeqCst),
+            0,
+            "P1-11/P1-12: no child may execute on a paused TargetHeader; the \
+             pause boundary in execute_children_with_end_when was bypassed"
+        );
+        assert_eq!(
+            status,
+            NodeStatus::Cancelled,
+            "P1-11/P1-12: cancel-while-paused must unwind the end_when walker \
+             to Cancelled"
+        );
+    }
+
+    /// P1-11/P1-12 guard for the budget walker: a paused TargetHeader
+    /// carrying an integration budget must NOT execute its children and must
+    /// unwind to Cancelled on cancel-while-paused. Exercises
+    /// `execute_children_with_budget`, which had the identical pause hole.
+    #[tokio::test(start_paused = true)]
+    async fn paused_target_header_with_budget_does_not_run_children_and_cancels() {
+        use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+        use std::sync::Arc;
+
+        let budget = IntegrationBudget {
+            total_secs: 3600.0,
+            per_filter: Default::default(),
+            stop_on_budget_met: true,
+        };
+
+        let header_def = NodeDefinition {
+            id: "tgt-paused-budget".into(),
+            name: "M31".into(),
+            node_type: NodeType::TargetHeader(header_with_budget(budget)),
+            enabled: true,
+            children: vec![],
+        };
+        let mut node = crate::node::runtime::RuntimeNode::from_definition(header_def);
+        node.add_child(Box::new(
+            crate::node::runtime::RuntimeNode::from_definition(make_delay_node("d1")),
+        ));
+
+        let mut ctx = ExecutionContext::new("root".into());
+
+        let child_steps = Arc::new(AtomicUsize::new(0));
+        let child_steps_cb = child_steps.clone();
+        ctx.progress_callback = Some(Arc::new(move |update: ProgressUpdate| {
+            if update.current_child.is_some() && update.status == NodeStatus::Running {
+                child_steps_cb.fetch_add(1, Ordering::SeqCst);
+            }
+        }));
+
+        ctx.is_paused.store(true, Ordering::Relaxed);
+
+        let cancel = ctx.is_cancelled.clone();
+        let is_paused = ctx.is_paused.clone();
+        let resume_notify = ctx.resume_notify.clone();
+        let steps_for_controller = child_steps.clone();
+        let observed_paused_park = Arc::new(AtomicBool::new(false));
+        let observed_flag = observed_paused_park.clone();
+
+        let controller = async move {
+            for _ in 0..50 {
+                tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                tokio::task::yield_now().await;
+            }
+            if steps_for_controller.load(Ordering::SeqCst) == 0 && is_paused.load(Ordering::Relaxed)
+            {
+                observed_flag.store(true, Ordering::SeqCst);
+            }
+            cancel.store(true, Ordering::Relaxed);
+            resume_notify.notify_waiters();
+        };
+
+        let config = match &node.definition.node_type {
+            NodeType::TargetHeader(c) => c.clone(),
+            _ => unreachable!(),
+        };
+
+        let (status, ()) =
+            tokio::join!(execute_target_header(&mut node, config, &mut ctx), controller);
+
+        assert!(
+            observed_paused_park.load(Ordering::SeqCst),
+            "P1-11/P1-12: budget walker must park at the pause boundary"
+        );
+        assert_eq!(
+            child_steps.load(Ordering::SeqCst),
+            0,
+            "P1-11/P1-12: no child may execute on a paused budgeted TargetHeader"
+        );
+        assert_eq!(
+            status,
+            NodeStatus::Cancelled,
+            "P1-11/P1-12: cancel-while-paused must unwind the budget walker to Cancelled"
+        );
     }
 
     /// Wave 4 — altitude-bearing `start_when` without an observer fails

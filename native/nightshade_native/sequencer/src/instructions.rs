@@ -5945,4 +5945,523 @@ mod tests {
             "a non-disconnect failure must NOT trigger device-disconnect recovery"
         );
     }
+
+    // =====================================================================
+    // DOME / ROTATOR MOVE-AND-VERIFY GUARDS (cluster: dome-rotator)
+    //
+    // These prove that the dome park/open/close and rotator move
+    // instructions are MOVE-AND-VERIFY (they poll the device for actual
+    // arrival before reporting success) and that a park failing to close
+    // the shutter surfaces a hard error rather than reporting "parked".
+    // A failed roof MUST return Failure, never Success.
+    // =====================================================================
+
+    // `DeviceOps`, `DeviceResult`, `GuidingStatus`, `NullDeviceOps`, `ImageData`
+    // are already in scope via the module-level `use crate::*`
+    // (lib.rs re-exports `device_ops::*`).
+    use async_trait::async_trait;
+    use std::sync::atomic::AtomicU32;
+    use std::sync::Mutex;
+
+    /// Scriptable DeviceOps for the dome/rotator verify tests. Only the
+    /// dome and rotator methods are interesting; everything else delegates
+    /// to `NullDeviceOps`. Counters let the tests assert that the
+    /// instruction actually polled for arrival (move-and-verify) rather
+    /// than fire-and-forgetting.
+    struct ScriptedDomeRotatorOps {
+        inner: Arc<NullDeviceOps>,
+        // --- rotator ---
+        /// Sequence of angles `rotator_get_angle` returns, one per poll. The
+        /// last entry repeats once the script is exhausted.
+        rotator_angles: Mutex<Vec<f64>>,
+        rotator_get_angle_calls: AtomicU32,
+        rotator_move_to_calls: AtomicU32,
+        // --- dome ---
+        /// Sequence of shutter statuses `dome_get_shutter_status` returns,
+        /// one per poll; the last entry repeats once exhausted.
+        dome_shutter_states: Mutex<Vec<String>>,
+        dome_shutter_status_calls: AtomicU32,
+        dome_close_calls: AtomicU32,
+        dome_park_calls: AtomicU32,
+        /// When `Some`, `dome_close` fails with this message.
+        dome_close_error: Option<String>,
+    }
+
+    impl ScriptedDomeRotatorOps {
+        fn new() -> Self {
+            Self {
+                inner: Arc::new(NullDeviceOps),
+                rotator_angles: Mutex::new(vec![0.0]),
+                rotator_get_angle_calls: AtomicU32::new(0),
+                rotator_move_to_calls: AtomicU32::new(0),
+                dome_shutter_states: Mutex::new(vec!["Closed".to_string()]),
+                dome_shutter_status_calls: AtomicU32::new(0),
+                dome_close_calls: AtomicU32::new(0),
+                dome_park_calls: AtomicU32::new(0),
+                dome_close_error: None,
+            }
+        }
+
+        fn with_rotator_angles(mut self, angles: Vec<f64>) -> Self {
+            self.rotator_angles = Mutex::new(angles);
+            self
+        }
+
+        fn with_dome_shutter_states(mut self, states: &[&str]) -> Self {
+            self.dome_shutter_states =
+                Mutex::new(states.iter().map(|s| (*s).to_string()).collect());
+            self
+        }
+
+        fn with_dome_close_error(mut self, msg: &str) -> Self {
+            self.dome_close_error = Some(msg.to_string());
+            self
+        }
+
+        /// Pop the next scripted value, repeating the final entry forever
+        /// once the script runs out (so a "never arrives" script can drive
+        /// the timeout path).
+        fn next_scripted<T: Clone>(script: &Mutex<Vec<T>>) -> T {
+            let mut v = script.lock().unwrap();
+            if v.len() > 1 {
+                v.remove(0)
+            } else {
+                v[0].clone()
+            }
+        }
+    }
+
+    #[async_trait]
+    impl DeviceOps for ScriptedDomeRotatorOps {
+        // --- rotator (verified-move surface) ---
+        async fn rotator_move_to(&self, _id: &str, _angle: f64) -> DeviceResult<()> {
+            self.rotator_move_to_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+        async fn rotator_get_angle(&self, _id: &str) -> DeviceResult<f64> {
+            self.rotator_get_angle_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(Self::next_scripted(&self.rotator_angles))
+        }
+
+        // --- dome (verified-close surface) ---
+        async fn dome_close(&self, id: &str) -> DeviceResult<()> {
+            self.dome_close_calls.fetch_add(1, Ordering::SeqCst);
+            if let Some(err) = &self.dome_close_error {
+                return Err(err.clone());
+            }
+            self.inner.dome_close(id).await
+        }
+        async fn dome_park(&self, _id: &str) -> DeviceResult<()> {
+            self.dome_park_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(())
+        }
+        async fn dome_get_shutter_status(&self, _id: &str) -> DeviceResult<String> {
+            self.dome_shutter_status_calls.fetch_add(1, Ordering::SeqCst);
+            Ok(Self::next_scripted(&self.dome_shutter_states))
+        }
+
+        // === delegating methods ===
+        async fn mount_slew_to_coordinates(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
+            self.inner.mount_slew_to_coordinates(id, ra, dec).await
+        }
+        async fn mount_abort_slew(&self, id: &str) -> DeviceResult<()> {
+            self.inner.mount_abort_slew(id).await
+        }
+        async fn mount_get_coordinates(&self, id: &str) -> DeviceResult<(f64, f64)> {
+            self.inner.mount_get_coordinates(id).await
+        }
+        async fn mount_sync(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
+            self.inner.mount_sync(id, ra, dec).await
+        }
+        async fn mount_park(&self, id: &str) -> DeviceResult<()> {
+            self.inner.mount_park(id).await
+        }
+        async fn mount_unpark(&self, id: &str) -> DeviceResult<()> {
+            self.inner.mount_unpark(id).await
+        }
+        async fn mount_is_slewing(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_is_slewing(id).await
+        }
+        async fn mount_is_parked(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_is_parked(id).await
+        }
+        async fn mount_can_flip(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_can_flip(id).await
+        }
+        async fn mount_side_of_pier(&self, id: &str) -> DeviceResult<crate::meridian::PierSide> {
+            self.inner.mount_side_of_pier(id).await
+        }
+        async fn mount_is_tracking(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_is_tracking(id).await
+        }
+        async fn mount_set_tracking(&self, id: &str, enabled: bool) -> DeviceResult<()> {
+            self.inner.mount_set_tracking(id, enabled).await
+        }
+        async fn camera_start_exposure(
+            &self,
+            id: &str,
+            d: f64,
+            g: Option<i32>,
+            o: Option<i32>,
+            bx: i32,
+            by: i32,
+        ) -> DeviceResult<ImageData> {
+            self.inner.camera_start_exposure(id, d, g, o, bx, by).await
+        }
+        async fn camera_abort_exposure(&self, id: &str) -> DeviceResult<()> {
+            self.inner.camera_abort_exposure(id).await
+        }
+        async fn camera_set_cooler(&self, id: &str, e: bool, t: f64) -> DeviceResult<()> {
+            self.inner.camera_set_cooler(id, e, t).await
+        }
+        async fn camera_get_temperature(&self, id: &str) -> DeviceResult<f64> {
+            self.inner.camera_get_temperature(id).await
+        }
+        async fn camera_get_cooler_power(&self, id: &str) -> DeviceResult<f64> {
+            self.inner.camera_get_cooler_power(id).await
+        }
+        async fn focuser_move_to(&self, id: &str, p: i32) -> DeviceResult<()> {
+            self.inner.focuser_move_to(id, p).await
+        }
+        async fn focuser_get_position(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.focuser_get_position(id).await
+        }
+        async fn focuser_is_moving(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.focuser_is_moving(id).await
+        }
+        async fn focuser_get_temperature(&self, id: &str) -> DeviceResult<Option<f64>> {
+            self.inner.focuser_get_temperature(id).await
+        }
+        async fn focuser_halt(&self, id: &str) -> DeviceResult<()> {
+            self.inner.focuser_halt(id).await
+        }
+        async fn filterwheel_set_position(&self, id: &str, p: i32) -> DeviceResult<()> {
+            self.inner.filterwheel_set_position(id, p).await
+        }
+        async fn filterwheel_get_position(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.filterwheel_get_position(id).await
+        }
+        async fn filterwheel_get_names(&self, id: &str) -> DeviceResult<Vec<String>> {
+            self.inner.filterwheel_get_names(id).await
+        }
+        async fn filterwheel_set_filter_by_name(&self, id: &str, n: &str) -> DeviceResult<i32> {
+            self.inner.filterwheel_set_filter_by_name(id, n).await
+        }
+        async fn rotator_move_relative(&self, id: &str, d: f64) -> DeviceResult<()> {
+            self.inner.rotator_move_relative(id, d).await
+        }
+        async fn rotator_halt(&self, id: &str) -> DeviceResult<()> {
+            self.inner.rotator_halt(id).await
+        }
+        async fn guider_dither(
+            &self,
+            p: f64,
+            sp: f64,
+            st: f64,
+            sto: f64,
+            ra: bool,
+        ) -> DeviceResult<()> {
+            self.inner.guider_dither(p, sp, st, sto, ra).await
+        }
+        async fn guider_get_status(&self) -> DeviceResult<GuidingStatus> {
+            self.inner.guider_get_status().await
+        }
+        async fn guider_start(&self, sp: f64, st: f64, sto: f64) -> DeviceResult<()> {
+            self.inner.guider_start(sp, st, sto).await
+        }
+        async fn guider_stop(&self) -> DeviceResult<()> {
+            self.inner.guider_stop().await
+        }
+        async fn plate_solve(
+            &self,
+            d: &ImageData,
+            ra: Option<f64>,
+            dec: Option<f64>,
+            s: Option<f64>,
+        ) -> DeviceResult<crate::device_ops::PlateSolveResult> {
+            self.inner.plate_solve(d, ra, dec, s).await
+        }
+        async fn save_fits(
+            &self,
+            d: &ImageData,
+            f: &str,
+            ctx: &crate::scheduling::FrameContext,
+        ) -> DeviceResult<()> {
+            self.inner.save_fits(d, f, ctx).await
+        }
+        async fn send_notification(
+            &self,
+            l: &str,
+            t: &str,
+            m: &str,
+            x: Option<&[String]>,
+        ) -> DeviceResult<()> {
+            self.inner.send_notification(l, t, m, x).await
+        }
+        fn calculate_altitude(&self, r: f64, d: f64, la: f64, lo: f64) -> f64 {
+            self.inner.calculate_altitude(r, d, la, lo)
+        }
+        fn get_observer_location(&self) -> Option<(f64, f64)> {
+            self.inner.get_observer_location()
+        }
+        async fn polar_align_update(
+            &self,
+            r: &crate::polar_align::PolarAlignResult,
+        ) -> DeviceResult<()> {
+            self.inner.polar_align_update(r).await
+        }
+        async fn dome_open(&self, id: &str) -> DeviceResult<()> {
+            self.inner.dome_open(id).await
+        }
+        async fn safety_is_safe(&self, id: Option<&str>) -> DeviceResult<bool> {
+            self.inner.safety_is_safe(id).await
+        }
+        async fn calculate_image_hfr(&self, d: &ImageData) -> DeviceResult<Option<f64>> {
+            self.inner.calculate_image_hfr(d).await
+        }
+        async fn detect_stars_in_image(&self, d: &ImageData) -> DeviceResult<Vec<(f64, f64, f64)>> {
+            self.inner.detect_stars_in_image(d).await
+        }
+        async fn measure_frame_eccentricity(&self, d: &ImageData) -> DeviceResult<Option<f64>> {
+            self.inner.measure_frame_eccentricity(d).await
+        }
+        async fn cover_calibrator_open_cover(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_open_cover(id).await
+        }
+        async fn cover_calibrator_close_cover(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_close_cover(id).await
+        }
+        async fn cover_calibrator_halt_cover(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_halt_cover(id).await
+        }
+        async fn cover_calibrator_calibrator_on(&self, id: &str, b: i32) -> DeviceResult<()> {
+            self.inner.cover_calibrator_calibrator_on(id, b).await
+        }
+        async fn cover_calibrator_calibrator_off(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_calibrator_off(id).await
+        }
+        async fn cover_calibrator_get_cover_state(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_cover_state(id).await
+        }
+        async fn cover_calibrator_get_calibrator_state(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_calibrator_state(id).await
+        }
+        async fn cover_calibrator_get_brightness(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_brightness(id).await
+        }
+        async fn cover_calibrator_get_max_brightness(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_max_brightness(id).await
+        }
+    }
+
+    /// Build an InstructionContext wired to the given scripted ops with a
+    /// dome + rotator attached.
+    async fn ctx_with_ops(ops: Arc<ScriptedDomeRotatorOps>) -> InstructionContext {
+        let mut ec = crate::node::context::ExecutionContext::new("test-node".to_string());
+        ec.device_ops = ops;
+        ec.dome_id = Some("dome-1".to_string());
+        ec.rotator_id = Some("rotator-1".to_string());
+        ec.to_instruction_context().await
+    }
+
+    // ---------------------------------------------------------------------
+    // dome-rotator-verify: rotator move is MOVE-AND-VERIFY
+    // ---------------------------------------------------------------------
+
+    /// The rotator move polls the achieved angle until it is within
+    /// tolerance of the target. The driver `rotator_move_to` only ISSUES
+    /// the move on ASCOM/Alpaca/INDI, so the instruction must poll
+    /// `rotator_get_angle` (the "is it there yet" verify) before reporting
+    /// success. Here the rotator is still off-target for the first two
+    /// polls and only arrives on the third — success must therefore have
+    /// required at least two verifying polls.
+    ///
+    /// Fails WITHOUT the verify loop (fire-and-forget returns success after
+    /// the single move call, polling `rotator_get_angle` zero times).
+    ///
+    /// `start_paused = true` drives the verify loop's `tokio::time::sleep`
+    /// off the test's virtual clock (auto-advanced when all tasks are idle)
+    /// instead of racing real wall-time threads. The scripted angles advance
+    /// one entry per `rotator_get_angle` call, so the interleaving is fully
+    /// deterministic: poll 1 → 0°, poll 2 → 0°, poll 3 → 45° (arrived). This
+    /// removes the prior flake where the non-paused wall-clock sleep raced a
+    /// concurrent `start_paused` test under the multi-threaded runner.
+    #[tokio::test(start_paused = true)]
+    async fn test_rotator_move_verified_polls_until_arrival() {
+        // Off-target (0°, 0°) then arrives at 45°.
+        let ops = Arc::new(
+            ScriptedDomeRotatorOps::new().with_rotator_angles(vec![0.0, 0.0, 45.0]),
+        );
+        let ctx = ctx_with_ops(ops.clone()).await;
+        let cfg = RotatorConfig {
+            target_angle: 45.0,
+            relative: false,
+        };
+
+        let result = execute_rotator_move(&cfg, &ctx, None).await;
+
+        assert_eq!(
+            result.status,
+            NodeStatus::Success,
+            "rotator should report success once it reaches the target: {:?}",
+            result.message
+        );
+        assert_eq!(
+            ops.rotator_move_to_calls.load(Ordering::SeqCst),
+            1,
+            "the move must be issued exactly once"
+        );
+        assert!(
+            ops.rotator_get_angle_calls.load(Ordering::SeqCst) >= 2,
+            "the instruction must POLL the achieved angle at least twice \
+             before declaring success (move-and-verify), got {}",
+            ops.rotator_get_angle_calls.load(Ordering::SeqCst)
+        );
+    }
+
+    /// A rotator that issues the move but never reaches the target (motor
+    /// jam / stall) must FAIL CLOSED, not silently report success — a
+    /// jammed rotator otherwise leaves the camera at the wrong PA and the
+    /// next exposure smears field rotation across the frame.
+    ///
+    /// `start_paused` lets tokio auto-advance the virtual clock past the
+    /// internal poll sleeps so the bounded timeout is reached without the
+    /// test waiting real wall-time.
+    #[tokio::test(start_paused = true)]
+    async fn test_rotator_move_fails_when_target_never_reached() {
+        // Always reports 0° — never reaches the 45° target.
+        let ops =
+            Arc::new(ScriptedDomeRotatorOps::new().with_rotator_angles(vec![0.0]));
+        let ctx = ctx_with_ops(ops.clone()).await;
+        let cfg = RotatorConfig {
+            target_angle: 45.0,
+            relative: false,
+        };
+
+        let result = execute_rotator_move(&cfg, &ctx, None).await;
+
+        assert_eq!(
+            result.status,
+            NodeStatus::Failure,
+            "a rotator that never reaches the target must fail closed"
+        );
+        assert!(
+            ops.rotator_get_angle_calls.load(Ordering::SeqCst) >= 2,
+            "the timeout must be reached by repeated verification polls"
+        );
+    }
+
+    // ---------------------------------------------------------------------
+    // dome-park-shutter: park surfaces the shutter-close error + verifies
+    // ---------------------------------------------------------------------
+
+    /// THE hardware-safety guard: when dome park closes the shutter but the
+    /// close FAILS, `execute_park_dome` must return Failure with the close
+    /// error surfaced — NOT report "parked" while the scope sits exposed
+    /// under an open shutter all night. A failed roof returns an error, not
+    /// success.
+    ///
+    /// Fails WITHOUT the fix (the original code swallowed the `dome_close`
+    /// Result and returned success).
+    ///
+    /// `start_paused = true` keeps this test on the virtual clock so it can
+    /// never race a concurrent paused test's auto-advance under the
+    /// multi-threaded runner. (This path returns on the `dome_close` error
+    /// before reaching the shutter-wait poll loop, so it issues zero shutter
+    /// polls — that is correct, not a flake.)
+    #[tokio::test(start_paused = true)]
+    async fn test_park_dome_surfaces_shutter_close_error() {
+        let ops = Arc::new(
+            ScriptedDomeRotatorOps::new().with_dome_close_error("shutter motor jammed"),
+        );
+        let ctx = ctx_with_ops(ops.clone()).await;
+        let cfg = DomeConfig { shutter_only: false };
+
+        let result = execute_park_dome(&cfg, &ctx, None).await;
+
+        assert_eq!(
+            result.status,
+            NodeStatus::Failure,
+            "a dome park that cannot close the shutter MUST fail, not report parked"
+        );
+        let msg = result.message.unwrap_or_default();
+        assert!(
+            msg.contains("shutter motor jammed"),
+            "the underlying close error must be surfaced to the operator, got: {msg}"
+        );
+        assert_eq!(
+            ops.dome_close_calls.load(Ordering::SeqCst),
+            1,
+            "park must actually attempt to close the shutter"
+        );
+    }
+
+    /// Dome park is MOVE-AND-VERIFY: after issuing the close it must poll
+    /// the shutter status until it actually reads Closed before reporting
+    /// success. Here the shutter is still "Closing" for the first two polls
+    /// and only reaches "Closed" on the third.
+    ///
+    /// Fails WITHOUT the wait (fire-and-forget reported "parked" while the
+    /// shutter was still moving).
+    ///
+    /// `start_paused = true` drives `wait_for_dome_shutter_state`'s
+    /// `tokio::time::sleep` off the virtual clock (auto-advanced when idle).
+    /// The scripted shutter states advance one entry per
+    /// `dome_get_shutter_status` call, so the poll sequence is deterministic:
+    /// poll 1 → Closing, poll 2 → Closing, poll 3 → Closed (done). This
+    /// removes the prior wall-clock race against concurrent paused tests.
+    #[tokio::test(start_paused = true)]
+    async fn test_park_dome_waits_for_shutter_closed() {
+        let ops = Arc::new(
+            ScriptedDomeRotatorOps::new()
+                .with_dome_shutter_states(&["Closing", "Closing", "Closed"]),
+        );
+        let ctx = ctx_with_ops(ops.clone()).await;
+        let cfg = DomeConfig { shutter_only: false };
+
+        let result = execute_park_dome(&cfg, &ctx, None).await;
+
+        assert_eq!(
+            result.status,
+            NodeStatus::Success,
+            "park should succeed once the shutter reads Closed: {:?}",
+            result.message
+        );
+        assert_eq!(
+            ops.dome_park_calls.load(Ordering::SeqCst),
+            1,
+            "the dome park must be issued"
+        );
+        assert!(
+            ops.dome_shutter_status_calls.load(Ordering::SeqCst) >= 2,
+            "park must POLL the shutter status until Closed (move-and-verify), got {}",
+            ops.dome_shutter_status_calls.load(Ordering::SeqCst)
+        );
+    }
+
+    /// A dome whose shutter reports a definite state but never reaches
+    /// Closed (jammed half-open) must FAIL CLOSED rather than reporting a
+    /// successful park — otherwise the optics stay exposed to the weather
+    /// that the close was meant to protect against.
+    #[tokio::test(start_paused = true)]
+    async fn test_park_dome_fails_when_shutter_never_closes() {
+        // Reports a real state ("Open") forever but never "Closed".
+        let ops = Arc::new(
+            ScriptedDomeRotatorOps::new().with_dome_shutter_states(&["Open"]),
+        );
+        let ctx = ctx_with_ops(ops.clone()).await;
+        let cfg = DomeConfig { shutter_only: false };
+
+        let result = execute_park_dome(&cfg, &ctx, None).await;
+
+        assert_eq!(
+            result.status,
+            NodeStatus::Failure,
+            "a shutter that reports a real state but never closes must fail closed"
+        );
+        assert!(
+            ops.dome_shutter_status_calls.load(Ordering::SeqCst) >= 2,
+            "the timeout must be reached by repeated shutter-status polls"
+        );
+    }
 }

@@ -47,6 +47,10 @@ mod frb_generated; /* AUTO INJECTED BY flutter_rust_bridge. This line may not be
 
 pub mod adaptive_polling;
 mod api;
+// P0-5: the per-frame exposure-parameter apply logic (gain/offset/binning) is
+// platform-independent and lives here so it compiles and is regression-tested
+// on every platform; the Windows-only `ascom_wrapper` worker calls into it.
+mod ascom_exposure_apply;
 #[cfg(windows)]
 mod ascom_wrapper;
 mod builtin_guider;

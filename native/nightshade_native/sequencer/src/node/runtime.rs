@@ -528,3 +528,231 @@ mod disconnect_recovery_tests {
     }
 }
 
+#[cfg(test)]
+mod resume_short_circuit_tests {
+    use super::*;
+    use crate::node::context::ExecutionContext;
+    use crate::node::logic::loop_node::execute_loop;
+    use crate::node::Node;
+    use crate::{DelayConfig, LoopCondition, LoopConfig, NodeStatus, ParallelConfig};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+
+    /// Leaf spy that records how many times `execute` was entered. Used to prove
+    /// a Loop re-runs its body the correct number of iterations on resume.
+    struct ExecSpy {
+        id: NodeId,
+        node_type: NodeType,
+        executed: Arc<AtomicUsize>,
+        no_children: Vec<Box<dyn Node>>,
+    }
+
+    impl ExecSpy {
+        fn new(id: &str, executed: Arc<AtomicUsize>) -> Self {
+            Self {
+                id: id.to_string(),
+                node_type: NodeType::Park,
+                executed,
+                no_children: Vec::new(),
+            }
+        }
+    }
+
+    #[async_trait]
+    impl Node for ExecSpy {
+        fn id(&self) -> &NodeId {
+            &self.id
+        }
+        fn name(&self) -> &str {
+            "exec-spy"
+        }
+        fn node_type(&self) -> &NodeType {
+            &self.node_type
+        }
+        fn is_enabled(&self) -> bool {
+            true
+        }
+        async fn execute(&mut self, _context: &mut ExecutionContext) -> NodeStatus {
+            self.executed.fetch_add(1, Ordering::SeqCst);
+            NodeStatus::Success
+        }
+        fn reset(&mut self) {}
+        async fn abort(&mut self) {}
+        fn children(&self) -> &[Box<dyn Node>] {
+            &self.no_children
+        }
+        fn children_mut(&mut self) -> &mut Vec<Box<dyn Node>> {
+            &mut self.no_children
+        }
+        fn mark_completed(&mut self, _node_id: &NodeId) {}
+    }
+
+    fn delay_node(id: &str, seconds: f64) -> RuntimeNode {
+        RuntimeNode::from_definition(crate::NodeDefinition {
+            id: id.to_string(),
+            name: id.to_string(),
+            node_type: NodeType::Delay(DelayConfig { seconds }),
+            enabled: true,
+            children: Vec::new(),
+        })
+    }
+
+    /// P1-7: a node whose status was restored to `Success` on resume must
+    /// short-circuit out of `execute` WITHOUT dispatching its instruction. We
+    /// prove "did not dispatch" by giving the node a 9999s Delay: if the
+    /// short-circuit holds, `execute` returns immediately; if the restored
+    /// Success were overwritten with Running and dispatched (the original bug),
+    /// the Delay would run for ~9999s and the tight timeout would elapse.
+    #[tokio::test]
+    async fn resume_skips_already_success_node() {
+        let mut node = delay_node("done-step", 9999.0);
+        // Simulate `resume_from_checkpoint` marking this node completed.
+        node.mark_completed(&"done-step".to_string());
+        assert_eq!(node.status, NodeStatus::Success);
+
+        let mut ctx = ExecutionContext::new("done-step".to_string());
+
+        let status = tokio::time::timeout(Duration::from_secs(2), node.execute(&mut ctx))
+            .await
+            .expect("resume short-circuit must return immediately, not run the 9999s delay");
+
+        assert_eq!(
+            status,
+            NodeStatus::Success,
+            "an already-Success node must report Success on resume"
+        );
+        assert_eq!(
+            node.status,
+            NodeStatus::Success,
+            "the restored Success must NOT be overwritten with Running"
+        );
+    }
+
+    /// Negative control: a fresh (Pending) node of the same kind DOES dispatch.
+    /// This guards against a short-circuit that fires unconditionally and would
+    /// silently skip real work. A 0s Delay dispatches and completes instantly.
+    #[tokio::test]
+    async fn fresh_node_still_executes() {
+        let mut node = delay_node("fresh-step", 0.0);
+        assert_eq!(node.status, NodeStatus::Pending);
+
+        let mut ctx = ExecutionContext::new("fresh-step".to_string());
+        let status = node.execute(&mut ctx).await;
+        assert_eq!(status, NodeStatus::Success);
+    }
+
+    /// P1-7 (parallel): the resume short-circuit applies to container nodes too.
+    /// A Parallel node restored to Success must NOT re-spawn its branches. The
+    /// child here is a 9999s Delay; if the container re-executed, it would block
+    /// on that delay and the tight timeout would elapse.
+    #[tokio::test]
+    async fn resume_skips_already_success_parallel_container() {
+        let mut node = RuntimeNode::from_definition(crate::NodeDefinition {
+            id: "par".to_string(),
+            name: "par".to_string(),
+            node_type: NodeType::Parallel(ParallelConfig {
+                required_successes: None,
+            }),
+            enabled: true,
+            children: Vec::new(),
+        });
+        node.children.push(Box::new(delay_node("branch", 9999.0)));
+        node.mark_completed(&"par".to_string());
+        assert_eq!(node.status, NodeStatus::Success);
+
+        let mut ctx = ExecutionContext::new("par".to_string());
+        let status = tokio::time::timeout(Duration::from_secs(2), node.execute(&mut ctx))
+            .await
+            .expect("a resumed Success container must not re-spawn its branches");
+        assert_eq!(status, NodeStatus::Success);
+    }
+
+    /// P1-8: a Count loop resumed mid-run (current_iteration restored from a
+    /// checkpoint) must continue from where it stopped, NOT restart at 0 and
+    /// re-image every completed iteration. Loop(count=3) restored to iteration
+    /// 2 must run exactly ONE more iteration (the 3rd), so the child executes
+    /// exactly once. Without the fix the loop restarts at 0 and the child runs
+    /// three times.
+    #[tokio::test]
+    async fn resume_loop_continues_from_restored_iteration() {
+        let executed = Arc::new(AtomicUsize::new(0));
+        let mut node = RuntimeNode::from_definition(crate::NodeDefinition {
+            id: "loop".to_string(),
+            name: "loop".to_string(),
+            node_type: NodeType::Loop(LoopConfig {
+                iterations: Some(3),
+                condition: LoopCondition::Count,
+                condition_value: None,
+                horizon_profile: None,
+            }),
+            enabled: true,
+            children: Vec::new(),
+        });
+        node.children
+            .push(Box::new(ExecSpy::new("body", executed.clone())));
+
+        // Simulate `resume_from_checkpoint` -> restore_loop_iterations setting
+        // the live iteration count to 2 (two iterations already completed).
+        let mut restored = std::collections::HashMap::new();
+        restored.insert("loop".to_string(), 2u32);
+        node.restore_loop_iterations(&restored);
+        assert_eq!(node.current_iteration, 2, "iteration must be restored to 2");
+
+        let cfg = LoopConfig {
+            iterations: Some(3),
+            condition: LoopCondition::Count,
+            condition_value: None,
+            horizon_profile: None,
+        };
+        let mut ctx = ExecutionContext::new("loop".to_string());
+        let status = execute_loop(&mut node, cfg, &mut ctx).await;
+
+        assert_eq!(status, NodeStatus::Success);
+        assert_eq!(
+            executed.load(Ordering::SeqCst),
+            1,
+            "a Loop(3) resumed at iteration 2 must run only the final iteration"
+        );
+        assert_eq!(node.current_iteration, 3, "loop must finish at iteration 3");
+    }
+
+    /// Negative control for P1-8: a FRESH Count loop (iteration 0) runs the full
+    /// count. Guards against a resume fix that wrongly skips iterations on a
+    /// normal (non-resumed) run.
+    #[tokio::test]
+    async fn fresh_loop_runs_full_count() {
+        let executed = Arc::new(AtomicUsize::new(0));
+        let mut node = RuntimeNode::from_definition(crate::NodeDefinition {
+            id: "loop".to_string(),
+            name: "loop".to_string(),
+            node_type: NodeType::Loop(LoopConfig {
+                iterations: Some(3),
+                condition: LoopCondition::Count,
+                condition_value: None,
+                horizon_profile: None,
+            }),
+            enabled: true,
+            children: Vec::new(),
+        });
+        node.children
+            .push(Box::new(ExecSpy::new("body", executed.clone())));
+
+        let cfg = LoopConfig {
+            iterations: Some(3),
+            condition: LoopCondition::Count,
+            condition_value: None,
+            horizon_profile: None,
+        };
+        let mut ctx = ExecutionContext::new("loop".to_string());
+        let status = execute_loop(&mut node, cfg, &mut ctx).await;
+
+        assert_eq!(status, NodeStatus::Success);
+        assert_eq!(
+            executed.load(Ordering::SeqCst),
+            3,
+            "a fresh Loop(3) must run all three iterations"
+        );
+    }
+}
+
