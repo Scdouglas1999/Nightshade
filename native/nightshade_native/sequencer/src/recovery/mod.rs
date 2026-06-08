@@ -367,6 +367,14 @@ pub enum AttemptOutcome {
     /// The user (or another shutdown path) cancelled mid-attempt — exit
     /// the loop with a Cancelled status.
     Cancelled,
+    /// The cause is not auto-recoverable by waiting — escalate to a real
+    /// operator Pause and stop the loop. Unlike `Succeeded` (auto-resume)
+    /// this freezes the run in `ExecutorState::Paused` until the operator
+    /// resumes, and unlike `Failed`/exhaustion it does NOT park-and-abort
+    /// the rig. Used for a consecutive-reject storm: a wait does not prove
+    /// the sky cleared, so hand the night to the operator instead of
+    /// oscillating fail → wait → "recovered" → fail on a fresh budget.
+    PauseForOperator { message: String },
 }
 
 /// Record of a single completed recovery loop for the post-session report.

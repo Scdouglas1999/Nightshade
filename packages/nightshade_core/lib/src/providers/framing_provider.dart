@@ -410,6 +410,11 @@ class FramingNotifier extends StateNotifier<FramingState> {
         state.copyWith(showCardinalDirections: !state.showCardinalDirections);
   }
 
+  /// Toggle the candidate guide-star overlay.
+  void toggleGuideStars() {
+    state = state.copyWith(showGuideStars: !state.showGuideStars);
+  }
+
   /// Toggle optical config panel visibility
   void toggleOpticalConfigPanel() {
     state =

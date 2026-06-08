@@ -85,6 +85,16 @@ pub struct FlipContext {
     /// User-tuned autofocus parameters used by the post-flip refocus step.
     /// `None` falls back to `AutofocusConfig::default()`. Audit §1.6.
     pub autofocus_config: Option<AutofocusConfig>,
+    /// Phase G — dry-run / simulate flag. When `true`, the executor walks the
+    /// full pre-flight and step sequence (altitude check, cover check, build
+    /// the step list, emit every Starting/StepStarted/StepCompleted/Progress/
+    /// Completed event) but **does not command any real hardware**: the slew,
+    /// pier-side verify, plate-solve, refocus, guider, and tracking device-ops
+    /// are skipped. This lets an operator validate the configured flip sequence
+    /// (which steps run, in what order, with what timeouts) without moving the
+    /// mount — building confidence before an unattended night. Pier-side verify
+    /// is reported as a no-op success because no real flip occurred.
+    pub simulate: bool,
 }
 
 /// Executes a complete meridian flip sequence
@@ -571,8 +581,8 @@ impl MeridianFlipExecutor {
             let step_start = Instant::now();
 
             let result = match step {
-                FlipStep::PausingGuider => self.pause_guider().await,
-                FlipStep::StoppingTracking => self.stop_tracking(&ctx.mount_id).await,
+                FlipStep::PausingGuider => self.pause_guider(ctx).await,
+                FlipStep::StoppingTracking => self.stop_tracking(ctx).await,
                 FlipStep::SlewingToTarget => {
                     self.slew_to_target(ctx, ctx.target_ra_hours, ctx.target_dec_degrees)
                         .await
@@ -587,7 +597,7 @@ impl MeridianFlipExecutor {
                         Err(e) => Err(e),
                     }
                 }
-                FlipStep::ResumingTracking => self.resume_tracking(&ctx.mount_id).await,
+                FlipStep::ResumingTracking => self.resume_tracking(ctx).await,
                 FlipStep::PlateSolvingAndCentering => {
                     // Audit §1.6 backport: if the flip itself succeeded (slew +
                     // pier-side verify) but plate-solve fails, warn and treat
@@ -648,14 +658,24 @@ impl MeridianFlipExecutor {
     // Step implementations
     // ========================================================================
 
-    async fn pause_guider(&self) -> Result<(), String> {
+    async fn pause_guider(&self, ctx: &FlipContext) -> Result<(), String> {
+        if ctx.simulate {
+            tracing::info!("[MERIDIAN] (dry-run) Would pause guider — skipping device command");
+            return Ok(());
+        }
         tracing::info!("[MERIDIAN] Pausing guider...");
         self.device_ops.guider_stop().await
     }
 
-    async fn stop_tracking(&self, mount_id: &str) -> Result<(), String> {
+    async fn stop_tracking(&self, ctx: &FlipContext) -> Result<(), String> {
+        if ctx.simulate {
+            tracing::info!("[MERIDIAN] (dry-run) Would stop tracking — skipping device command");
+            return Ok(());
+        }
         tracing::info!("[MERIDIAN] Stopping tracking...");
-        self.device_ops.mount_set_tracking(mount_id, false).await
+        self.device_ops
+            .mount_set_tracking(&ctx.mount_id, false)
+            .await
     }
 
     async fn slew_to_target(
@@ -665,6 +685,17 @@ impl MeridianFlipExecutor {
         dec_degrees: f64,
     ) -> Result<(), String> {
         let mount_id = ctx.mount_id.as_str();
+        // Phase G dry-run: do NOT command a real slew. The whole point of the
+        // dry-run is to validate the flip sequence without moving the mount.
+        if ctx.simulate {
+            tracing::info!(
+                "[MERIDIAN] (dry-run) Would slew to flip-side target RA={:.4}h, Dec={:.4}° — \
+                 skipping real slew command",
+                ra_hours,
+                dec_degrees
+            );
+            return Ok(());
+        }
         tracing::info!(
             "[MERIDIAN] Slewing to target (flip side): RA={:.4}h, Dec={:.4}°",
             ra_hours,
@@ -758,6 +789,19 @@ impl MeridianFlipExecutor {
         pre_flip_pier_side: PierSide,
     ) -> Result<PierSide, String> {
         let mount_id = ctx.mount_id.as_str();
+        // Phase G dry-run: no real slew was issued, so the mount has not
+        // crossed sides. Reading the pier side and asserting it changed would
+        // (correctly) fail. Report a no-op success so the dry-run can continue
+        // through the remaining steps and complete — the operator is validating
+        // the sequence, not the hardware's ability to flip.
+        if ctx.simulate {
+            tracing::info!(
+                "[MERIDIAN] (dry-run) Would verify pier side changed from {:?} — \
+                 skipping real pier-side read (no slew was commanded)",
+                pre_flip_pier_side
+            );
+            return Ok(PierSide::Unknown);
+        }
         tracing::info!(
             "[MERIDIAN] Verifying pier side changed from {:?}...",
             pre_flip_pier_side
@@ -815,12 +859,24 @@ impl MeridianFlipExecutor {
         Ok(new_pier_side)
     }
 
-    async fn resume_tracking(&self, mount_id: &str) -> Result<(), String> {
+    async fn resume_tracking(&self, ctx: &FlipContext) -> Result<(), String> {
+        if ctx.simulate {
+            tracing::info!("[MERIDIAN] (dry-run) Would resume tracking — skipping device command");
+            return Ok(());
+        }
         tracing::info!("[MERIDIAN] Resuming tracking...");
-        self.device_ops.mount_set_tracking(mount_id, true).await
+        self.device_ops
+            .mount_set_tracking(&ctx.mount_id, true)
+            .await
     }
 
     async fn plate_solve_and_center(&self, ctx: &FlipContext) -> Result<(), String> {
+        if ctx.simulate {
+            tracing::info!(
+                "[MERIDIAN] (dry-run) Would plate-solve and center — skipping exposure and slew"
+            );
+            return Ok(());
+        }
         tracing::info!("[MERIDIAN] Plate solving and centering...");
 
         let camera_id = ctx.camera_id.as_ref().ok_or("No camera configured")?;
@@ -926,6 +982,13 @@ impl MeridianFlipExecutor {
     }
 
     async fn run_autofocus(&self, ctx: &FlipContext) -> Result<(), String> {
+        if ctx.simulate {
+            tracing::info!(
+                "[MERIDIAN] (dry-run) Would run post-flip autofocus — skipping exposures and \
+                 focuser moves"
+            );
+            return Ok(());
+        }
         tracing::info!("[MERIDIAN] Running autofocus...");
 
         let camera_id = match &ctx.camera_id {
@@ -1088,6 +1151,13 @@ impl MeridianFlipExecutor {
     }
 
     async fn resume_guider(&self, ctx: &FlipContext) -> Result<(), String> {
+        if ctx.simulate {
+            tracing::info!(
+                "[MERIDIAN] (dry-run) Would resume guider and verify re-lock — skipping device \
+                 command"
+            );
+            return Ok(());
+        }
         tracing::info!("[MERIDIAN] Resuming guider...");
 
         // 1.5 px settle / 10 s settle time / 60 s timeout match the defaults
@@ -1602,6 +1672,9 @@ mod tests {
         park_calls: AtomicI32,
         /// Set tracking calls.
         tracking_calls: Mutex<Vec<bool>>,
+        /// Phase G dry-run: number of real slew commands issued. A dry-run
+        /// must leave this at zero (no mount movement).
+        slew_calls: AtomicI32,
         /// Whether the cover is closed.
         cover_state: AtomicI32,
         /// Notifications sent (level, title).
@@ -1635,6 +1708,7 @@ mod tests {
             ra: f64,
             dec: f64,
         ) -> DeviceResult<()> {
+            self.state.slew_calls.fetch_add(1, Ordering::Relaxed);
             *self.state.coordinates.lock().unwrap() = (ra, dec);
             Ok(())
         }
@@ -2011,6 +2085,7 @@ mod tests {
             cancellation_token: None,
             trigger_state: None,
             autofocus_config: None,
+            simulate: false,
         }
     }
 
@@ -2405,6 +2480,105 @@ mod tests {
             state.park_calls.load(Ordering::Relaxed),
             1,
             "Expected exactly 1 park attempt when safety_action_retry_count=1"
+        );
+    }
+
+    // ========================================================================
+    // Phase G — meridian-flip dry-run (simulate) mode.
+    // ========================================================================
+
+    /// Phase G: a dry-run (`FlipContext::simulate = true`) must walk the full
+    /// step sequence and return `Success`, but must NOT command a real slew or
+    /// touch mount tracking — the operator is validating the flip sequence
+    /// without moving the mount. This is the core "skip-actual-flip" guarantee:
+    /// `mount_slew_to_coordinates` is never called.
+    #[tokio::test]
+    async fn test_dry_run_does_not_command_real_slew() {
+        let state = Arc::new(MockDeviceOpsState::default());
+        // Pier sides report a clean East→East (i.e. an un-flipped mount). In a
+        // REAL flip the verify step would fail on this (pier side did not
+        // change); the dry-run must short-circuit pier-side verification and
+        // still succeed, proving it never relied on a real slew having happened.
+        state.pier_sides.lock().unwrap().extend([
+            crate::meridian::PierSide::East,
+            crate::meridian::PierSide::East,
+        ]);
+        let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
+
+        // Enable every optional step so the dry-run exercises the full
+        // sequence (pause/resume guider, plate-solve-center, refocus).
+        let config = MeridianFlipConfig {
+            pause_guiding: true,
+            auto_center: true,
+            refocus_after: true,
+            resume_guiding: true,
+            settle_time: 0.0,
+            max_retries: 0,
+            ..Default::default()
+        };
+
+        let mut executor = MeridianFlipExecutor::new(config, ops);
+        let mut ctx = make_ctx(&state);
+        ctx.focuser_id = Some("mock-focuser".to_string());
+        ctx.simulate = true;
+
+        let result = executor.execute(&ctx).await;
+        match result {
+            FlipResult::Success { .. } => {}
+            other => panic!("Expected dry-run to succeed, got {:?}", other),
+        }
+
+        // The core guarantee: no real slew was commanded.
+        assert_eq!(
+            state.slew_calls.load(Ordering::Relaxed),
+            0,
+            "Dry-run must NOT command a real slew (mount_slew_to_coordinates)"
+        );
+        // And no mount-tracking device command was issued either — a dry-run
+        // leaves the mount entirely untouched.
+        assert!(
+            state.tracking_calls.lock().unwrap().is_empty(),
+            "Dry-run must NOT command mount tracking, history was {:?}",
+            state.tracking_calls.lock().unwrap()
+        );
+    }
+
+    /// Phase G: a REAL flip (simulate = false) on the same un-flipped pier-side
+    /// scenario DOES command a slew. This is the contrast case proving the
+    /// dry-run flag is what suppressed the slew above, not some other config.
+    #[tokio::test]
+    async fn test_real_flip_commands_slew() {
+        let state = Arc::new(MockDeviceOpsState::default());
+        // Clean East→West flip so the verify step passes for the real path.
+        state.pier_sides.lock().unwrap().extend([
+            crate::meridian::PierSide::East,
+            crate::meridian::PierSide::West,
+        ]);
+        let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
+
+        let config = MeridianFlipConfig {
+            pause_guiding: false,
+            auto_center: false,
+            refocus_after: false,
+            resume_guiding: false,
+            settle_time: 0.0,
+            max_retries: 0,
+            ..Default::default()
+        };
+
+        let mut executor = MeridianFlipExecutor::new(config, ops);
+        let ctx = make_ctx(&state); // simulate defaults to false
+
+        let result = executor.execute(&ctx).await;
+        match result {
+            FlipResult::Success { .. } => {}
+            other => panic!("Expected real flip to succeed, got {:?}", other),
+        }
+
+        assert_eq!(
+            state.slew_calls.load(Ordering::Relaxed),
+            1,
+            "A real (non-simulated) flip must command exactly one slew"
         );
     }
 }

@@ -760,25 +760,63 @@ class UpdateController {
     ));
   }
 
-  // `UpdateService` does not currently expose a rollback path; the
-  // pending-install mechanism rolls back automatically when the new
-  // version fails to boot, but there is no manual revert. We surface
-  // this honestly so `POST /api/system/update/rollback` returns 501
-  // instead of pretending to succeed.
-  /// Whether this controller exposes a rollback path. Returns false
-  /// because `UpdateService` does not (yet) provide one; the handler
-  /// returns 501 in that case.
-  bool get rollbackSupported => false;
+  /// Whether a manual rollback is currently possible. True only while a
+  /// retained restore point exists on disk — i.e. an update was applied on
+  /// this host and the next launch has not yet confirmed it healthy (the
+  /// boot verifier reclaims the backup once it does). When false, the
+  /// handler returns 501. Async because it probes the filesystem; the
+  /// previous implementation hard-coded `false` because `UpdateService`
+  /// exposed no rollback path.
+  Future<bool> rollbackSupported() => _service.hasRestorePoint();
 
-  /// Roll back the last applied update. Currently unsupported (throws
-  /// [UnsupportedError]).
+  /// Roll back the last applied update by relaunching the external updater
+  /// in `--rollback` mode (the same binary + backup machinery the
+  /// auto-rollback path uses on failure). On success the host process
+  /// restarts, so the returned future MAY never complete. Emits
+  /// `UpdateApplyStarted` before and `UpdateApplied` optimistically so
+  /// paired phones learn the host is about to restart; on a real spawn
+  /// failure it transitions to `failed` and rethrows.
   Future<void> rollback({required String jobId}) async {
-    throw UnsupportedError(
-      'UpdateService does not expose a manual rollback path. The boot '
-      'verifier auto-rolls-back failed updates; manual rollback would '
-      'require an out-of-band mechanism (e.g. reinstall the previous '
-      'version).',
-    );
+    if (!await _service.hasRestorePoint()) {
+      throw UnsupportedError(
+        'No restore point is available to roll back to. A rollback is only '
+        'possible after an update is applied and before the next launch '
+        'confirms it healthy.',
+      );
+    }
+
+    _eventsController.add(UpdateApplyStartedEvent(
+      jobId: jobId,
+      version: 'rollback',
+    ));
+    _updateStatus(const UpdateControllerStatus(
+      state: UpdateLifecycleState.installing,
+      message: 'Rolling back to the previous version',
+    ));
+
+    try {
+      // Optimistic applied-event so phones receive the restart alert before
+      // the WebSocket teardown (rollbackToPrevious exits the process on
+      // success). On a real failure (spawn throws) we fall through to the
+      // catch and re-arm.
+      _eventsController.add(UpdateAppliedEvent(
+        fromVersion: _currentVersion,
+        toVersion: 'previous',
+        restartRequired: true,
+      ));
+      await _service.rollbackToPrevious();
+    } catch (e) {
+      _updateStatus(UpdateControllerStatus(
+        state: UpdateLifecycleState.failed,
+        lastError: e.toString(),
+      ));
+      _eventsController.add(UpdateFailedEvent(
+        jobId: jobId,
+        phase: 'rollback',
+        error: e.toString(),
+      ));
+      rethrow;
+    }
   }
 
   /// Release any resources held by the controller (HTTP client, sockets).

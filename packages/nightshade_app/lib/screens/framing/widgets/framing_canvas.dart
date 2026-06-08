@@ -16,6 +16,7 @@ import '../../../widgets/tutorial_keys/framing_keys.dart';
 import '../painters/framing_background_painters.dart';
 import '../painters/framing_painters.dart';
 import 'framing_overlays.dart';
+import 'guide_star_overlay.dart';
 import 'hips_tile_layer.dart';
 
 /// The main framing canvas: handles pan / rotate gestures, stacks the survey
@@ -117,6 +118,23 @@ class _FramingCanvasState extends State<FramingCanvas> {
     if (!_hasEquipment || _equipment == null) return false;
     return widget.framingState.previewFovDegrees > _equipment!.fovWidthDeg &&
         widget.framingState.showEquipmentFovOverlay;
+  }
+
+  /// The imaging FOV (width, height) in degrees the guide-star finder searches.
+  ///
+  /// Uses the equipment FOV when a profile is configured — that is the frame the
+  /// user is actually composing — and otherwise the preview FOV (squared off to
+  /// the canvas aspect so the finder still works before any equipment is set,
+  /// mirroring the no-image plate-scale fallback).
+  (double, double) _guideStarFovDegrees(Size canvasSize) {
+    if (_hasEquipment && _equipment != null) {
+      return (_equipment!.fovWidthDeg, _equipment!.fovHeightDeg);
+    }
+    final previewFov = widget.framingState.previewFovDegrees;
+    final aspect = canvasSize.isEmpty || canvasSize.height <= 0
+        ? 1.0
+        : canvasSize.width / canvasSize.height;
+    return (previewFov, previewFov / aspect);
   }
 
   @override
@@ -397,6 +415,26 @@ class _FramingCanvasState extends State<FramingCanvas> {
                   ),
                 ),
 
+              // Guide-star finder overlay. Highlights bright (V < 10) catalog
+              // stars inside the imaging FOV as candidate autoguider guide
+              // stars. It is self-contained (reads framing state, loads nearby
+              // catalog stars, projects through the SAME FramingSkyProjection
+              // the reticle uses) and gated internally on
+              // framingState.showGuideStars + a framed target, so it paints
+              // nothing when the toggle is off. Positioned.fill so its markers
+              // are placed in absolute canvas coordinates (the projection
+              // already bakes in pan / zoom / rotation), NOT inside the
+              // Center+Transform stack the reticle uses.
+              () {
+                final (gsW, gsH) = _guideStarFovDegrees(_canvasSize);
+                return Positioned.fill(
+                  child: GuideStarOverlay(
+                    fovWidthDeg: gsW,
+                    fovHeightDeg: gsH,
+                  ),
+                );
+              }(),
+
               // Crosshairs
               Center(
                 child: CustomPaint(
@@ -565,6 +603,15 @@ class _CanvasControls extends StatelessWidget {
             isActive: framingState.showLabels,
             colors: colors,
             onTap: () => ref.read(framingProvider.notifier).toggleLabels(),
+          ),
+          // Guide-star finder: highlights bright (V < 10) catalog stars inside
+          // the imaging FOV as candidate autoguider guide stars.
+          _ControlChip(
+            icon: NightshadeIcons.guider,
+            label: 'Guide Stars',
+            isActive: framingState.showGuideStars,
+            colors: colors,
+            onTap: () => ref.read(framingProvider.notifier).toggleGuideStars(),
           ),
           // HiPS deep-survey tiles toggle. Only shown for surveys that have a
           // verified HiPS pyramid (the toggle would be inert otherwise — the

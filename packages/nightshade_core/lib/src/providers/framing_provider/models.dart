@@ -53,6 +53,10 @@ class FramingState {
   final bool showLabels;
   final bool showCardinalDirections;
 
+  /// Whether to overlay candidate guide stars (bright catalog stars inside the
+  /// FOV that an autoguider could lock onto).
+  final bool showGuideStars;
+
   /// Custom equipment (null = use active profile)
   final FramingEquipment? customEquipment;
 
@@ -105,6 +109,7 @@ class FramingState {
     this.showGrid = true,
     this.showLabels = true,
     this.showCardinalDirections = true,
+    this.showGuideStars = false,
     this.customEquipment,
     this.useCustomEquipment = false,
     this.previewFovDegrees = 2.0,
@@ -135,6 +140,7 @@ class FramingState {
     bool? showGrid,
     bool? showLabels,
     bool? showCardinalDirections,
+    bool? showGuideStars,
     FramingEquipment? customEquipment,
     bool? useCustomEquipment,
     double? previewFovDegrees,
@@ -171,6 +177,7 @@ class FramingState {
       showLabels: showLabels ?? this.showLabels,
       showCardinalDirections:
           showCardinalDirections ?? this.showCardinalDirections,
+      showGuideStars: showGuideStars ?? this.showGuideStars,
       customEquipment: customEquipment ?? this.customEquipment,
       useCustomEquipment: useCustomEquipment ?? this.useCustomEquipment,
       previewFovDegrees: previewFovDegrees ?? this.previewFovDegrees,

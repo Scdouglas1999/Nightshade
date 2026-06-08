@@ -1039,6 +1039,9 @@ fn build_trigger_flip_context(
         cancellation_token,
         trigger_state,
         autofocus_config: None,
+        // Trigger-driven flips command the hardware; the dry-run path is the
+        // only caller that sets this true.
+        simulate: false,
     })
 }
 
@@ -1371,11 +1374,19 @@ pub(crate) async fn run_recovery_attempt(
             AttemptOutcome::Succeeded
         }
         RecoveryCause::ConsecutiveRejectsExceeded => {
-            // Rejects-exceeded recovery is the same "wait then resume"
-            // pattern — by the time `retry_interval_secs` has elapsed,
-            // any transient cloud / dew / vibration has probably
-            // cleared. The next exposure proves it.
-            AttemptOutcome::Succeeded
+            // A consecutive-reject storm (clouds rolling in, dew, focus
+            // lost, vibration) is NOT something a fixed wait can prove
+            // cleared — auto-resuming oscillated fail → wait →
+            // "recovered" → fail on a fresh recovery budget, burning the
+            // whole night capturing rejects and never converging. Escalate
+            // to a real operator Pause instead: freeze the run and hand it
+            // to the operator (matching the operator-pause / safe-state
+            // path) rather than declaring an unverified success.
+            AttemptOutcome::PauseForOperator {
+                message: "Consecutive image-grading rejects exceeded the limit — \
+                          sequence paused for inspection. Resume once conditions clear."
+                    .to_string(),
+            }
         }
         RecoveryCause::DeviceDisconnected => {
             if device_ids.is_empty() {
@@ -3376,6 +3387,11 @@ impl SequenceExecutor {
                         // 4. Drive the retry loop.
                         let aborted_by_user;
                         let recovered;
+                        // Set when an attempt resolves as PauseForOperator —
+                        // the cause is not auto-recoverable by waiting, so the
+                        // loop exits into a real operator Pause (not resume,
+                        // not park-and-abort). Carries the operator message.
+                        let mut paused_for_operator: Option<String> = None;
                         loop {
                             if recovery_driver_is_cancelled.load(Ordering::Relaxed) {
                                 tracing::info!(
@@ -3515,6 +3531,25 @@ impl SequenceExecutor {
                                     ctx.phase = crate::recovery::RecoveryPhase::GaveUp;
                                     break;
                                 }
+                                crate::recovery::AttemptOutcome::PauseForOperator {
+                                    message,
+                                } => {
+                                    tracing::warn!(
+                                        "[RECOVERY] Cause {:?} escalated to operator Pause: {}",
+                                        ctx.cause,
+                                        message
+                                    );
+                                    // Not a recovery, not a give-up: a real
+                                    // operator Pause. Leave the node tree frozen
+                                    // (is_paused stays true) and hand the run to
+                                    // the operator.
+                                    aborted_by_user = false;
+                                    recovered = false;
+                                    ctx.last_error = Some(message.clone());
+                                    ctx.phase = crate::recovery::RecoveryPhase::GaveUp;
+                                    paused_for_operator = Some(message);
+                                    break;
+                                }
                             }
                         }
 
@@ -3533,7 +3568,45 @@ impl SequenceExecutor {
                             });
                         }
 
-                        if recovered {
+                        if let Some(pause_message) = paused_for_operator {
+                            // Escalated to a real operator Pause. The node tree
+                            // is already frozen (is_paused == true from step 2);
+                            // leave it frozen and flip to the same Paused state
+                            // the operator's Pause command produces. This does
+                            // NOT park-and-abort the rig (the operator may want
+                            // to inspect and resume) and does NOT auto-resume.
+                            // The operator's Resume clears is_paused and flips
+                            // back to Running through the normal command path.
+                            tracing::warn!(
+                                "[RECOVERY] Escalated {:?} to operator Pause after {} attempt(s): {}",
+                                ctx.cause,
+                                ctx.attempt_count,
+                                pause_message
+                            );
+                            *recovery_driver_state.write().await = ExecutorState::Paused;
+                            {
+                                let mut prog = recovery_driver_progress.write();
+                                prog.state = ExecutorState::Paused;
+                                prog.message = Some(pause_message.clone());
+                            }
+                            *recovery_driver_current.write() = None;
+                            // Surface the reason as a critical-event banner so
+                            // the operator (and any push channel) sees why the
+                            // run stopped.
+                            let _ = recovery_driver_event_tx.send(ExecutorEvent::Error {
+                                message: pause_message,
+                            });
+                            let _ = recovery_driver_event_tx
+                                .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
+                            // Close out the recovery banner — the loop ended,
+                            // it did not give up (no park/fail), it handed off
+                            // to a Pause.
+                            let _ = recovery_driver_event_tx.send(
+                                ExecutorEvent::RecoveryCompleted {
+                                    context: Box::new(ctx.clone()),
+                                },
+                            );
+                        } else if recovered {
                             tracing::info!(
                                 "[RECOVERY] Loop succeeded after {} attempt(s); resuming sequence",
                                 ctx.attempt_count
@@ -6536,8 +6609,8 @@ mod tests {
         }
     }
 
-    /// FocusDriftCritical and ConsecutiveRejectsExceeded and SlewFailed
-    /// and PlateSolveFailed all use the "wait then resume" pattern.
+    /// FocusDriftCritical and SlewFailed and PlateSolveFailed and Custom
+    /// all use the "wait then resume" pattern.
     #[test]
     fn run_recovery_attempt_wait_then_resume_causes_all_succeed() {
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -6548,7 +6621,6 @@ mod tests {
         let mgr = Arc::new(RwLock::new(TriggerManager::new()));
         for cause in [
             crate::recovery::RecoveryCause::FocusDriftCritical,
-            crate::recovery::RecoveryCause::ConsecutiveRejectsExceeded,
             crate::recovery::RecoveryCause::SlewFailed,
             crate::recovery::RecoveryCause::PlateSolveFailed,
             crate::recovery::RecoveryCause::Custom("plugin".to_string()),
@@ -6562,6 +6634,43 @@ mod tests {
                 "cause {:?} should resolve to Succeeded on the wait-then-resume path",
                 cause
             );
+        }
+    }
+
+    /// 4.0 Phase G — a consecutive-reject storm is NOT auto-recoverable by
+    /// waiting (a wait cannot prove the clouds/dew cleared). The recovery
+    /// attempt must escalate to a real operator `PauseForOperator`, never
+    /// `Succeeded` — otherwise the run oscillated fail → wait → "recovered"
+    /// → fail on a fresh recovery budget and burned the night.
+    #[test]
+    fn run_recovery_attempt_consecutive_rejects_escalates_to_operator_pause() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        let device_ops: SharedDeviceOps = std::sync::Arc::new(crate::device_ops::NullDeviceOps);
+        let mgr = Arc::new(RwLock::new(TriggerManager::new()));
+        let outcome = rt.block_on(async {
+            run_recovery_attempt(
+                &crate::recovery::RecoveryCause::ConsecutiveRejectsExceeded,
+                &device_ops,
+                None,
+                &[],
+                &mgr,
+            )
+            .await
+        });
+        match outcome {
+            crate::recovery::AttemptOutcome::PauseForOperator { message } => {
+                assert!(
+                    !message.is_empty(),
+                    "operator-pause escalation must carry a reason"
+                );
+            }
+            other => panic!(
+                "consecutive-reject storm must escalate to PauseForOperator, got {:?}",
+                other
+            ),
         }
     }
 

@@ -350,16 +350,21 @@ Cross-link: [troubleshooting/common-issues.md#plate-solving-fails](troubleshooti
 | `.nightshade-bak` files remain in install dir | Updater was killed before commit / rollback step | Manual rollback (below) |
 | `nightshade_update_error.log` shows "hash mismatch" | Network corruption during download; the updater already auto-rolled back | Re-download installer; verify SHA-256 against release page |
 | `rollback_log.json` exists; `nightshade_update_error.log` shows "Rollback also failed" | Disk-full or permission failure during rollback | Manual rollback + escalate |
-| Update finished, app crashes on launch | New version has a bug, not an updater issue | Reinstall previous installer manually (no in-app rollback) |
+| Update finished, app crashes on launch | New version has a bug, not an updater issue | In-app rollback via `POST /api/system/update/rollback` while the restore point survives (fix B); else reinstall previous installer |
 | `post_install_hashes.json` newer than expected, version banner unchanged | Stale Flutter bundle copy (rare; usually FRB hash mismatch) | Reinstall current installer |
 
 **Fix**
 
-> **Planned.** A dedicated `updater --rollback` standalone flag is referenced
-> in `audit-observe.md` §9 #3 and the W-OBS roadmap row but is **not
-> implemented** in v2.5.x. The updater binary today only supports the apply
-> flow (see `Args` struct in `native/nightshade_native/updater/src/main.rs:55-92`).
-> Use the manual recovery below.
+> **In-app rollback.** The updater now supports a dedicated `--rollback`
+> flag (`native/nightshade_native/updater/src/main.rs`, `run_rollback`). The
+> preferred path is to drive it from the app: `POST /api/system/update/rollback`
+> (admin scope) or the desktop UpdateService, which relaunches the updater in
+> `--rollback` mode to restore the previous version from the retained restore
+> point (`updates/backup/rollback_log.json` + `restore_point/`). This works
+> only while the restore point exists — after an apply and before the next
+> launch confirms the new build healthy (the boot verifier then reclaims the
+> backup dir). When no restore point remains, the endpoint returns **501**;
+> use the manual recovery below.
 
 A. **Manual rollback when `.nightshade-bak` files exist** — close Nightshade
 completely, then for each file:
@@ -388,10 +393,14 @@ done
 rm -f "$root/post_install_hashes.json" "$root/rollback_log.json"
 ```
 
-B. **Manual rollback when no `.nightshade-bak` files remain** — the updater
-already cleaned up, which means either apply fully succeeded or rollback fully
-succeeded. Reinstall the previous version using its installer; Nightshade does
-not retain a copy of the prior binary tree on disk.
+B. **In-app rollback after a healthy apply** — a successful apply no longer
+deletes the originals; it parks them under
+`updates/backup/restore_point/` next to `rollback_log.json`. While that
+restore point survives (until the next launch confirms the new build
+healthy), trigger a rollback via `POST /api/system/update/rollback` or the
+desktop UpdateService. If the restore point was already reclaimed (the new
+build booted cleanly), reinstall the previous version using its installer —
+Nightshade does not retain a copy of the prior binary tree past that point.
 
 C. **Verify before relaunch** — recompute the entry-point hashes against the
 manifest if you still have it; the boot-time `verifyPendingInstall` re-hashes

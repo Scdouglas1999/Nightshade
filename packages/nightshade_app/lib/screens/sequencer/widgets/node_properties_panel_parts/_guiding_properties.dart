@@ -15,12 +15,33 @@ class _StartGuidingProperties extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Pixel scale (arcsec/px) derived from the active equipment profile's
+    // focal length + camera pixel size. Drives the smart settle presets so a
+    // chip means the same physical tolerance across very different optics.
+    final pixelScale = ref.watch(opticalConfigProvider)?.imageScale;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Guiding Settings',
           style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
+        ),
+        const SizedBox(height: 12),
+        _SettlePresetChips(
+          colors: colors,
+          pixelScaleArcsecPerPixel: pixelScale,
+          onApply: (values) {
+            ref.read(currentSequenceProvider.notifier).updateNode(
+                  node.copyWith(
+                    settlePixels: values.settlePixels,
+                    settleTime: values.settleTime,
+                  ),
+                );
+            ref.read(sequencerDefaultsProvider.notifier).updateDitherDefaults(
+                  settlePixels: values.settlePixels,
+                  settleTime: values.settleTime,
+                );
+          },
         ),
         const SizedBox(height: 12),
         _PropertyField(
@@ -96,6 +117,76 @@ class _StartGuidingProperties extends ConsumerWidget {
             },
           ),
         ),
+      ],
+    );
+  }
+}
+
+/// Smart settle presets: tappable chips that compute a sane settle threshold
+/// (px) + dwell time (s) for common observing scenarios from the rig's pixel
+/// scale, killing opaque-slider friction. Tapping a chip applies both values.
+class _SettlePresetChips extends StatelessWidget {
+  final NightshadeColors colors;
+  final double? pixelScaleArcsecPerPixel;
+  final ValueChanged<DitherSettleValues> onApply;
+
+  const _SettlePresetChips({
+    required this.colors,
+    required this.pixelScaleArcsecPerPixel,
+    required this.onApply,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scale = pixelScaleArcsecPerPixel;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Presets',
+          style: TextStyle(
+            fontSize: NightshadeTypography.fontSize11,
+            fontWeight: FontWeight.w600,
+            color: colors.textSecondary,
+            letterSpacing: 0.3,
+          ),
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: DitherSettlePreset.values.map((preset) {
+            final values = deriveDitherSettleValues(
+              preset: preset,
+              pixelScaleArcsecPerPixel: scale,
+            );
+            return ActionChip(
+              key: ValueKey('settle_preset_${preset.name}'),
+              label: Text(
+                '${preset.label} · ${values.settlePixels.toStringAsFixed(1)}px / '
+                '${values.settleTime.toStringAsFixed(0)}s',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.textPrimary,
+                ),
+              ),
+              backgroundColor: colors.surfaceAlt,
+              side: BorderSide(color: colors.border),
+              onPressed: () => onApply(values),
+            );
+          }).toList(),
+        ),
+        if (scale == null) ...[
+          const SizedBox(height: 6),
+          Text(
+            'Set focal length + camera pixel size in your equipment profile for '
+            'rig-tuned values.',
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize11,
+              color: colors.textMuted,
+            ),
+          ),
+        ],
       ],
     );
   }

@@ -541,6 +541,109 @@ class UpdateService {
     exit(0);
   }
 
+  /// Whether a manual rollback to the previous version is currently
+  /// possible. True only while a retained restore point exists — i.e. an
+  /// update was applied on this host and the next boot has not yet
+  /// confirmed it healthy (the boot verifier wipes the backup dir once it
+  /// does). The restore point is the `rollback_log.json` the Rust updater
+  /// leaves under the backup dir after a successful apply, paired with the
+  /// `restore_point/` originals.
+  Future<bool> hasRestorePoint() async {
+    // Compute the path without creating any directories — this is a pure
+    // read-only probe that must not have side effects.
+    final appData = await _applicationSupportDirectoryProvider();
+    final logFile = File(
+      path.join(appData.path, 'updates', 'backup', 'rollback_log.json'),
+    );
+    return logFile.exists();
+  }
+
+  /// Roll back the last applied update by relaunching the external updater
+  /// in `--rollback` mode. The updater restores the retained restore point
+  /// (the previous version's files) over the install, deletes the files the
+  /// update added, then relaunches the restored build.
+  ///
+  /// Like [applyUpdate], this calls `exit(0)` on success — the host process
+  /// is handed off to the updater. On spawn failure it surfaces an
+  /// [UpdateException] instead of exiting so the caller can re-arm the UI.
+  Future<void> rollbackToPrevious() async {
+    if (!await hasRestorePoint()) {
+      throw UpdateException(
+        'No restore point is available to roll back to. A rollback is only '
+        'possible after an update is applied and before the next launch '
+        'confirms it healthy.',
+      );
+    }
+
+    final installDir = await _getInstallDirectory();
+    final updaterPath = path.join(installDir.path, 'updater.exe');
+    if (!await File(updaterPath).exists()) {
+      throw UpdateException(
+        'Updater executable not found at $updaterPath; cannot roll back. '
+        'Reinstall a full release build to restore the updater.',
+      );
+    }
+
+    final backupDir = await _getBackupDirectory();
+    final pendingFile = await _getPendingInstallFile();
+
+    final args = <String>[
+      '--parent-pid',
+      pid.toString(),
+      // Staging is unused in rollback mode but the arg is required; point it
+      // at the backup dir so the path is valid.
+      '--staging-dir',
+      backupDir.path,
+      '--install-dir',
+      installDir.path,
+      '--backup-dir',
+      backupDir.path,
+      '--pending-file',
+      pendingFile.path,
+      // expected-hashes is unused in rollback mode but required by the parser;
+      // point it at a path that need not exist (the rollback branch returns
+      // before reading it).
+      '--expected-hashes',
+      path.join(backupDir.path, 'expected_hashes.json'),
+      '--rollback',
+      '--launch-after',
+    ];
+
+    developer.log('Launching updater for rollback: $updaterPath with args: $args',
+        name: 'UpdateService', level: 800);
+
+    final Process updaterProcess;
+    try {
+      updaterProcess = await Process.start(
+        updaterPath,
+        args,
+        mode: ProcessStartMode.detached,
+      );
+    } catch (e) {
+      throw UpdateException(
+        'Failed to launch updater for rollback at $updaterPath: $e',
+      );
+    }
+
+    if (updaterProcess.pid == 0) {
+      throw UpdateException(
+        'Rollback updater process reported pid=0; spawn was rejected by the '
+        'OS. Check antivirus / file lock state on $updaterPath.',
+      );
+    }
+
+    developer.log(
+      'rollback updater launched, pid=${updaterProcess.pid}',
+      name: 'UpdateService',
+      level: 800,
+    );
+
+    await Future<void>.delayed(const Duration(milliseconds: 500));
+    await _flushDeveloperLog();
+
+    exit(0);
+  }
+
   /// Get the installation directory
   Future<Directory> _getInstallDirectory() async {
     // On Windows, this is the directory containing the executable

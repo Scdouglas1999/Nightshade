@@ -52,6 +52,14 @@ const ROLLBACK_LOG_FILE: &str = "rollback_log.json";
 // Lock file path is `<install_dir>/updates/.updater.lock` per §7A.6.
 const LOCK_FILE_NAME: &str = ".updater.lock";
 
+// Subdirectory of `--backup-dir` where a successful apply parks the originals
+// it replaced, so a later `updater --rollback` can restore the previous
+// version (RUNBOOK §3 case B). The `.nightshade-bak` files are MOVED here on
+// success rather than deleted; the Dart boot-verifier wipes `--backup-dir`
+// once the new build is confirmed healthy, so the restore point lives exactly
+// as long as a rollback is meaningful.
+const RESTORE_POINT_DIR: &str = "restore_point";
+
 /// Nightshade Update Applier
 #[derive(Parser, Debug)]
 #[command(name = "updater")]
@@ -89,6 +97,18 @@ struct Args {
     /// Launch the new version after update
     #[arg(long)]
     launch_after: bool,
+
+    /// Roll back the last applied update instead of applying a staged one.
+    ///
+    /// Consumes the retained restore point under `--backup-dir`
+    /// (`rollback_log.json` + the `restore_point/` originals written by the
+    /// previous successful apply) and renames the originals back over the
+    /// install, undoing newly-created files. This is the standalone manual
+    /// rollback referenced in the RUNBOOK; it reuses the same
+    /// move-then-restore machinery the auto-rollback path uses on failure.
+    /// `--staging-dir` / `--expected-hashes` are ignored in this mode.
+    #[arg(long)]
+    rollback: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -194,6 +214,12 @@ fn run() -> Result<()> {
     // ERROR_SHARING_VIOLATION on the .exe.
     thread::sleep(Duration::from_millis(500));
 
+    // Manual rollback mode: restore the retained restore point written by the
+    // previous successful apply, then relaunch. No staging tree is touched.
+    if args.rollback {
+        return run_rollback(&args);
+    }
+
     // Read expected hashes once up front so we fail fast if the manifest is
     // missing or malformed before we touch the install directory.
     let expected = load_expected_hashes(&args.expected_hashes).with_context(|| {
@@ -244,9 +270,13 @@ fn run() -> Result<()> {
 
     println!("Update applied and verified.");
 
-    // Step 5: success cleanup. Discard `.nightshade-bak` files and rollback log.
-    cleanup_success(&args.install_dir, &rollback_log, &rollback_log_path)
-        .context("Failed during post-update cleanup of backup files")?;
+    // Step 5: success cleanup. Move `.nightshade-bak` originals into the
+    // retained restore point under `--backup-dir` (keeping `rollback_log.json`
+    // alongside) so a later `updater --rollback` can revert to this build's
+    // predecessor. The Dart boot-verifier deletes `--backup-dir` once the new
+    // build proves healthy, bounding the restore point's lifetime.
+    retain_restore_point(&args.install_dir, &args.backup_dir, &rollback_log)
+        .context("Failed to retain restore point after update")?;
 
     // Step 6: write post-install hashes for boot-time re-verification (§7A.3).
     let post_install_path = args.install_dir.join(POST_INSTALL_HASH_FILE);
@@ -703,51 +733,237 @@ fn rollback_in_place(install_dir: &Path, log: &RollbackLog) -> Result<()> {
     }
 }
 
-/// Drop the `.nightshade-bak` files from a successful apply, then delete the
-/// rollback log file.
-fn cleanup_success(install_dir: &Path, log: &RollbackLog, log_path: &Path) -> Result<()> {
+/// After a successful apply, move each `.nightshade-bak` original (the bytes
+/// the previous version had) into `<backup_dir>/restore_point/<rel>` so a later
+/// `updater --rollback` can restore the predecessor build. The
+/// `rollback_log.json` already persisted under `backup_dir` is left in place;
+/// rollback reads it to know which files to restore and which to delete.
+///
+/// This replaces the old "delete the baks" cleanup: the install dir is left
+/// clean (no stray `.nightshade-bak` files), but the originals survive under
+/// the backup dir until the Dart boot-verifier wipes it on a healthy boot.
+fn retain_restore_point(install_dir: &Path, backup_dir: &Path, log: &RollbackLog) -> Result<()> {
     let mut errors: Vec<String> = Vec::new();
-    for entry in &log.moved {
-        let bak = PathBuf::from(&entry.bak);
-        if bak.exists() {
-            if let Err(e) = fs::remove_file(&bak) {
-                errors.push(format!("cleanup: failed to remove {:?}: {}", bak, e));
-            }
-        }
-        // Defensive: also cover the case where the .bak path was relocated
-        // (shouldn't happen, but log has the canonical absolute path).
-        let computed_bak = backup_path_for(&install_dir.join(from_posix(&entry.rel)));
-        if computed_bak != bak && computed_bak.exists() {
-            if let Err(e) = fs::remove_file(&computed_bak) {
-                errors.push(format!(
-                    "cleanup: failed to remove {:?}: {}",
-                    computed_bak, e
-                ));
-            }
-        }
-    }
+    let restore_root = backup_dir.join(RESTORE_POINT_DIR);
 
-    if log_path.exists() {
-        if let Err(e) = fs::remove_file(log_path) {
+    for entry in &log.moved {
+        // The canonical bak path recorded at apply time, with a fallback to the
+        // computed sibling path in case the log's absolute path drifted.
+        let bak = PathBuf::from(&entry.bak);
+        let source = if bak.exists() {
+            bak
+        } else {
+            backup_path_for(&install_dir.join(from_posix(&entry.rel)))
+        };
+        if !source.exists() {
             errors.push(format!(
-                "cleanup: failed to remove rollback log {:?}: {}",
-                log_path, e
+                "retain: backup for {} not found (looked at {:?})",
+                entry.rel, source
             ));
+            continue;
+        }
+
+        let dest = restore_root.join(from_posix(&entry.rel));
+        if let Some(parent) = dest.parent() {
+            if let Err(e) = fs::create_dir_all(parent) {
+                errors.push(format!(
+                    "retain: failed to create restore dir {:?}: {}",
+                    parent, e
+                ));
+                continue;
+            }
+        }
+        // Move (not copy) so we do not leave a stray .nightshade-bak in the
+        // install tree. rename is same-volume here (backup_dir must share the
+        // install volume, per the --backup-dir contract).
+        if let Err(rename_err) = fs::rename(&source, &dest) {
+            // Cross-volume or transient: fall back to copy-then-delete so the
+            // restore point is never silently empty.
+            match fs::copy(&source, &dest).and_then(|_| fs::remove_file(&source)) {
+                Ok(()) => {}
+                Err(copy_err) => errors.push(format!(
+                    "retain: failed to move {:?} -> {:?}: rename={}, copy={}",
+                    source, dest, rename_err, copy_err
+                )),
+            }
         }
     }
 
     if errors.is_empty() {
         Ok(())
     } else {
-        // Why: success cleanup failures are not fatal — the update is already
-        // applied and verified — but report them clearly so we don't accumulate
-        // stale .bak files silently across updates (§7A.11).
+        // Why: retention failures are not fatal — the update itself is applied
+        // and verified — but they DO mean a later manual rollback may be
+        // incomplete, so surface them loudly (§7A.11). A best-effort restore
+        // point beats none.
         eprintln!(
-            "Warning: success cleanup encountered {} non-fatal issue(s):\n{}",
+            "Warning: restore-point retention encountered {} non-fatal issue(s):\n{}",
             errors.len(),
             errors.join("\n")
         );
         Ok(())
+    }
+}
+
+/// Standalone manual-rollback flow (`updater --rollback`). Reuses the retained
+/// restore point from the previous successful apply to revert the install to
+/// its predecessor, then optionally relaunches.
+///
+/// Steps:
+/// 1. Read `rollback_log.json` from `--backup-dir` (written at the last apply).
+/// 2. Restore each `moved` file from `<backup_dir>/restore_point/<rel>` over the
+///    current install, and delete each `created` file / `created_dirs` entry —
+///    the inverse of apply, sharing semantics with `rollback_in_place`.
+/// 3. Drop the post-install hash record + the now-consumed restore point so the
+///    next boot-verify does not object, then relaunch if requested.
+fn run_rollback(args: &Args) -> Result<()> {
+    println!("\nRolling back to the previous version...");
+
+    let rollback_log_path = args.backup_dir.join(ROLLBACK_LOG_FILE);
+    if !rollback_log_path.exists() {
+        return Err(anyhow::anyhow!(
+            "No restore point found: {:?} does not exist. The previous version \
+             was already confirmed healthy (its backup was reclaimed) or no \
+             update has been applied on this install.",
+            rollback_log_path
+        ));
+    }
+
+    let raw = fs::read(&rollback_log_path)
+        .with_context(|| format!("Failed to read rollback log {:?}", rollback_log_path))?;
+    let log: RollbackLog = serde_json::from_slice(&raw)
+        .with_context(|| format!("Failed to parse rollback log {:?}", rollback_log_path))?;
+
+    let restore_root = args.backup_dir.join(RESTORE_POINT_DIR);
+    restore_from_restore_point(&args.install_dir, &restore_root, &log)
+        .context("Failed to restore previous version from restore point")?;
+
+    // The current build's post-install hashes describe the version we are
+    // leaving; remove the record so boot-verify re-derives state cleanly.
+    let post_install_path = args.install_dir.join(POST_INSTALL_HASH_FILE);
+    if post_install_path.exists() {
+        if let Err(e) = fs::remove_file(&post_install_path) {
+            eprintln!(
+                "Warning: failed to remove {:?} after rollback: {}",
+                post_install_path, e
+            );
+        }
+    }
+
+    // The restore point has been consumed; drop it and the log so a second
+    // rollback can't double-revert into a half-restored tree.
+    if let Err(e) = fs::remove_dir_all(&restore_root) {
+        if e.kind() != std::io::ErrorKind::NotFound {
+            eprintln!(
+                "Warning: failed to remove consumed restore point {:?}: {}",
+                restore_root, e
+            );
+        }
+    }
+    if let Err(e) = fs::remove_file(&rollback_log_path) {
+        if e.kind() != std::io::ErrorKind::NotFound {
+            eprintln!(
+                "Warning: failed to remove rollback log {:?}: {}",
+                rollback_log_path, e
+            );
+        }
+    }
+    remove_pending_marker(&args.pending_file)?;
+
+    println!("Rollback complete.");
+
+    if args.launch_after {
+        println!("\nLaunching the restored Nightshade...");
+        launch_app(&args.install_dir).with_context(|| {
+            format!(
+                "Rollback applied but failed to launch restored Nightshade from {:?}",
+                args.install_dir
+            )
+        })?;
+    }
+
+    Ok(())
+}
+
+/// Restore the install from a retained restore point. Mirror image of
+/// `apply_update`: `moved` files are copied back from `restore_root`, `created`
+/// files are deleted, and `created_dirs` are removed deepest-first if empty.
+/// Best-effort and aggregating, like `rollback_in_place`, but pulls the
+/// originals from the retained restore point rather than sibling `.bak` files.
+fn restore_from_restore_point(
+    install_dir: &Path,
+    restore_root: &Path,
+    log: &RollbackLog,
+) -> Result<()> {
+    let mut errors: Vec<String> = Vec::new();
+
+    // 1. Restore replaced files from the retained originals.
+    for entry in &log.moved {
+        let dst = install_dir.join(from_posix(&entry.rel));
+        let src = restore_root.join(from_posix(&entry.rel));
+        if !src.exists() {
+            errors.push(format!(
+                "rollback: retained original missing for {} (expected {:?})",
+                entry.rel, src
+            ));
+            continue;
+        }
+        if let Some(parent) = dst.parent() {
+            if let Err(e) = fs::create_dir_all(parent) {
+                errors.push(format!(
+                    "rollback: failed to create parent {:?}: {}",
+                    parent, e
+                ));
+                continue;
+            }
+        }
+        match fs::copy(&src, &dst) {
+            Ok(_) => println!("  Rollback: restored {:?}", dst),
+            Err(e) => errors.push(format!(
+                "rollback: failed to restore {:?} from {:?}: {}",
+                dst, src, e
+            )),
+        }
+    }
+
+    // 2. Delete files apply created from scratch.
+    for rel in &log.created {
+        let dst = install_dir.join(from_posix(rel));
+        if dst.exists() {
+            if let Err(e) = fs::remove_file(&dst) {
+                errors.push(format!(
+                    "rollback: failed to delete created file {:?}: {}",
+                    dst, e
+                ));
+            }
+        }
+    }
+
+    // 3. Remove directories apply created, deepest-first, only if empty.
+    let mut dirs: Vec<&String> = log.created_dirs.iter().collect();
+    dirs.sort_by_key(|s| std::cmp::Reverse(s.matches('/').count()));
+    for rel in dirs {
+        let dst = install_dir.join(from_posix(rel));
+        if dst.exists() {
+            match fs::remove_dir(&dst) {
+                Ok(()) => {}
+                Err(e) if e.kind() == std::io::ErrorKind::DirectoryNotEmpty => {}
+                Err(e) => errors.push(format!(
+                    "rollback: failed to remove created directory {:?}: {}",
+                    dst, e
+                )),
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "Rollback completed with {} error(s):\n{}",
+            errors.len(),
+            errors.join("\n")
+        ))
     }
 }
 
@@ -987,11 +1203,18 @@ mod tests {
         assert_eq!(log.moved.len(), 1);
         assert_eq!(log.created.len(), 2);
 
-        // Cleanup discards bak.
-        let log_path = tmp.path().join("rollback.json");
-        cleanup_success(&install, &log, &log_path).unwrap();
+        // Success retains the restore point: the sibling .bak is moved out of
+        // the install dir into <backup>/restore_point/<rel>, leaving the
+        // install clean while the original survives for a later rollback.
+        let backup = tmp.path().join("backup");
+        retain_restore_point(&install, &backup, &log).unwrap();
         let bak = backup_path_for(&install.join("nightshade_bridge.dll"));
-        assert!(!bak.exists(), "bak should be cleaned up");
+        assert!(!bak.exists(), "stray .bak must not remain in the install dir");
+        let retained = backup
+            .join(RESTORE_POINT_DIR)
+            .join("nightshade_bridge.dll");
+        assert!(retained.exists(), "restore point must keep the original");
+        assert_eq!(fs::read(&retained).unwrap(), b"old-bridge");
     }
 
     #[test]
@@ -1026,6 +1249,92 @@ mod tests {
         rollback_in_place(&install, &log).unwrap();
         let restored = fs::read(install.join("nightshade_bridge.dll")).unwrap();
         assert_eq!(restored, b"original");
+    }
+
+    #[test]
+    fn manual_rollback_restores_previous_version_from_retained_restore_point() {
+        // The `updater --rollback` window (RUNBOOK §3 case B): after a healthy
+        // apply, the retained restore point must let us revert the install to
+        // its predecessor — replaced files come back, created files go away.
+        let tmp = tempdir().unwrap();
+        let install = tmp.path().join("install");
+        let staging = tmp.path().join("staging");
+        let backup = tmp.path().join("backup");
+        fs::create_dir_all(&install).unwrap();
+        fs::create_dir_all(&backup).unwrap();
+
+        // Pre-apply install state (the version we want to roll back TO).
+        write(&install.join("nightshade_desktop.exe"), b"v1-exe");
+        write(&install.join("nightshade_bridge.dll"), b"v1-bridge");
+
+        // Stage the new version: replaces the two existing files and adds a
+        // brand-new file in a brand-new directory.
+        stage_tree(
+            &staging,
+            &[
+                ("nightshade_desktop.exe", b"v2-exe"),
+                ("nightshade_bridge.dll", b"v2-bridge"),
+                ("extras/added.txt", b"v2-only"),
+            ],
+        );
+
+        // Apply, then retain the restore point exactly as the success path does.
+        let mut log = RollbackLog::default();
+        apply_update(&staging, &install, &mut log).unwrap();
+        retain_restore_point(&install, &backup, &log).unwrap();
+
+        // Sanity: install now holds v2 and the added file.
+        assert_eq!(fs::read(install.join("nightshade_desktop.exe")).unwrap(), b"v2-exe");
+        assert!(install.join("extras/added.txt").exists());
+        // The install dir must be clean of stray .bak files.
+        assert!(!backup_path_for(&install.join("nightshade_desktop.exe")).exists());
+
+        // Persist the rollback log where run_rollback expects it, then restore.
+        persist_rollback_log(&backup.join(ROLLBACK_LOG_FILE), &log).unwrap();
+        let restore_root = backup.join(RESTORE_POINT_DIR);
+        restore_from_restore_point(&install, &restore_root, &log).unwrap();
+
+        // The predecessor version is back, and the v2-only file is gone.
+        assert_eq!(fs::read(install.join("nightshade_desktop.exe")).unwrap(), b"v1-exe");
+        assert_eq!(fs::read(install.join("nightshade_bridge.dll")).unwrap(), b"v1-bridge");
+        assert!(
+            !install.join("extras/added.txt").exists(),
+            "rollback must delete files the update created"
+        );
+        assert!(
+            !install.join("extras").exists(),
+            "rollback must remove now-empty directories the update created"
+        );
+    }
+
+    #[test]
+    fn manual_rollback_fails_when_no_restore_point_exists() {
+        // After a confirmed-healthy boot the backup dir is reclaimed; a rollback
+        // request must then fail loudly rather than silently no-op.
+        let tmp = tempdir().unwrap();
+        let install = tmp.path().join("install");
+        let backup = tmp.path().join("backup");
+        let restore_root = backup.join(RESTORE_POINT_DIR);
+        fs::create_dir_all(&install).unwrap();
+
+        // A log that names a moved file whose retained original is absent.
+        let log = RollbackLog {
+            moved: vec![MovedEntry {
+                rel: "nightshade_bridge.dll".to_string(),
+                bak: backup
+                    .join("nightshade_bridge.dll.nightshade-bak")
+                    .to_string_lossy()
+                    .to_string(),
+            }],
+            created: vec![],
+            created_dirs: vec![],
+        };
+
+        let err = restore_from_restore_point(&install, &restore_root, &log).unwrap_err();
+        assert!(
+            format!("{:?}", err).contains("retained original missing"),
+            "missing restore point must surface as an error"
+        );
     }
 
     #[test]

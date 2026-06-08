@@ -97,6 +97,97 @@ void main() {
     });
   });
 
+  group('UpdateService manual rollback restore point', () {
+    late Directory tempRoot;
+
+    setUp(() async {
+      tempRoot =
+          await Directory.systemTemp.createTemp('nightshade_rollback_test_');
+    });
+
+    tearDown(() async {
+      if (await tempRoot.exists()) {
+        await tempRoot.delete(recursive: true);
+      }
+    });
+
+    Future<Directory> appSupportDir() async => tempRoot;
+
+    File rollbackLogFile() => File(
+          '${tempRoot.path}${Platform.pathSeparator}updates'
+          '${Platform.pathSeparator}backup'
+          '${Platform.pathSeparator}rollback_log.json',
+        );
+
+    test('hasRestorePoint is false when no rollback log is on disk', () async {
+      final service = UpdateService(
+        currentVersion: '2.1.0',
+        currentBuildNumber: 42,
+        applicationSupportDirectoryProvider: appSupportDir,
+      );
+
+      expect(await service.hasRestorePoint(), isFalse);
+    });
+
+    test('hasRestorePoint probe does not create the backup directory',
+        () async {
+      final service = UpdateService(
+        currentVersion: '2.1.0',
+        currentBuildNumber: 42,
+        applicationSupportDirectoryProvider: appSupportDir,
+      );
+
+      await service.hasRestorePoint();
+
+      final backupDir = Directory(
+        '${tempRoot.path}${Platform.pathSeparator}updates'
+        '${Platform.pathSeparator}backup',
+      );
+      expect(await backupDir.exists(), isFalse,
+          reason: 'read-only probe must not create directories');
+    });
+
+    test('hasRestorePoint is true once the updater leaves a rollback log',
+        () async {
+      // Simulate a successful apply: the Rust updater retains
+      // backup/rollback_log.json alongside the restore point.
+      final log = rollbackLogFile();
+      await log.parent.create(recursive: true);
+      await log.writeAsString(jsonEncode({
+        'moved': [
+          {'rel': 'nightshade_bridge.dll', 'bak': '/tmp/x.nightshade-bak'}
+        ],
+        'created': <String>[],
+        'created_dirs': <String>[],
+      }));
+
+      final service = UpdateService(
+        currentVersion: '2.1.0',
+        currentBuildNumber: 42,
+        applicationSupportDirectoryProvider: appSupportDir,
+      );
+
+      expect(await service.hasRestorePoint(), isTrue);
+    });
+
+    test('rollbackToPrevious throws when no restore point exists', () async {
+      final service = UpdateService(
+        currentVersion: '2.1.0',
+        currentBuildNumber: 42,
+        applicationSupportDirectoryProvider: appSupportDir,
+      );
+
+      expect(
+        () => service.rollbackToPrevious(),
+        throwsA(isA<UpdateException>().having(
+          (e) => e.message,
+          'message',
+          contains('No restore point'),
+        )),
+      );
+    });
+  });
+
   group('UpdateVerifier signature verification', () {
     test('verifies canonical manifest signature with trusted public key',
         () async {

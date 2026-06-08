@@ -197,20 +197,7 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
 
         SizedBox(height: spacing),
 
-        _ControlRow(
-          label: 'Filter',
-          compact: widget.compact,
-          child: NightshadeDropdown(
-            value: exposureSettings.filter ?? 'L',
-            items: const ['L', 'R', 'G', 'B', 'Ha', 'OIII', 'SII'],
-            onChanged: (value) {
-              if (value != null) {
-                ref.read(exposureSettingsProvider.notifier).state =
-                    exposureSettings.copyWith(filter: value);
-              }
-            },
-          ),
-        ),
+        _buildFilterControl(colors, exposureSettings),
 
         SizedBox(height: widget.compact ? 16 : 24),
 
@@ -259,6 +246,134 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
         ),
       ],
     );
+  }
+
+  /// Fallback filter labels used when no filter wheel is connected (or it
+  /// reports no named slots). The connected wheel's real slot names take
+  /// precedence so the dropdown commands the physical positions 1:1.
+  static const List<String> _defaultFilters = [
+    'L',
+    'R',
+    'G',
+    'B',
+    'Ha',
+    'OIII',
+    'SII',
+  ];
+
+  /// Filter row: when a filter wheel is connected with named slots the
+  /// dropdown drives the physical wheel ([DeviceService.setFilterWheelPosition])
+  /// and shows a current-position indicator; otherwise it falls back to the
+  /// static label list and only tags the exposure metadata.
+  Widget _buildFilterControl(
+    NightshadeColors colors,
+    ExposureSettings exposureSettings,
+  ) {
+    final wheel = ref.watch(filterWheelStateProvider);
+    final wheelConnected =
+        wheel.connectionState == DeviceConnectionState.connected &&
+            wheel.filterNames.isNotEmpty;
+    // Connected wheel slot names (resolved against the active profile) win over
+    // the static fallback so a selection maps to a real wheel position.
+    final filterNames =
+        wheelConnected ? ref.watch(effectiveFiltersProvider) : _defaultFilters;
+
+    final selected = exposureSettings.filter ?? filterNames.first;
+    final currentFilterName = wheel.currentFilterName;
+    // A mismatch warning fires when the wheel is connected, idle, and the
+    // physical filter at the wheel differs from the filter the capture is
+    // tagged with (e.g. selection in flight or stale exposure metadata).
+    final hasMismatch = wheelConnected &&
+        !wheel.isMoving &&
+        currentFilterName != null &&
+        currentFilterName != selected;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _ControlRow(
+          label: 'Filter',
+          compact: widget.compact,
+          child: NightshadeDropdown(
+            value: filterNames.contains(selected) ? selected : filterNames.first,
+            items: filterNames,
+            onChanged: (value) {
+              if (value == null) return;
+              ref.read(exposureSettingsProvider.notifier).state =
+                  exposureSettings.copyWith(filter: value);
+              if (wheelConnected) {
+                final position = filterNames.indexOf(value);
+                if (position >= 0) {
+                  _commandFilterWheel(position);
+                }
+              }
+            },
+          ),
+        ),
+        if (wheelConnected) ...[
+          SizedBox(height: widget.compact ? 4 : 6),
+          _ControlRow(
+            label: '',
+            compact: widget.compact,
+            child: Row(
+              children: [
+                Icon(
+                  wheel.isMoving ? LucideIcons.loader2 : LucideIcons.disc3,
+                  size: 12,
+                  color: hasMismatch ? colors.warning : colors.textMuted,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    wheel.isMoving
+                        ? 'Moving filter wheel...'
+                        : 'At wheel: ${currentFilterName ?? 'Unknown'}',
+                    style: TextStyle(
+                      fontSize: widget.compact ? 10 : 11,
+                      color: hasMismatch ? colors.warning : colors.textMuted,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+        if (hasMismatch) ...[
+          SizedBox(height: widget.compact ? 4 : 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: NightshadeDecorations.emphasisSurface(
+              colors.warning,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.alertTriangle, size: 12, color: colors.warning),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Wheel is on $currentFilterName, not $selected',
+                    style: TextStyle(fontSize: 10, color: colors.warning),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Future<void> _commandFilterWheel(int position) async {
+    try {
+      await ref.read(deviceServiceProvider).setFilterWheelPosition(position);
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Failed to change filter: $e');
+      }
+    }
   }
 
   Future<void> _captureImage() async {

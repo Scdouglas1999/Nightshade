@@ -218,6 +218,16 @@ mixin _NetworkBackendRemoteOperations on _NetworkBackendTransport {
     return RemoteJob.fromJson(response);
   }
 
+  /// POST /api/system/update/rollback — roll back the last applied update
+  /// to the previous version. Only available while a restore point exists
+  /// (after an apply, before the next launch confirms the build healthy);
+  /// the server returns 501 otherwise. The host process may restart during
+  /// the rollback, so clients should reconnect after the WS drops.
+  Future<RemoteJob> rollbackUpdate() async {
+    final response = await _post('system/update/rollback');
+    return RemoteJob.fromJson(response);
+  }
+
   /// POST /api/system/update/abort — abort any in-flight check or
   /// download. The response carries the list of jobIds that were
   /// cancelled.

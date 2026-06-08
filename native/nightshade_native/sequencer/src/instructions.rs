@@ -4965,6 +4965,9 @@ pub async fn execute_meridian_flip(
         // AutofocusConfig::default() (which reflects the user's
         // serde-default values).
         autofocus_config: None,
+        // Real sequence-driven flip: command the hardware. The dry-run path
+        // (Phase G) is the only caller that sets this true.
+        simulate: false,
     };
 
     let mut flip_executor = crate::meridian_flip_executor::MeridianFlipExecutor::new(

@@ -118,7 +118,7 @@ class _FakeUpdateController implements UpdateController {
   }
 
   @override
-  bool get rollbackSupported => rollbackSupportedReturn;
+  Future<bool> rollbackSupported() async => rollbackSupportedReturn;
 
   @override
   Future<void> rollback({required String jobId}) async {
@@ -316,7 +316,7 @@ void main() {
       expect(controller.stagedInfo, isNull);
     });
 
-    test('POST /api/system/update/rollback returns 501 when unsupported',
+    test('POST /api/system/update/rollback returns 501 when no restore point',
         () async {
       controller.rollbackSupportedReturn = false;
       final response = await translateHandlerErrors(handlers.handleRollback(
@@ -325,10 +325,10 @@ void main() {
       ));
       expect(response.statusCode, HttpStatus.notImplemented);
       final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], 'rollback_unsupported');
+      expect(body['error'], 'rollback_unavailable');
     });
 
-    test('POST /api/system/update/rollback dispatches a job when supported',
+    test('POST /api/system/update/rollback dispatches a job when available',
         () async {
       controller.rollbackSupportedReturn = true;
       final response = await translateHandlerErrors(handlers.handleRollback(

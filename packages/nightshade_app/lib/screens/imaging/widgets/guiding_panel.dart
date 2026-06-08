@@ -88,6 +88,15 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
     final rmsDec = guiderState.rmsDec?.toStringAsFixed(2) ?? '---';
     final rmsTotal = guiderState.rmsTotal?.toStringAsFixed(2) ?? '---';
 
+    // Per-axis PEAK guide error. These are already tracked in the rolling
+    // guide stats (Phd2GuideStats.peakRa/peakDec) but, until now, only the RMS
+    // tiles were surfaced. Peak is the worst single-frame excursion over the
+    // window — a useful complement to RMS for spotting transient seeing spikes
+    // or a flexing/bumped axis that an averaged figure would smooth away.
+    final guideStats = ref.watch(guideStatsProvider);
+    final peakRa = guideStats.peakRa.toStringAsFixed(2);
+    final peakDec = guideStats.peakDec.toStringAsFixed(2);
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -136,6 +145,20 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
                   label: 'Dec RMS', value: '$rmsDec"', colors: widget.colors),
               GuideStat(
                   label: 'Total', value: '$rmsTotal"', colors: widget.colors),
+            ],
+          ),
+          const SizedBox(height: 12),
+
+          // Peak Stats — per-axis worst-case excursion over the rolling window.
+          // The trailing spacer keeps both axes left-aligned under their RMS
+          // counterparts instead of stretching across the full row.
+          Row(
+            children: [
+              GuideStat(
+                  label: 'RA Peak', value: '$peakRa"', colors: widget.colors),
+              GuideStat(
+                  label: 'Dec Peak', value: '$peakDec"', colors: widget.colors),
+              const Spacer(),
             ],
           ),
           const SizedBox(height: 20),

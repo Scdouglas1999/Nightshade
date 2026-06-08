@@ -398,15 +398,21 @@ package bytes).
 
 ### Rollback
 
-The current `UpdateService` does NOT expose a manual rollback path — the
-boot verifier auto-rolls-back failed updates via the `pending_install.json`
-marker, but a clean revert from a known-good state requires reinstalling
-the previous build out-of-band. `POST /api/system/update/rollback` returns
-**501 Not Implemented** with a clear message in that case.
+`UpdateService.rollbackToPrevious()` performs a real manual rollback by
+relaunching the external updater in `--rollback` mode, which restores the
+previous version's files from the retained restore point
+(`updates/backup/rollback_log.json` + the `restore_point/` originals the
+last successful apply left behind). This reuses the same move-then-restore
+machinery the boot verifier uses to auto-roll-back a failed update.
 
-When a future change adds a rollback method to `UpdateService`, surface
-it via `UpdateController.rollbackSupported` and the endpoint will work
-without a wire-shape change.
+A rollback is only possible **while that restore point exists** — i.e.
+after an update is applied and before the next launch confirms it healthy
+(the boot verifier reclaims the backup dir once the new build proves
+stable). `UpdateController.rollbackSupported()` probes for the restore
+point; when none is present, `POST /api/system/update/rollback` returns
+**501 Not Implemented** (`error: rollback_unavailable`). Otherwise it
+dispatches a rollback job; the host process restarts during the rollback,
+so clients should reconnect after the WS drops.
 
 ## Firewall
 

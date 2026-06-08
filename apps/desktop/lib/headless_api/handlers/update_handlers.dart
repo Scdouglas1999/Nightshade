@@ -12,7 +12,7 @@
 //   POST   /api/system/update/download    — start staged download (admin)
 //   POST   /api/system/update/apply       — apply staged update (admin)
 //   POST   /api/system/update/abort       — cancel in-flight check/download
-//   POST   /api/system/update/rollback    — manual rollback (501 if unsupported)
+//   POST   /api/system/update/rollback    — manual rollback (501 if no restore point)
 //   GET    /api/system/update/staged      — info about the staged update (view)
 //   DELETE /api/system/update/staged      — discard a staged update (admin)
 //
@@ -186,17 +186,18 @@ class UpdateHandlers {
   }
 
   /// `POST /api/system/update/rollback` — admin-only rollback of the
-  /// last applied update. Returns 501 when the underlying controller
-  /// does not expose a rollback path.
+  /// last applied update. Returns 501 when no restore point is currently
+  /// available (no update applied, or the boot verifier already confirmed
+  /// the current build healthy and reclaimed the backup).
   Future<Response> handleRollback(Request request) async {
-    if (!controller.rollbackSupported) {
+    if (!await controller.rollbackSupported()) {
       return jsonNotImplemented({
-        'error': 'rollback_unsupported',
+        'error': 'rollback_unavailable',
         'message':
-            'UpdateService does not expose a manual rollback path. The boot '
-            'verifier auto-rolls-back failed updates; manual rollback would '
-            'require an out-of-band mechanism (e.g. reinstall the previous '
-            'version).',
+            'No restore point is available to roll back to. A manual rollback '
+            'is only possible after an update is applied and before the next '
+            'launch confirms it healthy; the boot verifier reclaims the backup '
+            'once the new build proves stable.',
       });
     }
     final job = jobManager.start(
