@@ -246,6 +246,8 @@ abstract final class NativeBridge {
   }) => _nativeBridge.guiderGetStarImage(deviceId: deviceId, size: size);
   static Future<Map<String, dynamic>> builtinGuiderGetConfigRaw() =>
       _nativeBridge.builtinGuiderGetConfigRaw();
+  static Future<String> builtinGuiderGetTrackedStarsJson() =>
+      _nativeBridge.builtinGuiderGetTrackedStarsJson();
   static Future<void> builtinGuiderSetConfigRaw({
     required double exposureSecs,
     required int gain,

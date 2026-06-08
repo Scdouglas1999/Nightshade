@@ -100,7 +100,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 114010557;
+  int get rustContentHash => -1424257048;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -149,6 +149,8 @@ abstract class RustLibApi extends BaseApi {
   });
 
   Future<BuiltinGuiderConfig> crateApiPhd2ApiBuiltinGuiderGetConfig();
+
+  Future<String> crateApiPhd2ApiBuiltinGuiderGetTrackedStarsJson();
 
   Future<void> crateApiPhd2ApiBuiltinGuiderSetConfig({
     required double exposureSecs,
@@ -2043,6 +2045,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiPhd2ApiBuiltinGuiderGetConfigConstMeta =>
       const TaskConstMeta(
         debugName: "api_builtin_guider_get_config",
+        argNames: [],
+      );
+
+  @override
+  Future<String> crateApiPhd2ApiBuiltinGuiderGetTrackedStarsJson() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          return wire
+              .wire__crate__api__phd2__api_builtin_guider_get_tracked_stars_json(
+                port_,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiPhd2ApiBuiltinGuiderGetTrackedStarsJsonConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiPhd2ApiBuiltinGuiderGetTrackedStarsJsonConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_builtin_guider_get_tracked_stars_json",
         argNames: [],
       );
 

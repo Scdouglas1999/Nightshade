@@ -7901,6 +7901,22 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__phd2__api_builtin_guider_get_configPtr
           .asFunction<void Function(int)>();
 
+  void wire__crate__api__phd2__api_builtin_guider_get_tracked_stars_json(
+    int port_,
+  ) {
+    return _wire__crate__api__phd2__api_builtin_guider_get_tracked_stars_json(
+      port_,
+    );
+  }
+
+  late final _wire__crate__api__phd2__api_builtin_guider_get_tracked_stars_jsonPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+        'frbgen_nightshade_bridge_wire__crate__api__phd2__api_builtin_guider_get_tracked_stars_json',
+      );
+  late final _wire__crate__api__phd2__api_builtin_guider_get_tracked_stars_json =
+      _wire__crate__api__phd2__api_builtin_guider_get_tracked_stars_jsonPtr
+          .asFunction<void Function(int)>();
+
   void wire__crate__api__phd2__api_builtin_guider_set_config(
     int port_,
     double exposure_secs,

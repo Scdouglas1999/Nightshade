@@ -2072,6 +2072,8 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__sequencer__api_b
 
 void frbgen_nightshade_bridge_wire__crate__api__phd2__api_builtin_guider_get_config(int64_t port_);
 
+void frbgen_nightshade_bridge_wire__crate__api__phd2__api_builtin_guider_get_tracked_stars_json(int64_t port_);
+
 void frbgen_nightshade_bridge_wire__crate__api__phd2__api_builtin_guider_set_config(int64_t port_,
                                                                                     double exposure_secs,
                                                                                     int32_t gain,
@@ -3909,6 +3911,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__init__api_list_log_files);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__init__api_read_log_file);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_builtin_guider_get_config);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_builtin_guider_get_tracked_stars_json);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_builtin_guider_set_config);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_guider_deselect_star);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_guider_dither);

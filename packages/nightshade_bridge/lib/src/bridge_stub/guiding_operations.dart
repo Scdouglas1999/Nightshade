@@ -497,6 +497,22 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     _nativeBridgeRequired('builtinGuiderGetConfig');
   }
 
+  /// Per-star tracked-star list for the built-in multi-star guider, as a JSON
+  /// string (`{"count":N,"stars":[...]}`).
+  ///
+  /// Bridges the native `api_builtin_guider_get_tracked_stars_json` so the host
+  /// FFI backend can populate `Phd2Status.trackedStars` (the per-star guider UI
+  /// list). Returns `{"count":0,"stars":[]}` when the built-in guider is not the
+  /// active guider or is not tracking, so it is always safe to call on the
+  /// status path. Off-native (no bridge) the built-in guider cannot run, so the
+  /// empty snapshot is returned.
+  Future<String> builtinGuiderGetTrackedStarsJson() async {
+    if (_nativeAvailable) {
+      return gen_api.apiBuiltinGuiderGetTrackedStarsJson();
+    }
+    return '{"count":0,"stars":[]}';
+  }
+
   /// Set the built-in guider configuration.
   Future<void> builtinGuiderSetConfigRaw({
     required double exposureSecs,
