@@ -375,4 +375,66 @@ void main() {
       expect(RejectAlgorithm.resolveAuto(1000), RejectAlgorithm.linearFit);
     });
   });
+
+  group('pristine master by default (non-destructive defaults)', () {
+    bool destructive(IntegrationSettings s) =>
+        s.extractBackground ||
+        s.colorCalibrate ||
+        s.deconvolve ||
+        s.reduceStars ||
+        s.drizzle ||
+        s.narrowbandPalette != NarrowbandPalette.none;
+
+    test('base defaults perform no destructive processing', () {
+      expect(destructive(IntegrationSettings.defaults), isFalse);
+      expect(destructive(const IntegrationSettings()), isFalse);
+    });
+
+    test('smartDefaults never enables destructive processing', () {
+      for (final subCount in [3, 8, 24, 50, 200]) {
+        for (final dithered in [false, true]) {
+          for (final underSampled in [false, true]) {
+            for (final longNight in [false, true]) {
+              final s = IntegrationSettings.smartDefaults(
+                subCount: subCount,
+                dithered: dithered,
+                underSampled: underSampled,
+                longNight: longNight,
+              );
+              expect(
+                destructive(s),
+                isFalse,
+                reason: 'smartDefaults(subCount=$subCount, dithered=$dithered, '
+                    'underSampled=$underSampled, longNight=$longNight) must '
+                    'leave every destructive post-stacking step OFF so the '
+                    'default output is a pristine, unmodified linear master',
+              );
+            }
+          }
+        }
+      }
+    });
+
+    test('no named preset silently enables destructive processing', () {
+      for (final preset in IntegrationPreset.values) {
+        expect(
+          destructive(IntegrationSettings.preset(preset)),
+          isFalse,
+          reason: '$preset must not enable destructive finishing as a default; '
+              'finishing steps are explicit opt-ins',
+        );
+      }
+    });
+
+    test('fromJsonStringOrDefault fallback is non-destructive', () {
+      expect(
+        destructive(IntegrationSettings.fromJsonStringOrDefault(null)),
+        isFalse,
+      );
+      expect(
+        destructive(IntegrationSettings.fromJsonStringOrDefault('')),
+        isFalse,
+      );
+    });
+  });
 }

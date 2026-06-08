@@ -774,17 +774,16 @@ class IntegrationSettings {
   /// - **Resampler** drops to bilinear only when [preferSpeed] is set (e.g. a
   ///   very large sub count where the user opted for the Fast preset).
   ///
-  /// **Background extraction** is turned ON: a star-masked low-order polynomial
-  /// gradient subtraction is a safe, near-universal improvement, so the smart
-  /// path enables it by default (the bare model leaves it off).
-  ///
-  /// **Drizzle** is enabled ONLY when the data actually warrants it — i.e. the
-  /// session was [dithered] *and* the field is [underSampled] (so there is
-  /// genuine sub-pixel information to recover). Otherwise it stays OFF, as do
-  /// the remaining heavy/optional finishing passes (deconvolution, star
-  /// reduction, colour calibration, narrowband palette): they are
-  /// algorithmically sound but need per-target tuning, so smart defaults never
-  /// silently enable them.
+  /// **Pristine master by default.** Smart defaults NEVER enable destructive
+  /// post-stacking processing. The out-of-box output is an unmodified linear
+  /// master FITS (calibrate → register → normalize → weight → integrate) plus a
+  /// stretched preview, so the user can import the master into their processing
+  /// tool of choice (PixInsight / APP / Siril) and start from scratch.
+  /// Background extraction, colour calibration, deconvolution, star reduction,
+  /// drizzle, and narrowband combine are all left **OFF** here — they remain
+  /// fully available as explicit opt-ins, and when used they write *sibling*
+  /// files so the linear master is always preserved. ([dithered]/[underSampled]
+  /// are retained for API compatibility and future opt-in heuristics.)
   factory IntegrationSettings.smartDefaults({
     required int subCount,
     bool longNight = false,
@@ -797,20 +796,17 @@ class IntegrationSettings {
         : IntegrationSettings.preset(IntegrationPreset.balanced);
 
     final wantsPercentile = subCount < 8;
-    // Drizzle only pays off with real sub-pixel coverage: dithered AND
-    // under-sampled. Anything else and it just amplifies noise.
-    final wantsDrizzle = dithered && underSampled;
     return base.copyWith(
       reject: RejectAlgorithm.auto,
       rejectLow: wantsPercentile ? 0.2 : base.rejectLow,
       rejectHigh: wantsPercentile ? 0.1 : base.rejectHigh,
       normalization:
           longNight ? NormalizationMode.local : base.normalization,
-      // Background extraction is a safe near-universal win — on by default.
-      extractBackground: true,
-      // Drizzle only when the data supports it; heavy options stay off.
-      drizzle: wantsDrizzle,
-      // A hand-tuned smart config is no longer tied to a single named preset.
+      // Pristine-master-by-default: NO destructive post-stacking processing is
+      // enabled here (background extraction, colour calibration, deconvolution,
+      // star reduction, drizzle, narrowband all stay OFF). They are opt-in and
+      // write sibling files, so the persisted master is always the unmodified
+      // linear integration the user imports to start from scratch.
       clearSourcePreset: true,
     );
   }

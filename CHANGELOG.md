@@ -23,9 +23,14 @@ cellular-push keys, on-sky tuning) that flip the gated bits live.
   collapse, moon gradient) with a 0–100 score and "next time" advice.
 - **Marginal-SNR optimizer** — the integration-improvement curve that *proves*
   the cull ("use best 46 of 64, +4.2% SNR") with the cut marked.
-- **Catalog-powered finishing** — the master is plate-solved, **photometrically
-  colour-calibrated** and **auto-annotated** from the built-in HYG + OpenNGC
-  catalogs (no external downloads), and background-extracted.
+- **Pristine master by default** — out of the box, integration outputs *only* an
+  unmodified **linear master FITS** (+ a stretched preview); no destructive
+  processing is applied, so you can import it into PixInsight / APP / Siril and
+  start from scratch. Everything below is opt-in and writes *sibling* files,
+  never touching the master.
+- **Catalog-powered finishing (opt-in)** — plate-solve the master, then
+  **photometric colour calibration** and **auto-annotation** from the built-in
+  HYG + OpenNGC catalogs (no external downloads), plus background extraction.
 - **Algorithm muscle wired end-to-end** — drizzle (+ Bayer), Richardson-Lucy
   deconvolution, star reduction, and SHO/HOO narrowband palette mixing.
 - **Living multi-night project** — growth curve, best-night, a durable campaign
