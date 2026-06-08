@@ -66,15 +66,21 @@ Future<List<AscomDriver>> discoverAscomDrivers(String deviceType) async {
 
     for (final progId in driverList) {
       final name = await _getDriverName(registryPath, progId);
-      drivers.add(AscomDriver(
-        progId: progId,
-        name: name ?? progId,
-        deviceType: deviceType,
-      ));
+      drivers.add(
+        AscomDriver(
+          progId: progId,
+          name: name ?? progId,
+          deviceType: deviceType,
+        ),
+      );
     }
   } catch (e) {
-    developer.log('[ASCOM] Error discovering $deviceType drivers: $e',
-        name: 'AscomClient', level: 1000, error: e);
+    developer.log(
+      '[ASCOM] Error discovering $deviceType drivers: $e',
+      name: 'AscomClient',
+      level: 1000,
+      error: e,
+    );
   }
 
   return drivers;
@@ -121,8 +127,12 @@ Future<dynamic> _getWin32() async {
     _win32Module ??= true; // Just flag that we've tried
     return _win32Module;
   } catch (e) {
-    developer.log('[ASCOM] Failed to load win32: $e',
-        name: 'AscomClient', level: 1000, error: e);
+    developer.log(
+      '[ASCOM] Failed to load win32: $e',
+      name: 'AscomClient',
+      level: 1000,
+      error: e,
+    );
     return null;
   }
 }
@@ -139,8 +149,12 @@ Future<List<String>> _queryAscomRegistry(String registryPath) async {
     final result = await _executeRegistryQuery(registryPath);
     drivers.addAll(result);
   } catch (e) {
-    developer.log('[ASCOM] Registry query failed: $e',
-        name: 'AscomClient', level: 900, error: e);
+    developer.log(
+      '[ASCOM] Registry query failed: $e',
+      name: 'AscomClient',
+      level: 900,
+      error: e,
+    );
   }
 
   return drivers;
@@ -153,11 +167,10 @@ Future<List<String>> _executeRegistryQuery(String registryPath) async {
 
   try {
     // Use reg.exe to query the registry (works on all Windows)
-    final result = await Process.run(
-      'reg',
-      ['query', 'HKLM\\$registryPath'],
-      runInShell: true,
-    );
+    final result = await Process.run('reg', [
+      'query',
+      'HKLM\\$registryPath',
+    ], runInShell: true);
 
     if (result.exitCode == 0) {
       final output = result.stdout as String;
@@ -182,14 +195,15 @@ Future<List<String>> _executeRegistryQuery(String registryPath) async {
 
       // Also check WOW6432Node for 32-bit drivers on 64-bit Windows
       final wowPath = registryPath.replaceFirst(
-          'SOFTWARE\\ASCOM', 'SOFTWARE\\WOW6432Node\\ASCOM');
+        'SOFTWARE\\ASCOM',
+        'SOFTWARE\\WOW6432Node\\ASCOM',
+      );
 
       try {
-        final wowResult = await Process.run(
-          'reg',
-          ['query', 'HKLM\\$wowPath'],
-          runInShell: true,
-        );
+        final wowResult = await Process.run('reg', [
+          'query',
+          'HKLM\\$wowPath',
+        ], runInShell: true);
 
         if (wowResult.exitCode == 0) {
           final wowOutput = wowResult.stdout as String;
@@ -219,8 +233,12 @@ Future<List<String>> _executeRegistryQuery(String registryPath) async {
       // Registry path doesn't exist - ASCOM not installed or no drivers of this type
     }
   } catch (e) {
-    developer.log('[ASCOM] Registry query failed for $registryPath: $e',
-        name: 'AscomClient', level: 900, error: e);
+    developer.log(
+      '[ASCOM] Registry query failed for $registryPath: $e',
+      name: 'AscomClient',
+      level: 900,
+      error: e,
+    );
   }
 
   return drivers.toSet().toList(); // Remove duplicates
@@ -229,11 +247,12 @@ Future<List<String>> _executeRegistryQuery(String registryPath) async {
 /// Get the friendly name of a driver from registry
 Future<String?> _getDriverName(String registryPath, String progId) async {
   try {
-    final result = await Process.run(
-      'reg',
-      ['query', 'HKLM\\$registryPath\\$progId', '/v', '(Default)'],
-      runInShell: true,
-    );
+    final result = await Process.run('reg', [
+      'query',
+      'HKLM\\$registryPath\\$progId',
+      '/v',
+      '(Default)',
+    ], runInShell: true);
 
     if (result.exitCode == 0) {
       final output = result.stdout as String;
@@ -266,10 +285,7 @@ class AscomDeviceClient {
   // COM object reference (when using win32)
   dynamic _comObject;
 
-  AscomDeviceClient({
-    required this.progId,
-    required this.deviceType,
-  });
+  AscomDeviceClient({required this.progId, required this.deviceType});
 
   /// Check if connected
   bool get isConnected => _connected;
@@ -282,12 +298,10 @@ class AscomDeviceClient {
 
     try {
       // Use a PowerShell COM scripting approach without extra dependencies.
-      final result = await Process.run(
-        'powershell',
-        [
-          '-NoProfile',
-          '-Command',
-          '''
+      final result = await Process.run('powershell', [
+        '-NoProfile',
+        '-Command',
+        '''
           try {
             \$device = New-Object -ComObject "$progId"
             \$device.Connected = \$true
@@ -295,15 +309,16 @@ class AscomDeviceClient {
           } catch {
             Write-Output "ERROR: \$_"
           }
-          '''
-        ],
-        runInShell: true,
-      );
+          ''',
+      ], runInShell: true);
 
       if (result.stdout.toString().contains('SUCCESS')) {
         _connected = true;
-        developer.log('[ASCOM] Connected to device: $progId',
-            name: 'AscomClient', level: 800);
+        developer.log(
+          '[ASCOM] Connected to device: $progId',
+          name: 'AscomClient',
+          level: 800,
+        );
       } else {
         throw Exception('Failed to connect: ${result.stdout}');
       }
@@ -317,12 +332,10 @@ class AscomDeviceClient {
     if (!_connected) return;
 
     try {
-      await Process.run(
-        'powershell',
-        [
-          '-NoProfile',
-          '-Command',
-          '''
+      await Process.run('powershell', [
+        '-NoProfile',
+        '-Command',
+        '''
           try {
             \$device = New-Object -ComObject "$progId"
             \$device.Connected = \$false
@@ -330,17 +343,22 @@ class AscomDeviceClient {
           } catch {
             Write-Output "ERROR: \$_"
           }
-          '''
-        ],
-        runInShell: true,
-      );
+          ''',
+      ], runInShell: true);
 
       _connected = false;
-      developer.log('[ASCOM] Disconnected from device: $progId',
-          name: 'AscomClient', level: 800);
+      developer.log(
+        '[ASCOM] Disconnected from device: $progId',
+        name: 'AscomClient',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[ASCOM] Error disconnecting: $e',
-          name: 'AscomClient', level: 1000, error: e);
+      developer.log(
+        '[ASCOM] Error disconnecting: $e',
+        name: 'AscomClient',
+        level: 1000,
+        error: e,
+      );
     }
   }
 
@@ -350,12 +368,10 @@ class AscomDeviceClient {
       throw StateError('Device not connected');
     }
 
-    final result = await Process.run(
-      'powershell',
-      [
-        '-NoProfile',
-        '-Command',
-        '''
+    final result = await Process.run('powershell', [
+      '-NoProfile',
+      '-Command',
+      '''
         try {
           \$device = New-Object -ComObject "$progId"
           \$device.Connected = \$true
@@ -364,10 +380,8 @@ class AscomDeviceClient {
         } catch {
           Write-Error \$_
         }
-        '''
-      ],
-      runInShell: true,
-    );
+        ''',
+    ], runInShell: true);
 
     if (result.exitCode != 0) {
       throw Exception('Failed to get property $propertyName: ${result.stderr}');
@@ -384,12 +398,10 @@ class AscomDeviceClient {
 
     final valueStr = value is String ? '"$value"' : value.toString();
 
-    final result = await Process.run(
-      'powershell',
-      [
-        '-NoProfile',
-        '-Command',
-        '''
+    final result = await Process.run('powershell', [
+      '-NoProfile',
+      '-Command',
+      '''
         try {
           \$device = New-Object -ComObject "$progId"
           \$device.Connected = \$true
@@ -398,10 +410,8 @@ class AscomDeviceClient {
         } catch {
           Write-Error \$_
         }
-        '''
-      ],
-      runInShell: true,
-    );
+        ''',
+    ], runInShell: true);
 
     if (result.exitCode != 0 || !result.stdout.toString().contains('SUCCESS')) {
       throw Exception('Failed to set property $propertyName: ${result.stderr}');
@@ -417,12 +427,10 @@ class AscomDeviceClient {
     final argsStr =
         args?.map((a) => a is String ? '"$a"' : a.toString()).join(', ') ?? '';
 
-    final result = await Process.run(
-      'powershell',
-      [
-        '-NoProfile',
-        '-Command',
-        '''
+    final result = await Process.run('powershell', [
+      '-NoProfile',
+      '-Command',
+      '''
         try {
           \$device = New-Object -ComObject "$progId"
           \$device.Connected = \$true
@@ -431,10 +439,8 @@ class AscomDeviceClient {
         } catch {
           Write-Error \$_
         }
-        '''
-      ],
-      runInShell: true,
-    );
+        ''',
+    ], runInShell: true);
 
     if (result.exitCode != 0) {
       throw Exception('Failed to call method $methodName: ${result.stderr}');
@@ -464,12 +470,10 @@ Future<String?> showAscomChooser(String deviceType) async {
   }
 
   try {
-    final result = await Process.run(
-      'powershell',
-      [
-        '-NoProfile',
-        '-Command',
-        '''
+    final result = await Process.run('powershell', [
+      '-NoProfile',
+      '-Command',
+      '''
         try {
           \$chooser = New-Object -ComObject "ASCOM.Utilities.Chooser"
           \$chooser.DeviceType = "$deviceType"
@@ -480,10 +484,8 @@ Future<String?> showAscomChooser(String deviceType) async {
         } catch {
           Write-Error \$_
         }
-        '''
-      ],
-      runInShell: true,
-    );
+        ''',
+    ], runInShell: true);
 
     if (result.exitCode == 0) {
       final progId = result.stdout.toString().trim();
@@ -492,8 +494,12 @@ Future<String?> showAscomChooser(String deviceType) async {
       }
     }
   } catch (e) {
-    developer.log('[ASCOM] Failed to show chooser: $e',
-        name: 'AscomClient', level: 1000, error: e);
+    developer.log(
+      '[ASCOM] Failed to show chooser: $e',
+      name: 'AscomClient',
+      level: 1000,
+      error: e,
+    );
   }
 
   return null;

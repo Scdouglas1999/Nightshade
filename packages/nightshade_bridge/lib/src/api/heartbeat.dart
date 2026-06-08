@@ -19,20 +19,24 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// * `device_type` - The type of device to monitor (used for validation)
 /// * `device_id` - The unique identifier for the device
 /// * `interval_ms` - Heartbeat interval in milliseconds (recommended: 10000)
-Future<void> apiStartDeviceHeartbeat(
-        {required DeviceType deviceType,
-        required String deviceId,
-        required BigInt intervalMs}) =>
-    RustLib.instance.api.crateApiHeartbeatApiStartDeviceHeartbeat(
-        deviceType: deviceType, deviceId: deviceId, intervalMs: intervalMs);
+Future<void> apiStartDeviceHeartbeat({
+  required DeviceType deviceType,
+  required String deviceId,
+  required BigInt intervalMs,
+}) => RustLib.instance.api.crateApiHeartbeatApiStartDeviceHeartbeat(
+  deviceType: deviceType,
+  deviceId: deviceId,
+  intervalMs: intervalMs,
+);
 
 /// Stop heartbeat monitoring for a device
 ///
 /// # Arguments
 /// * `device_id` - The unique identifier for the device
-Future<void> apiStopDeviceHeartbeat({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiHeartbeatApiStopDeviceHeartbeat(deviceId: deviceId);
+Future<void> apiStopDeviceHeartbeat({required String deviceId}) => RustLib
+    .instance
+    .api
+    .crateApiHeartbeatApiStopDeviceHeartbeat(deviceId: deviceId);
 
 /// Start heartbeat monitoring with custom configuration
 ///
@@ -48,18 +52,19 @@ Future<void> apiStopDeviceHeartbeat({required String deviceId}) =>
 /// * `failure_threshold` - Number of consecutive failures before disconnect
 /// * `auto_reconnect` - Whether to attempt automatic reconnection
 /// * `max_reconnect_attempts` - Maximum reconnection attempts (0 = unlimited)
-Future<void> apiStartDeviceHeartbeatWithConfig(
-        {required String deviceId,
-        required BigInt intervalSecs,
-        required int failureThreshold,
-        required bool autoReconnect,
-        required int maxReconnectAttempts}) =>
-    RustLib.instance.api.crateApiHeartbeatApiStartDeviceHeartbeatWithConfig(
-        deviceId: deviceId,
-        intervalSecs: intervalSecs,
-        failureThreshold: failureThreshold,
-        autoReconnect: autoReconnect,
-        maxReconnectAttempts: maxReconnectAttempts);
+Future<void> apiStartDeviceHeartbeatWithConfig({
+  required String deviceId,
+  required BigInt intervalSecs,
+  required int failureThreshold,
+  required bool autoReconnect,
+  required int maxReconnectAttempts,
+}) => RustLib.instance.api.crateApiHeartbeatApiStartDeviceHeartbeatWithConfig(
+  deviceId: deviceId,
+  intervalSecs: intervalSecs,
+  failureThreshold: failureThreshold,
+  autoReconnect: autoReconnect,
+  maxReconnectAttempts: maxReconnectAttempts,
+);
 
 /// Get the default heartbeat configuration for a device type
 ///
@@ -72,10 +77,11 @@ Future<void> apiStartDeviceHeartbeatWithConfig(
 ///
 /// # Returns
 /// A tuple of (interval_secs, max_interval_secs, failure_threshold, auto_reconnect)
-Future<(BigInt, BigInt, int, bool)> apiGetHeartbeatConfigForType(
-        {required DeviceType deviceType}) =>
-    RustLib.instance.api
-        .crateApiHeartbeatApiGetHeartbeatConfigForType(deviceType: deviceType);
+Future<(BigInt, BigInt, int, bool)> apiGetHeartbeatConfigForType({
+  required DeviceType deviceType,
+}) => RustLib.instance.api.crateApiHeartbeatApiGetHeartbeatConfigForType(
+  deviceType: deviceType,
+);
 
 /// Check device health status
 ///
@@ -88,8 +94,9 @@ Future<(BigInt, BigInt, int, bool)> apiGetHeartbeatConfigForType(
 /// # Returns
 /// A tuple of (last_successful_timestamp_ms, is_healthy)
 Future<(PlatformInt64, bool)> apiGetDeviceHealth({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiHeartbeatApiGetDeviceHealth(deviceId: deviceId);
+    RustLib.instance.api.crateApiHeartbeatApiGetDeviceHealth(
+      deviceId: deviceId,
+    );
 
 /// Get detailed heartbeat status for a device
 ///
@@ -102,15 +109,17 @@ Future<(PlatformInt64, bool)> apiGetDeviceHealth({required String deviceId}) =>
 ///
 /// # Returns
 /// DeviceHeartbeatInfo with all heartbeat details
-Future<DeviceHeartbeatInfo> apiGetDeviceHeartbeatInfo(
-        {required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiHeartbeatApiGetDeviceHeartbeatInfo(deviceId: deviceId);
+Future<DeviceHeartbeatInfo> apiGetDeviceHeartbeatInfo({
+  required String deviceId,
+}) => RustLib.instance.api.crateApiHeartbeatApiGetDeviceHeartbeatInfo(
+  deviceId: deviceId,
+);
 
 /// Check if heartbeat monitoring is active for a device
-Future<bool> apiIsHeartbeatActive({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiHeartbeatApiIsHeartbeatActive(deviceId: deviceId);
+Future<bool> apiIsHeartbeatActive({required String deviceId}) => RustLib
+    .instance
+    .api
+    .crateApiHeartbeatApiIsHeartbeatActive(deviceId: deviceId);
 
 /// Detailed heartbeat status for a device
 class DeviceHeartbeatInfo {

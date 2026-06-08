@@ -363,36 +363,28 @@ class CoverCalibratorCapabilities {
 sealed class DeviceCapabilities with _$DeviceCapabilities {
   const DeviceCapabilities._();
 
-  const factory DeviceCapabilities.mount(
-    MountCapabilities field0,
-  ) = DeviceCapabilities_Mount;
-  const factory DeviceCapabilities.camera(
-    CameraCapabilities field0,
-  ) = DeviceCapabilities_Camera;
-  const factory DeviceCapabilities.focuser(
-    FocuserCapabilities field0,
-  ) = DeviceCapabilities_Focuser;
-  const factory DeviceCapabilities.filterWheel(
-    FilterWheelCapabilities field0,
-  ) = DeviceCapabilities_FilterWheel;
-  const factory DeviceCapabilities.rotator(
-    RotatorCapabilities field0,
-  ) = DeviceCapabilities_Rotator;
-  const factory DeviceCapabilities.dome(
-    DomeCapabilities field0,
-  ) = DeviceCapabilities_Dome;
+  const factory DeviceCapabilities.mount(MountCapabilities field0) =
+      DeviceCapabilities_Mount;
+  const factory DeviceCapabilities.camera(CameraCapabilities field0) =
+      DeviceCapabilities_Camera;
+  const factory DeviceCapabilities.focuser(FocuserCapabilities field0) =
+      DeviceCapabilities_Focuser;
+  const factory DeviceCapabilities.filterWheel(FilterWheelCapabilities field0) =
+      DeviceCapabilities_FilterWheel;
+  const factory DeviceCapabilities.rotator(RotatorCapabilities field0) =
+      DeviceCapabilities_Rotator;
+  const factory DeviceCapabilities.dome(DomeCapabilities field0) =
+      DeviceCapabilities_Dome;
   const factory DeviceCapabilities.coverCalibrator(
     CoverCalibratorCapabilities field0,
   ) = DeviceCapabilities_CoverCalibrator;
-  const factory DeviceCapabilities.weather(
-    WeatherCapabilities field0,
-  ) = DeviceCapabilities_Weather;
+  const factory DeviceCapabilities.weather(WeatherCapabilities field0) =
+      DeviceCapabilities_Weather;
   const factory DeviceCapabilities.safetyMonitor(
     SafetyMonitorCapabilities field0,
   ) = DeviceCapabilities_SafetyMonitor;
-  const factory DeviceCapabilities.switch_(
-    SwitchCapabilities field0,
-  ) = DeviceCapabilities_Switch;
+  const factory DeviceCapabilities.switch_(SwitchCapabilities field0) =
+      DeviceCapabilities_Switch;
 }
 
 /// Capabilities of a dome device
@@ -922,7 +914,6 @@ enum ShutterStatus {
 
   /// Shutter status is unknown or error state
   unknown,
-  ;
 }
 
 /// Capabilities of a switch device
@@ -933,10 +924,7 @@ class SwitchCapabilities {
   /// Switch details
   final List<SwitchInfo> switches;
 
-  const SwitchCapabilities({
-    required this.switchCount,
-    required this.switches,
-  });
+  const SwitchCapabilities({required this.switchCount, required this.switches});
 
   @override
   int get hashCode => switchCount.hashCode ^ switches.hashCode;

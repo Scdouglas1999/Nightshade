@@ -97,24 +97,24 @@ bool isCriticalEvent(NightshadeEvent event) {
   final payload = event.payload;
   return switch (payload) {
     EventPayload_Imaging(field0: final v) => switch (v) {
-        ImagingEvent_ExposureFailed() => true,
-        ImagingEvent_ExposureFailedOld() => true,
-        _ => false,
-      },
+      ImagingEvent_ExposureFailed() => true,
+      ImagingEvent_ExposureFailedOld() => true,
+      _ => false,
+    },
     EventPayload_Safety(field0: final v) => switch (v) {
-        SafetyEvent_EmergencyStop() => true,
-        SafetyEvent_WeatherUnsafe() => true,
-        _ => false,
-      },
+      SafetyEvent_EmergencyStop() => true,
+      SafetyEvent_WeatherUnsafe() => true,
+      _ => false,
+    },
     EventPayload_System(field0: final v) => switch (v) {
-        SystemEvent_DiskSpaceLow() => true,
-        SystemEvent_Error() => true,
-        _ => false,
-      },
+      SystemEvent_DiskSpaceLow() => true,
+      SystemEvent_Error() => true,
+      _ => false,
+    },
     EventPayload_Sequencer(field0: final v) => switch (v) {
-        SequencerEvent_Error() => true,
-        _ => false,
-      },
+      SequencerEvent_Error() => true,
+      _ => false,
+    },
     _ => false,
   };
 }
@@ -167,13 +167,13 @@ String _equipmentDetail(EquipmentEvent v) {
     EquipmentEvent_PropertyChanged(
       deviceType: final t,
       property: final p,
-      value: final val
+      value: final val,
     ) =>
       '$t · $p=$val',
     EquipmentEvent_Error(
       deviceType: final t,
       deviceId: final id,
-      message: final m
+      message: final m,
     ) =>
       '$t/$id: $m',
     EquipmentEvent_MountSlewStarted(ra: final ra, dec: final dec) =>
@@ -192,7 +192,7 @@ String _equipmentDetail(EquipmentEvent v) {
     EquipmentEvent_FilterChanging(
       fromPosition: final from,
       toPosition: final to,
-      filterName: final name
+      filterName: final name,
     ) =>
       name != null && name.isNotEmpty ? '$from → $to ($name)' : '$from → $to',
     EquipmentEvent_FilterChanged(position: final p, filterName: final name) =>
@@ -247,6 +247,7 @@ String _imagingTitle(ImagingEvent v) {
     ImagingEvent_DownloadCompleted() => 'Download complete',
     ImagingEvent_ImageReady() => 'Image ready',
     ImagingEvent_ImageSaved() => 'Image saved',
+    ImagingEvent_IntegrationProgress() => 'Integration progress',
     ImagingEvent_TemperatureChanged() => 'Camera temperature',
     ImagingEvent_ExposureComplete() => 'Exposure complete',
     ImagingEvent_ExposureFailedOld() => 'Exposure failed',
@@ -285,9 +286,18 @@ String _imagingDetail(ImagingEvent v) {
     ImagingEvent_DownloadCompleted() => '',
     ImagingEvent_ImageReady(width: final w, height: final h) => '$w × $h',
     ImagingEvent_ImageSaved(filePath: final p) => p,
+    ImagingEvent_IntegrationProgress(
+      phase: final phase,
+      fraction: final f,
+      framesDone: final done,
+      framesTotal: final total,
+    ) =>
+      (done != null && total != null)
+          ? '$phase · ${(f * 100).toStringAsFixed(0)}% · $done/$total'
+          : '$phase · ${(f * 100).toStringAsFixed(0)}%',
     ImagingEvent_TemperatureChanged(
       tempCelsius: final t,
-      coolerPower: final pw
+      coolerPower: final pw,
     ) =>
       '${t.toStringAsFixed(1)}°C · ${pw.toStringAsFixed(0)}% cooler',
     ImagingEvent_ExposureComplete(success: final s) => s ? 'OK' : 'Failed',
@@ -514,10 +524,10 @@ String _sequencerDetail(SequencerEvent v) {
     ) =>
       aborted
           ? 'operator aborted ${custom?.isNotEmpty == true ? custom! : kind} '
-              'after $a attempt${a == 1 ? "" : "s"}'
+                'after $a attempt${a == 1 ? "" : "s"}'
           : 'exhausted ${custom?.isNotEmpty == true ? custom! : kind} '
-              'after $a attempt${a == 1 ? "" : "s"}'
-              '${err != null && err.isNotEmpty ? "; $err" : ""}',
+                'after $a attempt${a == 1 ? "" : "s"}'
+                '${err != null && err.isNotEmpty ? "; $err" : ""}',
     // Wave 5 Agent 2 — adaptive exposure. Lightweight one-line render
     // showing the nominal/adapted exposure pair and the reason; the
     // dashboard's Adaptive Exposure panel renders the full detail.
@@ -558,7 +568,11 @@ String _sequencerDetail(SequencerEvent v) {
 /// of the switch arm because Dart switch-expressions don't allow `if`
 /// inside the arm body.
 String _integrationBudgetDetail(
-    String filter, double completedSecs, double budgetSecs, bool budgetMet) {
+  String filter,
+  double completedSecs,
+  double budgetSecs,
+  bool budgetMet,
+) {
   final label = filter.isEmpty ? 'total' : filter;
   if (budgetMet) {
     return '$label budget met (${completedSecs.toStringAsFixed(0)}s)';

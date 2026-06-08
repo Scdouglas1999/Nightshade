@@ -15,7 +15,10 @@ Future<SessionState> apiGetSessionState() =>
 /// Start a new imaging session
 Future<void> apiStartSession({String? targetName, double? ra, double? dec}) =>
     RustLib.instance.api.crateApiSessionApiStartSession(
-        targetName: targetName, ra: ra, dec: dec);
+      targetName: targetName,
+      ra: ra,
+      dec: dec,
+    );
 
 /// End the current session
 Future<void> apiEndSession() =>

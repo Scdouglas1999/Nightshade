@@ -51,6 +51,51 @@ use nightshade_imaging::{
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
+use crate::api::get_state;
+use crate::event::{EventSeverity, ImagingEvent};
+
+// =============================================================================
+// Integration progress events
+// =============================================================================
+
+/// Overall fraction at the *start* of each integration phase. The fraction
+/// reported during a phase interpolates from its own entry up to the next
+/// phase's entry, so the bar advances smoothly across the whole run.
+const FRACTION_CALIBRATE: f32 = 0.0;
+const FRACTION_REGISTER: f32 = 0.20;
+const FRACTION_WEIGHT: f32 = 0.60;
+const FRACTION_NORMALIZE: f32 = 0.62;
+const FRACTION_INTEGRATE: f32 = 0.80;
+const FRACTION_INTEGRATE_DONE: f32 = 0.92;
+const FRACTION_WRITE: f32 = 0.95;
+const FRACTION_DONE: f32 = 1.0;
+
+/// Publish a single [`ImagingEvent::IntegrationProgress`] on the global event
+/// bus so Dart can drive a progress bar for the offline integration pipeline.
+///
+/// Cheap by construction: it only clones a short phase string and touches the
+/// `Arc<EventBus>` broadcast sender (non-blocking, no-ops with no receivers).
+/// [`api_integrate_session`] runs on FRB's `wrap_normal` worker thread (not the
+/// Dart UI isolate), so emitting from inside the orchestration loops is safe.
+/// Callers must emit per *phase boundary* (and per *frame* inside the register
+/// loop) — never per pixel.
+fn emit_integration_progress(
+    phase: &str,
+    fraction: f32,
+    frames_done: Option<u32>,
+    frames_total: Option<u32>,
+) {
+    get_state().publish_imaging_event(
+        ImagingEvent::IntegrationProgress {
+            phase: phase.to_string(),
+            fraction: fraction.clamp(0.0, 1.0),
+            frames_done,
+            frames_total,
+        },
+        EventSeverity::Info,
+    );
+}
+
 // =============================================================================
 // JSON request / response contracts
 // =============================================================================
@@ -392,6 +437,8 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
     let bias = load_optional_master(&args.calibration.bias, "bias")?;
 
     // --- Load + calibrate every light. ---
+    let total_lights = args.light_paths.len() as u32;
+    emit_integration_progress("calibrating", FRACTION_CALIBRATE, Some(0), Some(total_lights));
     let mut loaded: Vec<LoadedLight> = Vec::with_capacity(args.light_paths.len());
     for (i, path) in args.light_paths.iter().enumerate() {
         let read = read_image(Path::new(path)).map_err(|e| format!("failed to read '{path}': {e}"))?;
@@ -422,6 +469,14 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
             image,
             exposure_sec,
         });
+        // Calibrate phase spans 0.0..0.20 across all lights.
+        let done = (i + 1) as u32;
+        let frac = if total_lights > 0 {
+            FRACTION_REGISTER * (done as f32 / total_lights as f32)
+        } else {
+            FRACTION_REGISTER
+        };
+        emit_integration_progress("calibrating", frac, Some(done), Some(total_lights));
     }
 
     // --- Choose the reference frame. ---
@@ -451,8 +506,21 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
         reason: Option<String>,
     }
 
+    emit_integration_progress("registering", FRACTION_REGISTER, Some(0), Some(total_lights));
     let mut registered: Vec<Registered> = Vec::with_capacity(loaded.len());
     for (i, light) in loaded.iter().enumerate() {
+        // Register phase spans 0.20..0.60; emit per frame (cheap), never per
+        // pixel. Emitted at the top so both the reference (`continue`) and the
+        // matched branches report uniform per-frame progress.
+        let done = (i + 1) as u32;
+        let frac = if total_lights > 0 {
+            FRACTION_REGISTER
+                + (FRACTION_WEIGHT - FRACTION_REGISTER) * (done as f32 / total_lights as f32)
+        } else {
+            FRACTION_WEIGHT
+        };
+        emit_integration_progress("registering", frac, Some(done), Some(total_lights));
+
         if i == ref_index {
             // The reference aligns to itself by identity; flatten directly.
             let pixels = image_to_f64(&light.image);
@@ -516,6 +584,7 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
         return Err("no subs could be registered + measured; nothing to integrate".to_string());
     }
 
+    emit_integration_progress("weighting", FRACTION_WEIGHT, None, None);
     let weights: Vec<f64> = if args.settings.weighting.enabled {
         let qualities: Vec<FrameQuality> = accepted_idx
             .iter()
@@ -538,13 +607,27 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
     let ref_pixels = registered[ref_index].pixels.clone();
 
     // --- Normalize each accepted sub to the reference, per channel. ---
+    let norm_total = accepted_idx.len() as u32;
+    emit_integration_progress("normalizing", FRACTION_NORMALIZE, Some(0), Some(norm_total));
     if args.settings.normalization.enabled {
         let norm_cfg = build_normalization_config(&args.settings.normalization)?;
         // Per-channel reference planes (borrowed once).
         let ref_planes: Vec<Vec<f64>> = (0..chan)
             .map(|ch| extract_channel(&ref_pixels, locations, chan, ch))
             .collect();
-        for &i in &accepted_idx {
+        for (pos, &i) in accepted_idx.iter().enumerate() {
+            // Normalize phase spans 0.62..0.80; emit per accepted sub (cheap),
+            // emitted at the top so the reference (`continue`) frame still
+            // advances the bar.
+            let done = (pos + 1) as u32;
+            let frac = if norm_total > 0 {
+                FRACTION_NORMALIZE
+                    + (FRACTION_INTEGRATE - FRACTION_NORMALIZE) * (done as f32 / norm_total as f32)
+            } else {
+                FRACTION_INTEGRATE
+            };
+            emit_integration_progress("normalizing", frac, Some(done), Some(norm_total));
+
             if i == ref_index {
                 continue;
             }
@@ -580,10 +663,15 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
         })
         .collect();
 
+    // `integrate_frames` has no inner progress callback, so bracket it: 0.80
+    // before, 0.92 after.
+    emit_integration_progress("integrating", FRACTION_INTEGRATE, None, None);
     let output = integrate_frames(&frames, width, height, channels, &int_cfg)
         .map_err(|e| format!("integration failed: {e}"))?;
+    emit_integration_progress("integrating", FRACTION_INTEGRATE_DONE, None, None);
 
     // --- Write the master FITS. ---
+    emit_integration_progress("writing", FRACTION_WRITE, None, None);
     let master_path = Path::new(&args.output.master_fits_path);
     ensure_parent_dir(master_path)?;
     let header = build_master_header(sub_count, &args.settings.integration);
@@ -620,6 +708,8 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
     } else {
         None
     };
+    // Final boundary: the master (and optional preview) are on disk.
+    emit_integration_progress("preview", FRACTION_DONE, None, None);
 
     // --- Assemble per-frame stats + aggregate residual. ---
     // Map normalized weights back to the accepted frames by position.

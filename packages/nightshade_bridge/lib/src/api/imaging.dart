@@ -14,12 +14,15 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `from_frame_context`, `get_last_raw_image_info`
 
 /// Run autofocus
-Future<AutofocusResultApi> apiRunAutofocus(
-        {required String deviceId,
-        required String cameraId,
-        required AutofocusConfigApi config}) =>
-    RustLib.instance.api.crateApiImagingApiRunAutofocus(
-        deviceId: deviceId, cameraId: cameraId, config: config);
+Future<AutofocusResultApi> apiRunAutofocus({
+  required String deviceId,
+  required String cameraId,
+  required AutofocusConfigApi config,
+}) => RustLib.instance.api.crateApiImagingApiRunAutofocus(
+  deviceId: deviceId,
+  cameraId: cameraId,
+  config: config,
+);
 
 /// Cancel autofocus
 Future<void> apiCancelAutofocus() =>
@@ -27,20 +30,21 @@ Future<void> apiCancelAutofocus() =>
 
 /// Start a camera exposure
 /// Returns progress updates via events, final image available via api_get_last_image
-Future<void> apiCameraStartExposure(
-        {required String deviceId,
-        required double durationSecs,
-        required int gain,
-        required int offset,
-        required int binX,
-        required int binY}) =>
-    RustLib.instance.api.crateApiImagingApiCameraStartExposure(
-        deviceId: deviceId,
-        durationSecs: durationSecs,
-        gain: gain,
-        offset: offset,
-        binX: binX,
-        binY: binY);
+Future<void> apiCameraStartExposure({
+  required String deviceId,
+  required double durationSecs,
+  required int gain,
+  required int offset,
+  required int binX,
+  required int binY,
+}) => RustLib.instance.api.crateApiImagingApiCameraStartExposure(
+  deviceId: deviceId,
+  durationSecs: durationSecs,
+  gain: gain,
+  offset: offset,
+  binX: binX,
+  binY: binY,
+);
 
 /// Get the last captured image for a specific device (display-ready format)
 /// Reads from per-device atomic storage to ensure consistency with raw data
@@ -50,9 +54,10 @@ Future<CapturedImageResult> apiGetLastImage({required String deviceId}) =>
 /// Get the last captured raw image data (u16) for a specific device
 /// This is used for saving FITS files with original bit depth
 /// Reads from per-device atomic storage to ensure consistency with display data
-Future<Uint16List> apiGetLastRawImageData({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiImagingApiGetLastRawImageData(deviceId: deviceId);
+Future<Uint16List> apiGetLastRawImageData({required String deviceId}) => RustLib
+    .instance
+    .api
+    .crateApiImagingApiGetLastRawImageData(deviceId: deviceId);
 
 /// Clear stored image data for a specific device
 /// This is used to free memory when a camera is disconnected or when explicitly requested
@@ -60,9 +65,10 @@ Future<void> apiClearDeviceImage({required String deviceId}) =>
     RustLib.instance.api.crateApiImagingApiClearDeviceImage(deviceId: deviceId);
 
 /// Cancel current exposure
-Future<void> apiCameraCancelExposure({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiImagingApiCameraCancelExposure(deviceId: deviceId);
+Future<void> apiCameraCancelExposure({required String deviceId}) => RustLib
+    .instance
+    .api
+    .crateApiImagingApiCameraCancelExposure(deviceId: deviceId);
 
 /// Read a FITS file from disk
 Future<FitsReadResult> apiReadFitsFile({required String filePath}) =>
@@ -79,142 +85,174 @@ Future<FitsReadResult> apiReadFitsFile({required String filePath}) =>
 /// stamp `MAGZP`, `MAGZPERR`, `TRANSPAR`, etc. back onto captured frames so
 /// that PixInsight / AstroPixelProcessor / Siril can read Nightshade's
 /// science products without going through our database.
-Future<void> apiUpdateFitsKeywords(
-        {required String filePath, required List<FitsKeywordUpdate> updates}) =>
-    RustLib.instance.api.crateApiImagingApiUpdateFitsKeywords(
-        filePath: filePath, updates: updates);
+Future<void> apiUpdateFitsKeywords({
+  required String filePath,
+  required List<FitsKeywordUpdate> updates,
+}) => RustLib.instance.api.crateApiImagingApiUpdateFitsKeywords(
+  filePath: filePath,
+  updates: updates,
+);
 
 /// Read a FITS file and return unstretched linear pixel values for science analysis.
-Future<FitsLinearReadResult> apiReadFitsLinearData(
-        {required String filePath}) =>
-    RustLib.instance.api
-        .crateApiImagingApiReadFitsLinearData(filePath: filePath);
+Future<FitsLinearReadResult> apiReadFitsLinearData({
+  required String filePath,
+}) => RustLib.instance.api.crateApiImagingApiReadFitsLinearData(
+  filePath: filePath,
+);
 
 /// Compute quality maps from the last captured image in memory for a device.
-Future<QualityMapsResultApi> apiComputeLastCaptureQualityMaps(
-        {required String deviceId,
-        required int gridRows,
-        required int gridCols,
-        required int lowClipAdu,
-        required int highClipAdu}) =>
-    RustLib.instance.api.crateApiImagingApiComputeLastCaptureQualityMaps(
-        deviceId: deviceId,
-        gridRows: gridRows,
-        gridCols: gridCols,
-        lowClipAdu: lowClipAdu,
-        highClipAdu: highClipAdu);
+Future<QualityMapsResultApi> apiComputeLastCaptureQualityMaps({
+  required String deviceId,
+  required int gridRows,
+  required int gridCols,
+  required int lowClipAdu,
+  required int highClipAdu,
+}) => RustLib.instance.api.crateApiImagingApiComputeLastCaptureQualityMaps(
+  deviceId: deviceId,
+  gridRows: gridRows,
+  gridCols: gridCols,
+  lowClipAdu: lowClipAdu,
+  highClipAdu: highClipAdu,
+);
 
 /// Compute quality maps directly from a FITS file.
-Future<QualityMapsResultApi> apiComputeFitsQualityMaps(
-        {required String filePath,
-        required int gridRows,
-        required int gridCols,
-        required int lowClipAdu,
-        required int highClipAdu}) =>
-    RustLib.instance.api.crateApiImagingApiComputeFitsQualityMaps(
-        filePath: filePath,
-        gridRows: gridRows,
-        gridCols: gridCols,
-        lowClipAdu: lowClipAdu,
-        highClipAdu: highClipAdu);
+Future<QualityMapsResultApi> apiComputeFitsQualityMaps({
+  required String filePath,
+  required int gridRows,
+  required int gridCols,
+  required int lowClipAdu,
+  required int highClipAdu,
+}) => RustLib.instance.api.crateApiImagingApiComputeFitsQualityMaps(
+  filePath: filePath,
+  gridRows: gridRows,
+  gridCols: gridCols,
+  lowClipAdu: lowClipAdu,
+  highClipAdu: highClipAdu,
+);
 
 /// Detect stars in a FITS file
-Future<StarDetectionResultApi> apiDetectStarsInFile(
-        {required String filePath, StarDetectionConfigApi? config}) =>
-    RustLib.instance.api.crateApiImagingApiDetectStarsInFile(
-        filePath: filePath, config: config);
+Future<StarDetectionResultApi> apiDetectStarsInFile({
+  required String filePath,
+  StarDetectionConfigApi? config,
+}) => RustLib.instance.api.crateApiImagingApiDetectStarsInFile(
+  filePath: filePath,
+  config: config,
+);
 
 /// Get star crops from the last captured image for a device
 ///
 /// This extracts the top N brightest stars from the last image and returns
 /// cropped 80x80 pixel regions centered on each star, auto-stretched for display.
 /// Used by the autofocus UI to show star crops for visual feedback.
-Future<List<StarCropApi>> apiGetStarCropsFromLastImage(
-        {required String deviceId, required int maxCrops}) =>
-    RustLib.instance.api.crateApiImagingApiGetStarCropsFromLastImage(
-        deviceId: deviceId, maxCrops: maxCrops);
+Future<List<StarCropApi>> apiGetStarCropsFromLastImage({
+  required String deviceId,
+  required int maxCrops,
+}) => RustLib.instance.api.crateApiImagingApiGetStarCropsFromLastImage(
+  deviceId: deviceId,
+  maxCrops: maxCrops,
+);
 
 /// Calculate HFR for a FITS file
 Future<double?> apiCalculateHfr({required String filePath}) =>
     RustLib.instance.api.crateApiImagingApiCalculateHfr(filePath: filePath);
 
 /// Calculate histogram for a FITS file
-Future<Float32List> apiCalculateHistogram(
-        {required String filePath,
-        required int bins,
-        required int logarithmic}) =>
-    RustLib.instance.api.crateApiImagingApiCalculateHistogram(
-        filePath: filePath, bins: bins, logarithmic: logarithmic);
+Future<Float32List> apiCalculateHistogram({
+  required String filePath,
+  required int bins,
+  required int logarithmic,
+}) => RustLib.instance.api.crateApiImagingApiCalculateHistogram(
+  filePath: filePath,
+  bins: bins,
+  logarithmic: logarithmic,
+);
 
 /// Auto-calculate stretch parameters for an image
 Future<StretchParamsApi> apiCalculateAutoStretch({required String filePath}) =>
-    RustLib.instance.api
-        .crateApiImagingApiCalculateAutoStretch(filePath: filePath);
+    RustLib.instance.api.crateApiImagingApiCalculateAutoStretch(
+      filePath: filePath,
+    );
 
 /// Apply stretch to a FITS file and return display data
-Future<Uint8List> apiApplyStretch(
-        {required String filePath, required StretchParamsApi params}) =>
-    RustLib.instance.api
-        .crateApiImagingApiApplyStretch(filePath: filePath, params: params);
+Future<Uint8List> apiApplyStretch({
+  required String filePath,
+  required StretchParamsApi params,
+}) => RustLib.instance.api.crateApiImagingApiApplyStretch(
+  filePath: filePath,
+  params: params,
+);
 
 /// Debayer a raw FITS image and return RGB display data
 /// Debayer a raw FITS file and return RGB display data
-Future<Uint8List> apiDebayerFitsFile(
-        {required String filePath,
-        required BayerPatternApi pattern,
-        required DebayerAlgorithmApi algorithm}) =>
-    RustLib.instance.api.crateApiImagingApiDebayerFitsFile(
-        filePath: filePath, pattern: pattern, algorithm: algorithm);
+Future<Uint8List> apiDebayerFitsFile({
+  required String filePath,
+  required BayerPatternApi pattern,
+  required DebayerAlgorithmApi algorithm,
+}) => RustLib.instance.api.crateApiImagingApiDebayerFitsFile(
+  filePath: filePath,
+  pattern: pattern,
+  algorithm: algorithm,
+);
 
 /// Read an XISF file
 Future<XisfReadResult> apiReadXisfFile({required String filePath}) =>
     RustLib.instance.api.crateApiImagingApiReadXisfFile(filePath: filePath);
 
 /// Save image as XISF
-Future<void> apiSaveXisfFile(
-        {required String filePath,
-        required int width,
-        required int height,
-        required List<int> data,
-        required List<(String, String)> properties}) =>
-    RustLib.instance.api.crateApiImagingApiSaveXisfFile(
-        filePath: filePath,
-        width: width,
-        height: height,
-        data: data,
-        properties: properties);
+Future<void> apiSaveXisfFile({
+  required String filePath,
+  required int width,
+  required int height,
+  required List<int> data,
+  required List<(String, String)> properties,
+}) => RustLib.instance.api.crateApiImagingApiSaveXisfFile(
+  filePath: filePath,
+  width: width,
+  height: height,
+  data: data,
+  properties: properties,
+);
 
 /// Save image as TIFF (16-bit preserving)
-Future<void> apiSaveTiffFile(
-        {required String filePath,
-        required int width,
-        required int height,
-        required List<int> data}) =>
-    RustLib.instance.api.crateApiImagingApiSaveTiffFile(
-        filePath: filePath, width: width, height: height, data: data);
+Future<void> apiSaveTiffFile({
+  required String filePath,
+  required int width,
+  required int height,
+  required List<int> data,
+}) => RustLib.instance.api.crateApiImagingApiSaveTiffFile(
+  filePath: filePath,
+  width: width,
+  height: height,
+  data: data,
+);
 
 /// Save image as PNG (16-bit preserving, lossless)
-Future<void> apiSavePngFile(
-        {required String filePath,
-        required int width,
-        required int height,
-        required List<int> data}) =>
-    RustLib.instance.api.crateApiImagingApiSavePngFile(
-        filePath: filePath, width: width, height: height, data: data);
+Future<void> apiSavePngFile({
+  required String filePath,
+  required int width,
+  required int height,
+  required List<int> data,
+}) => RustLib.instance.api.crateApiImagingApiSavePngFile(
+  filePath: filePath,
+  width: width,
+  height: height,
+  data: data,
+);
 
 /// Save image as JPEG (8-bit, lossy - for previews)
-Future<void> apiSaveJpegFile(
-        {required String filePath,
-        required int width,
-        required int height,
-        required List<int> data,
-        required int quality}) =>
-    RustLib.instance.api.crateApiImagingApiSaveJpegFile(
-        filePath: filePath,
-        width: width,
-        height: height,
-        data: data,
-        quality: quality);
+Future<void> apiSaveJpegFile({
+  required String filePath,
+  required int width,
+  required int height,
+  required List<int> data,
+  required int quality,
+}) => RustLib.instance.api.crateApiImagingApiSaveJpegFile(
+  filePath: filePath,
+  width: width,
+  height: height,
+  data: data,
+  quality: quality,
+);
 
 /// Save an 8-bit RGBA buffer as a PNG, preserving color and alpha losslessly.
 ///
@@ -230,13 +268,17 @@ Future<void> apiSaveJpegFile(
 /// programming error upstream (wrong stride, truncated buffer); we surface it
 /// as [`NightshadeError::ImageError`] rather than silently truncating or
 /// padding, which would write a corrupt/garbage image that looks plausible.
-Future<void> apiSaveRgbaPngFile(
-        {required String filePath,
-        required int width,
-        required int height,
-        required List<int> rgba}) =>
-    RustLib.instance.api.crateApiImagingApiSaveRgbaPngFile(
-        filePath: filePath, width: width, height: height, rgba: rgba);
+Future<void> apiSaveRgbaPngFile({
+  required String filePath,
+  required int width,
+  required int height,
+  required List<int> rgba,
+}) => RustLib.instance.api.crateApiImagingApiSaveRgbaPngFile(
+  filePath: filePath,
+  width: width,
+  height: height,
+  rgba: rgba,
+);
 
 /// Save an 8-bit RGBA buffer as a JPEG, flattening alpha onto black.
 ///
@@ -250,80 +292,84 @@ Future<void> apiSaveRgbaPngFile(
 ///
 /// Length validation matches [`api_save_rgba_png_file`]: a mismatch is an
 /// upstream bug and is surfaced as [`NightshadeError::ImageError`].
-Future<void> apiSaveRgbaJpegFile(
-        {required String filePath,
-        required int width,
-        required int height,
-        required List<int> rgba,
-        required int quality}) =>
-    RustLib.instance.api.crateApiImagingApiSaveRgbaJpegFile(
-        filePath: filePath,
-        width: width,
-        height: height,
-        rgba: rgba,
-        quality: quality);
+Future<void> apiSaveRgbaJpegFile({
+  required String filePath,
+  required int width,
+  required int height,
+  required List<int> rgba,
+  required int quality,
+}) => RustLib.instance.api.crateApiImagingApiSaveRgbaJpegFile(
+  filePath: filePath,
+  width: width,
+  height: height,
+  rgba: rgba,
+  quality: quality,
+);
 
 /// Generate a filename from pattern and context
-Future<String> apiGenerateFilename(
-        {required String pattern,
-        required String baseDir,
-        String? target,
-        String? filter,
-        required double exposureTime,
-        required FrameTypeApi frameType,
-        required int frameNumber,
-        int? gain,
-        int? offset,
-        double? temperature,
-        required int binningX,
-        required int binningY,
-        String? camera,
-        String? telescope,
-        required String extension_}) =>
-    RustLib.instance.api.crateApiImagingApiGenerateFilename(
-        pattern: pattern,
-        baseDir: baseDir,
-        target: target,
-        filter: filter,
-        exposureTime: exposureTime,
-        frameType: frameType,
-        frameNumber: frameNumber,
-        gain: gain,
-        offset: offset,
-        temperature: temperature,
-        binningX: binningX,
-        binningY: binningY,
-        camera: camera,
-        telescope: telescope,
-        extension_: extension_);
+Future<String> apiGenerateFilename({
+  required String pattern,
+  required String baseDir,
+  String? target,
+  String? filter,
+  required double exposureTime,
+  required FrameTypeApi frameType,
+  required int frameNumber,
+  int? gain,
+  int? offset,
+  double? temperature,
+  required int binningX,
+  required int binningY,
+  String? camera,
+  String? telescope,
+  required String extension_,
+}) => RustLib.instance.api.crateApiImagingApiGenerateFilename(
+  pattern: pattern,
+  baseDir: baseDir,
+  target: target,
+  filter: filter,
+  exposureTime: exposureTime,
+  frameType: frameType,
+  frameNumber: frameNumber,
+  gain: gain,
+  offset: offset,
+  temperature: temperature,
+  binningX: binningX,
+  binningY: binningY,
+  camera: camera,
+  telescope: telescope,
+  extension_: extension_,
+);
 
 /// Get the next frame number for a directory
-Future<int> apiGetNextFrameNumber(
-        {required String baseDir,
-        required String pattern,
-        String? target,
-        String? filter,
-        required FrameTypeApi frameType}) =>
-    RustLib.instance.api.crateApiImagingApiGetNextFrameNumber(
-        baseDir: baseDir,
-        pattern: pattern,
-        target: target,
-        filter: filter,
-        frameType: frameType);
+Future<int> apiGetNextFrameNumber({
+  required String baseDir,
+  required String pattern,
+  String? target,
+  String? filter,
+  required FrameTypeApi frameType,
+}) => RustLib.instance.api.crateApiImagingApiGetNextFrameNumber(
+  baseDir: baseDir,
+  pattern: pattern,
+  target: target,
+  filter: filter,
+  frameType: frameType,
+);
 
 /// Save image data to FITS file
-Future<void> apiSaveFitsFile(
-        {required String filePath,
-        required int width,
-        required int height,
-        required List<int> data,
-        required FitsWriteHeader headerData}) =>
-    RustLib.instance.api.crateApiImagingApiSaveFitsFile(
-        filePath: filePath,
-        width: width,
-        height: height,
-        data: data,
-        headerData: headerData);
+Future<void> apiSaveFitsFile({
+  required String filePath,
+  required int width,
+  required int height,
+  required List<int> data,
+  required FitsWriteHeader headerData,
+}) => RustLib.instance.api.crateApiImagingApiSaveFitsFile(
+  filePath: filePath,
+  width: width,
+  height: height,
+  data: data,
+  headerData: headerData,
+);
 
 /// Wave 3 Image Grading: save FITS with the rich (~40-keyword) header
 /// bundle. Used by the sequencer's per-frame save path. Not FRB-exposed —
@@ -334,42 +380,56 @@ Future<void> apiSaveFitsFile(
 /// Nightshade-specific `NS-*` keywords for session / mosaic / frame
 /// accounting. Missing optional fields are silently omitted — never
 /// substituted with sentinel values.
-Future<void> saveFitsFileRich(
-        {required String filePath,
-        required int width,
-        required int height,
-        required List<int> data,
-        required FitsWriteHeaderRich headerData}) =>
-    RustLib.instance.api.crateApiImagingSaveFitsFileRich(
-        filePath: filePath,
-        width: width,
-        height: height,
-        data: data,
-        headerData: headerData);
+Future<void> saveFitsFileRich({
+  required String filePath,
+  required int width,
+  required int height,
+  required List<int> data,
+  required FitsWriteHeaderRich headerData,
+}) => RustLib.instance.api.crateApiImagingSaveFitsFileRich(
+  filePath: filePath,
+  width: width,
+  height: height,
+  data: data,
+  headerData: headerData,
+);
 
 /// Save FITS file directly from the last captured image stored in Rust
 /// This eliminates the need to transfer raw pixel data across the FFI boundary
 /// by using the image data already stored from the last exposure.
 ///
 /// Returns an error if no image has been captured yet for the specified device.
-Future<void> apiSaveFitsFromLastCapture(
-        {required String deviceId,
-        required String filePath,
-        required FitsWriteHeader headerData}) =>
-    RustLib.instance.api.crateApiImagingApiSaveFitsFromLastCapture(
-        deviceId: deviceId, filePath: filePath, headerData: headerData);
+Future<void> apiSaveFitsFromLastCapture({
+  required String deviceId,
+  required String filePath,
+  required FitsWriteHeader headerData,
+}) => RustLib.instance.api.crateApiImagingApiSaveFitsFromLastCapture(
+  deviceId: deviceId,
+  filePath: filePath,
+  headerData: headerData,
+);
 
 /// Calculate image statistics
-ImageStatsResult apiGetImageStats(
-        {required int width, required int height, required List<int> data}) =>
-    RustLib.instance.api.crateApiImagingApiGetImageStats(
-        width: width, height: height, data: data);
+ImageStatsResult apiGetImageStats({
+  required int width,
+  required int height,
+  required List<int> data,
+}) => RustLib.instance.api.crateApiImagingApiGetImageStats(
+  width: width,
+  height: height,
+  data: data,
+);
 
 /// Auto-stretch image for display
-Uint8List apiAutoStretchImage(
-        {required int width, required int height, required List<int> data}) =>
-    RustLib.instance.api.crateApiImagingApiAutoStretchImage(
-        width: width, height: height, data: data);
+Uint8List apiAutoStretchImage({
+  required int width,
+  required int height,
+  required List<int> data,
+}) => RustLib.instance.api.crateApiImagingApiAutoStretchImage(
+  width: width,
+  height: height,
+  data: data,
+);
 
 /// Auto-stretch an interleaved RGB16 image for display.
 ///
@@ -379,31 +439,40 @@ Uint8List apiAutoStretchImage(
 /// RGBA8 (4 bytes per pixel, alpha=255). OSC live-stacking / Stack-and-Share
 /// display delegates here so the STF lives in one place (Rust) rather than being
 /// reimplemented in Dart.
-Uint8List apiAutoStretchColorImage(
-        {required int width, required int height, required List<int> data}) =>
-    RustLib.instance.api.crateApiImagingApiAutoStretchColorImage(
-        width: width, height: height, data: data);
+Uint8List apiAutoStretchColorImage({
+  required int width,
+  required int height,
+  required List<int> data,
+}) => RustLib.instance.api.crateApiImagingApiAutoStretchColorImage(
+  width: width,
+  height: height,
+  data: data,
+);
 
 /// Debayer image
-Uint8List apiDebayerImage(
-        {required int width,
-        required int height,
-        required List<int> data,
-        required String patternStr,
-        required String algoStr}) =>
-    RustLib.instance.api.crateApiImagingApiDebayerImage(
-        width: width,
-        height: height,
-        data: data,
-        patternStr: patternStr,
-        algoStr: algoStr);
+Uint8List apiDebayerImage({
+  required int width,
+  required int height,
+  required List<int> data,
+  required String patternStr,
+  required String algoStr,
+}) => RustLib.instance.api.crateApiImagingApiDebayerImage(
+  width: width,
+  height: height,
+  data: data,
+  patternStr: patternStr,
+  algoStr: algoStr,
+);
 
 /// Generate thumbnail from FITS file
 /// Returns JPEG-encoded thumbnail data (~512x512 pixels)
-Uint8List apiGenerateFitsThumbnail(
-        {required String filePath, required int maxSize}) =>
-    RustLib.instance.api.crateApiImagingApiGenerateFitsThumbnail(
-        filePath: filePath, maxSize: maxSize);
+Uint8List apiGenerateFitsThumbnail({
+  required String filePath,
+  required int maxSize,
+}) => RustLib.instance.api.crateApiImagingApiGenerateFitsThumbnail(
+  filePath: filePath,
+  maxSize: maxSize,
+);
 
 /// Run INDI autofocus routine
 ///
@@ -414,12 +483,15 @@ Uint8List apiGenerateFitsThumbnail(
 ///
 /// # Returns
 /// Autofocus result with best focus position and curve data
-Future<IndiAutofocusResultApi> apiRunIndiAutofocus(
-        {required String cameraId,
-        required String focuserId,
-        required IndiAutofocusConfigApi config}) =>
-    RustLib.instance.api.crateApiImagingApiRunIndiAutofocus(
-        cameraId: cameraId, focuserId: focuserId, config: config);
+Future<IndiAutofocusResultApi> apiRunIndiAutofocus({
+  required String cameraId,
+  required String focuserId,
+  required IndiAutofocusConfigApi config,
+}) => RustLib.instance.api.crateApiImagingApiRunIndiAutofocus(
+  cameraId: cameraId,
+  focuserId: focuserId,
+  config: config,
+);
 
 /// Calibrate an image file using dark, flat, and/or bias calibration frames.
 ///
@@ -432,69 +504,83 @@ Future<IndiAutofocusResultApi> apiRunIndiAutofocus(
 /// 3. Divide light by normalized flat
 ///
 /// Any calibration frame path can be empty/None to skip that correction.
-Future<void> apiCalibrateImageFile(
-        {required String lightPath,
-        String? darkPath,
-        String? flatPath,
-        String? biasPath,
-        required String outputPath}) =>
-    RustLib.instance.api.crateApiImagingApiCalibrateImageFile(
-        lightPath: lightPath,
-        darkPath: darkPath,
-        flatPath: flatPath,
-        biasPath: biasPath,
-        outputPath: outputPath);
+Future<void> apiCalibrateImageFile({
+  required String lightPath,
+  String? darkPath,
+  String? flatPath,
+  String? biasPath,
+  required String outputPath,
+}) => RustLib.instance.api.crateApiImagingApiCalibrateImageFile(
+  lightPath: lightPath,
+  darkPath: darkPath,
+  flatPath: flatPath,
+  biasPath: biasPath,
+  outputPath: outputPath,
+);
 
 /// Calibrate raw pixel data in memory (u16).
 ///
 /// Takes pixel data directly rather than file paths. Returns calibrated pixel data.
 /// All frames must have the same dimensions and be single-channel u16.
-Uint16List apiCalibrateImageData(
-        {required int width,
-        required int height,
-        required List<int> lightData,
-        Uint16List? darkData,
-        Uint16List? flatData,
-        Uint16List? biasData}) =>
-    RustLib.instance.api.crateApiImagingApiCalibrateImageData(
-        width: width,
-        height: height,
-        lightData: lightData,
-        darkData: darkData,
-        flatData: flatData,
-        biasData: biasData);
+Uint16List apiCalibrateImageData({
+  required int width,
+  required int height,
+  required List<int> lightData,
+  Uint16List? darkData,
+  Uint16List? flatData,
+  Uint16List? biasData,
+}) => RustLib.instance.api.crateApiImagingApiCalibrateImageData(
+  width: width,
+  height: height,
+  lightData: lightData,
+  darkData: darkData,
+  flatData: flatData,
+  biasData: biasData,
+);
 
 /// Start live stacking with a reference image file.
 ///
 /// All subsequent frames will be aligned to this reference.
-Future<ApiLiveStackingStats> apiStackingStart(
-        {required String referenceImagePath,
-        required ApiLiveStackingConfig config}) =>
-    RustLib.instance.api.crateApiImagingApiStackingStart(
-        referenceImagePath: referenceImagePath, config: config);
+Future<ApiLiveStackingStats> apiStackingStart({
+  required String referenceImagePath,
+  required ApiLiveStackingConfig config,
+}) => RustLib.instance.api.crateApiImagingApiStackingStart(
+  referenceImagePath: referenceImagePath,
+  config: config,
+);
 
 /// Start live stacking from raw pixel data in memory.
-Future<ApiLiveStackingStats> apiStackingStartFromData(
-        {required int width,
-        required int height,
-        required List<int> data,
-        required ApiLiveStackingConfig config}) =>
-    RustLib.instance.api.crateApiImagingApiStackingStartFromData(
-        width: width, height: height, data: data, config: config);
+Future<ApiLiveStackingStats> apiStackingStartFromData({
+  required int width,
+  required int height,
+  required List<int> data,
+  required ApiLiveStackingConfig config,
+}) => RustLib.instance.api.crateApiImagingApiStackingStartFromData(
+  width: width,
+  height: height,
+  data: data,
+  config: config,
+);
 
 /// Add a frame to the live stack from a file path.
 ///
 /// Returns the current stacked result.
-Future<ApiLiveStackingResult> apiStackingAddFrame(
-        {required String imagePath}) =>
-    RustLib.instance.api
-        .crateApiImagingApiStackingAddFrame(imagePath: imagePath);
+Future<ApiLiveStackingResult> apiStackingAddFrame({
+  required String imagePath,
+}) => RustLib.instance.api.crateApiImagingApiStackingAddFrame(
+  imagePath: imagePath,
+);
 
 /// Add a frame to the live stack from raw pixel data.
-Future<ApiLiveStackingResult> apiStackingAddFrameFromData(
-        {required int width, required int height, required List<int> data}) =>
-    RustLib.instance.api.crateApiImagingApiStackingAddFrameFromData(
-        width: width, height: height, data: data);
+Future<ApiLiveStackingResult> apiStackingAddFrameFromData({
+  required int width,
+  required int height,
+  required List<int> data,
+}) => RustLib.instance.api.crateApiImagingApiStackingAddFrameFromData(
+  width: width,
+  height: height,
+  data: data,
+);
 
 /// Get the current stacked result without adding a frame.
 Future<ApiLiveStackingResult> apiStackingGetResult() =>
@@ -526,37 +612,42 @@ int apiStackingFrameCount() =>
 /// The resulting map is written to disk under
 /// `$NIGHTSHADE_DATA_DIR/defect_maps/` keyed by camera id, sensor size and
 /// temperature bucket, and the status is returned.
-Future<ApiDefectMapStatus> apiDefectMapBuild(
-        {required String cameraId,
-        required List<String> darkFramePaths,
-        required double sensorTemperatureCelsius}) =>
-    RustLib.instance.api.crateApiImagingApiDefectMapBuild(
-        cameraId: cameraId,
-        darkFramePaths: darkFramePaths,
-        sensorTemperatureCelsius: sensorTemperatureCelsius);
+Future<ApiDefectMapStatus> apiDefectMapBuild({
+  required String cameraId,
+  required List<String> darkFramePaths,
+  required double sensorTemperatureCelsius,
+}) => RustLib.instance.api.crateApiImagingApiDefectMapBuild(
+  cameraId: cameraId,
+  darkFramePaths: darkFramePaths,
+  sensorTemperatureCelsius: sensorTemperatureCelsius,
+);
 
 /// Toggle whether the defect map for this camera is applied to lights
 /// during capture. The map must already exist on disk for the toggle to
 /// take effect at the next capture; this call only updates the user's
 /// preference.
-Future<void> apiDefectMapApply(
-        {required String cameraId, required bool applyDuringCapture}) =>
-    RustLib.instance.api.crateApiImagingApiDefectMapApply(
-        cameraId: cameraId, applyDuringCapture: applyDuringCapture);
+Future<void> apiDefectMapApply({
+  required String cameraId,
+  required bool applyDuringCapture,
+}) => RustLib.instance.api.crateApiImagingApiDefectMapApply(
+  cameraId: cameraId,
+  applyDuringCapture: applyDuringCapture,
+);
 
 /// Delete the defect map stored on disk for the given camera, sensor
 /// dimensions and temperature bucket. Also resets the apply-during-
 /// capture flag for that camera.
-Future<void> apiDefectMapClear(
-        {required String cameraId,
-        required int width,
-        required int height,
-        required double sensorTemperatureCelsius}) =>
-    RustLib.instance.api.crateApiImagingApiDefectMapClear(
-        cameraId: cameraId,
-        width: width,
-        height: height,
-        sensorTemperatureCelsius: sensorTemperatureCelsius);
+Future<void> apiDefectMapClear({
+  required String cameraId,
+  required int width,
+  required int height,
+  required double sensorTemperatureCelsius,
+}) => RustLib.instance.api.crateApiImagingApiDefectMapClear(
+  cameraId: cameraId,
+  width: width,
+  height: height,
+  sensorTemperatureCelsius: sensorTemperatureCelsius,
+);
 
 /// Wave 7 Agent 3 — push the active defect-map application state to the
 /// running sequencer.
@@ -572,38 +663,40 @@ Future<void> apiDefectMapClear(
 /// Method / kernel come from the user's settings (validated here so a
 /// bad combination is rejected at the FFI boundary rather than at
 /// per-frame application time).
-Future<void> apiSequencerApplyDefectMap(
-        {required String cameraId,
-        required int width,
-        required int height,
-        required double sensorTemperatureCelsius,
-        required bool enabled,
-        required String method,
-        required int kernelDiameter,
-        required bool saveOriginal}) =>
-    RustLib.instance.api.crateApiImagingApiSequencerApplyDefectMap(
-        cameraId: cameraId,
-        width: width,
-        height: height,
-        sensorTemperatureCelsius: sensorTemperatureCelsius,
-        enabled: enabled,
-        method: method,
-        kernelDiameter: kernelDiameter,
-        saveOriginal: saveOriginal);
+Future<void> apiSequencerApplyDefectMap({
+  required String cameraId,
+  required int width,
+  required int height,
+  required double sensorTemperatureCelsius,
+  required bool enabled,
+  required String method,
+  required int kernelDiameter,
+  required bool saveOriginal,
+}) => RustLib.instance.api.crateApiImagingApiSequencerApplyDefectMap(
+  cameraId: cameraId,
+  width: width,
+  height: height,
+  sensorTemperatureCelsius: sensorTemperatureCelsius,
+  enabled: enabled,
+  method: method,
+  kernelDiameter: kernelDiameter,
+  saveOriginal: saveOriginal,
+);
 
 /// Look up the status of the stored defect map for a camera at the given
 /// sensor size and temperature. Returns `Ok(None)` if no map is stored
 /// for that combination.
-Future<ApiDefectMapStatus?> apiDefectMapGetStatus(
-        {required String cameraId,
-        required int width,
-        required int height,
-        required double sensorTemperatureCelsius}) =>
-    RustLib.instance.api.crateApiImagingApiDefectMapGetStatus(
-        cameraId: cameraId,
-        width: width,
-        height: height,
-        sensorTemperatureCelsius: sensorTemperatureCelsius);
+Future<ApiDefectMapStatus?> apiDefectMapGetStatus({
+  required String cameraId,
+  required int width,
+  required int height,
+  required double sensorTemperatureCelsius,
+}) => RustLib.instance.api.crateApiImagingApiDefectMapGetStatus(
+  cameraId: cameraId,
+  width: width,
+  height: height,
+  sensorTemperatureCelsius: sensorTemperatureCelsius,
+);
 
 /// Combine a set of calibration frames into a single master and write it
 /// to disk as FITS.
@@ -621,18 +714,19 @@ Future<ApiDefectMapStatus?> apiDefectMapGetStatus(
 /// - Empty input list, mismatched dimensions/channels/pixel types, or any
 ///   read failure surfaces as `NightshadeError::ImageError`/`InvalidParameter`.
 ///   No silent fallback to a partial result.
-Future<ApiMasterFrameResult> apiCombineMasterFrames(
-        {required List<String> inputPaths,
-        required String kind,
-        required ApiCombineMethod method,
-        required String outputType,
-        required String outputPath}) =>
-    RustLib.instance.api.crateApiImagingApiCombineMasterFrames(
-        inputPaths: inputPaths,
-        kind: kind,
-        method: method,
-        outputType: outputType,
-        outputPath: outputPath);
+Future<ApiMasterFrameResult> apiCombineMasterFrames({
+  required List<String> inputPaths,
+  required String kind,
+  required ApiCombineMethod method,
+  required String outputType,
+  required String outputPath,
+}) => RustLib.instance.api.crateApiImagingApiCombineMasterFrames(
+  inputPaths: inputPaths,
+  kind: kind,
+  method: method,
+  outputType: outputType,
+  outputPath: outputPath,
+);
 
 /// Combine method exposed across the FFI surface.
 ///
@@ -1035,13 +1129,7 @@ class AutofocusResultApi {
 }
 
 /// Bayer pattern type
-enum BayerPatternApi {
-  rggb,
-  bggr,
-  grbg,
-  gbrg,
-  ;
-}
+enum BayerPatternApi { rggb, bggr, grbg, gbrg }
 
 /// Captured image result containing display-ready data
 class CapturedImageResult {
@@ -1092,12 +1180,7 @@ class CapturedImageResult {
 }
 
 /// Debayer algorithm
-enum DebayerAlgorithmApi {
-  bilinear,
-  vng,
-  superPixel,
-  ;
-}
+enum DebayerAlgorithmApi { bilinear, vng, superPixel }
 
 /// FITS header for writing
 /// Detected star information
@@ -1777,15 +1860,7 @@ class FocusDataPointApi {
 }
 
 /// Frame type for file naming
-enum FrameTypeApi {
-  light,
-  dark,
-  flat,
-  bias,
-  darkFlat,
-  snapshot,
-  ;
-}
+enum FrameTypeApi { light, dark, flat, bias, darkFlat, snapshot }
 
 /// Image statistics
 class ImageStatsResult {
@@ -2035,10 +2110,7 @@ class QualityMapsResultApi {
   final QualityFrameMetricsApi frame;
   final List<QualityTileMetricApi> tiles;
 
-  const QualityMapsResultApi({
-    required this.frame,
-    required this.tiles,
-  });
+  const QualityMapsResultApi({required this.frame, required this.tiles});
 
   @override
   int get hashCode => frame.hashCode ^ tiles.hashCode;

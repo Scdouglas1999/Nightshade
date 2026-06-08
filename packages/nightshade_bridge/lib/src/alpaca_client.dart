@@ -101,8 +101,11 @@ Future<List<AlpacaServer>> discoverAlpacaServers({
               // Avoid duplicates
               if (!servers.any((s) => s.host == host && s.port == alpacaPort)) {
                 servers.add(AlpacaServer(host: host, port: alpacaPort));
-                developer.log('[Alpaca] Discovered server at $host:$alpacaPort',
-                    name: 'AlpacaClient', level: 800);
+                developer.log(
+                  '[Alpaca] Discovered server at $host:$alpacaPort',
+                  name: 'AlpacaClient',
+                  level: 800,
+                );
               }
             }
           } catch (e) {
@@ -115,7 +118,10 @@ Future<List<AlpacaServer>> discoverAlpacaServers({
     // Send discovery broadcast
     final message = utf8.encode(alpacaDiscoveryMessage);
     socket.send(
-        message, InternetAddress('255.255.255.255'), alpacaDiscoveryPort);
+      message,
+      InternetAddress('255.255.255.255'),
+      alpacaDiscoveryPort,
+    );
 
     // Also try common localhost ports for ASCOM Remote
     _tryLocalPorts(servers);
@@ -126,8 +132,12 @@ Future<List<AlpacaServer>> discoverAlpacaServers({
 
     return servers;
   } catch (e) {
-    developer.log('[Alpaca] Discovery error: $e',
-        name: 'AlpacaClient', level: 900, error: e);
+    developer.log(
+      '[Alpaca] Discovery error: $e',
+      name: 'AlpacaClient',
+      level: 900,
+      error: e,
+    );
     // Try common localhost ports as fallback
     await _tryLocalPorts(servers);
     return servers;
@@ -148,8 +158,11 @@ Future<void> _tryLocalPorts(List<AlpacaServer> servers) async {
       if (response.statusCode == 200) {
         if (!servers.any((s) => s.host == 'localhost' && s.port == port)) {
           servers.add(AlpacaServer(host: 'localhost', port: port));
-          developer.log('[Alpaca] Found server at localhost:$port',
-              name: 'AlpacaClient', level: 800);
+          developer.log(
+            '[Alpaca] Found server at localhost:$port',
+            name: 'AlpacaClient',
+            level: 800,
+          );
         }
       }
       client.close();
@@ -175,22 +188,28 @@ Future<List<AlpacaDevice>> getAlpacaDevices(AlpacaServer server) async {
       if (value != null) {
         for (final deviceJson in value) {
           final device = deviceJson as Map<String, dynamic>;
-          devices.add(AlpacaDevice(
-            deviceName: device['DeviceName'] as String? ?? 'Unknown',
-            deviceType:
-                (device['DeviceType'] as String?)?.toLowerCase() ?? 'unknown',
-            deviceNumber: device['DeviceNumber'] as int? ?? 0,
-            uniqueId: device['UniqueID'] as String? ?? '',
-            server: server,
-          ));
+          devices.add(
+            AlpacaDevice(
+              deviceName: device['DeviceName'] as String? ?? 'Unknown',
+              deviceType:
+                  (device['DeviceType'] as String?)?.toLowerCase() ?? 'unknown',
+              deviceNumber: device['DeviceNumber'] as int? ?? 0,
+              uniqueId: device['UniqueID'] as String? ?? '',
+              server: server,
+            ),
+          );
         }
       }
     }
 
     client.close();
   } catch (e) {
-    developer.log('[Alpaca] Error getting devices from ${server.baseUrl}: $e',
-        name: 'AlpacaClient', level: 900, error: e);
+    developer.log(
+      '[Alpaca] Error getting devices from ${server.baseUrl}: $e',
+      name: 'AlpacaClient',
+      level: 900,
+      error: e,
+    );
   }
 
   return devices;
@@ -250,25 +269,29 @@ class AlpacaClient {
   /// Make a GET request to the device with retry and circuit breaker
   Future<Map<String, dynamic>> get(String property) async {
     return _executeWithResilience(() async {
-      final uri =
-          Uri.parse('${device.apiBaseUrl}/$property').replace(queryParameters: {
-        'ClientID': _clientId.toString(),
-        'ClientTransactionID': (++_transactionId).toString(),
-      });
+      final uri = Uri.parse('${device.apiBaseUrl}/$property').replace(
+        queryParameters: {
+          'ClientID': _clientId.toString(),
+          'ClientTransactionID': (++_transactionId).toString(),
+        },
+      );
 
-      final response =
-          await _httpClient.get(uri).timeout(const Duration(seconds: 10));
+      final response = await _httpClient
+          .get(uri)
+          .timeout(const Duration(seconds: 10));
 
       if (response.statusCode != 200) {
         throw AlpacaException(
-            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
+          'HTTP ${response.statusCode}: ${response.reasonPhrase}',
+        );
       }
 
       final json = jsonDecode(response.body) as Map<String, dynamic>;
 
       if (json['ErrorNumber'] != 0) {
         throw AlpacaException(
-            'Alpaca error ${json['ErrorNumber']}: ${json['ErrorMessage']}');
+          'Alpaca error ${json['ErrorNumber']}: ${json['ErrorMessage']}',
+        );
       }
 
       return json;
@@ -276,8 +299,10 @@ class AlpacaClient {
   }
 
   /// Make a PUT request to the device with retry and circuit breaker
-  Future<Map<String, dynamic>> put(String method,
-      [Map<String, String>? params]) async {
+  Future<Map<String, dynamic>> put(
+    String method, [
+    Map<String, String>? params,
+  ]) async {
     return _executeWithResilience(() async {
       final uri = Uri.parse('${device.apiBaseUrl}/$method');
 
@@ -293,14 +318,16 @@ class AlpacaClient {
 
       if (response.statusCode != 200) {
         throw AlpacaException(
-            'HTTP ${response.statusCode}: ${response.reasonPhrase}');
+          'HTTP ${response.statusCode}: ${response.reasonPhrase}',
+        );
       }
 
       final json = jsonDecode(response.body) as Map<String, dynamic>;
 
       if (json['ErrorNumber'] != 0) {
         throw AlpacaException(
-            'Alpaca error ${json['ErrorNumber']}: ${json['ErrorMessage']}');
+          'Alpaca error ${json['ErrorNumber']}: ${json['ErrorMessage']}',
+        );
       }
 
       return json;

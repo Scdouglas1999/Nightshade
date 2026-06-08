@@ -20,20 +20,22 @@ String? apiGetPlateSolverPath() =>
 
 /// Plate solve an image file (blind solve)
 Future<PlateSolveResult> apiPlateSolveBlind({required String filePath}) =>
-    RustLib.instance.api
-        .crateApiPlateSolveApiPlateSolveBlind(filePath: filePath);
+    RustLib.instance.api.crateApiPlateSolveApiPlateSolveBlind(
+      filePath: filePath,
+    );
 
 /// Plate solve an image with hint coordinates
-Future<PlateSolveResult> apiPlateSolveNear(
-        {required String filePath,
-        required double hintRa,
-        required double hintDec,
-        required double searchRadius}) =>
-    RustLib.instance.api.crateApiPlateSolveApiPlateSolveNear(
-        filePath: filePath,
-        hintRa: hintRa,
-        hintDec: hintDec,
-        searchRadius: searchRadius);
+Future<PlateSolveResult> apiPlateSolveNear({
+  required String filePath,
+  required double hintRa,
+  required double hintDec,
+  required double searchRadius,
+}) => RustLib.instance.api.crateApiPlateSolveApiPlateSolveNear(
+  filePath: filePath,
+  hintRa: hintRa,
+  hintDec: hintDec,
+  searchRadius: searchRadius,
+);
 
 /// Detect installed plate solvers and catalogs. Honours the user-configured
 /// override paths from the persisted plate-solver preference, if any. Does
@@ -45,9 +47,10 @@ PlateSolverDetection apiPlatesolveDetect() =>
 /// Returns a `PlateSolverInfo` with the detected flavour and version banner,
 /// or a `NightshadeError` if the binary is missing / fails to spawn / exits
 /// with non-zero status and empty output.
-PlateSolverInfo apiPlatesolveVerify({required String executablePath}) =>
-    RustLib.instance.api
-        .crateApiPlateSolveApiPlatesolveVerify(executablePath: executablePath);
+PlateSolverInfo apiPlatesolveVerify({required String executablePath}) => RustLib
+    .instance
+    .api
+    .crateApiPlateSolveApiPlatesolveVerify(executablePath: executablePath);
 
 /// Read the persisted plate-solver configuration. Falls back to defaults if
 /// the storage was never written.
@@ -61,8 +64,9 @@ PlateSolverConfigPayload apiPlatesolveGetConfig() =>
 /// cache so the next `api_is_plate_solver_available()` call re-probes the
 /// filesystem with the new paths.
 void apiPlatesolveSetConfig({required PlateSolverConfigPayload config}) =>
-    RustLib.instance.api
-        .crateApiPlateSolveApiPlatesolveSetConfig(config: config);
+    RustLib.instance.api.crateApiPlateSolveApiPlatesolveSetConfig(
+      config: config,
+    );
 
 /// Plate solve result
 class PlateSolveResult {

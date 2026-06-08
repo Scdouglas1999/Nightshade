@@ -10,9 +10,10 @@ import '../storage.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 /// Initialize profile storage
-void apiInitProfileStorage({required String storagePath}) =>
-    RustLib.instance.api
-        .crateApiStorageApiInitProfileStorage(storagePath: storagePath);
+void apiInitProfileStorage({required String storagePath}) => RustLib
+    .instance
+    .api
+    .crateApiStorageApiInitProfileStorage(storagePath: storagePath);
 
 /// Get all equipment profiles
 List<EquipmentProfile> apiGetProfiles() =>
@@ -35,9 +36,10 @@ Future<EquipmentProfile?> apiGetActiveProfile() =>
     RustLib.instance.api.crateApiStorageApiGetActiveProfile();
 
 /// Initialize settings storage and load observer location into memory
-void apiInitSettingsStorage({required String storagePath}) =>
-    RustLib.instance.api
-        .crateApiStorageApiInitSettingsStorage(storagePath: storagePath);
+void apiInitSettingsStorage({required String storagePath}) => RustLib
+    .instance
+    .api
+    .crateApiStorageApiInitSettingsStorage(storagePath: storagePath);
 
 /// Get application settings
 AppSettings apiGetSettings() =>

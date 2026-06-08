@@ -22,32 +22,34 @@ Future<void> apiPhd2Disconnect() =>
     RustLib.instance.api.crateApiPhd2ApiPhd2Disconnect();
 
 /// Start guiding in PHD2
-Future<void> apiPhd2StartGuiding(
-        {required double settlePixels,
-        required double settleTime,
-        required double settleTimeout}) =>
-    RustLib.instance.api.crateApiPhd2ApiPhd2StartGuiding(
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout);
+Future<void> apiPhd2StartGuiding({
+  required double settlePixels,
+  required double settleTime,
+  required double settleTimeout,
+}) => RustLib.instance.api.crateApiPhd2ApiPhd2StartGuiding(
+  settlePixels: settlePixels,
+  settleTime: settleTime,
+  settleTimeout: settleTimeout,
+);
 
 /// Stop guiding in PHD2
 Future<void> apiPhd2StopGuiding() =>
     RustLib.instance.api.crateApiPhd2ApiPhd2StopGuiding();
 
 /// Dither in PHD2
-Future<void> apiPhd2Dither(
-        {required double amount,
-        required int raOnly,
-        required double settlePixels,
-        required double settleTime,
-        required double settleTimeout}) =>
-    RustLib.instance.api.crateApiPhd2ApiPhd2Dither(
-        amount: amount,
-        raOnly: raOnly,
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout);
+Future<void> apiPhd2Dither({
+  required double amount,
+  required int raOnly,
+  required double settlePixels,
+  required double settleTime,
+  required double settleTimeout,
+}) => RustLib.instance.api.crateApiPhd2ApiPhd2Dither(
+  amount: amount,
+  raOnly: raOnly,
+  settlePixels: settlePixels,
+  settleTime: settleTime,
+  settleTimeout: settleTimeout,
+);
 
 /// Get PHD2 status
 Future<Phd2Status> apiPhd2GetStatus() =>
@@ -62,16 +64,24 @@ Future<List<String>> apiPhd2GetAlgoParamNames({required String axis}) =>
     RustLib.instance.api.crateApiPhd2ApiPhd2GetAlgoParamNames(axis: axis);
 
 /// Get PHD2 algorithm parameter value
-Future<double> apiPhd2GetAlgoParam(
-        {required String axis, required String name}) =>
-    RustLib.instance.api
-        .crateApiPhd2ApiPhd2GetAlgoParam(axis: axis, name: name);
+Future<double> apiPhd2GetAlgoParam({
+  required String axis,
+  required String name,
+}) => RustLib.instance.api.crateApiPhd2ApiPhd2GetAlgoParam(
+  axis: axis,
+  name: name,
+);
 
 /// Set PHD2 algorithm parameter value
-Future<void> apiPhd2SetAlgoParam(
-        {required String axis, required String name, required double value}) =>
-    RustLib.instance.api
-        .crateApiPhd2ApiPhd2SetAlgoParam(axis: axis, name: name, value: value);
+Future<void> apiPhd2SetAlgoParam({
+  required String axis,
+  required String name,
+  required double value,
+}) => RustLib.instance.api.crateApiPhd2ApiPhd2SetAlgoParam(
+  axis: axis,
+  name: name,
+  value: value,
+);
 
 /// Get all PHD2 algorithm parameters for an axis
 Future<List<Phd2AlgoParam>> apiPhd2GetAllAlgoParams({required String axis}) =>
@@ -99,10 +109,15 @@ Future<(double, double)> apiPhd2FindStar() =>
     RustLib.instance.api.crateApiPhd2ApiPhd2FindStar();
 
 /// Set guide star lock position
-Future<void> apiPhd2SetLockPosition(
-        {required double x, required double y, required bool exact}) =>
-    RustLib.instance.api
-        .crateApiPhd2ApiPhd2SetLockPosition(x: x, y: y, exact: exact);
+Future<void> apiPhd2SetLockPosition({
+  required double x,
+  required double y,
+  required bool exact,
+}) => RustLib.instance.api.crateApiPhd2ApiPhd2SetLockPosition(
+  x: x,
+  y: y,
+  exact: exact,
+);
 
 /// Get current guide star lock position
 Future<(double, double)> apiPhd2GetLockPosition() =>
@@ -131,34 +146,36 @@ Future<String> apiPhd2GetProfile() =>
 Future<void> apiLaunchPhd2() =>
     RustLib.instance.api.crateApiPhd2ApiLaunchPhd2();
 
-Future<void> apiGuiderStartGuiding(
-        {required String deviceId,
-        required double settlePixels,
-        required double settleTime,
-        required double settleTimeout}) =>
-    RustLib.instance.api.crateApiPhd2ApiGuiderStartGuiding(
-        deviceId: deviceId,
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout);
+Future<void> apiGuiderStartGuiding({
+  required String deviceId,
+  required double settlePixels,
+  required double settleTime,
+  required double settleTimeout,
+}) => RustLib.instance.api.crateApiPhd2ApiGuiderStartGuiding(
+  deviceId: deviceId,
+  settlePixels: settlePixels,
+  settleTime: settleTime,
+  settleTimeout: settleTimeout,
+);
 
 Future<void> apiGuiderStop({required String deviceId}) =>
     RustLib.instance.api.crateApiPhd2ApiGuiderStop(deviceId: deviceId);
 
-Future<void> apiGuiderDither(
-        {required String deviceId,
-        required double amount,
-        required int raOnly,
-        required double settlePixels,
-        required double settleTime,
-        required double settleTimeout}) =>
-    RustLib.instance.api.crateApiPhd2ApiGuiderDither(
-        deviceId: deviceId,
-        amount: amount,
-        raOnly: raOnly,
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout);
+Future<void> apiGuiderDither({
+  required String deviceId,
+  required double amount,
+  required int raOnly,
+  required double settlePixels,
+  required double settleTime,
+  required double settleTimeout,
+}) => RustLib.instance.api.crateApiPhd2ApiGuiderDither(
+  deviceId: deviceId,
+  amount: amount,
+  raOnly: raOnly,
+  settlePixels: settlePixels,
+  settleTime: settleTime,
+  settleTimeout: settleTimeout,
+);
 
 Future<void> apiGuiderLoop({required String deviceId}) =>
     RustLib.instance.api.crateApiPhd2ApiGuiderLoop(deviceId: deviceId);
@@ -166,35 +183,44 @@ Future<void> apiGuiderLoop({required String deviceId}) =>
 Future<(double, double)> apiGuiderFindStar({required String deviceId}) =>
     RustLib.instance.api.crateApiPhd2ApiGuiderFindStar(deviceId: deviceId);
 
-Future<void> apiGuiderSetLockPosition(
-        {required String deviceId,
-        required double x,
-        required double y,
-        required bool exact}) =>
-    RustLib.instance.api.crateApiPhd2ApiGuiderSetLockPosition(
-        deviceId: deviceId, x: x, y: y, exact: exact);
+Future<void> apiGuiderSetLockPosition({
+  required String deviceId,
+  required double x,
+  required double y,
+  required bool exact,
+}) => RustLib.instance.api.crateApiPhd2ApiGuiderSetLockPosition(
+  deviceId: deviceId,
+  x: x,
+  y: y,
+  exact: exact,
+);
 
 Future<(double, double)> apiGuiderGetLockPosition({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiPhd2ApiGuiderGetLockPosition(deviceId: deviceId);
+    RustLib.instance.api.crateApiPhd2ApiGuiderGetLockPosition(
+      deviceId: deviceId,
+    );
 
 Future<void> apiGuiderDeselectStar({required String deviceId}) =>
     RustLib.instance.api.crateApiPhd2ApiGuiderDeselectStar(deviceId: deviceId);
 
-Future<Phd2StarImage> apiGuiderGetStarImage(
-        {required String deviceId, required int size}) =>
-    RustLib.instance.api
-        .crateApiPhd2ApiGuiderGetStarImage(deviceId: deviceId, size: size);
+Future<Phd2StarImage> apiGuiderGetStarImage({
+  required String deviceId,
+  required int size,
+}) => RustLib.instance.api.crateApiPhd2ApiGuiderGetStarImage(
+  deviceId: deviceId,
+  size: size,
+);
 
 Future<Phd2Status> apiGuiderGetStatus({required String deviceId}) =>
     RustLib.instance.api.crateApiPhd2ApiGuiderGetStatus(deviceId: deviceId);
 
 /// Unified accessor for calibration data across all guider backends.
 /// Used by the sequencer to validate calibration quality post-StartGuiding (P3-7).
-Future<Phd2CalibrationData> apiGuiderGetCalibration(
-        {required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiPhd2ApiGuiderGetCalibration(deviceId: deviceId);
+Future<Phd2CalibrationData> apiGuiderGetCalibration({
+  required String deviceId,
+}) => RustLib.instance.api.crateApiPhd2ApiGuiderGetCalibration(
+  deviceId: deviceId,
+);
 
 /// Get the current built-in guider configuration.
 /// Returns a flat struct with all configurable parameters.
@@ -203,24 +229,25 @@ Future<BuiltinGuiderConfig> apiBuiltinGuiderGetConfig() =>
 
 /// Set the built-in guider configuration.
 /// Can be called while guiding is active; changes apply to subsequent frames.
-Future<void> apiBuiltinGuiderSetConfig(
-        {required double exposureSecs,
-        required int gain,
-        required int offset,
-        required int binning,
-        required int calibrationMs,
-        required BigInt settleSleepMs,
-        required double minPulseMs,
-        required double maxPulseMs}) =>
-    RustLib.instance.api.crateApiPhd2ApiBuiltinGuiderSetConfig(
-        exposureSecs: exposureSecs,
-        gain: gain,
-        offset: offset,
-        binning: binning,
-        calibrationMs: calibrationMs,
-        settleSleepMs: settleSleepMs,
-        minPulseMs: minPulseMs,
-        maxPulseMs: maxPulseMs);
+Future<void> apiBuiltinGuiderSetConfig({
+  required double exposureSecs,
+  required int gain,
+  required int offset,
+  required int binning,
+  required int calibrationMs,
+  required BigInt settleSleepMs,
+  required double minPulseMs,
+  required double maxPulseMs,
+}) => RustLib.instance.api.crateApiPhd2ApiBuiltinGuiderSetConfig(
+  exposureSecs: exposureSecs,
+  gain: gain,
+  offset: offset,
+  binning: binning,
+  calibrationMs: calibrationMs,
+  settleSleepMs: settleSleepMs,
+  minPulseMs: minPulseMs,
+  maxPulseMs: maxPulseMs,
+);
 
 /// FRB-friendly struct for the built-in guider configuration.
 class BuiltinGuiderConfig {
@@ -278,10 +305,7 @@ class Phd2AlgoParam {
   /// Parameter value
   final double value;
 
-  const Phd2AlgoParam({
-    required this.name,
-    required this.value,
-  });
+  const Phd2AlgoParam({required this.name, required this.value});
 
   @override
   int get hashCode => name.hashCode ^ value.hashCode;

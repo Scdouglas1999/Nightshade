@@ -29,9 +29,7 @@ extension _NativeBridgeStorageAndImageOperations
   }
 
   /// Get rotator status
-  Future<RotatorStatus> apiGetRotatorStatus({
-    required String deviceId,
-  }) async {
+  Future<RotatorStatus> apiGetRotatorStatus({required String deviceId}) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('apiGetRotatorStatus');
     }
@@ -39,9 +37,7 @@ extension _NativeBridgeStorageAndImageOperations
   }
 
   /// Halt rotator movement
-  Future<void> apiRotatorHalt({
-    required String deviceId,
-  }) async {
+  Future<void> apiRotatorHalt({required String deviceId}) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('apiRotatorHalt');
     }
@@ -74,9 +70,7 @@ extension _NativeBridgeStorageAndImageOperations
   }
 
   /// Save a profile
-  Future<void> apiSaveProfile({
-    required EquipmentProfile profile,
-  }) async {
+  Future<void> apiSaveProfile({required EquipmentProfile profile}) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('apiSaveProfile');
     }
@@ -84,9 +78,7 @@ extension _NativeBridgeStorageAndImageOperations
   }
 
   /// Delete a profile
-  Future<void> apiDeleteProfile({
-    required String profileId,
-  }) async {
+  Future<void> apiDeleteProfile({required String profileId}) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('apiDeleteProfile');
     }
@@ -94,9 +86,7 @@ extension _NativeBridgeStorageAndImageOperations
   }
 
   /// Load a profile
-  Future<void> apiLoadProfile({
-    required String profileId,
-  }) async {
+  Future<void> apiLoadProfile({required String profileId}) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('apiLoadProfile');
     }
@@ -140,9 +130,7 @@ extension _NativeBridgeStorageAndImageOperations
   }
 
   /// Update application settings
-  Future<void> apiUpdateSettings({
-    required AppSettings settings,
-  }) async {
+  Future<void> apiUpdateSettings({required AppSettings settings}) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('apiUpdateSettings');
     }
@@ -162,9 +150,7 @@ extension _NativeBridgeStorageAndImageOperations
   }
 
   /// Set observer location
-  Future<void> apiSetLocation({
-    ObserverLocation? location,
-  }) async {
+  Future<void> apiSetLocation({ObserverLocation? location}) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('apiSetLocation');
     }
@@ -184,8 +170,11 @@ extension _NativeBridgeStorageAndImageOperations
     if (!_nativeAvailable) {
       _nativeBridgeRequired('apiGetImageStats');
     }
-    final native =
-        gen_api.apiGetImageStats(width: width, height: height, data: data);
+    final native = gen_api.apiGetImageStats(
+      width: width,
+      height: height,
+      data: data,
+    );
     return ImageStats(
       min: native.min,
       max: native.max,
@@ -206,7 +195,10 @@ extension _NativeBridgeStorageAndImageOperations
       _nativeBridgeRequired('apiAutoStretchImage');
     }
     return gen_api.apiAutoStretchImage(
-        width: width, height: height, data: data);
+      width: width,
+      height: height,
+      data: data,
+    );
   }
 
   /// Debayer image

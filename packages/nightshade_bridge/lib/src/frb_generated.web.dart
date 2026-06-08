@@ -44,31 +44,36 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   });
 
   CrossPlatformFinalizerArg
-      get rust_arc_decrement_strong_count_ArcAlpacaClientPtr => wire
-          .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient;
+  get rust_arc_decrement_strong_count_ArcAlpacaClientPtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient;
 
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_RangeSelfPtr =>
-      wire.rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf;
-
-  @protected
-  ArcAlpacaClient
-      dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          dynamic raw);
-
-  @protected
-  RangeSelf
-      dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
-          dynamic raw);
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_RangeSelfPtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf;
 
   @protected
   ArcAlpacaClient
-      dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          dynamic raw);
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    dynamic raw,
+  );
 
   @protected
   RangeSelf
-      dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
-          dynamic raw);
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
+    dynamic raw,
+  );
+
+  @protected
+  ArcAlpacaClient
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    dynamic raw,
+  );
+
+  @protected
+  RangeSelf
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
+    dynamic raw,
+  );
 
   @protected
   String dco_decode_String(dynamic raw);
@@ -93,8 +98,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ArcAlpacaClient
-      dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          dynamic raw);
+  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    dynamic raw,
+  );
 
   @protected
   AppSettings dco_decode_box_autoadd_app_settings(dynamic raw);
@@ -125,11 +131,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SequenceDefinitionApi dco_decode_box_autoadd_sequence_definition_api(
-      dynamic raw);
+    dynamic raw,
+  );
 
   @protected
   StarDetectionConfigApi dco_decode_box_autoadd_star_detection_config_api(
-      dynamic raw);
+    dynamic raw,
+  );
 
   @protected
   StretchParamsApi dco_decode_box_autoadd_stretch_params_api(dynamic raw);
@@ -247,12 +255,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ArcAlpacaClient?
-      dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          dynamic raw);
+  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    dynamic raw,
+  );
 
   @protected
   CapturedImageResult? dco_decode_opt_box_autoadd_captured_image_result(
-      dynamic raw);
+    dynamic raw,
+  );
 
   @protected
   EquipmentProfile? dco_decode_opt_box_autoadd_equipment_profile(dynamic raw);
@@ -271,7 +281,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StarDetectionConfigApi? dco_decode_opt_box_autoadd_star_detection_config_api(
-      dynamic raw);
+    dynamic raw,
+  );
 
   @protected
   int? dco_decode_opt_box_autoadd_u_16(dynamic raw);
@@ -365,23 +376,27 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ArcAlpacaClient
-      sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          SseDeserializer deserializer);
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    SseDeserializer deserializer,
+  );
 
   @protected
   RangeSelf
-      sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
-          SseDeserializer deserializer);
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
+    SseDeserializer deserializer,
+  );
 
   @protected
   ArcAlpacaClient
-      sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          SseDeserializer deserializer);
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    SseDeserializer deserializer,
+  );
 
   @protected
   RangeSelf
-      sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
-          SseDeserializer deserializer);
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
+    SseDeserializer deserializer,
+  );
 
   @protected
   String sse_decode_String(SseDeserializer deserializer);
@@ -391,7 +406,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   AutofocusConfigApi sse_decode_autofocus_config_api(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   BayerPatternApi sse_decode_bayer_pattern_api(SseDeserializer deserializer);
@@ -401,30 +417,35 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ArcAlpacaClient
-      sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          SseDeserializer deserializer);
+  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    SseDeserializer deserializer,
+  );
 
   @protected
   AppSettings sse_decode_box_autoadd_app_settings(SseDeserializer deserializer);
 
   @protected
   AutofocusConfigApi sse_decode_box_autoadd_autofocus_config_api(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   CapturedImageResult sse_decode_box_autoadd_captured_image_result(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   EquipmentProfile sse_decode_box_autoadd_equipment_profile(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
 
   @protected
   FitsWriteHeader sse_decode_box_autoadd_fits_write_header(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   int sse_decode_box_autoadd_i_32(SseDeserializer deserializer);
@@ -434,19 +455,23 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ObserverLocation sse_decode_box_autoadd_observer_location(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   SequenceDefinitionApi sse_decode_box_autoadd_sequence_definition_api(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   StarDetectionConfigApi sse_decode_box_autoadd_star_detection_config_api(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   StretchParamsApi sse_decode_box_autoadd_stretch_params_api(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   int sse_decode_box_autoadd_u_16(SseDeserializer deserializer);
@@ -462,11 +487,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CapturedImageResult sse_decode_captured_image_result(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   DebayerAlgorithmApi sse_decode_debayer_algorithm_api(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   DetectedStarInfo sse_decode_detected_star_info(SseDeserializer deserializer);
@@ -491,7 +518,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FilterWheelStatus sse_decode_filter_wheel_status(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   FitsReadResult sse_decode_fits_read_result(SseDeserializer deserializer);
@@ -519,18 +547,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<DetectedStarInfo> sse_decode_list_detected_star_info(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<DeviceInfo> sse_decode_list_device_info(SseDeserializer deserializer);
 
   @protected
   List<EquipmentProfile> sse_decode_list_equipment_profile(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<NodeDefinitionApi> sse_decode_list_node_definition_api(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   Float32List sse_decode_list_prim_f_32_strict(SseDeserializer deserializer);
@@ -549,7 +580,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<(String, String)> sse_decode_list_record_string_string(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   MountStatus sse_decode_mount_status(SseDeserializer deserializer);
@@ -559,7 +591,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   NodeDefinitionApi sse_decode_node_definition_api(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   ObserverLocation sse_decode_observer_location(SseDeserializer deserializer);
@@ -569,16 +602,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ArcAlpacaClient?
-      sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          SseDeserializer deserializer);
+  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    SseDeserializer deserializer,
+  );
 
   @protected
   CapturedImageResult? sse_decode_opt_box_autoadd_captured_image_result(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   EquipmentProfile? sse_decode_opt_box_autoadd_equipment_profile(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
@@ -591,11 +627,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ObserverLocation? sse_decode_opt_box_autoadd_observer_location(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   StarDetectionConfigApi? sse_decode_opt_box_autoadd_star_detection_config_api(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   int? sse_decode_opt_box_autoadd_u_16(SseDeserializer deserializer);
@@ -620,11 +658,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   (int, List<String>) sse_decode_record_i_32_list_string(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   (String, String) sse_decode_record_string_string(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   Rng sse_decode_rng(SseDeserializer deserializer);
@@ -634,7 +674,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SequenceDefinitionApi sse_decode_sequence_definition_api(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   SequencerState sse_decode_sequencer_state(SseDeserializer deserializer);
@@ -647,7 +688,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SimulatedFilterWheel sse_decode_simulated_filter_wheel(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   SimulatedFocuser sse_decode_simulated_focuser(SseDeserializer deserializer);
@@ -660,11 +702,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   StarDetectionConfigApi sse_decode_star_detection_config_api(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   StarDetectionResultApi sse_decode_star_detection_result_api(
-      SseDeserializer deserializer);
+    SseDeserializer deserializer,
+  );
 
   @protected
   StretchParamsApi sse_decode_stretch_params_api(SseDeserializer deserializer);
@@ -706,7 +750,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_opt_box_autoadd_observer_location(raw.location),
       cst_encode_String(raw.theme),
       cst_encode_String(raw.language),
-      cst_encode_bool(raw.autoConnect)
+      cst_encode_bool(raw.autoConnect),
     ].jsify()!;
   }
 
@@ -718,16 +762,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_i_32(raw.stepSize),
       cst_encode_i_32(raw.stepsOut),
       cst_encode_String(raw.method),
-      cst_encode_i_32(raw.binning)
+      cst_encode_i_32(raw.binning),
     ].jsify()!;
   }
 
   @protected
-  int cst_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-      ArcAlpacaClient raw) {
+  int
+  cst_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    ArcAlpacaClient raw,
+  ) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return cst_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-        raw);
+      raw,
+    );
   }
 
   @protected
@@ -786,14 +833,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   JSAny cst_encode_box_autoadd_sequence_definition_api(
-      SequenceDefinitionApi raw) {
+    SequenceDefinitionApi raw,
+  ) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return cst_encode_sequence_definition_api(raw);
   }
 
   @protected
   JSAny cst_encode_box_autoadd_star_detection_config_api(
-      StarDetectionConfigApi raw) {
+    StarDetectionConfigApi raw,
+  ) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return cst_encode_star_detection_config_api(raw);
   }
@@ -837,7 +886,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_u_32(raw.maxAdu),
       cst_encode_bool(raw.canCool),
       cst_encode_bool(raw.canSetGain),
-      cst_encode_bool(raw.canSetOffset)
+      cst_encode_bool(raw.canSetOffset),
     ].jsify()!;
   }
 
@@ -852,7 +901,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_image_stats_result(raw.stats),
       cst_encode_f_64(raw.exposureTime),
       cst_encode_String(raw.timestamp),
-      cst_encode_bool(raw.isColor)
+      cst_encode_bool(raw.isColor),
     ].jsify()!;
   }
 
@@ -867,7 +916,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_f_64(raw.fwhm),
       cst_encode_f_64(raw.peak),
       cst_encode_f_64(raw.background),
-      cst_encode_f_64(raw.snr)
+      cst_encode_f_64(raw.snr),
     ].jsify()!;
   }
 
@@ -883,7 +932,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_String(raw.driverVersion),
       cst_encode_opt_String(raw.serialNumber),
       cst_encode_opt_String(raw.uniqueId),
-      cst_encode_String(raw.displayName)
+      cst_encode_String(raw.displayName),
     ].jsify()!;
   }
 
@@ -902,7 +951,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_opt_String(raw.domeId),
       cst_encode_opt_String(raw.weatherId),
       cst_encode_f_64(raw.telescopeFocalLength),
-      cst_encode_f_64(raw.telescopeAperture)
+      cst_encode_f_64(raw.telescopeAperture),
     ].jsify()!;
   }
 
@@ -914,7 +963,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_i_32(raw.position),
       cst_encode_bool(raw.moving),
       cst_encode_i_32(raw.filterCount),
-      cst_encode_list_String(raw.filterNames)
+      cst_encode_list_String(raw.filterNames),
     ].jsify()!;
   }
 
@@ -933,7 +982,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_opt_String(raw.filter),
       cst_encode_opt_box_autoadd_f_64(raw.ra),
       cst_encode_opt_box_autoadd_f_64(raw.dec),
-      cst_encode_opt_String(raw.dateObs)
+      cst_encode_opt_String(raw.dateObs),
     ].jsify()!;
   }
 
@@ -953,7 +1002,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_opt_String(raw.instrument),
       cst_encode_opt_String(raw.observer),
       cst_encode_i_32(raw.binX),
-      cst_encode_i_32(raw.binY)
+      cst_encode_i_32(raw.binY),
     ].jsify()!;
   }
 
@@ -968,7 +1017,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_i_32(raw.maxPosition),
       cst_encode_f_64(raw.stepSize),
       cst_encode_bool(raw.isAbsolute),
-      cst_encode_bool(raw.hasTemperature)
+      cst_encode_bool(raw.hasTemperature),
     ].jsify()!;
   }
 
@@ -988,7 +1037,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_f_64(raw.median),
       cst_encode_f_64(raw.stdDev),
       cst_encode_opt_box_autoadd_f_64(raw.hfr),
-      cst_encode_u_32(raw.starCount)
+      cst_encode_u_32(raw.starCount),
     ].jsify()!;
   }
 
@@ -1077,7 +1126,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_bool(raw.canPark),
       cst_encode_bool(raw.canSlew),
       cst_encode_bool(raw.canSync),
-      cst_encode_bool(raw.canPulseGuide)
+      cst_encode_bool(raw.canPulseGuide),
     ].jsify()!;
   }
 
@@ -1151,7 +1200,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_String(raw.nodeType),
       cst_encode_bool(raw.enabled),
       cst_encode_list_String(raw.children),
-      cst_encode_String(raw.configJson)
+      cst_encode_String(raw.configJson),
     ].jsify()!;
   }
 
@@ -1161,7 +1210,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     return [
       cst_encode_f_64(raw.latitude),
       cst_encode_f_64(raw.longitude),
-      cst_encode_f_64(raw.elevation)
+      cst_encode_f_64(raw.elevation),
     ].jsify()!;
   }
 
@@ -1173,18 +1222,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int?
-      cst_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          ArcAlpacaClient? raw) {
+  cst_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    ArcAlpacaClient? raw,
+  ) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return raw == null
         ? null
         : cst_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-            raw);
+            raw,
+          );
   }
 
   @protected
   JSAny? cst_encode_opt_box_autoadd_captured_image_result(
-      CapturedImageResult? raw) {
+    CapturedImageResult? raw,
+  ) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return raw == null
         ? null
@@ -1223,7 +1275,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   JSAny? cst_encode_opt_box_autoadd_star_detection_config_api(
-      StarDetectionConfigApi? raw) {
+    StarDetectionConfigApi? raw,
+  ) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return raw == null
         ? null
@@ -1253,7 +1306,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_f_64(raw.rmsTotal),
       cst_encode_f_64(raw.snr),
       cst_encode_f_64(raw.starMass),
-      cst_encode_f_64(raw.pixelScale)
+      cst_encode_f_64(raw.pixelScale),
     ].jsify()!;
   }
 
@@ -1269,7 +1322,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_f_64(raw.fieldWidth),
       cst_encode_f_64(raw.fieldHeight),
       cst_encode_f_64(raw.solveTimeSecs),
-      cst_encode_opt_String(raw.error)
+      cst_encode_opt_String(raw.error),
     ].jsify()!;
   }
 
@@ -1312,7 +1365,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_bool(raw.moving),
       cst_encode_f_64(raw.mechanicalPosition),
       cst_encode_bool(raw.isMoving),
-      cst_encode_bool(raw.canReverse)
+      cst_encode_bool(raw.canReverse),
     ].jsify()!;
   }
 
@@ -1324,7 +1377,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_String(raw.name),
       cst_encode_opt_String(raw.description),
       cst_encode_list_node_definition_api(raw.nodes),
-      cst_encode_opt_String(raw.rootNodeId)
+      cst_encode_opt_String(raw.rootNodeId),
     ].jsify()!;
   }
 
@@ -1342,7 +1395,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_opt_box_autoadd_f_64(raw.estimatedRemainingSecs),
       cst_encode_opt_String(raw.currentTarget),
       cst_encode_opt_String(raw.currentFilter),
-      cst_encode_opt_String(raw.message)
+      cst_encode_opt_String(raw.message),
     ].jsify()!;
   }
 
@@ -1361,7 +1414,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_opt_String(raw.currentFilter),
       cst_encode_bool(raw.isGuiding),
       cst_encode_bool(raw.isCapturing),
-      cst_encode_bool(raw.isDithering)
+      cst_encode_bool(raw.isDithering),
     ].jsify()!;
   }
 
@@ -1404,7 +1457,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_u_32(raw.maxArea),
       cst_encode_f_64(raw.maxEccentricity),
       cst_encode_u_32(raw.saturationLimit),
-      cst_encode_u_32(raw.hfrRadius)
+      cst_encode_u_32(raw.hfrRadius),
     ].jsify()!;
   }
 
@@ -1418,7 +1471,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_f_64(raw.medianFwhm),
       cst_encode_f_64(raw.medianSnr),
       cst_encode_f_64(raw.background),
-      cst_encode_f_64(raw.noise)
+      cst_encode_f_64(raw.noise),
     ].jsify()!;
   }
 
@@ -1428,7 +1481,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     return [
       cst_encode_f_64(raw.shadows),
       cst_encode_f_64(raw.highlights),
-      cst_encode_f_64(raw.midtones)
+      cst_encode_f_64(raw.midtones),
     ].jsify()!;
   }
 
@@ -1454,25 +1507,33 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       cst_encode_list_prim_u_8_strict(raw.displayData),
       cst_encode_list_prim_u_32_strict(raw.histogram),
       cst_encode_image_stats_result(raw.stats),
-      cst_encode_list_record_string_string(raw.properties)
+      cst_encode_list_record_string_string(raw.properties),
     ].jsify()!;
   }
 
   @protected
-  int cst_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-      ArcAlpacaClient raw);
+  int
+  cst_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    ArcAlpacaClient raw,
+  );
 
   @protected
-  int cst_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
-      RangeSelf raw);
+  int
+  cst_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
+    RangeSelf raw,
+  );
 
   @protected
-  int cst_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-      ArcAlpacaClient raw);
+  int
+  cst_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    ArcAlpacaClient raw,
+  );
 
   @protected
-  int cst_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
-      RangeSelf raw);
+  int
+  cst_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
+    RangeSelf raw,
+  );
 
   @protected
   int cst_encode_bayer_pattern_api(BayerPatternApi raw);
@@ -1524,23 +1585,31 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-      sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          ArcAlpacaClient self, SseSerializer serializer);
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    ArcAlpacaClient self,
+    SseSerializer serializer,
+  );
 
   @protected
   void
-      sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
-          RangeSelf self, SseSerializer serializer);
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
+    RangeSelf self,
+    SseSerializer serializer,
+  );
 
   @protected
   void
-      sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          ArcAlpacaClient self, SseSerializer serializer);
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    ArcAlpacaClient self,
+    SseSerializer serializer,
+  );
 
   @protected
   void
-      sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
-          RangeSelf self, SseSerializer serializer);
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
+    RangeSelf self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_String(String self, SseSerializer serializer);
@@ -1550,65 +1619,91 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_autofocus_config_api(
-      AutofocusConfigApi self, SseSerializer serializer);
+    AutofocusConfigApi self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_bayer_pattern_api(
-      BayerPatternApi self, SseSerializer serializer);
+    BayerPatternApi self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
   void
-      sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          ArcAlpacaClient self, SseSerializer serializer);
+  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    ArcAlpacaClient self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_app_settings(
-      AppSettings self, SseSerializer serializer);
+    AppSettings self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_autofocus_config_api(
-      AutofocusConfigApi self, SseSerializer serializer);
+    AutofocusConfigApi self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_captured_image_result(
-      CapturedImageResult self, SseSerializer serializer);
+    CapturedImageResult self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_equipment_profile(
-      EquipmentProfile self, SseSerializer serializer);
+    EquipmentProfile self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_fits_write_header(
-      FitsWriteHeader self, SseSerializer serializer);
+    FitsWriteHeader self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_i_32(int self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_i_64(
-      PlatformInt64 self, SseSerializer serializer);
+    PlatformInt64 self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_observer_location(
-      ObserverLocation self, SseSerializer serializer);
+    ObserverLocation self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_sequence_definition_api(
-      SequenceDefinitionApi self, SseSerializer serializer);
+    SequenceDefinitionApi self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_star_detection_config_api(
-      StarDetectionConfigApi self, SseSerializer serializer);
+    StarDetectionConfigApi self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_stretch_params_api(
-      StretchParamsApi self, SseSerializer serializer);
+    StretchParamsApi self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_u_16(int self, SseSerializer serializer);
@@ -1624,15 +1719,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_captured_image_result(
-      CapturedImageResult self, SseSerializer serializer);
+    CapturedImageResult self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_debayer_algorithm_api(
-      DebayerAlgorithmApi self, SseSerializer serializer);
+    DebayerAlgorithmApi self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_detected_star_info(
-      DetectedStarInfo self, SseSerializer serializer);
+    DetectedStarInfo self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_device_info(DeviceInfo self, SseSerializer serializer);
@@ -1645,7 +1746,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_equipment_profile(
-      EquipmentProfile self, SseSerializer serializer);
+    EquipmentProfile self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_f_32(double self, SseSerializer serializer);
@@ -1655,15 +1758,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_filter_wheel_status(
-      FilterWheelStatus self, SseSerializer serializer);
+    FilterWheelStatus self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_fits_read_result(
-      FitsReadResult self, SseSerializer serializer);
+    FitsReadResult self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_fits_write_header(
-      FitsWriteHeader self, SseSerializer serializer);
+    FitsWriteHeader self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_focuser_status(FocuserStatus self, SseSerializer serializer);
@@ -1679,81 +1788,115 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_image_stats_result(
-      ImageStatsResult self, SseSerializer serializer);
+    ImageStatsResult self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_detected_star_info(
-      List<DetectedStarInfo> self, SseSerializer serializer);
+    List<DetectedStarInfo> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_device_info(
-      List<DeviceInfo> self, SseSerializer serializer);
+    List<DeviceInfo> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_equipment_profile(
-      List<EquipmentProfile> self, SseSerializer serializer);
+    List<EquipmentProfile> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_node_definition_api(
-      List<NodeDefinitionApi> self, SseSerializer serializer);
+    List<NodeDefinitionApi> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_prim_f_32_strict(
-      Float32List self, SseSerializer serializer);
+    Float32List self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_prim_u_16_loose(
-      List<int> self, SseSerializer serializer);
+    List<int> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_prim_u_16_strict(
-      Uint16List self, SseSerializer serializer);
+    Uint16List self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_prim_u_32_strict(
-      Uint32List self, SseSerializer serializer);
+    Uint32List self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_prim_u_8_strict(
-      Uint8List self, SseSerializer serializer);
+    Uint8List self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_record_string_string(
-      List<(String, String)> self, SseSerializer serializer);
+    List<(String, String)> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_mount_status(MountStatus self, SseSerializer serializer);
 
   @protected
   void sse_encode_nightshade_error(
-      NightshadeError self, SseSerializer serializer);
+    NightshadeError self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_node_definition_api(
-      NodeDefinitionApi self, SseSerializer serializer);
+    NodeDefinitionApi self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_observer_location(
-      ObserverLocation self, SseSerializer serializer);
+    ObserverLocation self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
   void
-      sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          ArcAlpacaClient? self, SseSerializer serializer);
+  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    ArcAlpacaClient? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_captured_image_result(
-      CapturedImageResult? self, SseSerializer serializer);
+    CapturedImageResult? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_equipment_profile(
-      EquipmentProfile? self, SseSerializer serializer);
+    EquipmentProfile? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
@@ -1763,15 +1906,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_box_autoadd_i_64(
-      PlatformInt64? self, SseSerializer serializer);
+    PlatformInt64? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_observer_location(
-      ObserverLocation? self, SseSerializer serializer);
+    ObserverLocation? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_star_detection_config_api(
-      StarDetectionConfigApi? self, SseSerializer serializer);
+    StarDetectionConfigApi? self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_opt_box_autoadd_u_16(int? self, SseSerializer serializer);
@@ -1787,23 +1936,33 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_plate_solve_result(
-      PlateSolveResult self, SseSerializer serializer);
+    PlateSolveResult self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_record_f_64_f_64(
-      (double, double) self, SseSerializer serializer);
+    (double, double) self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_record_i_32_f_64(
-      (int, double) self, SseSerializer serializer);
+    (int, double) self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_record_i_32_list_string(
-      (int, List<String>) self, SseSerializer serializer);
+    (int, List<String>) self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_record_string_string(
-      (String, String) self, SseSerializer serializer);
+    (String, String) self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_rng(Rng self, SseSerializer serializer);
@@ -1813,46 +1972,66 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_sequence_definition_api(
-      SequenceDefinitionApi self, SseSerializer serializer);
+    SequenceDefinitionApi self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_sequencer_state(
-      SequencerState self, SseSerializer serializer);
+    SequencerState self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_session_state(SessionState self, SseSerializer serializer);
 
   @protected
   void sse_encode_simulated_camera(
-      SimulatedCamera self, SseSerializer serializer);
+    SimulatedCamera self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_simulated_filter_wheel(
-      SimulatedFilterWheel self, SseSerializer serializer);
+    SimulatedFilterWheel self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_simulated_focuser(
-      SimulatedFocuser self, SseSerializer serializer);
+    SimulatedFocuser self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_simulated_mount(
-      SimulatedMount self, SseSerializer serializer);
+    SimulatedMount self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_simulated_rotator(
-      SimulatedRotator self, SseSerializer serializer);
+    SimulatedRotator self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_star_detection_config_api(
-      StarDetectionConfigApi self, SseSerializer serializer);
+    StarDetectionConfigApi self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_star_detection_result_api(
-      StarDetectionResultApi self, SseSerializer serializer);
+    StarDetectionResultApi self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_stretch_params_api(
-      StretchParamsApi self, SseSerializer serializer);
+    StretchParamsApi self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_tracking_rate(TrackingRate self, SseSerializer serializer);
@@ -1877,7 +2056,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_xisf_read_result(
-      XisfReadResult self, SseSerializer serializer);
+    XisfReadResult self,
+    SseSerializer serializer,
+  );
 }
 
 // Section: wire_class
@@ -1886,248 +2067,415 @@ class RustLibWire implements BaseWire {
   RustLibWire.fromExternalLibrary(ExternalLibrary lib);
 
   void wire__crate__api__api_apply_stretch(
-          NativePortType port_, String file_path, JSAny params) =>
-      wasmModule.wire__crate__api__api_apply_stretch(port_, file_path, params);
+    NativePortType port_,
+    String file_path,
+    JSAny params,
+  ) => wasmModule.wire__crate__api__api_apply_stretch(port_, file_path, params);
 
   void wire__crate__api__api_auto_stretch_image(
-          NativePortType port_, int width, int height, JSAny data) =>
-      wasmModule.wire__crate__api__api_auto_stretch_image(
-          port_, width, height, data);
+    NativePortType port_,
+    int width,
+    int height,
+    JSAny data,
+  ) => wasmModule.wire__crate__api__api_auto_stretch_image(
+    port_,
+    width,
+    height,
+    data,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_build_sequence(String id, String name,
-              String? description, JSAny node_jsons, String? root_node_id) =>
-          wasmModule.wire__crate__api__api_build_sequence(
-              id, name, description, node_jsons, root_node_id);
+  wire__crate__api__api_build_sequence(
+    String id,
+    String name,
+    String? description,
+    JSAny node_jsons,
+    String? root_node_id,
+  ) => wasmModule.wire__crate__api__api_build_sequence(
+    id,
+    name,
+    description,
+    node_jsons,
+    root_node_id,
+  );
 
   void wire__crate__api__api_calculate_auto_stretch(
-          NativePortType port_, String file_path) =>
+    NativePortType port_,
+    String file_path,
+  ) =>
       wasmModule.wire__crate__api__api_calculate_auto_stretch(port_, file_path);
 
   void wire__crate__api__api_calculate_hfr(
-          NativePortType port_, String file_path) =>
-      wasmModule.wire__crate__api__api_calculate_hfr(port_, file_path);
+    NativePortType port_,
+    String file_path,
+  ) => wasmModule.wire__crate__api__api_calculate_hfr(port_, file_path);
 
-  void wire__crate__api__api_calculate_histogram(NativePortType port_,
-          String file_path, int _bins, bool logarithmic) =>
-      wasmModule.wire__crate__api__api_calculate_histogram(
-          port_, file_path, _bins, logarithmic);
+  void wire__crate__api__api_calculate_histogram(
+    NativePortType port_,
+    String file_path,
+    int _bins,
+    bool logarithmic,
+  ) => wasmModule.wire__crate__api__api_calculate_histogram(
+    port_,
+    file_path,
+    _bins,
+    logarithmic,
+  );
 
   void wire__crate__api__api_camera_cancel_exposure(
-          NativePortType port_, String device_id) =>
+    NativePortType port_,
+    String device_id,
+  ) =>
       wasmModule.wire__crate__api__api_camera_cancel_exposure(port_, device_id);
 
   void wire__crate__api__api_camera_start_exposure(
-          NativePortType port_,
-          String device_id,
-          double duration_secs,
-          int gain,
-          int offset,
-          int bin_x,
-          int bin_y) =>
-      wasmModule.wire__crate__api__api_camera_start_exposure(
-          port_, device_id, duration_secs, gain, offset, bin_x, bin_y);
+    NativePortType port_,
+    String device_id,
+    double duration_secs,
+    int gain,
+    int offset,
+    int bin_x,
+    int bin_y,
+  ) => wasmModule.wire__crate__api__api_camera_start_exposure(
+    port_,
+    device_id,
+    duration_secs,
+    gain,
+    offset,
+    bin_x,
+    bin_y,
+  );
 
   void wire__crate__api__api_cancel_autofocus(NativePortType port_) =>
       wasmModule.wire__crate__api__api_cancel_autofocus(port_);
 
   void wire__crate__api__api_connect_device(
-          NativePortType port_, int device_type, String device_id) =>
-      wasmModule.wire__crate__api__api_connect_device(
-          port_, device_type, device_id);
+    NativePortType port_,
+    int device_type,
+    String device_id,
+  ) => wasmModule.wire__crate__api__api_connect_device(
+    port_,
+    device_type,
+    device_id,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_autofocus_node(
-              String id,
-              String name,
-              int step_size,
-              int steps_out,
-              double exposure_duration,
-              String method) =>
-          wasmModule.wire__crate__api__api_create_autofocus_node(
-              id, name, step_size, steps_out, exposure_duration, method);
+  wire__crate__api__api_create_autofocus_node(
+    String id,
+    String name,
+    int step_size,
+    int steps_out,
+    double exposure_duration,
+    String method,
+  ) => wasmModule.wire__crate__api__api_create_autofocus_node(
+    id,
+    name,
+    step_size,
+    steps_out,
+    exposure_duration,
+    method,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_center_node(
-              String id,
-              String name,
-              bool use_target_coords,
-              double accuracy_arcsec,
-              int max_attempts,
-              double exposure_duration) =>
-          wasmModule.wire__crate__api__api_create_center_node(
-              id,
-              name,
-              use_target_coords,
-              accuracy_arcsec,
-              max_attempts,
-              exposure_duration);
+  wire__crate__api__api_create_center_node(
+    String id,
+    String name,
+    bool use_target_coords,
+    double accuracy_arcsec,
+    int max_attempts,
+    double exposure_duration,
+  ) => wasmModule.wire__crate__api__api_create_center_node(
+    id,
+    name,
+    use_target_coords,
+    accuracy_arcsec,
+    max_attempts,
+    exposure_duration,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_cool_camera_node(String id, String name,
-              double target_temp, double? duration_mins) =>
-          wasmModule.wire__crate__api__api_create_cool_camera_node(
-              id, name, target_temp, duration_mins);
+  wire__crate__api__api_create_cool_camera_node(
+    String id,
+    String name,
+    double target_temp,
+    double? duration_mins,
+  ) => wasmModule.wire__crate__api__api_create_cool_camera_node(
+    id,
+    name,
+    target_temp,
+    duration_mins,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_delay_node(
-              String id, String name, double seconds) =>
-          wasmModule.wire__crate__api__api_create_delay_node(id, name, seconds);
+  wire__crate__api__api_create_delay_node(
+    String id,
+    String name,
+    double seconds,
+  ) => wasmModule.wire__crate__api__api_create_delay_node(id, name, seconds);
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_dither_node(
-              String id,
-              String name,
-              double pixels,
-              double settle_pixels,
-              double settle_time,
-              double settle_timeout,
-              bool ra_only) =>
-          wasmModule.wire__crate__api__api_create_dither_node(id, name, pixels,
-              settle_pixels, settle_time, settle_timeout, ra_only);
+  wire__crate__api__api_create_dither_node(
+    String id,
+    String name,
+    double pixels,
+    double settle_pixels,
+    double settle_time,
+    double settle_timeout,
+    bool ra_only,
+  ) => wasmModule.wire__crate__api__api_create_dither_node(
+    id,
+    name,
+    pixels,
+    settle_pixels,
+    settle_time,
+    settle_timeout,
+    ra_only,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_exposure_node(
-              String id,
-              String name,
-              double duration_secs,
-              int count,
-              String? filter,
-              int? gain,
-              int? offset,
-              int binning,
-              int? dither_every) =>
-          wasmModule.wire__crate__api__api_create_exposure_node(
-              id,
-              name,
-              duration_secs,
-              count,
-              filter,
-              gain,
-              offset,
-              binning,
-              dither_every);
+  wire__crate__api__api_create_exposure_node(
+    String id,
+    String name,
+    double duration_secs,
+    int count,
+    String? filter,
+    int? gain,
+    int? offset,
+    int binning,
+    int? dither_every,
+  ) => wasmModule.wire__crate__api__api_create_exposure_node(
+    id,
+    name,
+    duration_secs,
+    count,
+    filter,
+    gain,
+    offset,
+    binning,
+    dither_every,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_filter_node(
-              String id, String name, String filter_name) =>
-          wasmModule.wire__crate__api__api_create_filter_node(
-              id, name, filter_name);
+  wire__crate__api__api_create_filter_node(
+    String id,
+    String name,
+    String filter_name,
+  ) => wasmModule.wire__crate__api__api_create_filter_node(
+    id,
+    name,
+    filter_name,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_loop_node(String id, String name,
-              int? iterations, String condition, JSAny children) =>
-          wasmModule.wire__crate__api__api_create_loop_node(
-              id, name, iterations, condition, children);
+  wire__crate__api__api_create_loop_node(
+    String id,
+    String name,
+    int? iterations,
+    String condition,
+    JSAny children,
+  ) => wasmModule.wire__crate__api__api_create_loop_node(
+    id,
+    name,
+    iterations,
+    condition,
+    children,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_notification_node(String id, String name,
-              String title, String message, String level) =>
-          wasmModule.wire__crate__api__api_create_notification_node(
-              id, name, title, message, level);
+  wire__crate__api__api_create_notification_node(
+    String id,
+    String name,
+    String title,
+    String message,
+    String level,
+  ) => wasmModule.wire__crate__api__api_create_notification_node(
+    id,
+    name,
+    title,
+    message,
+    level,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_park_node(String id, String name) =>
-          wasmModule.wire__crate__api__api_create_park_node(id, name);
+  wire__crate__api__api_create_park_node(String id, String name) =>
+      wasmModule.wire__crate__api__api_create_park_node(id, name);
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_rotator_node(
-              String id, String name, double target_angle, bool relative) =>
-          wasmModule.wire__crate__api__api_create_rotator_node(
-              id, name, target_angle, relative);
+  wire__crate__api__api_create_rotator_node(
+    String id,
+    String name,
+    double target_angle,
+    bool relative,
+  ) => wasmModule.wire__crate__api__api_create_rotator_node(
+    id,
+    name,
+    target_angle,
+    relative,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_script_node(String id, String name,
-              String script_path, JSAny arguments, int? timeout_secs) =>
-          wasmModule.wire__crate__api__api_create_script_node(
-              id, name, script_path, arguments, timeout_secs);
+  wire__crate__api__api_create_script_node(
+    String id,
+    String name,
+    String script_path,
+    JSAny arguments,
+    int? timeout_secs,
+  ) => wasmModule.wire__crate__api__api_create_script_node(
+    id,
+    name,
+    script_path,
+    arguments,
+    timeout_secs,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_slew_node(String id, String name,
-              bool use_target_coords, double? custom_ra, double? custom_dec) =>
-          wasmModule.wire__crate__api__api_create_slew_node(
-              id, name, use_target_coords, custom_ra, custom_dec);
+  wire__crate__api__api_create_slew_node(
+    String id,
+    String name,
+    bool use_target_coords,
+    double? custom_ra,
+    double? custom_dec,
+  ) => wasmModule.wire__crate__api__api_create_slew_node(
+    id,
+    name,
+    use_target_coords,
+    custom_ra,
+    custom_dec,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_target_group_node(
-              String id,
-              String name,
-              String target_name,
-              double ra_hours,
-              double dec_degrees,
-              double? rotation,
-              double? min_altitude,
-              double? max_altitude,
-              int priority,
-              JSAny children) =>
-          wasmModule.wire__crate__api__api_create_target_group_node(
-              id,
-              name,
-              target_name,
-              ra_hours,
-              dec_degrees,
-              rotation,
-              min_altitude,
-              max_altitude,
-              priority,
-              children);
+  wire__crate__api__api_create_target_group_node(
+    String id,
+    String name,
+    String target_name,
+    double ra_hours,
+    double dec_degrees,
+    double? rotation,
+    double? min_altitude,
+    double? max_altitude,
+    int priority,
+    JSAny children,
+  ) => wasmModule.wire__crate__api__api_create_target_group_node(
+    id,
+    name,
+    target_name,
+    ra_hours,
+    dec_degrees,
+    rotation,
+    min_altitude,
+    max_altitude,
+    priority,
+    children,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_unpark_node(String id, String name) =>
-          wasmModule.wire__crate__api__api_create_unpark_node(id, name);
+  wire__crate__api__api_create_unpark_node(String id, String name) =>
+      wasmModule.wire__crate__api__api_create_unpark_node(id, name);
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_wait_time_node(String id, String name,
-              JSAny? wait_until, String? twilight_type) =>
-          wasmModule.wire__crate__api__api_create_wait_time_node(
-              id, name, wait_until, twilight_type);
+  wire__crate__api__api_create_wait_time_node(
+    String id,
+    String name,
+    JSAny? wait_until,
+    String? twilight_type,
+  ) => wasmModule.wire__crate__api__api_create_wait_time_node(
+    id,
+    name,
+    wait_until,
+    twilight_type,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_warm_camera_node(
-              String id, String name, double rate_per_min) =>
-          wasmModule.wire__crate__api__api_create_warm_camera_node(
-              id, name, rate_per_min);
+  wire__crate__api__api_create_warm_camera_node(
+    String id,
+    String name,
+    double rate_per_min,
+  ) => wasmModule.wire__crate__api__api_create_warm_camera_node(
+    id,
+    name,
+    rate_per_min,
+  );
 
   void wire__crate__api__api_debayer_fits_file(
-          NativePortType port_, String file_path, int pattern, int algorithm) =>
-      wasmModule.wire__crate__api__api_debayer_fits_file(
-          port_, file_path, pattern, algorithm);
+    NativePortType port_,
+    String file_path,
+    int pattern,
+    int algorithm,
+  ) => wasmModule.wire__crate__api__api_debayer_fits_file(
+    port_,
+    file_path,
+    pattern,
+    algorithm,
+  );
 
-  void wire__crate__api__api_debayer_image(NativePortType port_, int width,
-          int height, JSAny data, String pattern_str, String algo_str) =>
-      wasmModule.wire__crate__api__api_debayer_image(
-          port_, width, height, data, pattern_str, algo_str);
+  void wire__crate__api__api_debayer_image(
+    NativePortType port_,
+    int width,
+    int height,
+    JSAny data,
+    String pattern_str,
+    String algo_str,
+  ) => wasmModule.wire__crate__api__api_debayer_image(
+    port_,
+    width,
+    height,
+    data,
+    pattern_str,
+    algo_str,
+  );
 
   void wire__crate__api__api_delete_profile(
-          NativePortType port_, String profile_id) =>
-      wasmModule.wire__crate__api__api_delete_profile(port_, profile_id);
+    NativePortType port_,
+    String profile_id,
+  ) => wasmModule.wire__crate__api__api_delete_profile(port_, profile_id);
 
   void wire__crate__api__api_detect_stars_in_file(
-          NativePortType port_, String file_path, JSAny? config) =>
-      wasmModule.wire__crate__api__api_detect_stars_in_file(
-          port_, file_path, config);
+    NativePortType port_,
+    String file_path,
+    JSAny? config,
+  ) => wasmModule.wire__crate__api__api_detect_stars_in_file(
+    port_,
+    file_path,
+    config,
+  );
 
   void wire__crate__api__api_disconnect_device(
-          NativePortType port_, int device_type, String device_id) =>
-      wasmModule.wire__crate__api__api_disconnect_device(
-          port_, device_type, device_id);
+    NativePortType port_,
+    int device_type,
+    String device_id,
+  ) => wasmModule.wire__crate__api__api_disconnect_device(
+    port_,
+    device_type,
+    device_id,
+  );
 
   void wire__crate__api__api_discover_alpaca_at_address(
-          NativePortType port_, String host, int port) =>
-      wasmModule.wire__crate__api__api_discover_alpaca_at_address(
-          port_, host, port);
+    NativePortType port_,
+    String host,
+    int port,
+  ) => wasmModule.wire__crate__api__api_discover_alpaca_at_address(
+    port_,
+    host,
+    port,
+  );
 
   void wire__crate__api__api_discover_alpaca_devices(NativePortType port_) =>
       wasmModule.wire__crate__api__api_discover_alpaca_devices(port_);
 
   void wire__crate__api__api_discover_devices(
-          NativePortType port_, int device_type) =>
-      wasmModule.wire__crate__api__api_discover_devices(port_, device_type);
+    NativePortType port_,
+    int device_type,
+  ) => wasmModule.wire__crate__api__api_discover_devices(port_, device_type);
 
   void wire__crate__api__api_discover_indi_at_address(
-          NativePortType port_, String host, int port) =>
-      wasmModule.wire__crate__api__api_discover_indi_at_address(
-          port_, host, port);
+    NativePortType port_,
+    String host,
+    int port,
+  ) => wasmModule.wire__crate__api__api_discover_indi_at_address(
+    port_,
+    host,
+    port,
+  );
 
   void wire__crate__api__api_discover_indi_common_hosts(NativePortType port_) =>
       wasmModule.wire__crate__api__api_discover_indi_common_hosts(port_);
@@ -2142,90 +2490,124 @@ class RustLibWire implements BaseWire {
       wasmModule.wire__crate__api__api_end_session(port_);
 
   void wire__crate__api__api_filterwheel_get_names(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__api_filterwheel_get_names(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__api_filterwheel_get_names(port_, device_id);
 
   void wire__crate__api__api_filterwheel_set_by_name(
-          NativePortType port_, String device_id, String name) =>
-      wasmModule.wire__crate__api__api_filterwheel_set_by_name(
-          port_, device_id, name);
+    NativePortType port_,
+    String device_id,
+    String name,
+  ) => wasmModule.wire__crate__api__api_filterwheel_set_by_name(
+    port_,
+    device_id,
+    name,
+  );
 
   void wire__crate__api__api_filterwheel_set_position(
-          NativePortType port_, String device_id, int position) =>
-      wasmModule.wire__crate__api__api_filterwheel_set_position(
-          port_, device_id, position);
+    NativePortType port_,
+    String device_id,
+    int position,
+  ) => wasmModule.wire__crate__api__api_filterwheel_set_position(
+    port_,
+    device_id,
+    position,
+  );
 
   void wire__crate__api__api_focuser_halt(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__api_focuser_halt(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__api_focuser_halt(port_, device_id);
 
   void wire__crate__api__api_focuser_move_relative(
-          NativePortType port_, String device_id, int delta) =>
-      wasmModule.wire__crate__api__api_focuser_move_relative(
-          port_, device_id, delta);
+    NativePortType port_,
+    String device_id,
+    int delta,
+  ) => wasmModule.wire__crate__api__api_focuser_move_relative(
+    port_,
+    device_id,
+    delta,
+  );
 
   void wire__crate__api__api_focuser_move_to(
-          NativePortType port_, String device_id, int position) =>
-      wasmModule.wire__crate__api__api_focuser_move_to(
-          port_, device_id, position);
+    NativePortType port_,
+    String device_id,
+    int position,
+  ) => wasmModule.wire__crate__api__api_focuser_move_to(
+    port_,
+    device_id,
+    position,
+  );
 
   void wire__crate__api__api_generate_filename(
-          NativePortType port_,
-          String pattern,
-          String base_dir,
-          String? target,
-          String? filter,
-          double exposure_time,
-          int frame_type,
-          int frame_number,
-          int? gain,
-          int? offset,
-          double? temperature,
-          int binning_x,
-          int binning_y,
-          String? camera,
-          String? telescope,
-          String extension) =>
-      wasmModule.wire__crate__api__api_generate_filename(
-          port_,
-          pattern,
-          base_dir,
-          target,
-          filter,
-          exposure_time,
-          frame_type,
-          frame_number,
-          gain,
-          offset,
-          temperature,
-          binning_x,
-          binning_y,
-          camera,
-          telescope,
-          extension);
+    NativePortType port_,
+    String pattern,
+    String base_dir,
+    String? target,
+    String? filter,
+    double exposure_time,
+    int frame_type,
+    int frame_number,
+    int? gain,
+    int? offset,
+    double? temperature,
+    int binning_x,
+    int binning_y,
+    String? camera,
+    String? telescope,
+    String extension,
+  ) => wasmModule.wire__crate__api__api_generate_filename(
+    port_,
+    pattern,
+    base_dir,
+    target,
+    filter,
+    exposure_time,
+    frame_type,
+    frame_number,
+    gain,
+    offset,
+    temperature,
+    binning_x,
+    binning_y,
+    camera,
+    telescope,
+    extension,
+  );
 
   void wire__crate__api__api_get_active_profile(NativePortType port_) =>
       wasmModule.wire__crate__api__api_get_active_profile(port_);
 
   void wire__crate__api__api_get_camera_status(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__api_get_camera_status(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__api_get_camera_status(port_, device_id);
 
   void wire__crate__api__api_get_connected_devices(NativePortType port_) =>
       wasmModule.wire__crate__api__api_get_connected_devices(port_);
 
   void wire__crate__api__api_get_filterwheel_status(
-          NativePortType port_, String device_id) =>
+    NativePortType port_,
+    String device_id,
+  ) =>
       wasmModule.wire__crate__api__api_get_filterwheel_status(port_, device_id);
 
   void wire__crate__api__api_get_focuser_status(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__api_get_focuser_status(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__api_get_focuser_status(port_, device_id);
 
   void wire__crate__api__api_get_image_stats(
-          NativePortType port_, int width, int height, JSAny data) =>
-      wasmModule.wire__crate__api__api_get_image_stats(
-          port_, width, height, data);
+    NativePortType port_,
+    int width,
+    int height,
+    JSAny data,
+  ) => wasmModule.wire__crate__api__api_get_image_stats(
+    port_,
+    width,
+    height,
+    data,
+  );
 
   void wire__crate__api__api_get_last_image(NativePortType port_) =>
       wasmModule.wire__crate__api__api_get_last_image(port_);
@@ -2234,29 +2616,37 @@ class RustLibWire implements BaseWire {
       wasmModule.wire__crate__api__api_get_location(port_);
 
   void wire__crate__api__api_get_mount_status(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__api_get_mount_status(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__api_get_mount_status(port_, device_id);
 
   void wire__crate__api__api_get_next_frame_number(
-          NativePortType port_,
-          String base_dir,
-          String pattern,
-          String? target,
-          String? filter,
-          int frame_type) =>
-      wasmModule.wire__crate__api__api_get_next_frame_number(
-          port_, base_dir, pattern, target, filter, frame_type);
+    NativePortType port_,
+    String base_dir,
+    String pattern,
+    String? target,
+    String? filter,
+    int frame_type,
+  ) => wasmModule.wire__crate__api__api_get_next_frame_number(
+    port_,
+    base_dir,
+    pattern,
+    target,
+    filter,
+    frame_type,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_get_plate_solver_path() =>
-          wasmModule.wire__crate__api__api_get_plate_solver_path();
+  wire__crate__api__api_get_plate_solver_path() =>
+      wasmModule.wire__crate__api__api_get_plate_solver_path();
 
   void wire__crate__api__api_get_profiles(NativePortType port_) =>
       wasmModule.wire__crate__api__api_get_profiles(port_);
 
   void wire__crate__api__api_get_rotator_status(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__api_get_rotator_status(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__api_get_rotator_status(port_, device_id);
 
   void wire__crate__api__api_get_session_state(NativePortType port_) =>
       wasmModule.wire__crate__api__api_get_session_state(port_);
@@ -2265,168 +2655,262 @@ class RustLibWire implements BaseWire {
       wasmModule.wire__crate__api__api_get_settings(port_);
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_get_version() =>
-          wasmModule.wire__crate__api__api_get_version();
+  wire__crate__api__api_get_version() =>
+      wasmModule.wire__crate__api__api_get_version();
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_init() => wasmModule.wire__crate__api__api_init();
+  wire__crate__api__api_init() => wasmModule.wire__crate__api__api_init();
 
   void wire__crate__api__api_init_profile_storage(
-          NativePortType port_, String storage_path) =>
-      wasmModule.wire__crate__api__api_init_profile_storage(
-          port_, storage_path);
+    NativePortType port_,
+    String storage_path,
+  ) => wasmModule.wire__crate__api__api_init_profile_storage(
+    port_,
+    storage_path,
+  );
 
   void wire__crate__api__api_init_settings_storage(
-          NativePortType port_, String storage_path) =>
-      wasmModule.wire__crate__api__api_init_settings_storage(
-          port_, storage_path);
+    NativePortType port_,
+    String storage_path,
+  ) => wasmModule.wire__crate__api__api_init_settings_storage(
+    port_,
+    storage_path,
+  );
 
   void wire__crate__api__api_is_device_connected(
-          NativePortType port_, int device_type, String device_id) =>
-      wasmModule.wire__crate__api__api_is_device_connected(
-          port_, device_type, device_id);
+    NativePortType port_,
+    int device_type,
+    String device_id,
+  ) => wasmModule.wire__crate__api__api_is_device_connected(
+    port_,
+    device_type,
+    device_id,
+  );
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_is_phd2_running() =>
-          wasmModule.wire__crate__api__api_is_phd2_running();
+  wire__crate__api__api_is_phd2_running() =>
+      wasmModule.wire__crate__api__api_is_phd2_running();
 
   JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_is_plate_solver_available() =>
-          wasmModule.wire__crate__api__api_is_plate_solver_available();
+  wire__crate__api__api_is_plate_solver_available() =>
+      wasmModule.wire__crate__api__api_is_plate_solver_available();
 
   void wire__crate__api__api_load_profile(
-          NativePortType port_, String profile_id) =>
-      wasmModule.wire__crate__api__api_load_profile(port_, profile_id);
+    NativePortType port_,
+    String profile_id,
+  ) => wasmModule.wire__crate__api__api_load_profile(port_, profile_id);
 
   void wire__crate__api__api_mount_park(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__api_mount_park(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__api_mount_park(port_, device_id);
 
-  void wire__crate__api__api_mount_pulse_guide(NativePortType port_,
-          String device_id, String direction, int duration_ms) =>
-      wasmModule.wire__crate__api__api_mount_pulse_guide(
-          port_, device_id, direction, duration_ms);
+  void wire__crate__api__api_mount_pulse_guide(
+    NativePortType port_,
+    String device_id,
+    String direction,
+    int duration_ms,
+  ) => wasmModule.wire__crate__api__api_mount_pulse_guide(
+    port_,
+    device_id,
+    direction,
+    duration_ms,
+  );
 
   void wire__crate__api__api_mount_set_tracking(
-          NativePortType port_, String device_id, bool enabled) =>
-      wasmModule.wire__crate__api__api_mount_set_tracking(
-          port_, device_id, enabled);
+    NativePortType port_,
+    String device_id,
+    bool enabled,
+  ) => wasmModule.wire__crate__api__api_mount_set_tracking(
+    port_,
+    device_id,
+    enabled,
+  );
 
   void wire__crate__api__api_mount_slew_to_coordinates(
-          NativePortType port_, String device_id, double ra, double dec) =>
-      wasmModule.wire__crate__api__api_mount_slew_to_coordinates(
-          port_, device_id, ra, dec);
+    NativePortType port_,
+    String device_id,
+    double ra,
+    double dec,
+  ) => wasmModule.wire__crate__api__api_mount_slew_to_coordinates(
+    port_,
+    device_id,
+    ra,
+    dec,
+  );
 
   void wire__crate__api__api_mount_sync_to_coordinates(
-          NativePortType port_, String device_id, double ra, double dec) =>
-      wasmModule.wire__crate__api__api_mount_sync_to_coordinates(
-          port_, device_id, ra, dec);
+    NativePortType port_,
+    String device_id,
+    double ra,
+    double dec,
+  ) => wasmModule.wire__crate__api__api_mount_sync_to_coordinates(
+    port_,
+    device_id,
+    ra,
+    dec,
+  );
 
   void wire__crate__api__api_mount_unpark(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__api_mount_unpark(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__api_mount_unpark(port_, device_id);
 
   void wire__crate__api__api_phd2_connect(
-          NativePortType port_, String? host, int? port) =>
-      wasmModule.wire__crate__api__api_phd2_connect(port_, host, port);
+    NativePortType port_,
+    String? host,
+    int? port,
+  ) => wasmModule.wire__crate__api__api_phd2_connect(port_, host, port);
 
   void wire__crate__api__api_phd2_disconnect(NativePortType port_) =>
       wasmModule.wire__crate__api__api_phd2_disconnect(port_);
 
   void wire__crate__api__api_phd2_dither(
-          NativePortType port_,
-          double amount,
-          bool ra_only,
-          double settle_pixels,
-          double settle_time,
-          double settle_timeout) =>
-      wasmModule.wire__crate__api__api_phd2_dither(
-          port_, amount, ra_only, settle_pixels, settle_time, settle_timeout);
+    NativePortType port_,
+    double amount,
+    bool ra_only,
+    double settle_pixels,
+    double settle_time,
+    double settle_timeout,
+  ) => wasmModule.wire__crate__api__api_phd2_dither(
+    port_,
+    amount,
+    ra_only,
+    settle_pixels,
+    settle_time,
+    settle_timeout,
+  );
 
   void wire__crate__api__api_phd2_get_status(NativePortType port_) =>
       wasmModule.wire__crate__api__api_phd2_get_status(port_);
 
-  void wire__crate__api__api_phd2_start_guiding(NativePortType port_,
-          double settle_pixels, double settle_time, double settle_timeout) =>
-      wasmModule.wire__crate__api__api_phd2_start_guiding(
-          port_, settle_pixels, settle_time, settle_timeout);
+  void wire__crate__api__api_phd2_start_guiding(
+    NativePortType port_,
+    double settle_pixels,
+    double settle_time,
+    double settle_timeout,
+  ) => wasmModule.wire__crate__api__api_phd2_start_guiding(
+    port_,
+    settle_pixels,
+    settle_time,
+    settle_timeout,
+  );
 
   void wire__crate__api__api_phd2_stop_guiding(NativePortType port_) =>
       wasmModule.wire__crate__api__api_phd2_stop_guiding(port_);
 
   void wire__crate__api__api_plate_solve_blind(
-          NativePortType port_, String file_path) =>
-      wasmModule.wire__crate__api__api_plate_solve_blind(port_, file_path);
+    NativePortType port_,
+    String file_path,
+  ) => wasmModule.wire__crate__api__api_plate_solve_blind(port_, file_path);
 
   void wire__crate__api__api_plate_solve_near(
-          NativePortType port_,
-          String file_path,
-          double hint_ra,
-          double hint_dec,
-          double search_radius) =>
-      wasmModule.wire__crate__api__api_plate_solve_near(
-          port_, file_path, hint_ra, hint_dec, search_radius);
+    NativePortType port_,
+    String file_path,
+    double hint_ra,
+    double hint_dec,
+    double search_radius,
+  ) => wasmModule.wire__crate__api__api_plate_solve_near(
+    port_,
+    file_path,
+    hint_ra,
+    hint_dec,
+    search_radius,
+  );
 
   void wire__crate__api__api_read_fits_file(
-          NativePortType port_, String file_path) =>
-      wasmModule.wire__crate__api__api_read_fits_file(port_, file_path);
+    NativePortType port_,
+    String file_path,
+  ) => wasmModule.wire__crate__api__api_read_fits_file(port_, file_path);
 
   void wire__crate__api__api_read_xisf_file(
-          NativePortType port_, String file_path) =>
-      wasmModule.wire__crate__api__api_read_xisf_file(port_, file_path);
+    NativePortType port_,
+    String file_path,
+  ) => wasmModule.wire__crate__api__api_read_xisf_file(port_, file_path);
 
   void wire__crate__api__api_rotator_halt(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__api_rotator_halt(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__api_rotator_halt(port_, device_id);
 
   void wire__crate__api__api_rotator_move_relative(
-          NativePortType port_, String device_id, double delta) =>
-      wasmModule.wire__crate__api__api_rotator_move_relative(
-          port_, device_id, delta);
+    NativePortType port_,
+    String device_id,
+    double delta,
+  ) => wasmModule.wire__crate__api__api_rotator_move_relative(
+    port_,
+    device_id,
+    delta,
+  );
 
   void wire__crate__api__api_rotator_move_to(
-          NativePortType port_, String device_id, double angle) =>
+    NativePortType port_,
+    String device_id,
+    double angle,
+  ) =>
       wasmModule.wire__crate__api__api_rotator_move_to(port_, device_id, angle);
 
-  void wire__crate__api__api_run_autofocus(NativePortType port_,
-          String device_id, String camera_id, JSAny config) =>
-      wasmModule.wire__crate__api__api_run_autofocus(
-          port_, device_id, camera_id, config);
+  void wire__crate__api__api_run_autofocus(
+    NativePortType port_,
+    String device_id,
+    String camera_id,
+    JSAny config,
+  ) => wasmModule.wire__crate__api__api_run_autofocus(
+    port_,
+    device_id,
+    camera_id,
+    config,
+  );
 
   void wire__crate__api__api_save_fits_file(
-          NativePortType port_,
-          String file_path,
-          int width,
-          int height,
-          JSAny data,
-          JSAny header_data) =>
-      wasmModule.wire__crate__api__api_save_fits_file(
-          port_, file_path, width, height, data, header_data);
+    NativePortType port_,
+    String file_path,
+    int width,
+    int height,
+    JSAny data,
+    JSAny header_data,
+  ) => wasmModule.wire__crate__api__api_save_fits_file(
+    port_,
+    file_path,
+    width,
+    height,
+    data,
+    header_data,
+  );
 
   void wire__crate__api__api_save_profile(
-          NativePortType port_, JSAny profile) =>
-      wasmModule.wire__crate__api__api_save_profile(port_, profile);
+    NativePortType port_,
+    JSAny profile,
+  ) => wasmModule.wire__crate__api__api_save_profile(port_, profile);
 
   void wire__crate__api__api_save_xisf_file(
-          NativePortType port_,
-          String file_path,
-          int width,
-          int height,
-          JSAny data,
-          JSAny properties) =>
-      wasmModule.wire__crate__api__api_save_xisf_file(
-          port_, file_path, width, height, data, properties);
+    NativePortType port_,
+    String file_path,
+    int width,
+    int height,
+    JSAny data,
+    JSAny properties,
+  ) => wasmModule.wire__crate__api__api_save_xisf_file(
+    port_,
+    file_path,
+    width,
+    height,
+    data,
+    properties,
+  );
 
   void wire__crate__api__api_sequencer_get_state(NativePortType port_) =>
       wasmModule.wire__crate__api__api_sequencer_get_state(port_);
 
   void wire__crate__api__api_sequencer_load(
-          NativePortType port_, JSAny definition) =>
-      wasmModule.wire__crate__api__api_sequencer_load(port_, definition);
+    NativePortType port_,
+    JSAny definition,
+  ) => wasmModule.wire__crate__api__api_sequencer_load(port_, definition);
 
   void wire__crate__api__api_sequencer_load_json(
-          NativePortType port_, String json) =>
-      wasmModule.wire__crate__api__api_sequencer_load_json(port_, json);
+    NativePortType port_,
+    String json,
+  ) => wasmModule.wire__crate__api__api_sequencer_load_json(port_, json);
 
   void wire__crate__api__api_sequencer_pause(NativePortType port_) =>
       wasmModule.wire__crate__api__api_sequencer_pause(port_);
@@ -2450,126 +2934,203 @@ class RustLibWire implements BaseWire {
       wasmModule.wire__crate__api__api_sequencer_subscribe_events(port_);
 
   void wire__crate__api__api_set_camera_binning(
-          NativePortType port_, String device_id, int bin_x, int bin_y) =>
-      wasmModule.wire__crate__api__api_set_camera_binning(
-          port_, device_id, bin_x, bin_y);
+    NativePortType port_,
+    String device_id,
+    int bin_x,
+    int bin_y,
+  ) => wasmModule.wire__crate__api__api_set_camera_binning(
+    port_,
+    device_id,
+    bin_x,
+    bin_y,
+  );
 
-  void wire__crate__api__api_set_camera_cooler(NativePortType port_,
-          String device_id, bool enabled, double? target_temp) =>
-      wasmModule.wire__crate__api__api_set_camera_cooler(
-          port_, device_id, enabled, target_temp);
+  void wire__crate__api__api_set_camera_cooler(
+    NativePortType port_,
+    String device_id,
+    bool enabled,
+    double? target_temp,
+  ) => wasmModule.wire__crate__api__api_set_camera_cooler(
+    port_,
+    device_id,
+    enabled,
+    target_temp,
+  );
 
   void wire__crate__api__api_set_camera_gain(
-          NativePortType port_, String device_id, int gain) =>
-      wasmModule.wire__crate__api__api_set_camera_gain(port_, device_id, gain);
+    NativePortType port_,
+    String device_id,
+    int gain,
+  ) => wasmModule.wire__crate__api__api_set_camera_gain(port_, device_id, gain);
 
   void wire__crate__api__api_set_camera_offset(
-          NativePortType port_, String device_id, int offset) =>
-      wasmModule.wire__crate__api__api_set_camera_offset(
-          port_, device_id, offset);
+    NativePortType port_,
+    String device_id,
+    int offset,
+  ) => wasmModule.wire__crate__api__api_set_camera_offset(
+    port_,
+    device_id,
+    offset,
+  );
 
   void wire__crate__api__api_set_location(
-          NativePortType port_, JSAny? location) =>
-      wasmModule.wire__crate__api__api_set_location(port_, location);
+    NativePortType port_,
+    JSAny? location,
+  ) => wasmModule.wire__crate__api__api_set_location(port_, location);
 
   void wire__crate__api__api_start_session(
-          NativePortType port_, String? target_name, double? ra, double? dec) =>
-      wasmModule.wire__crate__api__api_start_session(
-          port_, target_name, ra, dec);
+    NativePortType port_,
+    String? target_name,
+    double? ra,
+    double? dec,
+  ) => wasmModule.wire__crate__api__api_start_session(
+    port_,
+    target_name,
+    ra,
+    dec,
+  );
 
   void wire__crate__api__api_update_settings(
-          NativePortType port_, JSAny settings) =>
-      wasmModule.wire__crate__api__api_update_settings(port_, settings);
+    NativePortType port_,
+    JSAny settings,
+  ) => wasmModule.wire__crate__api__api_update_settings(port_, settings);
 
   void wire__crate__api__cancel_exposure(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__cancel_exposure(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__cancel_exposure(port_, device_id);
 
   void wire__crate__api__alpaca_connections__connect_alpaca_device(
-          NativePortType port_, int device_type, String device_id) =>
-      wasmModule.wire__crate__api__alpaca_connections__connect_alpaca_device(
-          port_, device_type, device_id);
+    NativePortType port_,
+    int device_type,
+    String device_id,
+  ) => wasmModule.wire__crate__api__alpaca_connections__connect_alpaca_device(
+    port_,
+    device_type,
+    device_id,
+  );
 
   void wire__crate__api__ascom_connections__connect_ascom_camera(
-          NativePortType port_, String prog_id) =>
-      wasmModule.wire__crate__api__ascom_connections__connect_ascom_camera(
-          port_, prog_id);
+    NativePortType port_,
+    String prog_id,
+  ) => wasmModule.wire__crate__api__ascom_connections__connect_ascom_camera(
+    port_,
+    prog_id,
+  );
 
   void wire__crate__api__ascom_connections__connect_ascom_focuser(
-          NativePortType port_, String prog_id) =>
-      wasmModule.wire__crate__api__ascom_connections__connect_ascom_focuser(
-          port_, prog_id);
+    NativePortType port_,
+    String prog_id,
+  ) => wasmModule.wire__crate__api__ascom_connections__connect_ascom_focuser(
+    port_,
+    prog_id,
+  );
 
   void wire__crate__api__ascom_connections__connect_ascom_mount(
-          NativePortType port_, String prog_id) =>
-      wasmModule.wire__crate__api__ascom_connections__connect_ascom_mount(
-          port_, prog_id);
+    NativePortType port_,
+    String prog_id,
+  ) => wasmModule.wire__crate__api__ascom_connections__connect_ascom_mount(
+    port_,
+    prog_id,
+  );
 
   void wire__crate__api__alpaca_connections__disconnect_alpaca_device(
-          NativePortType port_, String device_id) =>
+    NativePortType port_,
+    String device_id,
+  ) =>
       wasmModule.wire__crate__api__alpaca_connections__disconnect_alpaca_device(
-          port_, device_id);
+        port_,
+        device_id,
+      );
 
   void wire__crate__api__filter_wheel_get_config(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__filter_wheel_get_config(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__filter_wheel_get_config(port_, device_id);
 
   void wire__crate__api__filter_wheel_get_position(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__filter_wheel_get_position(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__filter_wheel_get_position(port_, device_id);
 
   void wire__crate__api__filter_wheel_set_position(
-          NativePortType port_, String device_id, int position) =>
-      wasmModule.wire__crate__api__filter_wheel_set_position(
-          port_, device_id, position);
+    NativePortType port_,
+    String device_id,
+    int position,
+  ) => wasmModule.wire__crate__api__filter_wheel_set_position(
+    port_,
+    device_id,
+    position,
+  );
 
   void wire__crate__api__focuser_get_details(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__focuser_get_details(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__focuser_get_details(port_, device_id);
 
   void wire__crate__api__focuser_get_position(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__focuser_get_position(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__focuser_get_position(port_, device_id);
 
   void wire__crate__api__focuser_get_temp(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__focuser_get_temp(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__focuser_get_temp(port_, device_id);
 
   void wire__crate__api__focuser_halt(NativePortType port_, String device_id) =>
       wasmModule.wire__crate__api__focuser_halt(port_, device_id);
 
   void wire__crate__api__focuser_move_abs(
-          NativePortType port_, String device_id, int position) =>
+    NativePortType port_,
+    String device_id,
+    int position,
+  ) =>
       wasmModule.wire__crate__api__focuser_move_abs(port_, device_id, position);
 
   void wire__crate__api__focuser_move_rel(
-          NativePortType port_, String device_id, int steps) =>
-      wasmModule.wire__crate__api__focuser_move_rel(port_, device_id, steps);
+    NativePortType port_,
+    String device_id,
+    int steps,
+  ) => wasmModule.wire__crate__api__focuser_move_rel(port_, device_id, steps);
 
   void wire__crate__api__alpaca_connections__get_alpaca_client(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__alpaca_connections__get_alpaca_client(
-          port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__alpaca_connections__get_alpaca_client(
+    port_,
+    device_id,
+  );
 
   void wire__crate__api__ascom_connections__get_ascom_camera_temp(
-          NativePortType port_, String prog_id) =>
-      wasmModule.wire__crate__api__ascom_connections__get_ascom_camera_temp(
-          port_, prog_id);
+    NativePortType port_,
+    String prog_id,
+  ) => wasmModule.wire__crate__api__ascom_connections__get_ascom_camera_temp(
+    port_,
+    prog_id,
+  );
 
   void wire__crate__api__ascom_connections__get_ascom_focuser_position(
-          NativePortType port_, String prog_id) =>
-      wasmModule
-          .wire__crate__api__ascom_connections__get_ascom_focuser_position(
-              port_, prog_id);
+    NativePortType port_,
+    String prog_id,
+  ) => wasmModule
+      .wire__crate__api__ascom_connections__get_ascom_focuser_position(
+        port_,
+        prog_id,
+      );
 
   void wire__crate__api__ascom_connections__get_ascom_mount_coords(
-          NativePortType port_, String prog_id) =>
-      wasmModule.wire__crate__api__ascom_connections__get_ascom_mount_coords(
-          port_, prog_id);
+    NativePortType port_,
+    String prog_id,
+  ) => wasmModule.wire__crate__api__ascom_connections__get_ascom_mount_coords(
+    port_,
+    prog_id,
+  );
 
   void wire__crate__api__get_camera_status(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__get_camera_status(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__get_camera_status(port_, device_id);
 
   void wire__crate__api__get_device_manager(NativePortType port_) =>
       wasmModule.wire__crate__api__get_device_manager(port_);
@@ -2590,62 +3151,101 @@ class RustLibWire implements BaseWire {
       wasmModule.wire__crate__api__get_state(port_);
 
   void wire__crate__api__alpaca_connections__is_connected(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__alpaca_connections__is_connected(
-          port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__alpaca_connections__is_connected(
+    port_,
+    device_id,
+  );
 
   void wire__crate__api__mount_abort(NativePortType port_, String device_id) =>
       wasmModule.wire__crate__api__mount_abort(port_, device_id);
 
   void wire__crate__api__mount_get_coordinates(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__mount_get_coordinates(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__mount_get_coordinates(port_, device_id);
 
   void wire__crate__api__mount_get_status(
-          NativePortType port_, String device_id) =>
-      wasmModule.wire__crate__api__mount_get_status(port_, device_id);
+    NativePortType port_,
+    String device_id,
+  ) => wasmModule.wire__crate__api__mount_get_status(port_, device_id);
 
   void wire__crate__api__mount_park(NativePortType port_, String device_id) =>
       wasmModule.wire__crate__api__mount_park(port_, device_id);
 
-  void wire__crate__api__mount_pulse_guide(NativePortType port_,
-          String device_id, String direction, int duration_ms) =>
-      wasmModule.wire__crate__api__mount_pulse_guide(
-          port_, device_id, direction, duration_ms);
+  void wire__crate__api__mount_pulse_guide(
+    NativePortType port_,
+    String device_id,
+    String direction,
+    int duration_ms,
+  ) => wasmModule.wire__crate__api__mount_pulse_guide(
+    port_,
+    device_id,
+    direction,
+    duration_ms,
+  );
 
   void wire__crate__api__mount_set_tracking(
-          NativePortType port_, String device_id, bool enabled) =>
-      wasmModule.wire__crate__api__mount_set_tracking(
-          port_, device_id, enabled);
+    NativePortType port_,
+    String device_id,
+    bool enabled,
+  ) => wasmModule.wire__crate__api__mount_set_tracking(
+    port_,
+    device_id,
+    enabled,
+  );
 
   void wire__crate__api__mount_slew(
-          NativePortType port_, String device_id, double ra, double dec) =>
-      wasmModule.wire__crate__api__mount_slew(port_, device_id, ra, dec);
+    NativePortType port_,
+    String device_id,
+    double ra,
+    double dec,
+  ) => wasmModule.wire__crate__api__mount_slew(port_, device_id, ra, dec);
 
   void wire__crate__api__mount_sync(
-          NativePortType port_, String device_id, double ra, double dec) =>
-      wasmModule.wire__crate__api__mount_sync(port_, device_id, ra, dec);
+    NativePortType port_,
+    String device_id,
+    double ra,
+    double dec,
+  ) => wasmModule.wire__crate__api__mount_sync(port_, device_id, ra, dec);
 
   void wire__crate__api__mount_unpark(NativePortType port_, String device_id) =>
       wasmModule.wire__crate__api__mount_unpark(port_, device_id);
 
   void wire__crate__api__ascom_connections__move_ascom_focuser(
-          NativePortType port_, String prog_id, int position) =>
-      wasmModule.wire__crate__api__ascom_connections__move_ascom_focuser(
-          port_, prog_id, position);
+    NativePortType port_,
+    String prog_id,
+    int position,
+  ) => wasmModule.wire__crate__api__ascom_connections__move_ascom_focuser(
+    port_,
+    prog_id,
+    position,
+  );
 
-  void wire__crate__api__set_camera_cooler(NativePortType port_,
-          String device_id, bool enabled, double? target_temp) =>
-      wasmModule.wire__crate__api__set_camera_cooler(
-          port_, device_id, enabled, target_temp);
+  void wire__crate__api__set_camera_cooler(
+    NativePortType port_,
+    String device_id,
+    bool enabled,
+    double? target_temp,
+  ) => wasmModule.wire__crate__api__set_camera_cooler(
+    port_,
+    device_id,
+    enabled,
+    target_temp,
+  );
 
   void wire__crate__api__set_camera_gain(
-          NativePortType port_, String device_id, int gain) =>
-      wasmModule.wire__crate__api__set_camera_gain(port_, device_id, gain);
+    NativePortType port_,
+    String device_id,
+    int gain,
+  ) => wasmModule.wire__crate__api__set_camera_gain(port_, device_id, gain);
 
   void wire__crate__api__set_camera_offset(
-          NativePortType port_, String device_id, int offset) =>
-      wasmModule.wire__crate__api__set_camera_offset(port_, device_id, offset);
+    NativePortType port_,
+    String device_id,
+    int offset,
+  ) => wasmModule.wire__crate__api__set_camera_offset(port_, device_id, offset);
 
   void wire__crate__api__simulated_camera_default(NativePortType port_) =>
       wasmModule.wire__crate__api__simulated_camera_default(port_);
@@ -2663,45 +3263,73 @@ class RustLibWire implements BaseWire {
       wasmModule.wire__crate__api__simulated_rotator_default(port_);
 
   void wire__crate__api__ascom_connections__slew_ascom_mount(
-          NativePortType port_, String prog_id, double ra, double dec) =>
-      wasmModule.wire__crate__api__ascom_connections__slew_ascom_mount(
-          port_, prog_id, ra, dec);
+    NativePortType port_,
+    String prog_id,
+    double ra,
+    double dec,
+  ) => wasmModule.wire__crate__api__ascom_connections__slew_ascom_mount(
+    port_,
+    prog_id,
+    ra,
+    dec,
+  );
 
   void wire__crate__api__star_detection_config_api_default(
-          NativePortType port_) =>
-      wasmModule.wire__crate__api__star_detection_config_api_default(port_);
+    NativePortType port_,
+  ) => wasmModule.wire__crate__api__star_detection_config_api_default(port_);
 
-  void wire__crate__api__start_exposure(NativePortType port_, String device_id,
-          double duration_secs, int gain, int offset, int bin_x, int bin_y) =>
-      wasmModule.wire__crate__api__start_exposure(
-          port_, device_id, duration_secs, gain, offset, bin_x, bin_y);
+  void wire__crate__api__start_exposure(
+    NativePortType port_,
+    String device_id,
+    double duration_secs,
+    int gain,
+    int offset,
+    int bin_x,
+    int bin_y,
+  ) => wasmModule.wire__crate__api__start_exposure(
+    port_,
+    device_id,
+    duration_secs,
+    gain,
+    offset,
+    bin_x,
+    bin_y,
+  );
 
   void wire__crate__api__rand__thread_rng(NativePortType port_) =>
       wasmModule.wire__crate__api__rand__thread_rng(port_);
 
-  void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          int ptr) =>
-      wasmModule
-          .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-              ptr);
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+        ptr,
+      );
 
-  void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          int ptr) =>
-      wasmModule
-          .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-              ptr);
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+        ptr,
+      );
 
-  void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
-          int ptr) =>
-      wasmModule
-          .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
-              ptr);
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
+        ptr,
+      );
 
-  void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
-          int ptr) =>
-      wasmModule
-          .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
-              ptr);
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
+        ptr,
+      );
 }
 
 @JS('wasm_bindgen')
@@ -2711,360 +3339,572 @@ external RustLibWasmModule get wasmModule;
 @anonymous
 extension type RustLibWasmModule._(JSObject _) implements JSObject {
   external void wire__crate__api__api_apply_stretch(
-      NativePortType port_, String file_path, JSAny params);
+    NativePortType port_,
+    String file_path,
+    JSAny params,
+  );
 
   external void wire__crate__api__api_auto_stretch_image(
-      NativePortType port_, int width, int height, JSAny data);
+    NativePortType port_,
+    int width,
+    int height,
+    JSAny data,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_build_sequence(String id, String name,
-          String? description, JSAny node_jsons, String? root_node_id);
+  wire__crate__api__api_build_sequence(
+    String id,
+    String name,
+    String? description,
+    JSAny node_jsons,
+    String? root_node_id,
+  );
 
   external void wire__crate__api__api_calculate_auto_stretch(
-      NativePortType port_, String file_path);
+    NativePortType port_,
+    String file_path,
+  );
 
   external void wire__crate__api__api_calculate_hfr(
-      NativePortType port_, String file_path);
+    NativePortType port_,
+    String file_path,
+  );
 
   external void wire__crate__api__api_calculate_histogram(
-      NativePortType port_, String file_path, int _bins, bool logarithmic);
+    NativePortType port_,
+    String file_path,
+    int _bins,
+    bool logarithmic,
+  );
 
   external void wire__crate__api__api_camera_cancel_exposure(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__api_camera_start_exposure(
-      NativePortType port_,
-      String device_id,
-      double duration_secs,
-      int gain,
-      int offset,
-      int bin_x,
-      int bin_y);
+    NativePortType port_,
+    String device_id,
+    double duration_secs,
+    int gain,
+    int offset,
+    int bin_x,
+    int bin_y,
+  );
 
   external void wire__crate__api__api_cancel_autofocus(NativePortType port_);
 
   external void wire__crate__api__api_connect_device(
-      NativePortType port_, int device_type, String device_id);
+    NativePortType port_,
+    int device_type,
+    String device_id,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_autofocus_node(
-          String id,
-          String name,
-          int step_size,
-          int steps_out,
-          double exposure_duration,
-          String method);
+  wire__crate__api__api_create_autofocus_node(
+    String id,
+    String name,
+    int step_size,
+    int steps_out,
+    double exposure_duration,
+    String method,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_center_node(
-          String id,
-          String name,
-          bool use_target_coords,
-          double accuracy_arcsec,
-          int max_attempts,
-          double exposure_duration);
+  wire__crate__api__api_create_center_node(
+    String id,
+    String name,
+    bool use_target_coords,
+    double accuracy_arcsec,
+    int max_attempts,
+    double exposure_duration,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_cool_camera_node(
-          String id, String name, double target_temp, double? duration_mins);
+  wire__crate__api__api_create_cool_camera_node(
+    String id,
+    String name,
+    double target_temp,
+    double? duration_mins,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_delay_node(
-          String id, String name, double seconds);
+  wire__crate__api__api_create_delay_node(
+    String id,
+    String name,
+    double seconds,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_dither_node(
-          String id,
-          String name,
-          double pixels,
-          double settle_pixels,
-          double settle_time,
-          double settle_timeout,
-          bool ra_only);
+  wire__crate__api__api_create_dither_node(
+    String id,
+    String name,
+    double pixels,
+    double settle_pixels,
+    double settle_time,
+    double settle_timeout,
+    bool ra_only,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_exposure_node(
-          String id,
-          String name,
-          double duration_secs,
-          int count,
-          String? filter,
-          int? gain,
-          int? offset,
-          int binning,
-          int? dither_every);
+  wire__crate__api__api_create_exposure_node(
+    String id,
+    String name,
+    double duration_secs,
+    int count,
+    String? filter,
+    int? gain,
+    int? offset,
+    int binning,
+    int? dither_every,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_filter_node(
-          String id, String name, String filter_name);
+  wire__crate__api__api_create_filter_node(
+    String id,
+    String name,
+    String filter_name,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_loop_node(String id, String name,
-          int? iterations, String condition, JSAny children);
+  wire__crate__api__api_create_loop_node(
+    String id,
+    String name,
+    int? iterations,
+    String condition,
+    JSAny children,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_notification_node(
-          String id, String name, String title, String message, String level);
+  wire__crate__api__api_create_notification_node(
+    String id,
+    String name,
+    String title,
+    String message,
+    String level,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_park_node(String id, String name);
+  wire__crate__api__api_create_park_node(String id, String name);
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_rotator_node(
-          String id, String name, double target_angle, bool relative);
+  wire__crate__api__api_create_rotator_node(
+    String id,
+    String name,
+    double target_angle,
+    bool relative,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_script_node(String id, String name,
-          String script_path, JSAny arguments, int? timeout_secs);
+  wire__crate__api__api_create_script_node(
+    String id,
+    String name,
+    String script_path,
+    JSAny arguments,
+    int? timeout_secs,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_slew_node(String id, String name,
-          bool use_target_coords, double? custom_ra, double? custom_dec);
+  wire__crate__api__api_create_slew_node(
+    String id,
+    String name,
+    bool use_target_coords,
+    double? custom_ra,
+    double? custom_dec,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_target_group_node(
-          String id,
-          String name,
-          String target_name,
-          double ra_hours,
-          double dec_degrees,
-          double? rotation,
-          double? min_altitude,
-          double? max_altitude,
-          int priority,
-          JSAny children);
+  wire__crate__api__api_create_target_group_node(
+    String id,
+    String name,
+    String target_name,
+    double ra_hours,
+    double dec_degrees,
+    double? rotation,
+    double? min_altitude,
+    double? max_altitude,
+    int priority,
+    JSAny children,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_unpark_node(String id, String name);
+  wire__crate__api__api_create_unpark_node(String id, String name);
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_wait_time_node(
-          String id, String name, JSAny? wait_until, String? twilight_type);
+  wire__crate__api__api_create_wait_time_node(
+    String id,
+    String name,
+    JSAny? wait_until,
+    String? twilight_type,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_create_warm_camera_node(
-          String id, String name, double rate_per_min);
+  wire__crate__api__api_create_warm_camera_node(
+    String id,
+    String name,
+    double rate_per_min,
+  );
 
   external void wire__crate__api__api_debayer_fits_file(
-      NativePortType port_, String file_path, int pattern, int algorithm);
+    NativePortType port_,
+    String file_path,
+    int pattern,
+    int algorithm,
+  );
 
-  external void wire__crate__api__api_debayer_image(NativePortType port_,
-      int width, int height, JSAny data, String pattern_str, String algo_str);
+  external void wire__crate__api__api_debayer_image(
+    NativePortType port_,
+    int width,
+    int height,
+    JSAny data,
+    String pattern_str,
+    String algo_str,
+  );
 
   external void wire__crate__api__api_delete_profile(
-      NativePortType port_, String profile_id);
+    NativePortType port_,
+    String profile_id,
+  );
 
   external void wire__crate__api__api_detect_stars_in_file(
-      NativePortType port_, String file_path, JSAny? config);
+    NativePortType port_,
+    String file_path,
+    JSAny? config,
+  );
 
   external void wire__crate__api__api_disconnect_device(
-      NativePortType port_, int device_type, String device_id);
+    NativePortType port_,
+    int device_type,
+    String device_id,
+  );
 
   external void wire__crate__api__api_discover_alpaca_at_address(
-      NativePortType port_, String host, int port);
+    NativePortType port_,
+    String host,
+    int port,
+  );
 
   external void wire__crate__api__api_discover_alpaca_devices(
-      NativePortType port_);
+    NativePortType port_,
+  );
 
   external void wire__crate__api__api_discover_devices(
-      NativePortType port_, int device_type);
+    NativePortType port_,
+    int device_type,
+  );
 
   external void wire__crate__api__api_discover_indi_at_address(
-      NativePortType port_, String host, int port);
+    NativePortType port_,
+    String host,
+    int port,
+  );
 
   external void wire__crate__api__api_discover_indi_common_hosts(
-      NativePortType port_);
+    NativePortType port_,
+  );
 
   external void wire__crate__api__api_discover_indi_localhost(
-      NativePortType port_);
+    NativePortType port_,
+  );
 
   external void wire__crate__api__api_discover_indi_network(
-      NativePortType port_);
+    NativePortType port_,
+  );
 
   external void wire__crate__api__api_end_session(NativePortType port_);
 
   external void wire__crate__api__api_filterwheel_get_names(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__api_filterwheel_set_by_name(
-      NativePortType port_, String device_id, String name);
+    NativePortType port_,
+    String device_id,
+    String name,
+  );
 
   external void wire__crate__api__api_filterwheel_set_position(
-      NativePortType port_, String device_id, int position);
+    NativePortType port_,
+    String device_id,
+    int position,
+  );
 
   external void wire__crate__api__api_focuser_halt(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__api_focuser_move_relative(
-      NativePortType port_, String device_id, int delta);
+    NativePortType port_,
+    String device_id,
+    int delta,
+  );
 
   external void wire__crate__api__api_focuser_move_to(
-      NativePortType port_, String device_id, int position);
+    NativePortType port_,
+    String device_id,
+    int position,
+  );
 
   external void wire__crate__api__api_generate_filename(
-      NativePortType port_,
-      String pattern,
-      String base_dir,
-      String? target,
-      String? filter,
-      double exposure_time,
-      int frame_type,
-      int frame_number,
-      int? gain,
-      int? offset,
-      double? temperature,
-      int binning_x,
-      int binning_y,
-      String? camera,
-      String? telescope,
-      String extension);
+    NativePortType port_,
+    String pattern,
+    String base_dir,
+    String? target,
+    String? filter,
+    double exposure_time,
+    int frame_type,
+    int frame_number,
+    int? gain,
+    int? offset,
+    double? temperature,
+    int binning_x,
+    int binning_y,
+    String? camera,
+    String? telescope,
+    String extension,
+  );
 
   external void wire__crate__api__api_get_active_profile(NativePortType port_);
 
   external void wire__crate__api__api_get_camera_status(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__api_get_connected_devices(
-      NativePortType port_);
+    NativePortType port_,
+  );
 
   external void wire__crate__api__api_get_filterwheel_status(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__api_get_focuser_status(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__api_get_image_stats(
-      NativePortType port_, int width, int height, JSAny data);
+    NativePortType port_,
+    int width,
+    int height,
+    JSAny data,
+  );
 
   external void wire__crate__api__api_get_last_image(NativePortType port_);
 
   external void wire__crate__api__api_get_location(NativePortType port_);
 
   external void wire__crate__api__api_get_mount_status(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__api_get_next_frame_number(
-      NativePortType port_,
-      String base_dir,
-      String pattern,
-      String? target,
-      String? filter,
-      int frame_type);
+    NativePortType port_,
+    String base_dir,
+    String pattern,
+    String? target,
+    String? filter,
+    int frame_type,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_get_plate_solver_path();
+  wire__crate__api__api_get_plate_solver_path();
 
   external void wire__crate__api__api_get_profiles(NativePortType port_);
 
   external void wire__crate__api__api_get_rotator_status(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__api_get_session_state(NativePortType port_);
 
   external void wire__crate__api__api_get_settings(NativePortType port_);
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_get_version();
+  wire__crate__api__api_get_version();
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_init();
+  wire__crate__api__api_init();
 
   external void wire__crate__api__api_init_profile_storage(
-      NativePortType port_, String storage_path);
+    NativePortType port_,
+    String storage_path,
+  );
 
   external void wire__crate__api__api_init_settings_storage(
-      NativePortType port_, String storage_path);
+    NativePortType port_,
+    String storage_path,
+  );
 
   external void wire__crate__api__api_is_device_connected(
-      NativePortType port_, int device_type, String device_id);
+    NativePortType port_,
+    int device_type,
+    String device_id,
+  );
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_is_phd2_running();
+  wire__crate__api__api_is_phd2_running();
 
   external JSAny? /* flutter_rust_bridge::for_generated::WireSyncRust2DartDco */
-      wire__crate__api__api_is_plate_solver_available();
+  wire__crate__api__api_is_plate_solver_available();
 
   external void wire__crate__api__api_load_profile(
-      NativePortType port_, String profile_id);
+    NativePortType port_,
+    String profile_id,
+  );
 
   external void wire__crate__api__api_mount_park(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
-  external void wire__crate__api__api_mount_pulse_guide(NativePortType port_,
-      String device_id, String direction, int duration_ms);
+  external void wire__crate__api__api_mount_pulse_guide(
+    NativePortType port_,
+    String device_id,
+    String direction,
+    int duration_ms,
+  );
 
   external void wire__crate__api__api_mount_set_tracking(
-      NativePortType port_, String device_id, bool enabled);
+    NativePortType port_,
+    String device_id,
+    bool enabled,
+  );
 
   external void wire__crate__api__api_mount_slew_to_coordinates(
-      NativePortType port_, String device_id, double ra, double dec);
+    NativePortType port_,
+    String device_id,
+    double ra,
+    double dec,
+  );
 
   external void wire__crate__api__api_mount_sync_to_coordinates(
-      NativePortType port_, String device_id, double ra, double dec);
+    NativePortType port_,
+    String device_id,
+    double ra,
+    double dec,
+  );
 
   external void wire__crate__api__api_mount_unpark(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__api_phd2_connect(
-      NativePortType port_, String? host, int? port);
+    NativePortType port_,
+    String? host,
+    int? port,
+  );
 
   external void wire__crate__api__api_phd2_disconnect(NativePortType port_);
 
   external void wire__crate__api__api_phd2_dither(
-      NativePortType port_,
-      double amount,
-      bool ra_only,
-      double settle_pixels,
-      double settle_time,
-      double settle_timeout);
+    NativePortType port_,
+    double amount,
+    bool ra_only,
+    double settle_pixels,
+    double settle_time,
+    double settle_timeout,
+  );
 
   external void wire__crate__api__api_phd2_get_status(NativePortType port_);
 
-  external void wire__crate__api__api_phd2_start_guiding(NativePortType port_,
-      double settle_pixels, double settle_time, double settle_timeout);
+  external void wire__crate__api__api_phd2_start_guiding(
+    NativePortType port_,
+    double settle_pixels,
+    double settle_time,
+    double settle_timeout,
+  );
 
   external void wire__crate__api__api_phd2_stop_guiding(NativePortType port_);
 
   external void wire__crate__api__api_plate_solve_blind(
-      NativePortType port_, String file_path);
+    NativePortType port_,
+    String file_path,
+  );
 
-  external void wire__crate__api__api_plate_solve_near(NativePortType port_,
-      String file_path, double hint_ra, double hint_dec, double search_radius);
+  external void wire__crate__api__api_plate_solve_near(
+    NativePortType port_,
+    String file_path,
+    double hint_ra,
+    double hint_dec,
+    double search_radius,
+  );
 
   external void wire__crate__api__api_read_fits_file(
-      NativePortType port_, String file_path);
+    NativePortType port_,
+    String file_path,
+  );
 
   external void wire__crate__api__api_read_xisf_file(
-      NativePortType port_, String file_path);
+    NativePortType port_,
+    String file_path,
+  );
 
   external void wire__crate__api__api_rotator_halt(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__api_rotator_move_relative(
-      NativePortType port_, String device_id, double delta);
+    NativePortType port_,
+    String device_id,
+    double delta,
+  );
 
   external void wire__crate__api__api_rotator_move_to(
-      NativePortType port_, String device_id, double angle);
+    NativePortType port_,
+    String device_id,
+    double angle,
+  );
 
   external void wire__crate__api__api_run_autofocus(
-      NativePortType port_, String device_id, String camera_id, JSAny config);
+    NativePortType port_,
+    String device_id,
+    String camera_id,
+    JSAny config,
+  );
 
-  external void wire__crate__api__api_save_fits_file(NativePortType port_,
-      String file_path, int width, int height, JSAny data, JSAny header_data);
+  external void wire__crate__api__api_save_fits_file(
+    NativePortType port_,
+    String file_path,
+    int width,
+    int height,
+    JSAny data,
+    JSAny header_data,
+  );
 
   external void wire__crate__api__api_save_profile(
-      NativePortType port_, JSAny profile);
+    NativePortType port_,
+    JSAny profile,
+  );
 
-  external void wire__crate__api__api_save_xisf_file(NativePortType port_,
-      String file_path, int width, int height, JSAny data, JSAny properties);
+  external void wire__crate__api__api_save_xisf_file(
+    NativePortType port_,
+    String file_path,
+    int width,
+    int height,
+    JSAny data,
+    JSAny properties,
+  );
 
   external void wire__crate__api__api_sequencer_get_state(NativePortType port_);
 
   external void wire__crate__api__api_sequencer_load(
-      NativePortType port_, JSAny definition);
+    NativePortType port_,
+    JSAny definition,
+  );
 
   external void wire__crate__api__api_sequencer_load_json(
-      NativePortType port_, String json);
+    NativePortType port_,
+    String json,
+  );
 
   external void wire__crate__api__api_sequencer_pause(NativePortType port_);
 
@@ -3079,88 +3919,155 @@ extension type RustLibWasmModule._(JSObject _) implements JSObject {
   external void wire__crate__api__api_sequencer_stop(NativePortType port_);
 
   external void wire__crate__api__api_sequencer_subscribe_events(
-      NativePortType port_);
+    NativePortType port_,
+  );
 
   external void wire__crate__api__api_set_camera_binning(
-      NativePortType port_, String device_id, int bin_x, int bin_y);
+    NativePortType port_,
+    String device_id,
+    int bin_x,
+    int bin_y,
+  );
 
-  external void wire__crate__api__api_set_camera_cooler(NativePortType port_,
-      String device_id, bool enabled, double? target_temp);
+  external void wire__crate__api__api_set_camera_cooler(
+    NativePortType port_,
+    String device_id,
+    bool enabled,
+    double? target_temp,
+  );
 
   external void wire__crate__api__api_set_camera_gain(
-      NativePortType port_, String device_id, int gain);
+    NativePortType port_,
+    String device_id,
+    int gain,
+  );
 
   external void wire__crate__api__api_set_camera_offset(
-      NativePortType port_, String device_id, int offset);
+    NativePortType port_,
+    String device_id,
+    int offset,
+  );
 
   external void wire__crate__api__api_set_location(
-      NativePortType port_, JSAny? location);
+    NativePortType port_,
+    JSAny? location,
+  );
 
   external void wire__crate__api__api_start_session(
-      NativePortType port_, String? target_name, double? ra, double? dec);
+    NativePortType port_,
+    String? target_name,
+    double? ra,
+    double? dec,
+  );
 
   external void wire__crate__api__api_update_settings(
-      NativePortType port_, JSAny settings);
+    NativePortType port_,
+    JSAny settings,
+  );
 
   external void wire__crate__api__cancel_exposure(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__alpaca_connections__connect_alpaca_device(
-      NativePortType port_, int device_type, String device_id);
+    NativePortType port_,
+    int device_type,
+    String device_id,
+  );
 
   external void wire__crate__api__ascom_connections__connect_ascom_camera(
-      NativePortType port_, String prog_id);
+    NativePortType port_,
+    String prog_id,
+  );
 
   external void wire__crate__api__ascom_connections__connect_ascom_focuser(
-      NativePortType port_, String prog_id);
+    NativePortType port_,
+    String prog_id,
+  );
 
   external void wire__crate__api__ascom_connections__connect_ascom_mount(
-      NativePortType port_, String prog_id);
+    NativePortType port_,
+    String prog_id,
+  );
 
   external void wire__crate__api__alpaca_connections__disconnect_alpaca_device(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__filter_wheel_get_config(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__filter_wheel_get_position(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__filter_wheel_set_position(
-      NativePortType port_, String device_id, int position);
+    NativePortType port_,
+    String device_id,
+    int position,
+  );
 
   external void wire__crate__api__focuser_get_details(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__focuser_get_position(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__focuser_get_temp(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__focuser_halt(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__focuser_move_abs(
-      NativePortType port_, String device_id, int position);
+    NativePortType port_,
+    String device_id,
+    int position,
+  );
 
   external void wire__crate__api__focuser_move_rel(
-      NativePortType port_, String device_id, int steps);
+    NativePortType port_,
+    String device_id,
+    int steps,
+  );
 
   external void wire__crate__api__alpaca_connections__get_alpaca_client(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__ascom_connections__get_ascom_camera_temp(
-      NativePortType port_, String prog_id);
+    NativePortType port_,
+    String prog_id,
+  );
 
   external void wire__crate__api__ascom_connections__get_ascom_focuser_position(
-      NativePortType port_, String prog_id);
+    NativePortType port_,
+    String prog_id,
+  );
 
   external void wire__crate__api__ascom_connections__get_ascom_mount_coords(
-      NativePortType port_, String prog_id);
+    NativePortType port_,
+    String prog_id,
+  );
 
   external void wire__crate__api__get_camera_status(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__get_device_manager(NativePortType port_);
 
@@ -3175,91 +4082,145 @@ extension type RustLibWasmModule._(JSObject _) implements JSObject {
   external void wire__crate__api__get_state(NativePortType port_);
 
   external void wire__crate__api__alpaca_connections__is_connected(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__mount_abort(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__mount_get_coordinates(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__mount_get_status(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__mount_park(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
-  external void wire__crate__api__mount_pulse_guide(NativePortType port_,
-      String device_id, String direction, int duration_ms);
+  external void wire__crate__api__mount_pulse_guide(
+    NativePortType port_,
+    String device_id,
+    String direction,
+    int duration_ms,
+  );
 
   external void wire__crate__api__mount_set_tracking(
-      NativePortType port_, String device_id, bool enabled);
+    NativePortType port_,
+    String device_id,
+    bool enabled,
+  );
 
   external void wire__crate__api__mount_slew(
-      NativePortType port_, String device_id, double ra, double dec);
+    NativePortType port_,
+    String device_id,
+    double ra,
+    double dec,
+  );
 
   external void wire__crate__api__mount_sync(
-      NativePortType port_, String device_id, double ra, double dec);
+    NativePortType port_,
+    String device_id,
+    double ra,
+    double dec,
+  );
 
   external void wire__crate__api__mount_unpark(
-      NativePortType port_, String device_id);
+    NativePortType port_,
+    String device_id,
+  );
 
   external void wire__crate__api__ascom_connections__move_ascom_focuser(
-      NativePortType port_, String prog_id, int position);
+    NativePortType port_,
+    String prog_id,
+    int position,
+  );
 
-  external void wire__crate__api__set_camera_cooler(NativePortType port_,
-      String device_id, bool enabled, double? target_temp);
+  external void wire__crate__api__set_camera_cooler(
+    NativePortType port_,
+    String device_id,
+    bool enabled,
+    double? target_temp,
+  );
 
   external void wire__crate__api__set_camera_gain(
-      NativePortType port_, String device_id, int gain);
+    NativePortType port_,
+    String device_id,
+    int gain,
+  );
 
   external void wire__crate__api__set_camera_offset(
-      NativePortType port_, String device_id, int offset);
+    NativePortType port_,
+    String device_id,
+    int offset,
+  );
 
   external void wire__crate__api__simulated_camera_default(
-      NativePortType port_);
+    NativePortType port_,
+  );
 
   external void wire__crate__api__simulated_filter_wheel_default(
-      NativePortType port_);
+    NativePortType port_,
+  );
 
   external void wire__crate__api__simulated_focuser_default(
-      NativePortType port_);
+    NativePortType port_,
+  );
 
   external void wire__crate__api__simulated_mount_default(NativePortType port_);
 
   external void wire__crate__api__simulated_rotator_default(
-      NativePortType port_);
+    NativePortType port_,
+  );
 
   external void wire__crate__api__ascom_connections__slew_ascom_mount(
-      NativePortType port_, String prog_id, double ra, double dec);
+    NativePortType port_,
+    String prog_id,
+    double ra,
+    double dec,
+  );
 
   external void wire__crate__api__star_detection_config_api_default(
-      NativePortType port_);
+    NativePortType port_,
+  );
 
   external void wire__crate__api__start_exposure(
-      NativePortType port_,
-      String device_id,
-      double duration_secs,
-      int gain,
-      int offset,
-      int bin_x,
-      int bin_y);
+    NativePortType port_,
+    String device_id,
+    double duration_secs,
+    int gain,
+    int offset,
+    int bin_x,
+    int bin_y,
+  );
 
   external void wire__crate__api__rand__thread_rng(NativePortType port_);
 
   external void
-      rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          int ptr);
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    int ptr,
+  );
 
   external void
-      rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
-          int ptr);
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+    int ptr,
+  );
 
   external void
-      rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
-          int ptr);
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
+    int ptr,
+  );
 
   external void
-      rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
-          int ptr);
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerRangeSelf(
+    int ptr,
+  );
 }

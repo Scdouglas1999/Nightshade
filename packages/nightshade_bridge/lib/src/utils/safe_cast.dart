@@ -112,8 +112,11 @@ T? safelyCastOpt<T>(Object? value, {required String context}) {
 ///
 /// Returns `null` when the key is absent — callers apply their own defaults at
 /// the call site so the default is visible, not hidden in a helper.
-double? safelyCastDoubleOpt(Map<String, Object?> map, String key,
-    {required String contextPrefix}) {
+double? safelyCastDoubleOpt(
+  Map<String, Object?> map,
+  String key, {
+  required String contextPrefix,
+}) {
   final raw = map[key];
   if (raw == null) return null;
   final n = safelyCastOpt<num>(raw, context: '$contextPrefix["$key"]');
@@ -125,8 +128,11 @@ double? safelyCastDoubleOpt(Map<String, Object?> map, String key,
 /// Mirrors [safelyCastDoubleOpt]. JSON / FRB may send `42` or `42.0` — both
 /// are accepted via `num.toInt()`. A value like `"42"` or `true` raises a
 /// [CastFailureException] tagged with the field name.
-int? safelyCastIntOpt(Map<String, Object?> map, String key,
-    {required String contextPrefix}) {
+int? safelyCastIntOpt(
+  Map<String, Object?> map,
+  String key, {
+  required String contextPrefix,
+}) {
   final raw = map[key];
   if (raw == null) return null;
   final n = safelyCastOpt<num>(raw, context: '$contextPrefix["$key"]');

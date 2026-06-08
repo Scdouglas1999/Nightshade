@@ -8,27 +8,36 @@ import '../../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 /// Set filter wheel position
-Future<void> filterWheelSetPosition(
-        {required String deviceId, required int position}) =>
-    RustLib.instance.api.crateApiDevicesFilterWheelFilterWheelSetPosition(
-        deviceId: deviceId, position: position);
+Future<void> filterWheelSetPosition({
+  required String deviceId,
+  required int position,
+}) => RustLib.instance.api.crateApiDevicesFilterWheelFilterWheelSetPosition(
+  deviceId: deviceId,
+  position: position,
+);
 
 /// Get filter wheel position
-Future<int> filterWheelGetPosition({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesFilterWheelFilterWheelGetPosition(deviceId: deviceId);
+Future<int> filterWheelGetPosition({required String deviceId}) => RustLib
+    .instance
+    .api
+    .crateApiDevicesFilterWheelFilterWheelGetPosition(deviceId: deviceId);
 
 /// Get filter wheel configuration (count, names)
 Future<(int, List<String>)> filterWheelGetConfig({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesFilterWheelFilterWheelGetConfig(deviceId: deviceId);
+    RustLib.instance.api.crateApiDevicesFilterWheelFilterWheelGetConfig(
+      deviceId: deviceId,
+    );
 
 /// Set camera gain
 Future<void> setCameraGain({required String deviceId, required int gain}) =>
     RustLib.instance.api.crateApiDevicesFilterWheelSetCameraGain(
-        deviceId: deviceId, gain: gain);
+      deviceId: deviceId,
+      gain: gain,
+    );
 
 /// Set camera offset
 Future<void> setCameraOffset({required String deviceId, required int offset}) =>
     RustLib.instance.api.crateApiDevicesFilterWheelSetCameraOffset(
-        deviceId: deviceId, offset: offset);
+      deviceId: deviceId,
+      offset: offset,
+    );

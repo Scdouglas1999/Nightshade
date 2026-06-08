@@ -127,10 +127,7 @@ Future<T> withRetry<T>(
         final randomJitter =
             math.Random().nextInt(jitterAmount * 2) - jitterAmount;
         nextDelay = Duration(
-          milliseconds: math.max(
-            0,
-            nextDelay.inMilliseconds + randomJitter,
-          ),
+          milliseconds: math.max(0, nextDelay.inMilliseconds + randomJitter),
         );
       }
 

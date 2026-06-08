@@ -6,10 +6,10 @@
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `aligned_quality`, `apply_detection_overrides`, `auto_reject`, `build_integration_config`, `build_master_flat_impl`, `build_master_header`, `build_normalization_config`, `build_registration_config`, `build_weight_formula`, `choose_reference`, `derive_luma_f64`, `ensure_parent_dir`, `ensure_u16`, `extract_channel`, `image_to_f64`, `integrate_session`, `load_optional_master`, `master_add`, `master_create`, `master_finalize`, `master_info`, `reference_companion_path`, `save_fits_master_impl`, `to_u16_for_preview`, `write_channel`, `write_preview_png`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AlignArgs`, `BuildMasterFlatArgs`, `BuildMasterFlatResult`, `CalibrationArgs`, `DetectionArgs`, `IntegrateSessionArgs`, `IntegrateSessionResult`, `IntegrationArgs`, `IntegrationSettingsArgs`, `LoadedLight`, `MasterAccumulateResult`, `MasterAddArgs`, `MasterCreateArgs`, `MasterFinalizeArgs`, `MasterInfoArgs`, `MasterOp`, `MasterSettingsArgs`, `NormalizationArgs`, `OutputArgs`, `PerFrameRecord`, `SaveFitsMasterArgs`, `SaveFitsMasterResult`, `WeightingArgs`
+// These functions are ignored because they are not marked as `pub`: `aligned_quality`, `apply_detection_overrides`, `auto_reject`, `build_integration_config`, `build_master_flat_impl`, `build_master_header`, `build_normalization_config`, `build_registration_config`, `build_weight_formula`, `choose_reference`, `derive_luma_f64`, `emit_integration_progress`, `ensure_parent_dir`, `ensure_u16`, `extract_channel`, `image_to_f64`, `integrate_session`, `load_optional_master`, `master_add`, `master_create`, `master_finalize`, `master_info`, `reference_companion_path`, `save_fits_master_impl`, `to_u16_for_preview`, `write_channel`, `write_preview_png`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AlignArgs`, `BuildMasterFlatArgs`, `BuildMasterFlatResult`, `CalibrationArgs`, `IntegrateSessionArgs`, `IntegrateSessionResult`, `IntegrationArgs`, `IntegrationSettingsArgs`, `LoadedLight`, `MasterAccumulateResult`, `MasterAddArgs`, `MasterCreateArgs`, `MasterFinalizeArgs`, `MasterInfoArgs`, `MasterOp`, `MasterSettingsArgs`, `NormalizationArgs`, `OutputArgs`, `PerFrameRecord`, `SaveFitsMasterArgs`, `SaveFitsMasterResult`, `WeightingArgs`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
-// These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`
+// These functions are ignored (category: IgnoreBecauseOwnerTyShouldIgnore): `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`, `default`
 
 /// One-shot batch integration of a sub list into a linear FITS master.
 ///
@@ -22,9 +22,10 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// [`IntegrateSessionResult`]. All failure modes (no subs, unreadable frame,
 /// no consistent geometry, write failure) surface as `Err(String)` — never a
 /// silent partial stack.
-Future<String> apiIntegrateSession({required String argsJson}) =>
-    RustLib.instance.api
-        .crateApiPostSessionApiIntegrateSession(argsJson: argsJson);
+Future<String> apiIntegrateSession({required String argsJson}) => RustLib
+    .instance
+    .api
+    .crateApiPostSessionApiIntegrateSession(argsJson: argsJson);
 
 /// Multi-night accumulating master. `op` selects the operation:
 ///
@@ -36,9 +37,10 @@ Future<String> apiIntegrateSession({required String argsJson}) =>
 /// Returns a [`MasterAccumulateResult`]. The running accumulator state lives in
 /// the `.nsmaster` sidecar; the FITS is the shareable artifact written on
 /// `finalize` (and re-finalizable after more `add`s).
-Future<String> apiMasterAccumulate({required String argsJson}) =>
-    RustLib.instance.api
-        .crateApiPostSessionApiMasterAccumulate(argsJson: argsJson);
+Future<String> apiMasterAccumulate({required String argsJson}) => RustLib
+    .instance
+    .api
+    .crateApiPostSessionApiMasterAccumulate(argsJson: argsJson);
 
 /// Build a unit-mean master flat from raw flats (+ optional bias / dark-flat
 /// pedestal) and write it as a FITS master, wrapping
@@ -46,9 +48,10 @@ Future<String> apiMasterAccumulate({required String argsJson}) =>
 ///
 /// `args_json` is a [`BuildMasterFlatArgs`]; the result is a
 /// [`BuildMasterFlatResult`].
-Future<String> apiBuildMasterFlat({required String argsJson}) =>
-    RustLib.instance.api
-        .crateApiPostSessionApiBuildMasterFlat(argsJson: argsJson);
+Future<String> apiBuildMasterFlat({required String argsJson}) => RustLib
+    .instance
+    .api
+    .crateApiPostSessionApiBuildMasterFlat(argsJson: argsJson);
 
 /// Re-export an in-memory pixel buffer as a 16-bit or float FITS master with
 /// provenance. The integration paths already write the FITS natively, so this
@@ -56,6 +59,7 @@ Future<String> apiBuildMasterFlat({required String argsJson}) =>
 ///
 /// `args_json` is a [`SaveFitsMasterArgs`]; the result is a
 /// [`SaveFitsMasterResult`].
-Future<String> apiSaveFitsMaster({required String argsJson}) =>
-    RustLib.instance.api
-        .crateApiPostSessionApiSaveFitsMaster(argsJson: argsJson);
+Future<String> apiSaveFitsMaster({required String argsJson}) => RustLib
+    .instance
+    .api
+    .crateApiPostSessionApiSaveFitsMaster(argsJson: argsJson);

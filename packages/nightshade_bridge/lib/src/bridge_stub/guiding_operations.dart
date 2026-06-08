@@ -6,8 +6,10 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
   // =========================================================================
 
   /// Check if PHD2 is running
-  Future<bool> isPhd2Running(
-      {String host = 'localhost', int port = 4400}) async {
+  Future<bool> isPhd2Running({
+    String host = 'localhost',
+    int port = 4400,
+  }) async {
     return phd2.checkPhd2Running(host: host, port: port);
   }
 
@@ -27,19 +29,25 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     }
 
     // Check if PHD2 is already running
-    bool phd2Running =
-        await phd2.checkPhd2Running(host: targetHost, port: targetPort);
+    bool phd2Running = await phd2.checkPhd2Running(
+      host: targetHost,
+      port: targetPort,
+    );
 
     // If PHD2 is not running and we're on localhost, try to launch it
     if (!phd2Running &&
         (targetHost == 'localhost' || targetHost == '127.0.0.1')) {
       developer.log(
-          '[PHD2] not running on localhost. Platform.isWindows: ${Platform.isWindows}',
-          name: 'NativeBridge',
-          level: 800);
+        '[PHD2] not running on localhost. Platform.isWindows: ${Platform.isWindows}',
+        name: 'NativeBridge',
+        level: 800,
+      );
       if (Platform.isWindows) {
-        developer.log('[PHD2] not running, attempting to launch...',
-            name: 'NativeBridge', level: 800);
+        developer.log(
+          '[PHD2] not running, attempting to launch...',
+          name: 'NativeBridge',
+          level: 800,
+        );
         try {
           // Common PHD2 installation paths on Windows
           final phd2Paths = [
@@ -59,60 +67,74 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
 
           if (phd2Path != null) {
             await Process.start(phd2Path, [], mode: ProcessStartMode.detached);
-            developer.log('[PHD2] launched from: $phd2Path',
-                name: 'NativeBridge', level: 800);
+            developer.log(
+              '[PHD2] launched from: $phd2Path',
+              name: 'NativeBridge',
+              level: 800,
+            );
 
             // Wait for PHD2 to start and open its server
             for (int i = 0; i < 30; i++) {
               await Future<void>.delayed(const Duration(seconds: 1));
               if (await phd2.checkPhd2Running(
-                  host: targetHost, port: targetPort)) {
+                host: targetHost,
+                port: targetPort,
+              )) {
                 phd2Running = true;
-                developer.log('[PHD2] is now running',
-                    name: 'NativeBridge', level: 800);
+                developer.log(
+                  '[PHD2] is now running',
+                  name: 'NativeBridge',
+                  level: 800,
+                );
                 break;
               }
             }
 
             if (!phd2Running) {
               throw Exception(
-                  'PHD2 was launched but did not start its server within 30 seconds');
+                'PHD2 was launched but did not start its server within 30 seconds',
+              );
             }
           } else {
             throw Exception(
-                'PHD2 not found. Please install PHD2 from https://openphdguiding.org/');
+              'PHD2 not found. Please install PHD2 from https://openphdguiding.org/',
+            );
           }
         } catch (e) {
-          developer.log('[PHD2] Failed to launch: $e',
-              name: 'NativeBridge', level: 1000);
+          developer.log(
+            '[PHD2] Failed to launch: $e',
+            name: 'NativeBridge',
+            level: 1000,
+          );
           throw Exception('Could not launch PHD2: $e');
         }
       } else {
         developer.log(
-            '[PHD2] Not on Windows, cannot auto-launch PHD2. Platform: ${Platform.operatingSystem}',
-            name: 'NativeBridge',
-            level: 900);
+          '[PHD2] Not on Windows, cannot auto-launch PHD2. Platform: ${Platform.operatingSystem}',
+          name: 'NativeBridge',
+          level: 900,
+        );
         throw Exception(
-            'PHD2 is not running. Platform: ${Platform.operatingSystem}. Please start PHD2 manually.');
+          'PHD2 is not running. Platform: ${Platform.operatingSystem}. Please start PHD2 manually.',
+        );
       }
     }
 
     // Now connect to PHD2
     _phd2Client?.dispose();
-    _phd2Client = phd2.Phd2Client(
-      host: targetHost,
-      port: targetPort,
-    );
+    _phd2Client = phd2.Phd2Client(host: targetHost, port: targetPort);
 
     await _phd2Client!.connect();
 
-    _eventController.add(_FallbackNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.guiding,
-      eventType: 'PHD2Connected',
-      data: {'host': targetHost, 'port': targetPort},
-    ));
+    _eventController.add(
+      _FallbackNightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.info,
+        category: EventCategory.guiding,
+        eventType: 'PHD2Connected',
+        data: {'host': targetHost, 'port': targetPort},
+      ),
+    );
   }
 
   /// Disconnect from PHD2
@@ -127,13 +149,15 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     _phd2Client?.disconnect();
     _phd2Client = null;
 
-    _eventController.add(_FallbackNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.guiding,
-      eventType: 'PHD2Disconnected',
-      data: {},
-    ));
+    _eventController.add(
+      _FallbackNightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.info,
+        category: EventCategory.guiding,
+        eventType: 'PHD2Disconnected',
+        data: {},
+      ),
+    );
   }
 
   /// Start guiding
@@ -160,13 +184,15 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
       settleTimeout: settleTimeout,
     );
 
-    _eventController.add(_FallbackNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.guiding,
-      eventType: 'GuidingStarted',
-      data: {},
-    ));
+    _eventController.add(
+      _FallbackNightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.info,
+        category: EventCategory.guiding,
+        eventType: 'GuidingStarted',
+        data: {},
+      ),
+    );
   }
 
   /// Stop guiding
@@ -179,13 +205,15 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
       await _phd2Client!.stopGuiding();
     }
 
-    _eventController.add(_FallbackNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.guiding,
-      eventType: 'GuidingStopped',
-      data: {},
-    ));
+    _eventController.add(
+      _FallbackNightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.info,
+        category: EventCategory.guiding,
+        eventType: 'GuidingStopped',
+        data: {},
+      ),
+    );
   }
 
   /// Pause guiding
@@ -242,13 +270,15 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
       settleTimeout: settleTimeout,
     );
 
-    _eventController.add(_FallbackNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.guiding,
-      eventType: 'DitherStarted',
-      data: {'amount': amount, 'raOnly': raOnly},
-    ));
+    _eventController.add(
+      _FallbackNightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.info,
+        category: EventCategory.guiding,
+        eventType: 'DitherStarted',
+        data: {'amount': amount, 'raOnly': raOnly},
+      ),
+    );
   }
 
   /// Get PHD2 status
@@ -367,9 +397,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     _nativeBridgeRequired('guiderLoop');
   }
 
-  Future<(double, double)> guiderFindStar({
-    required String deviceId,
-  }) async {
+  Future<(double, double)> guiderFindStar({required String deviceId}) async {
     final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
     if (_nativeAvailable) {
       return gen_api.apiGuiderFindStar(deviceId: normalizedDeviceId);
@@ -436,7 +464,9 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     final normalizedDeviceId = _canonicalGuiderDeviceId(deviceId);
     if (_nativeAvailable) {
       return gen_api.apiGuiderGetStarImage(
-          deviceId: normalizedDeviceId, size: size);
+        deviceId: normalizedDeviceId,
+        size: size,
+      );
     }
     if (normalizedDeviceId == 'phd2_guider') {
       return phd2GetStarImage(size: size);
@@ -556,8 +586,10 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
         : height / 2.0;
 
     // Decode base64 pixel data
-    final pixelsB64 =
-        safelyCastOpt<String>(result['pixels'], context: '$ctx["pixels"]');
+    final pixelsB64 = safelyCastOpt<String>(
+      result['pixels'],
+      context: '$ctx["pixels"]',
+    );
     if (pixelsB64 == null) {
       throw Exception('No pixel data in PHD2 star image response');
     }
@@ -605,11 +637,7 @@ extension _NativeBridgeGuidingOperations on _NativeBridgeImplementation {
     required double value,
   }) async {
     if (_nativeAvailable) {
-      await gen_api.apiPhd2SetAlgoParam(
-        axis: axis,
-        name: name,
-        value: value,
-      );
+      await gen_api.apiPhd2SetAlgoParam(axis: axis, name: name, value: value);
       return;
     }
     if (_phd2Client == null || !_phd2Client!.isConnected) {

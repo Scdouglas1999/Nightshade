@@ -23,11 +23,17 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     try {
       await gen_api.apiSequencerSubscribeEvents();
       _sequencerEventsSubscribed = true;
-      developer.log('[Bridge] Subscribed to sequencer events via native',
-          name: 'NativeBridge', level: 800);
+      developer.log(
+        '[Bridge] Subscribed to sequencer events via native',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error subscribing to sequencer events: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error subscribing to sequencer events: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -42,8 +48,11 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
       await gen_api.apiSequencerLoadJson(json: json);
       _loadedSequenceJson = json;
     } catch (e) {
-      developer.log('[Bridge] Error loading sequence via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error loading sequence via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -73,12 +82,16 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
         filterFocusOffsets: filterFocusOffsets,
       );
       developer.log(
-          '[Bridge] Set sequencer devices: camera=$cameraId, mount=$mountId, focuser=$focuserId, filterwheel=$filterwheelId, rotator=$rotatorId, filterNames=$filterNames, filterFocusOffsets=$filterFocusOffsets',
-          name: 'NativeBridge',
-          level: 800);
+        '[Bridge] Set sequencer devices: camera=$cameraId, mount=$mountId, focuser=$focuserId, filterwheel=$filterwheelId, rotator=$rotatorId, filterNames=$filterNames, filterFocusOffsets=$filterFocusOffsets',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error setting sequencer devices: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error setting sequencer devices: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -91,11 +104,17 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
 
     try {
       await gen_api.apiSequencerSetSafetyFailMode(mode: mode);
-      developer.log('[Bridge] Set sequencer safety fail mode: $mode',
-          name: 'NativeBridge', level: 800);
+      developer.log(
+        '[Bridge] Set sequencer safety fail mode: $mode',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error setting sequencer safety fail mode: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error setting sequencer safety fail mode: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -108,13 +127,17 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
 
     try {
       await gen_api.apiSequencerSetSafetyCheckIntervalSeconds(seconds: seconds);
-      developer.log('[Bridge] Set sequencer safety check interval: ${seconds}s',
-          name: 'NativeBridge', level: 800);
+      developer.log(
+        '[Bridge] Set sequencer safety check interval: ${seconds}s',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
       developer.log(
-          '[Bridge] Error setting sequencer safety check interval: $e',
-          name: 'NativeBridge',
-          level: 1000);
+        '[Bridge] Error setting sequencer safety check interval: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -127,11 +150,17 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
 
     try {
       await gen_api.apiSequencerSetSavePath(path: path);
-      developer.log('[Bridge] Set sequencer save path: ${path ?? "<none>"}',
-          name: 'NativeBridge', level: 800);
+      developer.log(
+        '[Bridge] Set sequencer save path: ${path ?? "<none>"}',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error setting sequencer save path: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error setting sequencer save path: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -142,9 +171,7 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
   /// Wrapper around the FRB-generated `apiSequencerSetActiveSequenceRunId`
   /// in `api/sequencer.dart`, which itself gracefully degrades when the
   /// underlying `RustLib` binding hasn't been regenerated.
-  Future<void> sequencerSetActiveSequenceRunId({
-    int? sequenceRunId,
-  }) async {
+  Future<void> sequencerSetActiveSequenceRunId({int? sequenceRunId}) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('sequencerSetActiveSequenceRunId');
     }
@@ -213,12 +240,16 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
         raOnly: raOnly,
       );
       developer.log(
-          '[Bridge] Updated sequencer dither config: pixels=$pixels, settlePixels=$settlePixels, settleTime=$settleTime, settleTimeout=$settleTimeout, raOnly=$raOnly',
-          name: 'NativeBridge',
-          level: 800);
+        '[Bridge] Updated sequencer dither config: pixels=$pixels, settlePixels=$settlePixels, settleTime=$settleTime, settleTimeout=$settleTimeout, raOnly=$raOnly',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error updating sequencer dither config: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error updating sequencer dither config: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -238,30 +269,41 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
         longitude: longitude,
       );
       developer.log(
-          '[Bridge] Updated sequencer location: lat=$latitude, lon=$longitude',
-          name: 'NativeBridge',
-          level: 800);
+        '[Bridge] Updated sequencer location: lat=$latitude, lon=$longitude',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error updating sequencer location: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error updating sequencer location: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
 
   /// Update filter focus offsets on the running sequencer
-  Future<void> sequencerUpdateFilterOffsets(
-      {required Map<String, int> offsets}) async {
+  Future<void> sequencerUpdateFilterOffsets({
+    required Map<String, int> offsets,
+  }) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('sequencerUpdateFilterOffsets');
     }
 
     try {
       await gen_api.apiSequencerUpdateFilterOffsets(offsets: offsets);
-      developer.log('[Bridge] Updated sequencer filter offsets: $offsets',
-          name: 'NativeBridge', level: 800);
+      developer.log(
+        '[Bridge] Updated sequencer filter offsets: $offsets',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error updating sequencer filter offsets: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error updating sequencer filter offsets: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -270,8 +312,9 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
   /// the executor so the next sequencerStart() seeds the
   /// IntegrationBudget tracker. See [api_sequencer_update_pending_integration_carry_over]
   /// for semantics; empty inner map zeroes a target's carry-over.
-  Future<void> sequencerUpdatePendingIntegrationCarryOver(
-      {required Map<String, Map<String, double>> carryOver}) async {
+  Future<void> sequencerUpdatePendingIntegrationCarryOver({
+    required Map<String, Map<String, double>> carryOver,
+  }) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('sequencerUpdatePendingIntegrationCarryOver');
     }
@@ -298,24 +341,28 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
   /// Wave 1.5 Pack A: update the autofocus-interval trigger cadence at
   /// runtime. The bridge rejects 0 (the trigger evaluator treats 0 as
   /// disabled; use the per-trigger `enabled` toggle for that intent).
-  Future<void> sequencerUpdateAutofocusInterval(
-      {required int everyNFrames}) async {
+  Future<void> sequencerUpdateAutofocusInterval({
+    required int everyNFrames,
+  }) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('sequencerUpdateAutofocusInterval');
     }
 
     try {
       await gen_api.apiSequencerUpdateAutofocusInterval(
-          everyNFrames: everyNFrames);
+        everyNFrames: everyNFrames,
+      );
       developer.log(
-          '[Bridge] Updated sequencer autofocus-interval cadence: $everyNFrames frames',
-          name: 'NativeBridge',
-          level: 800);
+        '[Bridge] Updated sequencer autofocus-interval cadence: $everyNFrames frames',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
       developer.log(
-          '[Bridge] Error updating sequencer autofocus-interval cadence: $e',
-          name: 'NativeBridge',
-          level: 1000);
+        '[Bridge] Error updating sequencer autofocus-interval cadence: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -346,21 +393,23 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
         enabled: enabled,
       );
       developer.log(
-          '[Bridge] Updated default_quality_check: enabled=$enabled, hfr=$hfrThreshold, baseline=$hfrBaselinePercent%, ecc=$eccentricityThreshold, stars=$starCountMin, maxRejects=$maxConsecutiveRejects',
-          name: 'NativeBridge',
-          level: 800);
+        '[Bridge] Updated default_quality_check: enabled=$enabled, hfr=$hfrThreshold, baseline=$hfrBaselinePercent%, ecc=$eccentricityThreshold, stars=$starCountMin, maxRejects=$maxConsecutiveRejects',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error updating default_quality_check: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error updating default_quality_check: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
 
   /// Pack G â€” update the reject-folder override. Pass `null` or empty
   /// string to fall back to `<save_path>/Reject/`.
-  Future<void> sequencerUpdateRejectFolderPath({
-    String? path,
-  }) async {
+  Future<void> sequencerUpdateRejectFolderPath({String? path}) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('sequencerUpdateRejectFolderPath');
     }
@@ -368,12 +417,16 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     try {
       await gen_api.apiSequencerUpdateRejectFolderPath(path: path);
       developer.log(
-          '[Bridge] Updated reject_folder_path: ${path ?? "<default>"}',
-          name: 'NativeBridge',
-          level: 800);
+        '[Bridge] Updated reject_folder_path: ${path ?? "<default>"}',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error updating reject_folder_path: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error updating reject_folder_path: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -406,12 +459,16 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
         telescopeApertureMm: telescopeApertureMm,
       );
       developer.log(
-          '[Bridge] Updated observer_profile: observer=$observerName, telescope=$telescopeName, camera=$cameraMake $cameraModel',
-          name: 'NativeBridge',
-          level: 800);
+        '[Bridge] Updated observer_profile: observer=$observerName, telescope=$telescopeName, camera=$cameraMake $cameraModel',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error updating observer_profile: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error updating observer_profile: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -420,9 +477,7 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
   /// (mag/arcsecÂ²; bigger = darker) to the executor. Drives sky-
   /// brightness adaptive exposure decisions on the next TakeExposure
   /// burst. Pass `null` when the tracker has lost lock.
-  Future<void> sequencerUpdateSkyBrightness({
-    required double? mag,
-  }) async {
+  Future<void> sequencerUpdateSkyBrightness({required double? mag}) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('sequencerUpdateSkyBrightness');
     }
@@ -430,12 +485,16 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     try {
       await gen_api.apiSequencerUpdateSkyBrightness(mag: mag);
       developer.log(
-          '[Bridge] Updated sky brightness: ${mag?.toStringAsFixed(2) ?? "<none>"} mag/arcsecÂ²',
-          name: 'NativeBridge',
-          level: 800);
+        '[Bridge] Updated sky brightness: ${mag?.toStringAsFixed(2) ?? "<none>"} mag/arcsecÂ²',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error updating sky brightness: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error updating sky brightness: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -476,12 +535,16 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
         perFilterMaxValues: perFilterMaxSecs.values.toList(),
       );
       developer.log(
-          '[Bridge] Updated default_adaptive_exposure: enabled=$enabled, ref=$referenceSkyBrightnessMag mag, min=${minExposureSecs}s, max=${maxExposureSecs}s, per_filter_enabled=${perFilterEnabled.length}',
-          name: 'NativeBridge',
-          level: 800);
+        '[Bridge] Updated default_adaptive_exposure: enabled=$enabled, ref=$referenceSkyBrightnessMag mag, min=${minExposureSecs}s, max=${maxExposureSecs}s, per_filter_enabled=${perFilterEnabled.length}',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error updating default_adaptive_exposure: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error updating default_adaptive_exposure: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -496,11 +559,17 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
 
     try {
       await gen_api.apiSequencerClearDefaultAdaptiveExposure();
-      developer.log('[Bridge] Cleared default_adaptive_exposure',
-          name: 'NativeBridge', level: 800);
+      developer.log(
+        '[Bridge] Cleared default_adaptive_exposure',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error clearing default_adaptive_exposure: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error clearing default_adaptive_exposure: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -518,8 +587,11 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
       await gen_api.apiSequencerStart();
       _sequencerState = SequencerState.running;
     } catch (e) {
-      developer.log('[Bridge] Error starting sequence via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error starting sequence via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -534,8 +606,11 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
       await gen_api.apiSequencerPause();
       _sequencerState = SequencerState.paused;
     } catch (e) {
-      developer.log('[Bridge] Error pausing sequence via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error pausing sequence via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -550,8 +625,11 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
       await gen_api.apiSequencerResume();
       _sequencerState = SequencerState.running;
     } catch (e) {
-      developer.log('[Bridge] Error resuming sequence via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error resuming sequence via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -567,8 +645,11 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
       _sequencerState = SequencerState.idle;
       _loadedSequenceJson = null;
     } catch (e) {
-      developer.log('[Bridge] Error stopping sequence via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error stopping sequence via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -582,8 +663,11 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     try {
       await gen_api.apiSequencerSkip();
     } catch (e) {
-      developer.log('[Bridge] Error skipping node via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error skipping node via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -599,8 +683,11 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     try {
       await gen_api.apiSequencerSkipToNode(nodeId: nodeId);
     } catch (e) {
-      developer.log('[Bridge] Error skipping to node "$nodeId" via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error skipping to node "$nodeId" via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -628,9 +715,10 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
       );
     } catch (e) {
       developer.log(
-          '[Bridge] Error delivering plugin node verdict for "$nodeId" via native: $e',
-          name: 'NativeBridge',
-          level: 1000);
+        '[Bridge] Error delivering plugin node verdict for "$nodeId" via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -646,8 +734,11 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
       _sequencerState = SequencerState.idle;
       _loadedSequenceJson = null;
     } catch (e) {
-      developer.log('[Bridge] Error resetting sequencer via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error resetting sequencer via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -666,9 +757,9 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
       );
     }
 
-    return gen_api
-        .apiEventStream()
-        .where((event) => event.category == gen_event.EventCategory.sequencer);
+    return gen_api.apiEventStream().where(
+      (event) => event.category == gen_event.EventCategory.sequencer,
+    );
   }
 
   /// Set simulation mode (use mock devices instead of real hardware)
@@ -681,12 +772,16 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
       await gen_api.apiSequencerSetSimulationMode(enabled: enabled);
       _simulationMode = enabled;
       developer.log(
-          '[Bridge] Simulation mode via native: ${enabled ? "enabled" : "disabled"}',
-          name: 'NativeBridge',
-          level: 800);
+        '[Bridge] Simulation mode via native: ${enabled ? "enabled" : "disabled"}',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error setting simulation mode via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error setting simulation mode via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -714,8 +809,11 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
         message: nativeState.message,
       );
     } catch (e) {
-      developer.log('[Bridge] Error getting sequencer status via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error getting sequencer status via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -733,8 +831,11 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     try {
       await gen_api.apiSequencerSetCheckpointDir(path: path);
     } catch (e) {
-      developer.log('[Bridge] Error setting checkpoint dir via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error setting checkpoint dir via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -748,8 +849,11 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     try {
       return await gen_api.apiSequencerHasCheckpoint();
     } catch (e) {
-      developer.log('[Bridge] Error checking checkpoint via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error checking checkpoint via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -773,8 +877,11 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
         ageSeconds: nativeInfo.ageSeconds.toInt(),
       );
     } catch (e) {
-      developer.log('[Bridge] Error getting checkpoint info via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error getting checkpoint info via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -789,8 +896,11 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
       await gen_api.apiSequencerResumeFromCheckpoint();
       _sequencerState = SequencerState.running;
     } catch (e) {
-      developer.log('[Bridge] Error resuming from checkpoint via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error resuming from checkpoint via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -804,8 +914,11 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     try {
       await gen_api.apiSequencerClearCheckpoint();
     } catch (e) {
-      developer.log('[Bridge] Error discarding checkpoint via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error discarding checkpoint via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -819,8 +932,11 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     try {
       await gen_api.apiSequencerSaveCheckpoint();
     } catch (e) {
-      developer.log('[Bridge] Error saving checkpoint via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error saving checkpoint via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }

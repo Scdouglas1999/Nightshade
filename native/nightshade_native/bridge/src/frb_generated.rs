@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 885412650;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 114010557;
 
 // Section: executor
 
@@ -47,6 +47,28 @@ flutter_rust_bridge::frb_generated_default_handler!();
 
 // Section: wire_funcs
 
+fn wire__crate__api__finishing_analyze__api_analyze_night_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_analyze_night",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok =
+                        crate::api::finishing_analyze::api_analyze_night(api_args_json)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__imaging__api_apply_stretch_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     file_path: impl CstDecode<String>,
@@ -732,6 +754,50 @@ fn wire__crate__api__imaging__api_clear_device_image_impl(
                     })()
                     .await,
                 )
+            }
+        },
+    )
+}
+fn wire__crate__api__finishing_analyze__api_color_calibrate_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_color_calibrate",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok =
+                        crate::api::finishing_analyze::api_color_calibrate(api_args_json)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__finishing_combine__api_combine_channels_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_combine_channels",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok =
+                        crate::api::finishing_combine::api_combine_channels(api_args_json)?;
+                    Ok(output_ok)
+                })())
             }
         },
     )
@@ -1697,6 +1763,28 @@ fn wire__crate__api__imaging__api_debayer_image_impl(
         },
     )
 }
+fn wire__crate__api__finishing_enhance__api_deconvolve_preview_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_deconvolve_preview",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok =
+                        crate::api::finishing_enhance::api_deconvolve_preview(api_args_json)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__imaging__api_defect_map_apply_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     camera_id: impl CstDecode<String>,
@@ -1876,6 +1964,28 @@ fn wire__crate__api__imaging__api_detect_stars_in_file_impl(
                     })()
                     .await,
                 )
+            }
+        },
+    )
+}
+fn wire__crate__api__finishing_analyze__api_detect_stars_photometry_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_detect_stars_photometry",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok =
+                        crate::api::finishing_analyze::api_detect_stars_photometry(api_args_json)?;
+                    Ok(output_ok)
+                })())
             }
         },
     )
@@ -2405,6 +2515,28 @@ fn wire__crate__api__devices__dome__api_dome_slew_to_azimuth_impl(
         },
     )
 }
+fn wire__crate__api__finishing_combine__api_drizzle_integrate_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_drizzle_integrate",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok =
+                        crate::api::finishing_combine::api_drizzle_integrate(api_args_json)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__session__api_end_session_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
 ) {
@@ -2499,6 +2631,28 @@ fn wire__crate__api__init__api_export_logs_impl(
             move |context| {
                 transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
                     let output_ok = crate::api::init::api_export_logs(api_output_path)?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
+fn wire__crate__api__finishing_enhance__api_extract_background_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_extract_background",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok =
+                        crate::api::finishing_enhance::api_extract_background(api_args_json)?;
                     Ok(output_ok)
                 })())
             }
@@ -5440,6 +5594,28 @@ fn wire__crate__api__imaging__api_read_xisf_file_impl(
                     })()
                     .await,
                 )
+            }
+        },
+    )
+}
+fn wire__crate__api__finishing_enhance__api_reduce_stars_preview_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_reduce_stars_preview",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok =
+                        crate::api::finishing_enhance::api_reduce_stars_preview(api_args_json)?;
+                    Ok(output_ok)
+                })())
             }
         },
     )
@@ -8404,7 +8580,7 @@ fn wire__crate__api__connection__alpaca_connections__connect_alpaca_device_impl(
 }
 fn wire__crate__api__connection__ascom_connections__connect_ascom_camera_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
-    prog_id: impl CstDecode<String>,
+    _prog_id: impl CstDecode<String>,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
@@ -8413,13 +8589,13 @@ fn wire__crate__api__connection__ascom_connections__connect_ascom_camera_impl(
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
-            let api_prog_id = prog_id.cst_decode();
+            let api__prog_id = _prog_id.cst_decode();
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
                             crate::api::connection::ascom_connections::connect_ascom_camera(
-                                &api_prog_id,
+                                &api__prog_id,
                             )
                             .await?;
                         Ok(output_ok)
@@ -8432,7 +8608,7 @@ fn wire__crate__api__connection__ascom_connections__connect_ascom_camera_impl(
 }
 fn wire__crate__api__connection__ascom_connections__connect_ascom_focuser_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
-    prog_id: impl CstDecode<String>,
+    _prog_id: impl CstDecode<String>,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
@@ -8441,13 +8617,13 @@ fn wire__crate__api__connection__ascom_connections__connect_ascom_focuser_impl(
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
-            let api_prog_id = prog_id.cst_decode();
+            let api__prog_id = _prog_id.cst_decode();
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
                             crate::api::connection::ascom_connections::connect_ascom_focuser(
-                                &api_prog_id,
+                                &api__prog_id,
                             )
                             .await?;
                         Ok(output_ok)
@@ -8460,7 +8636,7 @@ fn wire__crate__api__connection__ascom_connections__connect_ascom_focuser_impl(
 }
 fn wire__crate__api__connection__ascom_connections__connect_ascom_mount_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
-    prog_id: impl CstDecode<String>,
+    _prog_id: impl CstDecode<String>,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
@@ -8469,13 +8645,13 @@ fn wire__crate__api__connection__ascom_connections__connect_ascom_mount_impl(
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
-            let api_prog_id = prog_id.cst_decode();
+            let api__prog_id = _prog_id.cst_decode();
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
                             crate::api::connection::ascom_connections::connect_ascom_mount(
-                                &api_prog_id,
+                                &api__prog_id,
                             )
                             .await?;
                         Ok(output_ok)
@@ -8813,7 +8989,7 @@ fn wire__crate__api__connection__alpaca_connections__get_alpaca_client_impl(
 }
 fn wire__crate__api__connection__ascom_connections__get_ascom_camera_temp_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
-    prog_id: impl CstDecode<String>,
+    _prog_id: impl CstDecode<String>,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
@@ -8822,13 +8998,13 @@ fn wire__crate__api__connection__ascom_connections__get_ascom_camera_temp_impl(
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
-            let api_prog_id = prog_id.cst_decode();
+            let api__prog_id = _prog_id.cst_decode();
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
                             crate::api::connection::ascom_connections::get_ascom_camera_temp(
-                                &api_prog_id,
+                                &api__prog_id,
                             )
                             .await?;
                         Ok(output_ok)
@@ -8841,7 +9017,7 @@ fn wire__crate__api__connection__ascom_connections__get_ascom_camera_temp_impl(
 }
 fn wire__crate__api__connection__ascom_connections__get_ascom_focuser_position_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
-    prog_id: impl CstDecode<String>,
+    _prog_id: impl CstDecode<String>,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
@@ -8850,13 +9026,13 @@ fn wire__crate__api__connection__ascom_connections__get_ascom_focuser_position_i
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
-            let api_prog_id = prog_id.cst_decode();
+            let api__prog_id = _prog_id.cst_decode();
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
                             crate::api::connection::ascom_connections::get_ascom_focuser_position(
-                                &api_prog_id,
+                                &api__prog_id,
                             )
                             .await?;
                         Ok(output_ok)
@@ -8869,7 +9045,7 @@ fn wire__crate__api__connection__ascom_connections__get_ascom_focuser_position_i
 }
 fn wire__crate__api__connection__ascom_connections__get_ascom_mount_coords_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
-    prog_id: impl CstDecode<String>,
+    _prog_id: impl CstDecode<String>,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
@@ -8878,13 +9054,13 @@ fn wire__crate__api__connection__ascom_connections__get_ascom_mount_coords_impl(
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
-            let api_prog_id = prog_id.cst_decode();
+            let api__prog_id = _prog_id.cst_decode();
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
                             crate::api::connection::ascom_connections::get_ascom_mount_coords(
-                                &api_prog_id,
+                                &api__prog_id,
                             )
                             .await?;
                         Ok(output_ok)
@@ -9418,8 +9594,8 @@ fn wire__crate__api__devices__mount__mount_unpark_impl(
 }
 fn wire__crate__api__connection__ascom_connections__move_ascom_focuser_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
-    prog_id: impl CstDecode<String>,
-    position: impl CstDecode<i32>,
+    _prog_id: impl CstDecode<String>,
+    _position: impl CstDecode<i32>,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
@@ -9428,15 +9604,15 @@ fn wire__crate__api__connection__ascom_connections__move_ascom_focuser_impl(
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
-            let api_prog_id = prog_id.cst_decode();
-            let api_position = position.cst_decode();
+            let api__prog_id = _prog_id.cst_decode();
+            let api__position = _position.cst_decode();
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
                             crate::api::connection::ascom_connections::move_ascom_focuser(
-                                &api_prog_id,
-                                api_position,
+                                &api__prog_id,
+                                api__position,
                             )
                             .await?;
                         Ok(output_ok)
@@ -9686,9 +9862,9 @@ fn wire__crate__api__devices__simulation__simulated_rotator_default_impl(
 }
 fn wire__crate__api__connection__ascom_connections__slew_ascom_mount_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
-    prog_id: impl CstDecode<String>,
-    ra: impl CstDecode<f64>,
-    dec: impl CstDecode<f64>,
+    _prog_id: impl CstDecode<String>,
+    _ra: impl CstDecode<f64>,
+    _dec: impl CstDecode<f64>,
 ) {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
@@ -9697,17 +9873,17 @@ fn wire__crate__api__connection__ascom_connections__slew_ascom_mount_impl(
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
         },
         move || {
-            let api_prog_id = prog_id.cst_decode();
-            let api_ra = ra.cst_decode();
-            let api_dec = dec.cst_decode();
+            let api__prog_id = _prog_id.cst_decode();
+            let api__ra = _ra.cst_decode();
+            let api__dec = _dec.cst_decode();
             move |context| async move {
                 transform_result_dco::<_, _, crate::error::NightshadeError>(
                     (move || async move {
                         let output_ok =
                             crate::api::connection::ascom_connections::slew_ascom_mount(
-                                &api_prog_id,
-                                api_ra,
-                                api_dec,
+                                &api__prog_id,
+                                api__ra,
+                                api__dec,
                             )
                             .await?;
                         Ok(output_ok)
@@ -11948,6 +12124,18 @@ impl SseDecode for crate::event::ImagingEvent {
                 };
             }
             11 => {
+                let mut var_phase = <String>::sse_decode(deserializer);
+                let mut var_fraction = <f32>::sse_decode(deserializer);
+                let mut var_framesDone = <Option<u32>>::sse_decode(deserializer);
+                let mut var_framesTotal = <Option<u32>>::sse_decode(deserializer);
+                return crate::event::ImagingEvent::IntegrationProgress {
+                    phase: var_phase,
+                    fraction: var_fraction,
+                    frames_done: var_framesDone,
+                    frames_total: var_framesTotal,
+                };
+            }
+            12 => {
                 let mut var_tempCelsius = <f64>::sse_decode(deserializer);
                 let mut var_coolerPower = <f64>::sse_decode(deserializer);
                 return crate::event::ImagingEvent::TemperatureChanged {
@@ -11955,13 +12143,13 @@ impl SseDecode for crate::event::ImagingEvent {
                     cooler_power: var_coolerPower,
                 };
             }
-            12 => {
+            13 => {
                 let mut var_success = <bool>::sse_decode(deserializer);
                 return crate::event::ImagingEvent::ExposureComplete {
                     success: var_success,
                 };
             }
-            13 => {
+            14 => {
                 let mut var_reason = <String>::sse_decode(deserializer);
                 return crate::event::ImagingEvent::ExposureFailedOld { reason: var_reason };
             }
@@ -16317,20 +16505,33 @@ impl flutter_rust_bridge::IntoDart for crate::event::ImagingEvent {
             crate::event::ImagingEvent::ImageSaved { file_path } => {
                 [10.into_dart(), file_path.into_into_dart().into_dart()].into_dart()
             }
+            crate::event::ImagingEvent::IntegrationProgress {
+                phase,
+                fraction,
+                frames_done,
+                frames_total,
+            } => [
+                11.into_dart(),
+                phase.into_into_dart().into_dart(),
+                fraction.into_into_dart().into_dart(),
+                frames_done.into_into_dart().into_dart(),
+                frames_total.into_into_dart().into_dart(),
+            ]
+            .into_dart(),
             crate::event::ImagingEvent::TemperatureChanged {
                 temp_celsius,
                 cooler_power,
             } => [
-                11.into_dart(),
+                12.into_dart(),
                 temp_celsius.into_into_dart().into_dart(),
                 cooler_power.into_into_dart().into_dart(),
             ]
             .into_dart(),
             crate::event::ImagingEvent::ExposureComplete { success } => {
-                [12.into_dart(), success.into_into_dart().into_dart()].into_dart()
+                [13.into_dart(), success.into_into_dart().into_dart()].into_dart()
             }
             crate::event::ImagingEvent::ExposureFailedOld { reason } => {
-                [13.into_dart(), reason.into_into_dart().into_dart()].into_dart()
+                [14.into_dart(), reason.into_into_dart().into_dart()].into_dart()
             }
             _ => {
                 unimplemented!("");
@@ -19701,20 +19902,32 @@ impl SseEncode for crate::event::ImagingEvent {
                 <i32>::sse_encode(10, serializer);
                 <String>::sse_encode(file_path, serializer);
             }
+            crate::event::ImagingEvent::IntegrationProgress {
+                phase,
+                fraction,
+                frames_done,
+                frames_total,
+            } => {
+                <i32>::sse_encode(11, serializer);
+                <String>::sse_encode(phase, serializer);
+                <f32>::sse_encode(fraction, serializer);
+                <Option<u32>>::sse_encode(frames_done, serializer);
+                <Option<u32>>::sse_encode(frames_total, serializer);
+            }
             crate::event::ImagingEvent::TemperatureChanged {
                 temp_celsius,
                 cooler_power,
             } => {
-                <i32>::sse_encode(11, serializer);
+                <i32>::sse_encode(12, serializer);
                 <f64>::sse_encode(temp_celsius, serializer);
                 <f64>::sse_encode(cooler_power, serializer);
             }
             crate::event::ImagingEvent::ExposureComplete { success } => {
-                <i32>::sse_encode(12, serializer);
+                <i32>::sse_encode(13, serializer);
                 <bool>::sse_encode(success, serializer);
             }
             crate::event::ImagingEvent::ExposureFailedOld { reason } => {
-                <i32>::sse_encode(13, serializer);
+                <i32>::sse_encode(14, serializer);
                 <String>::sse_encode(reason, serializer);
             }
             _ => {
@@ -23267,19 +23480,28 @@ mod io {
                     }
                 }
                 11 => {
+                    let ans = unsafe { self.kind.IntegrationProgress };
+                    crate::event::ImagingEvent::IntegrationProgress {
+                        phase: ans.phase.cst_decode(),
+                        fraction: ans.fraction.cst_decode(),
+                        frames_done: ans.frames_done.cst_decode(),
+                        frames_total: ans.frames_total.cst_decode(),
+                    }
+                }
+                12 => {
                     let ans = unsafe { self.kind.TemperatureChanged };
                     crate::event::ImagingEvent::TemperatureChanged {
                         temp_celsius: ans.temp_celsius.cst_decode(),
                         cooler_power: ans.cooler_power.cst_decode(),
                     }
                 }
-                12 => {
+                13 => {
                     let ans = unsafe { self.kind.ExposureComplete };
                     crate::event::ImagingEvent::ExposureComplete {
                         success: ans.success.cst_decode(),
                     }
                 }
-                13 => {
+                14 => {
                     let ans = unsafe { self.kind.ExposureFailedOld };
                     crate::event::ImagingEvent::ExposureFailedOld {
                         reason: ans.reason.cst_decode(),
@@ -26695,6 +26917,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__finishing_analyze__api_analyze_night(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__finishing_analyze__api_analyze_night_impl(port_, args_json)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_apply_stretch(
         port_: i64,
         file_path: *mut wire_cst_list_prim_u_8_strict,
@@ -26980,6 +27210,22 @@ mod io {
         device_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
         wire__crate__api__imaging__api_clear_device_image_impl(port_, device_id)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__finishing_analyze__api_color_calibrate(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__finishing_analyze__api_color_calibrate_impl(port_, args_json)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__finishing_combine__api_combine_channels(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__finishing_combine__api_combine_channels_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]
@@ -27474,6 +27720,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__finishing_enhance__api_deconvolve_preview(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__finishing_enhance__api_deconvolve_preview_impl(port_, args_json)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_defect_map_apply(
         port_: i64,
         camera_id: *mut wire_cst_list_prim_u_8_strict,
@@ -27545,6 +27799,14 @@ mod io {
         config: *mut wire_cst_star_detection_config_api,
     ) {
         wire__crate__api__imaging__api_detect_stars_in_file_impl(port_, file_path, config)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__finishing_analyze__api_detect_stars_photometry(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__finishing_analyze__api_detect_stars_photometry_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]
@@ -27715,6 +27977,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__finishing_combine__api_drizzle_integrate(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__finishing_combine__api_drizzle_integrate_impl(port_, args_json)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__session__api_end_session(
         port_: i64,
     ) {
@@ -27750,6 +28020,14 @@ mod io {
         output_path: *mut wire_cst_list_prim_u_8_strict,
     ) {
         wire__crate__api__init__api_export_logs_impl(port_, output_path)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__finishing_enhance__api_extract_background(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__finishing_enhance__api_extract_background_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]
@@ -28764,6 +29042,14 @@ mod io {
         file_path: *mut wire_cst_list_prim_u_8_strict,
     ) {
         wire__crate__api__imaging__api_read_xisf_file_impl(port_, file_path)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__finishing_enhance__api_reduce_stars_preview(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__finishing_enhance__api_reduce_stars_preview_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]
@@ -29872,25 +30158,25 @@ mod io {
     #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__connection__ascom_connections__connect_ascom_camera(
         port_: i64,
-        prog_id: *mut wire_cst_list_prim_u_8_strict,
+        _prog_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__connection__ascom_connections__connect_ascom_camera_impl(port_, prog_id)
+        wire__crate__api__connection__ascom_connections__connect_ascom_camera_impl(port_, _prog_id)
     }
 
     #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__connection__ascom_connections__connect_ascom_focuser(
         port_: i64,
-        prog_id: *mut wire_cst_list_prim_u_8_strict,
+        _prog_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__connection__ascom_connections__connect_ascom_focuser_impl(port_, prog_id)
+        wire__crate__api__connection__ascom_connections__connect_ascom_focuser_impl(port_, _prog_id)
     }
 
     #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__connection__ascom_connections__connect_ascom_mount(
         port_: i64,
-        prog_id: *mut wire_cst_list_prim_u_8_strict,
+        _prog_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__connection__ascom_connections__connect_ascom_mount_impl(port_, prog_id)
+        wire__crate__api__connection__ascom_connections__connect_ascom_mount_impl(port_, _prog_id)
     }
 
     #[unsafe(no_mangle)]
@@ -29998,27 +30284,29 @@ mod io {
     #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__connection__ascom_connections__get_ascom_camera_temp(
         port_: i64,
-        prog_id: *mut wire_cst_list_prim_u_8_strict,
+        _prog_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__connection__ascom_connections__get_ascom_camera_temp_impl(port_, prog_id)
+        wire__crate__api__connection__ascom_connections__get_ascom_camera_temp_impl(port_, _prog_id)
     }
 
     #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__connection__ascom_connections__get_ascom_focuser_position(
         port_: i64,
-        prog_id: *mut wire_cst_list_prim_u_8_strict,
+        _prog_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
         wire__crate__api__connection__ascom_connections__get_ascom_focuser_position_impl(
-            port_, prog_id,
+            port_, _prog_id,
         )
     }
 
     #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__connection__ascom_connections__get_ascom_mount_coords(
         port_: i64,
-        prog_id: *mut wire_cst_list_prim_u_8_strict,
+        _prog_id: *mut wire_cst_list_prim_u_8_strict,
     ) {
-        wire__crate__api__connection__ascom_connections__get_ascom_mount_coords_impl(port_, prog_id)
+        wire__crate__api__connection__ascom_connections__get_ascom_mount_coords_impl(
+            port_, _prog_id,
+        )
     }
 
     #[unsafe(no_mangle)]
@@ -30194,11 +30482,11 @@ mod io {
     #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__connection__ascom_connections__move_ascom_focuser(
         port_: i64,
-        prog_id: *mut wire_cst_list_prim_u_8_strict,
-        position: i32,
+        _prog_id: *mut wire_cst_list_prim_u_8_strict,
+        _position: i32,
     ) {
         wire__crate__api__connection__ascom_connections__move_ascom_focuser_impl(
-            port_, prog_id, position,
+            port_, _prog_id, _position,
         )
     }
 
@@ -30292,12 +30580,12 @@ mod io {
     #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__connection__ascom_connections__slew_ascom_mount(
         port_: i64,
-        prog_id: *mut wire_cst_list_prim_u_8_strict,
-        ra: f64,
-        dec: f64,
+        _prog_id: *mut wire_cst_list_prim_u_8_strict,
+        _ra: f64,
+        _dec: f64,
     ) {
         wire__crate__api__connection__ascom_connections__slew_ascom_mount_impl(
-            port_, prog_id, ra, dec,
+            port_, _prog_id, _ra, _dec,
         )
     }
 
@@ -32049,6 +32337,7 @@ mod io {
         ExposureFailed: wire_cst_ImagingEvent_ExposureFailed,
         ImageReady: wire_cst_ImagingEvent_ImageReady,
         ImageSaved: wire_cst_ImagingEvent_ImageSaved,
+        IntegrationProgress: wire_cst_ImagingEvent_IntegrationProgress,
         TemperatureChanged: wire_cst_ImagingEvent_TemperatureChanged,
         ExposureComplete: wire_cst_ImagingEvent_ExposureComplete,
         ExposureFailedOld: wire_cst_ImagingEvent_ExposureFailedOld,
@@ -32104,6 +32393,14 @@ mod io {
     #[derive(Clone, Copy)]
     pub struct wire_cst_ImagingEvent_ImageSaved {
         file_path: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_ImagingEvent_IntegrationProgress {
+        phase: *mut wire_cst_list_prim_u_8_strict,
+        fraction: f32,
+        frames_done: *mut u32,
+        frames_total: *mut u32,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

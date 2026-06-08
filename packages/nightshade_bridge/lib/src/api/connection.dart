@@ -11,29 +11,39 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 // These functions are ignored because they are not marked as `pub`: `device_info_from_id`, `is_phd2_device_id`, `native_display_name`
 
 /// Connect to a device
-Future<void> apiConnectDevice(
-        {required DeviceType deviceType, required String deviceId}) =>
-    RustLib.instance.api.crateApiConnectionApiConnectDevice(
-        deviceType: deviceType, deviceId: deviceId);
+Future<void> apiConnectDevice({
+  required DeviceType deviceType,
+  required String deviceId,
+}) => RustLib.instance.api.crateApiConnectionApiConnectDevice(
+  deviceType: deviceType,
+  deviceId: deviceId,
+);
 
 /// Get the display name for a device that's already registered in the device manager.
 /// Returns None if the device isn't registered.
 /// This avoids running a full discovery just to resolve a device name.
-Future<String?> apiGetDeviceDisplayName({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiConnectionApiGetDeviceDisplayName(deviceId: deviceId);
+Future<String?> apiGetDeviceDisplayName({required String deviceId}) => RustLib
+    .instance
+    .api
+    .crateApiConnectionApiGetDeviceDisplayName(deviceId: deviceId);
 
 /// Disconnect from a device
-Future<void> apiDisconnectDevice(
-        {required DeviceType deviceType, required String deviceId}) =>
-    RustLib.instance.api.crateApiConnectionApiDisconnectDevice(
-        deviceType: deviceType, deviceId: deviceId);
+Future<void> apiDisconnectDevice({
+  required DeviceType deviceType,
+  required String deviceId,
+}) => RustLib.instance.api.crateApiConnectionApiDisconnectDevice(
+  deviceType: deviceType,
+  deviceId: deviceId,
+);
 
 /// Check if a device is connected
-Future<bool> apiIsDeviceConnected(
-        {required DeviceType deviceType, required String deviceId}) =>
-    RustLib.instance.api.crateApiConnectionApiIsDeviceConnected(
-        deviceType: deviceType, deviceId: deviceId);
+Future<bool> apiIsDeviceConnected({
+  required DeviceType deviceType,
+  required String deviceId,
+}) => RustLib.instance.api.crateApiConnectionApiIsDeviceConnected(
+  deviceType: deviceType,
+  deviceId: deviceId,
+);
 
 /// Get list of connected devices
 Future<List<DeviceInfo>> apiGetConnectedDevices() =>

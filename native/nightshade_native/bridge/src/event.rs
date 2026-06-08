@@ -319,6 +319,30 @@ pub enum ImagingEvent {
         file_path: String,
     },
 
+    // Post-session integration pipeline progress
+    /// Progress update from the offline batch-integration pipeline
+    /// ([`crate::api::post_session::api_integrate_session`]). Emitted at every
+    /// phase boundary and, during the per-frame register loop, per frame —
+    /// never per pixel. The UI filters these by `category == Imaging` +
+    /// `eventType == "IntegrationProgress"` and drives a progress bar from
+    /// `fraction`.
+    IntegrationProgress {
+        /// Current pipeline phase: one of `"calibrating"`, `"registering"`,
+        /// `"normalizing"`, `"weighting"`, `"integrating"`, `"writing"`, or
+        /// `"preview"`.
+        phase: String,
+        /// Overall completion fraction in `0.0..=1.0`, monotonically advancing
+        /// across the phase sequence above.
+        fraction: f32,
+        /// Frames processed so far in the current phase (`None` when the phase
+        /// has no per-frame granularity, e.g. `integrating`/`writing`).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        frames_done: Option<u32>,
+        /// Total frames in the current phase (`None` when N/A).
+        #[serde(skip_serializing_if = "Option::is_none")]
+        frames_total: Option<u32>,
+    },
+
     // Temperature events
     TemperatureChanged {
         temp_celsius: f64,

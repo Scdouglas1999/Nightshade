@@ -33,14 +33,20 @@ extension _NativeBridgeRuntimeOperations on _NativeBridgeImplementation {
 
       // Verify it's working
       final version = gen_api.apiGetVersion();
-      developer.log('[Bridge] Native bridge v$version ready',
-          name: 'NativeBridge', level: 800);
+      developer.log(
+        '[Bridge] Native bridge v$version ready',
+        name: 'NativeBridge',
+        level: 800,
+      );
 
       // Mark as available for native discovery
       _nativeAvailable = true;
     } catch (e) {
-      developer.log('[Bridge] RustLib initialization failed: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] RustLib initialization failed: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       // Mark as unavailable since RustLib couldn't initialize
       _nativeAvailable = false;
     }
@@ -51,25 +57,31 @@ extension _NativeBridgeRuntimeOperations on _NativeBridgeImplementation {
     _initialized = true;
 
     // Emit initialization event
-    _eventController.add(_FallbackNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.system,
-      eventType: 'Initialized',
-      data: {'nativeAvailable': _nativeAvailable},
-    ));
+    _eventController.add(
+      _FallbackNightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.info,
+        category: EventCategory.system,
+        eventType: 'Initialized',
+        data: {'nativeAvailable': _nativeAvailable},
+      ),
+    );
 
     if (_nativeAvailable) {
-      developer.log('[Bridge] Loaded native library',
-          name: 'NativeBridge', level: 800);
+      developer.log(
+        '[Bridge] Loaded native library',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } else {
       // Why: warning-level â€” running without native bridge means hardware
       // operations will fail closed, which is a degraded-but-running state
       // operators must be able to spot in logs.
       developer.log(
-          '[Bridge] Native bridge unavailable; running in fail-closed fallback mode',
-          name: 'NativeBridge',
-          level: 900);
+        '[Bridge] Native bridge unavailable; running in fail-closed fallback mode',
+        name: 'NativeBridge',
+        level: 900,
+      );
     }
   }
 
@@ -171,31 +183,109 @@ extension _NativeBridgeRuntimeOperations on _NativeBridgeImplementation {
           path.join(executableDir, 'data', 'flutter_assets', libName),
           // Check if we can find the project root by looking for common markers
           // Try to find native/nightshade_native from executable location
-          path.join(executableDir, '..', '..', '..', 'native',
-              'nightshade_native', 'bridge', 'target', 'release', libName),
-          path.join(executableDir, '..', '..', '..', 'native',
-              'nightshade_native', 'target', 'release', libName),
-          path.join(executableDir, '..', '..', '..', 'native',
-              'nightshade_native', 'bridge', 'target', 'debug', libName),
-          path.join(executableDir, '..', '..', '..', 'native',
-              'nightshade_native', 'target', 'debug', libName),
+          path.join(
+            executableDir,
+            '..',
+            '..',
+            '..',
+            'native',
+            'nightshade_native',
+            'bridge',
+            'target',
+            'release',
+            libName,
+          ),
+          path.join(
+            executableDir,
+            '..',
+            '..',
+            '..',
+            'native',
+            'nightshade_native',
+            'target',
+            'release',
+            libName,
+          ),
+          path.join(
+            executableDir,
+            '..',
+            '..',
+            '..',
+            'native',
+            'nightshade_native',
+            'bridge',
+            'target',
+            'debug',
+            libName,
+          ),
+          path.join(
+            executableDir,
+            '..',
+            '..',
+            '..',
+            'native',
+            'nightshade_native',
+            'target',
+            'debug',
+            libName,
+          ),
           // Check if executable is in a Release/Debug folder
-          path.join(executableDir, '..', '..', '..', 'native',
-              'nightshade_native', 'bridge', 'target', 'release', libName),
+          path.join(
+            executableDir,
+            '..',
+            '..',
+            '..',
+            'native',
+            'nightshade_native',
+            'bridge',
+            'target',
+            'release',
+            libName,
+          ),
         ]);
 
         // Also try to find project root from current working directory
         try {
           final cwd = Directory.current.path;
           possiblePaths.addAll([
-            path.join(cwd, 'native', 'nightshade_native', 'bridge', 'target',
-                'release', libName),
-            path.join(cwd, 'native', 'nightshade_native', 'target', 'release',
-                libName),
-            path.join(cwd, '..', 'native', 'nightshade_native', 'bridge',
-                'target', 'release', libName),
-            path.join(cwd, '..', '..', 'native', 'nightshade_native', 'bridge',
-                'target', 'release', libName),
+            path.join(
+              cwd,
+              'native',
+              'nightshade_native',
+              'bridge',
+              'target',
+              'release',
+              libName,
+            ),
+            path.join(
+              cwd,
+              'native',
+              'nightshade_native',
+              'target',
+              'release',
+              libName,
+            ),
+            path.join(
+              cwd,
+              '..',
+              'native',
+              'nightshade_native',
+              'bridge',
+              'target',
+              'release',
+              libName,
+            ),
+            path.join(
+              cwd,
+              '..',
+              '..',
+              'native',
+              'nightshade_native',
+              'bridge',
+              'target',
+              'release',
+              libName,
+            ),
           ]);
         } catch (e) {
           // Ignore errors getting current directory
@@ -207,10 +297,28 @@ extension _NativeBridgeRuntimeOperations on _NativeBridgeImplementation {
           path.join(executableDir, '..', 'lib', libName),
           path.join(executableDir, libName),
           // Development build location
-          path.join(executableDir, '..', '..', '..', 'native',
-              'nightshade_native', 'target', 'release', libName),
-          path.join(executableDir, '..', '..', '..', 'native',
-              'nightshade_native', 'target', 'debug', libName),
+          path.join(
+            executableDir,
+            '..',
+            '..',
+            '..',
+            'native',
+            'nightshade_native',
+            'target',
+            'release',
+            libName,
+          ),
+          path.join(
+            executableDir,
+            '..',
+            '..',
+            '..',
+            'native',
+            'nightshade_native',
+            'target',
+            'debug',
+            libName,
+          ),
           // System library path
           '/usr/local/lib/$libName',
         ]);
@@ -221,10 +329,28 @@ extension _NativeBridgeRuntimeOperations on _NativeBridgeImplementation {
           path.join(executableDir, 'Frameworks', libName),
           path.join(executableDir, libName),
           // Development build location
-          path.join(executableDir, '..', '..', '..', 'native',
-              'nightshade_native', 'target', 'release', libName),
-          path.join(executableDir, '..', '..', '..', 'native',
-              'nightshade_native', 'target', 'debug', libName),
+          path.join(
+            executableDir,
+            '..',
+            '..',
+            '..',
+            'native',
+            'nightshade_native',
+            'target',
+            'release',
+            libName,
+          ),
+          path.join(
+            executableDir,
+            '..',
+            '..',
+            '..',
+            'native',
+            'nightshade_native',
+            'target',
+            'debug',
+            libName,
+          ),
         ]);
       }
 
@@ -257,13 +383,17 @@ extension _NativeBridgeRuntimeOperations on _NativeBridgeImplementation {
       // is the dlopen-side failure when the library couldn't be located on
       // any search path.
       developer.log(
-          '[Bridge] Native library not found. Native-only operations will fail closed.',
-          name: 'NativeBridge',
-          level: 900);
+        '[Bridge] Native library not found. Native-only operations will fail closed.',
+        name: 'NativeBridge',
+        level: 900,
+      );
       return false;
     } catch (e) {
-      developer.log('[Bridge] Error loading native library: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error loading native library: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       return false;
     }
   }
@@ -286,7 +416,8 @@ extension _NativeBridgeRuntimeOperations on _NativeBridgeImplementation {
         // Try to call the native get_version function
         final getVersion = _nativeLib!
             .lookupFunction<Pointer<Utf8> Function(), Pointer<Utf8> Function()>(
-                'get_native_version');
+              'get_native_version',
+            );
 
         final versionPtr = getVersion();
         if (versionPtr != nullptr) {
@@ -294,8 +425,11 @@ extension _NativeBridgeRuntimeOperations on _NativeBridgeImplementation {
           return version;
         }
       } catch (e) {
-        developer.log('[Bridge] Failed to get native version: $e',
-            name: 'NativeBridge', level: 900);
+        developer.log(
+          '[Bridge] Failed to get native version: $e',
+          name: 'NativeBridge',
+          level: 900,
+        );
       }
       return '0.1.0';
     }
@@ -318,8 +452,11 @@ extension _NativeBridgeRuntimeOperations on _NativeBridgeImplementation {
       try {
         return gen_api.apiEventStream();
       } catch (e) {
-        developer.log('[Bridge] Failed to get native event stream: $e',
-            name: 'NativeBridge', level: 1000);
+        developer.log(
+          '[Bridge] Failed to get native event stream: $e',
+          name: 'NativeBridge',
+          level: 1000,
+        );
       }
     }
 

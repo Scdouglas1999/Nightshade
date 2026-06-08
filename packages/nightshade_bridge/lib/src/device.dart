@@ -27,19 +27,10 @@ enum CalibratorState {
 
   /// Error condition
   error,
-  ;
 }
 
 /// Camera operational state
-enum CameraState {
-  idle,
-  waiting,
-  exposing,
-  reading,
-  download,
-  error,
-  ;
-}
+enum CameraState { idle, waiting, exposing, reading, download, error }
 
 /// Current status of a camera
 class CameraStatus {
@@ -184,7 +175,6 @@ enum CoverState {
 
   /// Error condition
   error,
-  ;
 }
 
 /// API version information for a connected device
@@ -328,7 +318,6 @@ enum DeviceType {
   safetyMonitor,
   switch_,
   coverCalibrator,
-  ;
 }
 
 /// Dome status
@@ -396,14 +385,7 @@ class DomeStatus {
 }
 
 /// Type of driver/protocol
-enum DriverType {
-  ascom,
-  alpaca,
-  indi,
-  native,
-  simulator,
-  ;
-}
+enum DriverType { ascom, alpaca, indi, native, simulator }
 
 @freezed
 sealed class FieldAvailability with _$FieldAvailability {
@@ -416,9 +398,8 @@ sealed class FieldAvailability with _$FieldAvailability {
   const factory FieldAvailability.unsupported() = FieldAvailability_Unsupported;
 
   /// Read attempt failed; carries the driver-supplied reason.
-  const factory FieldAvailability.error(
-    String field0,
-  ) = FieldAvailability_Error;
+  const factory FieldAvailability.error(String field0) =
+      FieldAvailability_Error;
 }
 
 /// Current status of a filter wheel
@@ -506,14 +487,7 @@ class FocuserStatus {
 }
 
 /// Frame type for camera exposures
-enum FrameType {
-  light,
-  dark,
-  flat,
-  bias,
-  darkFlat,
-  ;
-}
+enum FrameType { light, dark, flat, bias, darkFlat }
 
 /// Current status of a mount.
 ///
@@ -612,12 +586,7 @@ class MountStatus {
 }
 
 /// Side of pier for German Equatorial mounts
-enum PierSide {
-  east,
-  west,
-  unknown,
-  ;
-}
+enum PierSide { east, west, unknown }
 
 /// Current status of a rotator
 class RotatorStatus {
@@ -660,22 +629,7 @@ class RotatorStatus {
 }
 
 /// Dome shutter state
-enum ShutterState {
-  open,
-  closed,
-  opening,
-  closing,
-  error,
-  unknown,
-  ;
-}
+enum ShutterState { open, closed, opening, closing, error, unknown }
 
 /// Tracking rate for mount
-enum TrackingRate {
-  sidereal,
-  lunar,
-  solar,
-  king,
-  custom,
-  ;
-}
+enum TrackingRate { sidereal, lunar, solar, king, custom }

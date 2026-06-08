@@ -161,31 +161,13 @@ extension DeviceTypeExtension on DeviceType {
 // ============================================================================
 
 /// Device connection state
-enum ConnectionState {
-  disconnected,
-  connecting,
-  connected,
-  error,
-}
+enum ConnectionState { disconnected, connecting, connected, error }
 
 /// Frame type for camera exposures
-enum FrameType {
-  light,
-  dark,
-  flat,
-  bias,
-  darkFlat,
-}
+enum FrameType { light, dark, flat, bias, darkFlat }
 
 /// Dome shutter state
-enum ShutterState {
-  open,
-  closed,
-  opening,
-  closing,
-  error,
-  unknown,
-}
+enum ShutterState { open, closed, opening, closing, error, unknown }
 
 // EventSeverity, EventCategory, PolarAlignmentEvent, and NightshadeEvent are now typedefed from event.dart
 
@@ -299,11 +281,4 @@ class CheckpointInfoApi {
 
 /// Sequencer state enum for local state management
 /// Note: This is hidden from library exports and FRB's SequencerState (a class) is exported instead
-enum SequencerState {
-  idle,
-  running,
-  paused,
-  stopping,
-  completed,
-  failed,
-}
+enum SequencerState { idle, running, paused, stopping, completed, failed }

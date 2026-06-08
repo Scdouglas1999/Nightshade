@@ -17,8 +17,9 @@ Future<void> apiSequencerLoadJson({required String json}) =>
 
 /// Load a sequence from a definition struct
 Future<void> apiSequencerLoad({required SequenceDefinitionApi definition}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerLoad(definition: definition);
+    RustLib.instance.api.crateApiSequencerApiSequencerLoad(
+      definition: definition,
+    );
 
 /// Start the sequence executor
 Future<void> apiSequencerStart() =>
@@ -45,9 +46,10 @@ Future<void> apiSequencerSkip() =>
 /// tree-walk step; the currently-running instruction (e.g. an exposure burst)
 /// completes before the jump takes effect. Returns an error if the executor
 /// is not running (caller should gate the UI button on execution state).
-Future<void> apiSequencerSkipToNode({required String nodeId}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerSkipToNode(nodeId: nodeId);
+Future<void> apiSequencerSkipToNode({required String nodeId}) => RustLib
+    .instance
+    .api
+    .crateApiSequencerApiSequencerSkipToNode(nodeId: nodeId);
 
 /// Reset the sequence executor
 Future<void> apiSequencerReset() =>
@@ -66,16 +68,17 @@ Future<void> apiSequencerReset() =>
 /// Returns an error if the executor is not currently running — the
 /// caller should treat that as a stale reply (the run was cancelled
 /// between dispatch and reply) and drop the result.
-Future<void> apiSequencerPluginNodeFinished(
-        {required String nodeId,
-        required bool success,
-        String? message,
-        String? structuredDetailJson}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerPluginNodeFinished(
-        nodeId: nodeId,
-        success: success,
-        message: message,
-        structuredDetailJson: structuredDetailJson);
+Future<void> apiSequencerPluginNodeFinished({
+  required String nodeId,
+  required bool success,
+  String? message,
+  String? structuredDetailJson,
+}) => RustLib.instance.api.crateApiSequencerApiSequencerPluginNodeFinished(
+  nodeId: nodeId,
+  success: success,
+  message: message,
+  structuredDetailJson: structuredDetailJson,
+);
 
 /// Get the current sequencer state
 Future<SequencerState> apiSequencerGetState() =>
@@ -86,9 +89,10 @@ Future<void> apiSequencerSubscribeEvents() =>
     RustLib.instance.api.crateApiSequencerApiSequencerSubscribeEvents();
 
 /// Set the checkpoint directory for crash recovery
-Future<void> apiSequencerSetCheckpointDir({required String path}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerSetCheckpointDir(path: path);
+Future<void> apiSequencerSetCheckpointDir({required String path}) => RustLib
+    .instance
+    .api
+    .crateApiSequencerApiSequencerSetCheckpointDir(path: path);
 
 /// Check if a recoverable checkpoint exists
 Future<bool> apiSequencerHasCheckpoint() =>
@@ -111,45 +115,49 @@ Future<void> apiSequencerClearCheckpoint() =>
     RustLib.instance.api.crateApiSequencerApiSequencerClearCheckpoint();
 
 /// Set simulation mode (use mock devices instead of real hardware)
-Future<void> apiSequencerSetSimulationMode({required bool enabled}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerSetSimulationMode(enabled: enabled);
+Future<void> apiSequencerSetSimulationMode({required bool enabled}) => RustLib
+    .instance
+    .api
+    .crateApiSequencerApiSequencerSetSimulationMode(enabled: enabled);
 
 /// Set connected devices for the sequencer
-Future<void> apiSequencerSetDevices(
-        {String? cameraId,
-        String? mountId,
-        String? focuserId,
-        String? filterwheelId,
-        String? rotatorId,
-        List<String>? filterNames,
-        Map<String, int>? filterFocusOffsets}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerSetDevices(
-        cameraId: cameraId,
-        mountId: mountId,
-        focuserId: focuserId,
-        filterwheelId: filterwheelId,
-        rotatorId: rotatorId,
-        filterNames: filterNames,
-        filterFocusOffsets: filterFocusOffsets);
+Future<void> apiSequencerSetDevices({
+  String? cameraId,
+  String? mountId,
+  String? focuserId,
+  String? filterwheelId,
+  String? rotatorId,
+  List<String>? filterNames,
+  Map<String, int>? filterFocusOffsets,
+}) => RustLib.instance.api.crateApiSequencerApiSequencerSetDevices(
+  cameraId: cameraId,
+  mountId: mountId,
+  focuserId: focuserId,
+  filterwheelId: filterwheelId,
+  rotatorId: rotatorId,
+  filterNames: filterNames,
+  filterFocusOffsets: filterFocusOffsets,
+);
 
 /// Set the safety fail mode for the sequencer.
 /// This determines behavior when safety devices fail or are unavailable:
 /// - "fail_closed": Treat unavailable safety data as unsafe
 /// - "fail_open": Treat unavailable safety data as safe
 /// - "warn_only": Preserve the previous safety state and emit a warning event
-Future<void> apiSequencerSetSafetyFailMode({required String mode}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerSetSafetyFailMode(mode: mode);
+Future<void> apiSequencerSetSafetyFailMode({required String mode}) => RustLib
+    .instance
+    .api
+    .crateApiSequencerApiSequencerSetSafetyFailMode(mode: mode);
 
 /// Set the safety/humidity polling interval for the sequencer.
 /// Must be between 5 seconds and 3600 seconds. The executor applies the
 /// update live without restarting the current sequence.
-Future<void> apiSequencerSetSafetyCheckIntervalSeconds(
-        {required int seconds}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerSetSafetyCheckIntervalSeconds(
-            seconds: seconds);
+Future<void> apiSequencerSetSafetyCheckIntervalSeconds({
+  required int seconds,
+}) => RustLib.instance.api
+    .crateApiSequencerApiSequencerSetSafetyCheckIntervalSeconds(
+      seconds: seconds,
+    );
 
 /// Set the save path for sequencer images.
 /// This is the base directory where captured images will be saved.
@@ -160,26 +168,30 @@ Future<void> apiSequencerSetSavePath({String? path}) =>
 /// Update dither configuration at runtime while a sequence is running or paused.
 /// The updated values are stored on the executor and will be used by subsequent
 /// trigger-initiated dithers and checkpoint resumes.
-Future<void> apiSequencerUpdateDitherConfig(
-        {required double pixels,
-        required double settlePixels,
-        required double settleTime,
-        required double settleTimeout,
-        required bool raOnly}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerUpdateDitherConfig(
-        pixels: pixels,
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout,
-        raOnly: raOnly);
+Future<void> apiSequencerUpdateDitherConfig({
+  required double pixels,
+  required double settlePixels,
+  required double settleTime,
+  required double settleTimeout,
+  required bool raOnly,
+}) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateDitherConfig(
+  pixels: pixels,
+  settlePixels: settlePixels,
+  settleTime: settleTime,
+  settleTimeout: settleTimeout,
+  raOnly: raOnly,
+);
 
 /// Update observer location at runtime while a sequence is running or paused.
 /// Updates the executor's stored latitude/longitude so altitude-based triggers
 /// use the correct location on their next evaluation.
-Future<void> apiSequencerUpdateLocation(
-        {double? latitude, double? longitude}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerUpdateLocation(
-        latitude: latitude, longitude: longitude);
+Future<void> apiSequencerUpdateLocation({
+  double? latitude,
+  double? longitude,
+}) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateLocation(
+  latitude: latitude,
+  longitude: longitude,
+);
 
 /// Wave 7.5 — stage per-target / per-filter carry-over integration so the
 /// next `sequencerStart()` seeds the IntegrationBudget tracker with frames
@@ -193,19 +205,21 @@ Future<void> apiSequencerUpdateLocation(
 /// `carry_over` shape: `target_id` -> { `filter_name` -> `seconds` }.
 /// The Rust side merges entries (last-write-wins per target_id), then drains
 /// the staged map on the next `start()`.
-Future<void> apiSequencerUpdatePendingIntegrationCarryOver(
-        {required Map<String, Map<String, double>> carryOver}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerUpdatePendingIntegrationCarryOver(
-            carryOver: carryOver);
+Future<void> apiSequencerUpdatePendingIntegrationCarryOver({
+  required Map<String, Map<String, double>> carryOver,
+}) => RustLib.instance.api
+    .crateApiSequencerApiSequencerUpdatePendingIntegrationCarryOver(
+      carryOver: carryOver,
+    );
 
 /// Update filter focus offsets at runtime while a sequence is running or paused.
 /// Updates the executor's stored offsets so subsequent filter changes apply
 /// the correct focus compensation.
-Future<void> apiSequencerUpdateFilterOffsets(
-        {required Map<String, int> offsets}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerUpdateFilterOffsets(offsets: offsets);
+Future<void> apiSequencerUpdateFilterOffsets({
+  required Map<String, int> offsets,
+}) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateFilterOffsets(
+  offsets: offsets,
+);
 
 /// Wave 1.5 Pack A: update the autofocus-interval trigger cadence at runtime.
 /// The default in `default_autofocus_interval_frames()` is 25 frames; this
@@ -215,7 +229,8 @@ Future<void> apiSequencerUpdateFilterOffsets(
 /// which would silently turn AF off (CLAUDE.md "errors are a feature").
 Future<void> apiSequencerUpdateAutofocusInterval({required int everyNFrames}) =>
     RustLib.instance.api.crateApiSequencerApiSequencerUpdateAutofocusInterval(
-        everyNFrames: everyNFrames);
+      everyNFrames: everyNFrames,
+    );
 
 /// Pack G — update the global default image-grading thresholds at runtime.
 ///
@@ -223,48 +238,52 @@ Future<void> apiSequencerUpdateAutofocusInterval({required int everyNFrames}) =>
 /// is NOT constructed (grading disabled globally — per-node `quality_check`
 /// on TakeExposure still wins). The Dart `enableImageGrading` toggle on
 /// app settings drives this directly.
-Future<void> apiSequencerUpdateDefaultQualityCheck(
-        {double? hfrThreshold,
-        double? hfrBaselinePercent,
-        double? eccentricityThreshold,
-        int? starCountMin,
-        required int maxConsecutiveRejects,
-        required bool enabled}) =>
+Future<void> apiSequencerUpdateDefaultQualityCheck({
+  double? hfrThreshold,
+  double? hfrBaselinePercent,
+  double? eccentricityThreshold,
+  int? starCountMin,
+  required int maxConsecutiveRejects,
+  required bool enabled,
+}) =>
     RustLib.instance.api.crateApiSequencerApiSequencerUpdateDefaultQualityCheck(
-        hfrThreshold: hfrThreshold,
-        hfrBaselinePercent: hfrBaselinePercent,
-        eccentricityThreshold: eccentricityThreshold,
-        starCountMin: starCountMin,
-        maxConsecutiveRejects: maxConsecutiveRejects,
-        enabled: enabled);
+      hfrThreshold: hfrThreshold,
+      hfrBaselinePercent: hfrBaselinePercent,
+      eccentricityThreshold: eccentricityThreshold,
+      starCountMin: starCountMin,
+      maxConsecutiveRejects: maxConsecutiveRejects,
+      enabled: enabled,
+    );
 
 /// Pack G — update the reject-folder override at runtime. Empty string =>
 /// None (i.e. fall back to `<save_path>/Reject/`).
-Future<void> apiSequencerUpdateRejectFolderPath({String? path}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerUpdateRejectFolderPath(path: path);
+Future<void> apiSequencerUpdateRejectFolderPath({String? path}) => RustLib
+    .instance
+    .api
+    .crateApiSequencerApiSequencerUpdateRejectFolderPath(path: path);
 
 /// Pack G — push observer / equipment identification to the executor so
 /// the next FITS save stamps real keywords (OBSERVER, TELESCOP, FOCALLEN,
 /// APTDIA, INSTRUME, SITEELEV). Every field is optional because in
 /// headless / no-profile runs we'd rather omit the keyword than emit a
 /// sentinel — silent fallbacks are bugs.
-Future<void> apiSequencerUpdateObserverProfile(
-        {String? observerName,
-        double? siteElevationM,
-        String? cameraMake,
-        String? cameraModel,
-        String? telescopeName,
-        double? telescopeFocalLengthMm,
-        double? telescopeApertureMm}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerUpdateObserverProfile(
-        observerName: observerName,
-        siteElevationM: siteElevationM,
-        cameraMake: cameraMake,
-        cameraModel: cameraModel,
-        telescopeName: telescopeName,
-        telescopeFocalLengthMm: telescopeFocalLengthMm,
-        telescopeApertureMm: telescopeApertureMm);
+Future<void> apiSequencerUpdateObserverProfile({
+  String? observerName,
+  double? siteElevationM,
+  String? cameraMake,
+  String? cameraModel,
+  String? telescopeName,
+  double? telescopeFocalLengthMm,
+  double? telescopeApertureMm,
+}) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateObserverProfile(
+  observerName: observerName,
+  siteElevationM: siteElevationM,
+  cameraMake: cameraMake,
+  cameraModel: cameraModel,
+  telescopeName: telescopeName,
+  telescopeFocalLengthMm: telescopeFocalLengthMm,
+  telescopeApertureMm: telescopeApertureMm,
+);
 
 /// Push the latest cloud-motion analyzer reading into the executor.
 ///
@@ -276,20 +295,21 @@ Future<void> apiSequencerUpdateObserverProfile(
 /// `predicted_clear_sky_alt` / `predicted_clear_sky_az` must be either
 /// both `Some` or both `None`; a half-specified direction is logged at
 /// WARN and treated as no-direction.
-Future<void> apiSequencerUpdateCloudMotion(
-        {double? currentCoverPercent,
-        double? predictedArrivalMinutes,
-        double? predictedOpeningMinutes,
-        double? predictedOpeningDurationSecs,
-        double? predictedClearSkyAlt,
-        double? predictedClearSkyAz}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerUpdateCloudMotion(
-        currentCoverPercent: currentCoverPercent,
-        predictedArrivalMinutes: predictedArrivalMinutes,
-        predictedOpeningMinutes: predictedOpeningMinutes,
-        predictedOpeningDurationSecs: predictedOpeningDurationSecs,
-        predictedClearSkyAlt: predictedClearSkyAlt,
-        predictedClearSkyAz: predictedClearSkyAz);
+Future<void> apiSequencerUpdateCloudMotion({
+  double? currentCoverPercent,
+  double? predictedArrivalMinutes,
+  double? predictedOpeningMinutes,
+  double? predictedOpeningDurationSecs,
+  double? predictedClearSkyAlt,
+  double? predictedClearSkyAz,
+}) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateCloudMotion(
+  currentCoverPercent: currentCoverPercent,
+  predictedArrivalMinutes: predictedArrivalMinutes,
+  predictedOpeningMinutes: predictedOpeningMinutes,
+  predictedOpeningDurationSecs: predictedOpeningDurationSecs,
+  predictedClearSkyAlt: predictedClearSkyAlt,
+  predictedClearSkyAz: predictedClearSkyAz,
+);
 
 /// Full-night audit 2026-06-04 (defense-in-depth) — push the Dart-side
 /// weather-safety verdict into the executor.
@@ -307,7 +327,8 @@ Future<void> apiSequencerUpdateCloudMotion(
 /// and this layer is inert.
 Future<void> apiSequencerUpdateWeatherVerdict({bool? unsafeOverride}) =>
     RustLib.instance.api.crateApiSequencerApiSequencerUpdateWeatherVerdict(
-        unsafeOverride: unsafeOverride);
+      unsafeOverride: unsafeOverride,
+    );
 
 /// Wave 5 Agent 4 — JSON-serialised cloud-motion snapshot for the run
 /// dashboard. Returns `Ok(None)` when no data has been pushed yet.
@@ -319,9 +340,10 @@ Future<String?> apiSequencerGetCloudMotionJson() =>
 /// `mag` is the sky brightness in mag/arcsec² (bigger = darker). Pass
 /// `None` when the tracker has lost lock — the adapter then falls back to
 /// the nominal duration and emits a structured `Unavailable` event.
-Future<void> apiSequencerUpdateSkyBrightness({double? mag}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerUpdateSkyBrightness(mag: mag);
+Future<void> apiSequencerUpdateSkyBrightness({double? mag}) => RustLib
+    .instance
+    .api
+    .crateApiSequencerApiSequencerUpdateSkyBrightness(mag: mag);
 
 /// Push the global default sky-brightness adaptive-exposure config to the
 /// executor. Per-node `ExposureConfig.adaptive_exposure` still wins; this
@@ -332,31 +354,32 @@ Future<void> apiSequencerUpdateSkyBrightness({double? mag}) =>
 /// maps are flattened into parallel arrays because FRB cannot bridge
 /// `HashMap<String, T>` directly — Dart serialises its own filter map to
 /// the (`*_filters`, `*_values`) pair shape.
-Future<void> apiSequencerUpdateDefaultAdaptiveExposure(
-        {required bool enabled,
-        required double targetSnr,
-        required double referenceSkyBrightnessMag,
-        required double minExposureSecs,
-        required double maxExposureSecs,
-        required List<String> perFilterEnabledKeys,
-        required List<bool> perFilterEnabledValues,
-        required List<String> perFilterMinKeys,
-        required List<double> perFilterMinValues,
-        required List<String> perFilterMaxKeys,
-        required List<double> perFilterMaxValues}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerUpdateDefaultAdaptiveExposure(
-            enabled: enabled,
-            targetSnr: targetSnr,
-            referenceSkyBrightnessMag: referenceSkyBrightnessMag,
-            minExposureSecs: minExposureSecs,
-            maxExposureSecs: maxExposureSecs,
-            perFilterEnabledKeys: perFilterEnabledKeys,
-            perFilterEnabledValues: perFilterEnabledValues,
-            perFilterMinKeys: perFilterMinKeys,
-            perFilterMinValues: perFilterMinValues,
-            perFilterMaxKeys: perFilterMaxKeys,
-            perFilterMaxValues: perFilterMaxValues);
+Future<void> apiSequencerUpdateDefaultAdaptiveExposure({
+  required bool enabled,
+  required double targetSnr,
+  required double referenceSkyBrightnessMag,
+  required double minExposureSecs,
+  required double maxExposureSecs,
+  required List<String> perFilterEnabledKeys,
+  required List<bool> perFilterEnabledValues,
+  required List<String> perFilterMinKeys,
+  required List<double> perFilterMinValues,
+  required List<String> perFilterMaxKeys,
+  required List<double> perFilterMaxValues,
+}) => RustLib.instance.api
+    .crateApiSequencerApiSequencerUpdateDefaultAdaptiveExposure(
+      enabled: enabled,
+      targetSnr: targetSnr,
+      referenceSkyBrightnessMag: referenceSkyBrightnessMag,
+      minExposureSecs: minExposureSecs,
+      maxExposureSecs: maxExposureSecs,
+      perFilterEnabledKeys: perFilterEnabledKeys,
+      perFilterEnabledValues: perFilterEnabledValues,
+      perFilterMinKeys: perFilterMinKeys,
+      perFilterMinValues: perFilterMinValues,
+      perFilterMaxKeys: perFilterMaxKeys,
+      perFilterMaxValues: perFilterMaxValues,
+    );
 
 /// Wave 5 Agent 2 — disable the global default adaptive-exposure config
 /// (push `None`). Convenience entry-point so the Dart side doesn't have
@@ -384,10 +407,11 @@ Future<void> apiSequencerRecoveryAbort() =>
 /// both `retry_interval_secs` and `max_duration_secs` must be > 0. We
 /// surface a structured InvalidParameter error so the Dart settings page
 /// can render a precise validation message instead of "unknown error".
-Future<void> apiSequencerUpdateRecoveryConfig(
-        {required RecoveryConfigUpdate update}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerUpdateRecoveryConfig(update: update);
+Future<void> apiSequencerUpdateRecoveryConfig({
+  required RecoveryConfigUpdate update,
+}) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateRecoveryConfig(
+  update: update,
+);
 
 /// JSON-serialised snapshot of the current in-flight `RecoveryContext`.
 /// Returns `None` when the executor is not currently in `Recovering`.
@@ -407,106 +431,114 @@ Future<String> apiSequencerGetRecoveryHistoryJson() =>
     RustLib.instance.api.crateApiSequencerApiSequencerGetRecoveryHistoryJson();
 
 /// Create an exposure node configuration
-String apiCreateExposureNode(
-        {required String id,
-        required String name,
-        required double durationSecs,
-        required int count,
-        String? filter,
-        int? filterIndex,
-        int? gain,
-        int? offset,
-        required int binning,
-        int? ditherEvery}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateExposureNode(
-        id: id,
-        name: name,
-        durationSecs: durationSecs,
-        count: count,
-        filter: filter,
-        filterIndex: filterIndex,
-        gain: gain,
-        offset: offset,
-        binning: binning,
-        ditherEvery: ditherEvery);
+String apiCreateExposureNode({
+  required String id,
+  required String name,
+  required double durationSecs,
+  required int count,
+  String? filter,
+  int? filterIndex,
+  int? gain,
+  int? offset,
+  required int binning,
+  int? ditherEvery,
+}) => RustLib.instance.api.crateApiSequencerApiCreateExposureNode(
+  id: id,
+  name: name,
+  durationSecs: durationSecs,
+  count: count,
+  filter: filter,
+  filterIndex: filterIndex,
+  gain: gain,
+  offset: offset,
+  binning: binning,
+  ditherEvery: ditherEvery,
+);
 
 /// Create a slew node configuration
-String apiCreateSlewNode(
-        {required String id,
-        required String name,
-        required int useTargetCoords,
-        double? customRa,
-        double? customDec}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateSlewNode(
-        id: id,
-        name: name,
-        useTargetCoords: useTargetCoords,
-        customRa: customRa,
-        customDec: customDec);
+String apiCreateSlewNode({
+  required String id,
+  required String name,
+  required int useTargetCoords,
+  double? customRa,
+  double? customDec,
+}) => RustLib.instance.api.crateApiSequencerApiCreateSlewNode(
+  id: id,
+  name: name,
+  useTargetCoords: useTargetCoords,
+  customRa: customRa,
+  customDec: customDec,
+);
 
 /// Create a center node configuration
-String apiCreateCenterNode(
-        {required String id,
-        required String name,
-        required int useTargetCoords,
-        required double accuracyArcsec,
-        required int maxAttempts,
-        required double exposureDuration}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateCenterNode(
-        id: id,
-        name: name,
-        useTargetCoords: useTargetCoords,
-        accuracyArcsec: accuracyArcsec,
-        maxAttempts: maxAttempts,
-        exposureDuration: exposureDuration);
+String apiCreateCenterNode({
+  required String id,
+  required String name,
+  required int useTargetCoords,
+  required double accuracyArcsec,
+  required int maxAttempts,
+  required double exposureDuration,
+}) => RustLib.instance.api.crateApiSequencerApiCreateCenterNode(
+  id: id,
+  name: name,
+  useTargetCoords: useTargetCoords,
+  accuracyArcsec: accuracyArcsec,
+  maxAttempts: maxAttempts,
+  exposureDuration: exposureDuration,
+);
 
 /// Create an autofocus node configuration
-String apiCreateAutofocusNode(
-        {required String id,
-        required String name,
-        required int stepSize,
-        required int stepsOut,
-        required double exposureDuration,
-        required String method}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateAutofocusNode(
-        id: id,
-        name: name,
-        stepSize: stepSize,
-        stepsOut: stepsOut,
-        exposureDuration: exposureDuration,
-        method: method);
+String apiCreateAutofocusNode({
+  required String id,
+  required String name,
+  required int stepSize,
+  required int stepsOut,
+  required double exposureDuration,
+  required String method,
+}) => RustLib.instance.api.crateApiSequencerApiCreateAutofocusNode(
+  id: id,
+  name: name,
+  stepSize: stepSize,
+  stepsOut: stepsOut,
+  exposureDuration: exposureDuration,
+  method: method,
+);
 
 /// Create a filter change node configuration
-String apiCreateFilterNode(
-        {required String id,
-        required String name,
-        required String filterName}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateFilterNode(
-        id: id, name: name, filterName: filterName);
+String apiCreateFilterNode({
+  required String id,
+  required String name,
+  required String filterName,
+}) => RustLib.instance.api.crateApiSequencerApiCreateFilterNode(
+  id: id,
+  name: name,
+  filterName: filterName,
+);
 
 /// Create a target group node configuration (legacy - use target_header instead)
-String apiCreateTargetGroupNode(
-        {required String id,
-        required String name,
-        required String targetName,
-        required double raHours,
-        required double decDegrees,
-        double? rotation,
-        double? minAltitude,
-        double? maxAltitude,
-        required int priority,
-        required List<String> children}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateTargetGroupNode(
-        id: id,
-        name: name,
-        targetName: targetName,
-        raHours: raHours,
-        decDegrees: decDegrees,
-        rotation: rotation,
-        minAltitude: minAltitude,
-        maxAltitude: maxAltitude,
-        priority: priority,
-        children: children);
+String apiCreateTargetGroupNode({
+  required String id,
+  required String name,
+  required String targetName,
+  required double raHours,
+  required double decDegrees,
+  double? rotation,
+  double? minAltitude,
+  double? maxAltitude,
+  required int priority,
+  required List<String> children,
+}) => RustLib.instance.api.crateApiSequencerApiCreateTargetGroupNode(
+  id: id,
+  name: name,
+  targetName: targetName,
+  raHours: raHours,
+  decDegrees: decDegrees,
+  rotation: rotation,
+  minAltitude: minAltitude,
+  maxAltitude: maxAltitude,
+  priority: priority,
+  children: children,
+);
 
 /// Create a target header node configuration
 ///
@@ -515,56 +547,63 @@ String apiCreateTargetGroupNode(
 /// Dart-side `IntegrationBudget` model. Passing `None` leaves the
 /// target without a budget (current behaviour); passing a valid JSON
 /// string installs the budget on the TargetHeader.
-String apiCreateTargetHeaderNode(
-        {required String id,
-        required String name,
-        required String targetName,
-        required double raHours,
-        required double decDegrees,
-        double? rotation,
-        double? minAltitude,
-        double? maxAltitude,
-        required int priority,
-        PlatformInt64? startAfter,
-        PlatformInt64? endBefore,
-        String? mosaicPanelJson,
-        String? integrationBudgetJson,
-        required List<String> children}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateTargetHeaderNode(
-        id: id,
-        name: name,
-        targetName: targetName,
-        raHours: raHours,
-        decDegrees: decDegrees,
-        rotation: rotation,
-        minAltitude: minAltitude,
-        maxAltitude: maxAltitude,
-        priority: priority,
-        startAfter: startAfter,
-        endBefore: endBefore,
-        mosaicPanelJson: mosaicPanelJson,
-        integrationBudgetJson: integrationBudgetJson,
-        children: children);
+String apiCreateTargetHeaderNode({
+  required String id,
+  required String name,
+  required String targetName,
+  required double raHours,
+  required double decDegrees,
+  double? rotation,
+  double? minAltitude,
+  double? maxAltitude,
+  required int priority,
+  PlatformInt64? startAfter,
+  PlatformInt64? endBefore,
+  String? mosaicPanelJson,
+  String? integrationBudgetJson,
+  required List<String> children,
+}) => RustLib.instance.api.crateApiSequencerApiCreateTargetHeaderNode(
+  id: id,
+  name: name,
+  targetName: targetName,
+  raHours: raHours,
+  decDegrees: decDegrees,
+  rotation: rotation,
+  minAltitude: minAltitude,
+  maxAltitude: maxAltitude,
+  priority: priority,
+  startAfter: startAfter,
+  endBefore: endBefore,
+  mosaicPanelJson: mosaicPanelJson,
+  integrationBudgetJson: integrationBudgetJson,
+  children: children,
+);
 
 /// Create a loop node configuration
-String apiCreateLoopNode(
-        {required String id,
-        required String name,
-        int? iterations,
-        required String condition,
-        required List<String> children}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateLoopNode(
-        id: id,
-        name: name,
-        iterations: iterations,
-        condition: condition,
-        children: children);
+String apiCreateLoopNode({
+  required String id,
+  required String name,
+  int? iterations,
+  required String condition,
+  required List<String> children,
+}) => RustLib.instance.api.crateApiSequencerApiCreateLoopNode(
+  id: id,
+  name: name,
+  iterations: iterations,
+  condition: condition,
+  children: children,
+);
 
 /// Create a delay node configuration
-String apiCreateDelayNode(
-        {required String id, required String name, required double seconds}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateDelayNode(
-        id: id, name: name, seconds: seconds);
+String apiCreateDelayNode({
+  required String id,
+  required String name,
+  required double seconds,
+}) => RustLib.instance.api.crateApiSequencerApiCreateDelayNode(
+  id: id,
+  name: name,
+  seconds: seconds,
+);
 
 /// Create a park node configuration
 String apiCreateParkNode({required String id, required String name}) =>
@@ -572,100 +611,126 @@ String apiCreateParkNode({required String id, required String name}) =>
 
 /// Create an unpark node configuration
 String apiCreateUnparkNode({required String id, required String name}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiCreateUnparkNode(id: id, name: name);
+    RustLib.instance.api.crateApiSequencerApiCreateUnparkNode(
+      id: id,
+      name: name,
+    );
 
 /// Create a cool camera node configuration
-String apiCreateCoolCameraNode(
-        {required String id,
-        required String name,
-        required double targetTemp,
-        double? durationMins}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateCoolCameraNode(
-        id: id, name: name, targetTemp: targetTemp, durationMins: durationMins);
+String apiCreateCoolCameraNode({
+  required String id,
+  required String name,
+  required double targetTemp,
+  double? durationMins,
+}) => RustLib.instance.api.crateApiSequencerApiCreateCoolCameraNode(
+  id: id,
+  name: name,
+  targetTemp: targetTemp,
+  durationMins: durationMins,
+);
 
 /// Create a warm camera node configuration
-String apiCreateWarmCameraNode(
-        {required String id,
-        required String name,
-        required double ratePerMin,
-        double? targetTemp}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateWarmCameraNode(
-        id: id, name: name, ratePerMin: ratePerMin, targetTemp: targetTemp);
+String apiCreateWarmCameraNode({
+  required String id,
+  required String name,
+  required double ratePerMin,
+  double? targetTemp,
+}) => RustLib.instance.api.crateApiSequencerApiCreateWarmCameraNode(
+  id: id,
+  name: name,
+  ratePerMin: ratePerMin,
+  targetTemp: targetTemp,
+);
 
 /// Create a dither node configuration
-String apiCreateDitherNode(
-        {required String id,
-        required String name,
-        required double pixels,
-        required double settlePixels,
-        required double settleTime,
-        required double settleTimeout,
-        required int raOnly}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateDitherNode(
-        id: id,
-        name: name,
-        pixels: pixels,
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout,
-        raOnly: raOnly);
+String apiCreateDitherNode({
+  required String id,
+  required String name,
+  required double pixels,
+  required double settlePixels,
+  required double settleTime,
+  required double settleTimeout,
+  required int raOnly,
+}) => RustLib.instance.api.crateApiSequencerApiCreateDitherNode(
+  id: id,
+  name: name,
+  pixels: pixels,
+  settlePixels: settlePixels,
+  settleTime: settleTime,
+  settleTimeout: settleTimeout,
+  raOnly: raOnly,
+);
 
 /// Create a wait time node configuration
-String apiCreateWaitTimeNode(
-        {required String id,
-        required String name,
-        PlatformInt64? waitUntil,
-        String? twilightType}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateWaitTimeNode(
-        id: id, name: name, waitUntil: waitUntil, twilightType: twilightType);
+String apiCreateWaitTimeNode({
+  required String id,
+  required String name,
+  PlatformInt64? waitUntil,
+  String? twilightType,
+}) => RustLib.instance.api.crateApiSequencerApiCreateWaitTimeNode(
+  id: id,
+  name: name,
+  waitUntil: waitUntil,
+  twilightType: twilightType,
+);
 
 /// Create a notification node configuration
-String apiCreateNotificationNode(
-        {required String id,
-        required String name,
-        required String title,
-        required String message,
-        required String level}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateNotificationNode(
-        id: id, name: name, title: title, message: message, level: level);
+String apiCreateNotificationNode({
+  required String id,
+  required String name,
+  required String title,
+  required String message,
+  required String level,
+}) => RustLib.instance.api.crateApiSequencerApiCreateNotificationNode(
+  id: id,
+  name: name,
+  title: title,
+  message: message,
+  level: level,
+);
 
 /// Create a script node configuration
-String apiCreateScriptNode(
-        {required String id,
-        required String name,
-        required String scriptPath,
-        required List<String> arguments,
-        int? timeoutSecs}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateScriptNode(
-        id: id,
-        name: name,
-        scriptPath: scriptPath,
-        arguments: arguments,
-        timeoutSecs: timeoutSecs);
+String apiCreateScriptNode({
+  required String id,
+  required String name,
+  required String scriptPath,
+  required List<String> arguments,
+  int? timeoutSecs,
+}) => RustLib.instance.api.crateApiSequencerApiCreateScriptNode(
+  id: id,
+  name: name,
+  scriptPath: scriptPath,
+  arguments: arguments,
+  timeoutSecs: timeoutSecs,
+);
 
 /// Create a rotator node configuration
-String apiCreateRotatorNode(
-        {required String id,
-        required String name,
-        required double targetAngle,
-        required int relative}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateRotatorNode(
-        id: id, name: name, targetAngle: targetAngle, relative: relative);
+String apiCreateRotatorNode({
+  required String id,
+  required String name,
+  required double targetAngle,
+  required int relative,
+}) => RustLib.instance.api.crateApiSequencerApiCreateRotatorNode(
+  id: id,
+  name: name,
+  targetAngle: targetAngle,
+  relative: relative,
+);
 
 /// Build a complete sequence definition from nodes
-String apiBuildSequence(
-        {required String id,
-        required String name,
-        String? description,
-        required List<String> nodeJsons,
-        String? rootNodeId}) =>
-    RustLib.instance.api.crateApiSequencerApiBuildSequence(
-        id: id,
-        name: name,
-        description: description,
-        nodeJsons: nodeJsons,
-        rootNodeId: rootNodeId);
+String apiBuildSequence({
+  required String id,
+  required String name,
+  String? description,
+  required List<String> nodeJsons,
+  String? rootNodeId,
+}) => RustLib.instance.api.crateApiSequencerApiBuildSequence(
+  id: id,
+  name: name,
+  description: description,
+  nodeJsons: nodeJsons,
+  rootNodeId: rootNodeId,
+);
 
 /// Calculate mosaic panel positions given center coordinates and configuration
 ///
@@ -681,36 +746,38 @@ String apiBuildSequence(
 ///
 /// # Returns
 /// Vector of MosaicPanelResult with calculated RA/Dec for each panel
-List<MosaicPanelResult> apiCalculateMosaicPanels(
-        {required double centerRa,
-        required double centerDec,
-        required double panelWidthArcmin,
-        required double panelHeightArcmin,
-        required double overlapPercent,
-        required double rotation,
-        required int panelsHorizontal,
-        required int panelsVertical}) =>
-    RustLib.instance.api.crateApiSequencerApiCalculateMosaicPanels(
-        centerRa: centerRa,
-        centerDec: centerDec,
-        panelWidthArcmin: panelWidthArcmin,
-        panelHeightArcmin: panelHeightArcmin,
-        overlapPercent: overlapPercent,
-        rotation: rotation,
-        panelsHorizontal: panelsHorizontal,
-        panelsVertical: panelsVertical);
+List<MosaicPanelResult> apiCalculateMosaicPanels({
+  required double centerRa,
+  required double centerDec,
+  required double panelWidthArcmin,
+  required double panelHeightArcmin,
+  required double overlapPercent,
+  required double rotation,
+  required int panelsHorizontal,
+  required int panelsVertical,
+}) => RustLib.instance.api.crateApiSequencerApiCalculateMosaicPanels(
+  centerRa: centerRa,
+  centerDec: centerDec,
+  panelWidthArcmin: panelWidthArcmin,
+  panelHeightArcmin: panelHeightArcmin,
+  overlapPercent: overlapPercent,
+  rotation: rotation,
+  panelsHorizontal: panelsHorizontal,
+  panelsVertical: panelsVertical,
+);
 
 /// Calculate total mosaic coverage area in square degrees
-double apiCalculateMosaicArea(
-        {required double panelWidthArcmin,
-        required double panelHeightArcmin,
-        required int panelsHorizontal,
-        required int panelsVertical}) =>
-    RustLib.instance.api.crateApiSequencerApiCalculateMosaicArea(
-        panelWidthArcmin: panelWidthArcmin,
-        panelHeightArcmin: panelHeightArcmin,
-        panelsHorizontal: panelsHorizontal,
-        panelsVertical: panelsVertical);
+double apiCalculateMosaicArea({
+  required double panelWidthArcmin,
+  required double panelHeightArcmin,
+  required int panelsHorizontal,
+  required int panelsVertical,
+}) => RustLib.instance.api.crateApiSequencerApiCalculateMosaicArea(
+  panelWidthArcmin: panelWidthArcmin,
+  panelHeightArcmin: panelHeightArcmin,
+  panelsHorizontal: panelsHorizontal,
+  panelsVertical: panelsVertical,
+);
 
 /// Estimate total imaging time for mosaic in seconds
 ///
@@ -719,16 +786,17 @@ double apiCalculateMosaicArea(
 /// * `exposure_secs` - Exposure time per frame
 /// * `exposures_per_panel` - Number of exposures per panel
 /// * `overhead_per_panel_secs` - Overhead per panel (slew, center, settle) - defaults to 60s if 0
-double apiEstimateMosaicTime(
-        {required int totalPanels,
-        required double exposureSecs,
-        required int exposuresPerPanel,
-        required double overheadPerPanelSecs}) =>
-    RustLib.instance.api.crateApiSequencerApiEstimateMosaicTime(
-        totalPanels: totalPanels,
-        exposureSecs: exposureSecs,
-        exposuresPerPanel: exposuresPerPanel,
-        overheadPerPanelSecs: overheadPerPanelSecs);
+double apiEstimateMosaicTime({
+  required int totalPanels,
+  required double exposureSecs,
+  required int exposuresPerPanel,
+  required double overheadPerPanelSecs,
+}) => RustLib.instance.api.crateApiSequencerApiEstimateMosaicTime(
+  totalPanels: totalPanels,
+  exposureSecs: exposureSecs,
+  exposuresPerPanel: exposuresPerPanel,
+  overheadPerPanelSecs: overheadPerPanelSecs,
+);
 
 /// Calculate altitude for a target at a specific time and observer location
 ///
@@ -741,18 +809,19 @@ double apiEstimateMosaicTime(
 ///
 /// # Returns
 /// Altitude in degrees above the horizon (-90 to +90)
-double apiCalculateAltitude(
-        {required double raHours,
-        required double decDegrees,
-        required double latitude,
-        required double longitude,
-        required PlatformInt64 timeUnixMillis}) =>
-    RustLib.instance.api.crateApiSequencerApiCalculateAltitude(
-        raHours: raHours,
-        decDegrees: decDegrees,
-        latitude: latitude,
-        longitude: longitude,
-        timeUnixMillis: timeUnixMillis);
+double apiCalculateAltitude({
+  required double raHours,
+  required double decDegrees,
+  required double latitude,
+  required double longitude,
+  required PlatformInt64 timeUnixMillis,
+}) => RustLib.instance.api.crateApiSequencerApiCalculateAltitude(
+  raHours: raHours,
+  decDegrees: decDegrees,
+  latitude: latitude,
+  longitude: longitude,
+  timeUnixMillis: timeUnixMillis,
+);
 
 /// Returns the currently-active LiveStacking broadcast session, or
 /// `None` when no LiveStacking node has been executed in the current
@@ -776,10 +845,11 @@ void apiBroadcastDeactivate() =>
 ///
 /// Pass `None` (Dart `null`) to clear the slot — useful at run end /
 /// reset.
-Future<void> apiSequencerSetActiveSequenceRunId(
-        {PlatformInt64? sequenceRunId}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerSetActiveSequenceRunId(
-        sequenceRunId: sequenceRunId);
+Future<void> apiSequencerSetActiveSequenceRunId({
+  PlatformInt64? sequenceRunId,
+}) => RustLib.instance.api.crateApiSequencerApiSequencerSetActiveSequenceRunId(
+  sequenceRunId: sequenceRunId,
+);
 
 /// Wave 8 Replay Debug — read back the currently-stamped
 /// `sequence_runs.id`. Used by tests and as a sanity check from the
@@ -793,7 +863,8 @@ Future<PlatformInt64?> apiSequencerGetActiveSequenceRunId() =>
 /// the replay log can opt out. Defaults to ON.
 Future<void> apiSequencerSetDecisionLoggingEnabled({required bool enabled}) =>
     RustLib.instance.api.crateApiSequencerApiSequencerSetDecisionLoggingEnabled(
-        enabled: enabled);
+      enabled: enabled,
+    );
 
 /// Wave 8 Replay Debug — readback for the runtime toggle.
 Future<bool> apiSequencerGetDecisionLoggingEnabled() => RustLib.instance.api
@@ -807,28 +878,29 @@ Future<bool> apiSequencerGetDecisionLoggingEnabled() => RustLib.instance.api
 ///
 /// Pass `score = None` to clear the slot (telemetry lost — the
 /// scheduler then falls back to the ordinary ranking).
-Future<void> apiSequencerUpdateConditionsScore(
-        {double? score,
-        double? transparencyScore,
-        double? seeingScore,
-        double? cloudScore,
-        double? windScore,
-        required double transparencyWeight,
-        required double seeingWeight,
-        required double cloudWeight,
-        required double windWeight,
-        required PlatformInt64 generatedUnixSecs}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerUpdateConditionsScore(
-        score: score,
-        transparencyScore: transparencyScore,
-        seeingScore: seeingScore,
-        cloudScore: cloudScore,
-        windScore: windScore,
-        transparencyWeight: transparencyWeight,
-        seeingWeight: seeingWeight,
-        cloudWeight: cloudWeight,
-        windWeight: windWeight,
-        generatedUnixSecs: generatedUnixSecs);
+Future<void> apiSequencerUpdateConditionsScore({
+  double? score,
+  double? transparencyScore,
+  double? seeingScore,
+  double? cloudScore,
+  double? windScore,
+  required double transparencyWeight,
+  required double seeingWeight,
+  required double cloudWeight,
+  required double windWeight,
+  required PlatformInt64 generatedUnixSecs,
+}) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateConditionsScore(
+  score: score,
+  transparencyScore: transparencyScore,
+  seeingScore: seeingScore,
+  cloudScore: cloudScore,
+  windScore: windScore,
+  transparencyWeight: transparencyWeight,
+  seeingWeight: seeingWeight,
+  cloudWeight: cloudWeight,
+  windWeight: windWeight,
+  generatedUnixSecs: generatedUnixSecs,
+);
 
 /// JSON-serialised snapshot of the live conditions score + adaptive
 /// swap accounting (last swap timestamp, current tier, hysteresis

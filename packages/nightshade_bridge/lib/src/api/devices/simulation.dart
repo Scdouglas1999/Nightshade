@@ -12,43 +12,65 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `get_sim_focuser`, `get_sim_rotator`
 
 /// Get camera status
-Future<CameraStatus> apiGetCameraStatus({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesSimulationApiGetCameraStatus(deviceId: deviceId);
+Future<CameraStatus> apiGetCameraStatus({required String deviceId}) => RustLib
+    .instance
+    .api
+    .crateApiDevicesSimulationApiGetCameraStatus(deviceId: deviceId);
 
 /// Set camera cooling target
-Future<void> apiSetCameraCooler(
-        {required String deviceId, required int enabled, double? targetTemp}) =>
-    RustLib.instance.api.crateApiDevicesSimulationApiSetCameraCooler(
-        deviceId: deviceId, enabled: enabled, targetTemp: targetTemp);
+Future<void> apiSetCameraCooler({
+  required String deviceId,
+  required int enabled,
+  double? targetTemp,
+}) => RustLib.instance.api.crateApiDevicesSimulationApiSetCameraCooler(
+  deviceId: deviceId,
+  enabled: enabled,
+  targetTemp: targetTemp,
+);
 
 /// Set camera gain
 Future<void> apiSetCameraGain({required String deviceId, required int gain}) =>
     RustLib.instance.api.crateApiDevicesSimulationApiSetCameraGain(
-        deviceId: deviceId, gain: gain);
+      deviceId: deviceId,
+      gain: gain,
+    );
 
 /// Set camera offset
-Future<void> apiSetCameraOffset(
-        {required String deviceId, required int offset}) =>
-    RustLib.instance.api.crateApiDevicesSimulationApiSetCameraOffset(
-        deviceId: deviceId, offset: offset);
+Future<void> apiSetCameraOffset({
+  required String deviceId,
+  required int offset,
+}) => RustLib.instance.api.crateApiDevicesSimulationApiSetCameraOffset(
+  deviceId: deviceId,
+  offset: offset,
+);
 
 /// Get mount status
-Future<MountStatus> apiGetMountStatus({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesSimulationApiGetMountStatus(deviceId: deviceId);
+Future<MountStatus> apiGetMountStatus({required String deviceId}) => RustLib
+    .instance
+    .api
+    .crateApiDevicesSimulationApiGetMountStatus(deviceId: deviceId);
 
 /// Slew mount to coordinates
-Future<void> apiMountSlewToCoordinates(
-        {required String deviceId, required double ra, required double dec}) =>
-    RustLib.instance.api.crateApiDevicesSimulationApiMountSlewToCoordinates(
-        deviceId: deviceId, ra: ra, dec: dec);
+Future<void> apiMountSlewToCoordinates({
+  required String deviceId,
+  required double ra,
+  required double dec,
+}) => RustLib.instance.api.crateApiDevicesSimulationApiMountSlewToCoordinates(
+  deviceId: deviceId,
+  ra: ra,
+  dec: dec,
+);
 
 /// Sync mount to coordinates
-Future<void> apiMountSyncToCoordinates(
-        {required String deviceId, required double ra, required double dec}) =>
-    RustLib.instance.api.crateApiDevicesSimulationApiMountSyncToCoordinates(
-        deviceId: deviceId, ra: ra, dec: dec);
+Future<void> apiMountSyncToCoordinates({
+  required String deviceId,
+  required double ra,
+  required double dec,
+}) => RustLib.instance.api.crateApiDevicesSimulationApiMountSyncToCoordinates(
+  deviceId: deviceId,
+  ra: ra,
+  dec: dec,
+);
 
 /// Park the mount
 Future<void> apiMountPark({required String deviceId}) => RustLib.instance.api
@@ -59,48 +81,65 @@ Future<void> apiMountUnpark({required String deviceId}) => RustLib.instance.api
     .crateApiDevicesSimulationApiMountUnpark(deviceId: deviceId);
 
 /// Set mount tracking
-Future<void> apiMountSetTracking(
-        {required String deviceId, required int enabled}) =>
-    RustLib.instance.api.crateApiDevicesSimulationApiMountSetTracking(
-        deviceId: deviceId, enabled: enabled);
+Future<void> apiMountSetTracking({
+  required String deviceId,
+  required int enabled,
+}) => RustLib.instance.api.crateApiDevicesSimulationApiMountSetTracking(
+  deviceId: deviceId,
+  enabled: enabled,
+);
 
 /// Slew mount to alt/az coordinates (simulator handler)
-Future<void> apiMountSlewAltAz(
-        {required String deviceId,
-        required double altitude,
-        required double azimuth}) =>
-    RustLib.instance.api.crateApiDevicesSimulationApiMountSlewAltAz(
-        deviceId: deviceId, altitude: altitude, azimuth: azimuth);
+Future<void> apiMountSlewAltAz({
+  required String deviceId,
+  required double altitude,
+  required double azimuth,
+}) => RustLib.instance.api.crateApiDevicesSimulationApiMountSlewAltAz(
+  deviceId: deviceId,
+  altitude: altitude,
+  azimuth: azimuth,
+);
 
 /// Find mount home position (simulator handler)
-Future<void> apiMountFindHome({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesSimulationApiMountFindHome(deviceId: deviceId);
+Future<void> apiMountFindHome({required String deviceId}) => RustLib
+    .instance
+    .api
+    .crateApiDevicesSimulationApiMountFindHome(deviceId: deviceId);
 
 /// Pulse guide the mount in a direction for a duration
-Future<void> apiMountPulseGuide(
-        {required String deviceId,
-        required String direction,
-        required int durationMs}) =>
-    RustLib.instance.api.crateApiDevicesSimulationApiMountPulseGuide(
-        deviceId: deviceId, direction: direction, durationMs: durationMs);
+Future<void> apiMountPulseGuide({
+  required String deviceId,
+  required String direction,
+  required int durationMs,
+}) => RustLib.instance.api.crateApiDevicesSimulationApiMountPulseGuide(
+  deviceId: deviceId,
+  direction: direction,
+  durationMs: durationMs,
+);
 
 /// Get focuser status
-Future<FocuserStatus> apiGetFocuserStatus({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesSimulationApiGetFocuserStatus(deviceId: deviceId);
+Future<FocuserStatus> apiGetFocuserStatus({required String deviceId}) => RustLib
+    .instance
+    .api
+    .crateApiDevicesSimulationApiGetFocuserStatus(deviceId: deviceId);
 
 /// Move focuser to position
-Future<void> apiFocuserMoveTo(
-        {required String deviceId, required int position}) =>
-    RustLib.instance.api.crateApiDevicesSimulationApiFocuserMoveTo(
-        deviceId: deviceId, position: position);
+Future<void> apiFocuserMoveTo({
+  required String deviceId,
+  required int position,
+}) => RustLib.instance.api.crateApiDevicesSimulationApiFocuserMoveTo(
+  deviceId: deviceId,
+  position: position,
+);
 
 /// Move focuser by relative amount
-Future<void> apiFocuserMoveRelative(
-        {required String deviceId, required int delta}) =>
-    RustLib.instance.api.crateApiDevicesSimulationApiFocuserMoveRelative(
-        deviceId: deviceId, delta: delta);
+Future<void> apiFocuserMoveRelative({
+  required String deviceId,
+  required int delta,
+}) => RustLib.instance.api.crateApiDevicesSimulationApiFocuserMoveRelative(
+  deviceId: deviceId,
+  delta: delta,
+);
 
 /// Halt focuser
 Future<void> apiFocuserHalt({required String deviceId}) => RustLib.instance.api
@@ -108,49 +147,68 @@ Future<void> apiFocuserHalt({required String deviceId}) => RustLib.instance.api
 
 /// Get filter wheel status
 Future<FilterWheelStatus> apiGetFilterwheelStatus({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesSimulationApiGetFilterwheelStatus(deviceId: deviceId);
+    RustLib.instance.api.crateApiDevicesSimulationApiGetFilterwheelStatus(
+      deviceId: deviceId,
+    );
 
 /// Set filter wheel position
-Future<void> apiFilterwheelSetPosition(
-        {required String deviceId, required int position}) =>
-    RustLib.instance.api.crateApiDevicesSimulationApiFilterwheelSetPosition(
-        deviceId: deviceId, position: position);
+Future<void> apiFilterwheelSetPosition({
+  required String deviceId,
+  required int position,
+}) => RustLib.instance.api.crateApiDevicesSimulationApiFilterwheelSetPosition(
+  deviceId: deviceId,
+  position: position,
+);
 
 /// Get filter names
 Future<List<String>> apiFilterwheelGetNames({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesSimulationApiFilterwheelGetNames(deviceId: deviceId);
+    RustLib.instance.api.crateApiDevicesSimulationApiFilterwheelGetNames(
+      deviceId: deviceId,
+    );
 
 /// Set filter by name
-Future<void> apiFilterwheelSetByName(
-        {required String deviceId, required String name}) =>
-    RustLib.instance.api.crateApiDevicesSimulationApiFilterwheelSetByName(
-        deviceId: deviceId, name: name);
+Future<void> apiFilterwheelSetByName({
+  required String deviceId,
+  required String name,
+}) => RustLib.instance.api.crateApiDevicesSimulationApiFilterwheelSetByName(
+  deviceId: deviceId,
+  name: name,
+);
 
 /// Set filter names on a filter wheel
 /// This pushes user-defined filter names from the equipment profile to the hardware driver.
-Future<void> apiFilterwheelSetFilterNames(
-        {required String deviceId, required List<String> names}) =>
+Future<void> apiFilterwheelSetFilterNames({
+  required String deviceId,
+  required List<String> names,
+}) =>
     RustLib.instance.api.crateApiDevicesSimulationApiFilterwheelSetFilterNames(
-        deviceId: deviceId, names: names);
+      deviceId: deviceId,
+      names: names,
+    );
 
 /// Get rotator status
-Future<RotatorStatus> apiGetRotatorStatus({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesSimulationApiGetRotatorStatus(deviceId: deviceId);
+Future<RotatorStatus> apiGetRotatorStatus({required String deviceId}) => RustLib
+    .instance
+    .api
+    .crateApiDevicesSimulationApiGetRotatorStatus(deviceId: deviceId);
 
 /// Move rotator to angle
-Future<void> apiRotatorMoveTo(
-        {required String deviceId, required double angle}) =>
-    RustLib.instance.api.crateApiDevicesSimulationApiRotatorMoveTo(
-        deviceId: deviceId, angle: angle);
+Future<void> apiRotatorMoveTo({
+  required String deviceId,
+  required double angle,
+}) => RustLib.instance.api.crateApiDevicesSimulationApiRotatorMoveTo(
+  deviceId: deviceId,
+  angle: angle,
+);
 
 /// Move rotator relative
-Future<void> apiRotatorMoveRelative(
-        {required String deviceId, required double delta}) =>
-    RustLib.instance.api.crateApiDevicesSimulationApiRotatorMoveRelative(
-        deviceId: deviceId, delta: delta);
+Future<void> apiRotatorMoveRelative({
+  required String deviceId,
+  required double delta,
+}) => RustLib.instance.api.crateApiDevicesSimulationApiRotatorMoveRelative(
+  deviceId: deviceId,
+  delta: delta,
+);
 
 /// Halt rotator
 Future<void> apiRotatorHalt({required String deviceId}) => RustLib.instance.api
@@ -161,17 +219,18 @@ Future<void> apiRotatorHalt({required String deviceId}) => RustLib.instance.api
 /// solve: the solver returns the astrometric PA of the captured frame and
 /// this call aligns the rotator's reported PA so subsequent absolute moves
 /// land at the correct sky angle.
-Future<void> apiRotatorSyncToPa(
-        {required String deviceId, required double pa}) =>
-    RustLib.instance.api.crateApiDevicesSimulationApiRotatorSyncToPa(
-        deviceId: deviceId, pa: pa);
+Future<void> apiRotatorSyncToPa({
+  required String deviceId,
+  required double pa,
+}) => RustLib.instance.api.crateApiDevicesSimulationApiRotatorSyncToPa(
+  deviceId: deviceId,
+  pa: pa,
+);
 
 class SimulatedCamera {
   final CameraStatus status;
 
-  const SimulatedCamera({
-    required this.status,
-  });
+  const SimulatedCamera({required this.status});
 
   static Future<SimulatedCamera> default_() =>
       RustLib.instance.api.crateApiDevicesSimulationSimulatedCameraDefault();
@@ -190,9 +249,7 @@ class SimulatedCamera {
 class SimulatedFilterWheel {
   final FilterWheelStatus status;
 
-  const SimulatedFilterWheel({
-    required this.status,
-  });
+  const SimulatedFilterWheel({required this.status});
 
   static Future<SimulatedFilterWheel> default_() => RustLib.instance.api
       .crateApiDevicesSimulationSimulatedFilterWheelDefault();
@@ -211,9 +268,7 @@ class SimulatedFilterWheel {
 class SimulatedFocuser {
   final FocuserStatus status;
 
-  const SimulatedFocuser({
-    required this.status,
-  });
+  const SimulatedFocuser({required this.status});
 
   static Future<SimulatedFocuser> default_() =>
       RustLib.instance.api.crateApiDevicesSimulationSimulatedFocuserDefault();
@@ -232,9 +287,7 @@ class SimulatedFocuser {
 class SimulatedMount {
   final MountStatus status;
 
-  const SimulatedMount({
-    required this.status,
-  });
+  const SimulatedMount({required this.status});
 
   static Future<SimulatedMount> default_() =>
       RustLib.instance.api.crateApiDevicesSimulationSimulatedMountDefault();
@@ -253,9 +306,7 @@ class SimulatedMount {
 class SimulatedRotator {
   final RotatorStatus status;
 
-  const SimulatedRotator({
-    required this.status,
-  });
+  const SimulatedRotator({required this.status});
 
   static Future<SimulatedRotator> default_() =>
       RustLib.instance.api.crateApiDevicesSimulationSimulatedRotatorDefault();

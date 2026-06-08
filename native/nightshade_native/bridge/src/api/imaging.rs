@@ -5521,8 +5521,9 @@ pub async fn api_combine_master_frames(
             nightshade_imaging::stacking::MasterOutputType::F32 => "F32",
         },
     );
-    header.set_float("INPUTMEAN", master.input_mean);
-    header.set_float("OUTPTMEAN", master.output_mean);
+    // FITS keywords are capped at 8 chars (see `fits::is_valid_keyword`).
+    header.set_float("INMEAN", master.input_mean);
+    header.set_float("OUTMEAN", master.output_mean);
 
     let master_image_for_write = master.image.clone();
     let out_path_for_write = out_path.clone();

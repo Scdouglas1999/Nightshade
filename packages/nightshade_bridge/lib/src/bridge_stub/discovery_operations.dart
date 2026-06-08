@@ -12,8 +12,11 @@ extension _NativeBridgeDiscoveryOperations on _NativeBridgeImplementation {
   }) async {
     try {
       // Connect to INDI server via TCP
-      final socket =
-          await Socket.connect(host, port, timeout: const Duration(seconds: 5));
+      final socket = await Socket.connect(
+        host,
+        port,
+        timeout: const Duration(seconds: 5),
+      );
 
       try {
         // Send getProperties command to request device list
@@ -77,15 +80,21 @@ extension _NativeBridgeDiscoveryOperations on _NativeBridgeImplementation {
         await socket.close();
       }
     } catch (e) {
-      developer.log('[Discovery] INDI discovery failed at $host:$port: $e',
-          name: 'NativeBridge', level: 900);
+      developer.log(
+        '[Discovery] INDI discovery failed at $host:$port: $e',
+        name: 'NativeBridge',
+        level: 900,
+      );
       return [];
     }
   }
 
   /// Parse INDI XML response to extract device information
   List<DeviceInfo> _parseIndiDevices(
-      String xmlResponse, String host, int port) {
+    String xmlResponse,
+    String host,
+    int port,
+  ) {
     final devices = <DeviceInfo>[];
 
     if (xmlResponse.isEmpty) {
@@ -155,20 +164,25 @@ extension _NativeBridgeDiscoveryOperations on _NativeBridgeImplementation {
 
         // Only include devices we can identify
         if (deviceType != null) {
-          devices.add(DeviceInfo(
-            id: 'indi:$host:$port:$deviceName',
-            name: deviceName,
-            deviceType: deviceType,
-            driverType: DriverType.indi,
-            description: 'INDI device on $host:$port',
-            driverVersion: 'INDI',
-            displayName: deviceName,
-          ));
+          devices.add(
+            DeviceInfo(
+              id: 'indi:$host:$port:$deviceName',
+              name: deviceName,
+              deviceType: deviceType,
+              driverType: DriverType.indi,
+              description: 'INDI device on $host:$port',
+              driverVersion: 'INDI',
+              displayName: deviceName,
+            ),
+          );
         }
       }
     } catch (e) {
-      developer.log('[Discovery] Error parsing INDI XML response: $e',
-          name: 'NativeBridge', level: 900);
+      developer.log(
+        '[Discovery] Error parsing INDI XML response: $e',
+        name: 'NativeBridge',
+        level: 900,
+      );
       // Try to extract device names even if full parsing fails
       // (these devices are skipped because type cannot be determined)
       // Regex fallback intentionally does not add devices - malformed XML
@@ -244,27 +258,31 @@ extension _NativeBridgeDiscoveryOperations on _NativeBridgeImplementation {
         futures.add(() async {
           try {
             final genDeviceType = _toGenDeviceType(dt);
-            final nativeDevices =
-                await gen_api.apiDiscoverDevices(deviceType: genDeviceType);
+            final nativeDevices = await gen_api.apiDiscoverDevices(
+              deviceType: genDeviceType,
+            );
 
             for (final nativeDev in nativeDevices) {
-              allDevices[dt]!.add(DeviceInfo(
-                id: nativeDev.id,
-                name: nativeDev.name,
-                deviceType: _fromGenDeviceType(nativeDev.deviceType),
-                driverType: _fromGenDriverType(nativeDev.driverType),
-                description: nativeDev.description,
-                driverVersion: nativeDev.driverVersion,
-                displayName: nativeDev.displayName,
-              ));
+              allDevices[dt]!.add(
+                DeviceInfo(
+                  id: nativeDev.id,
+                  name: nativeDev.name,
+                  deviceType: _fromGenDeviceType(nativeDev.deviceType),
+                  driverType: _fromGenDriverType(nativeDev.driverType),
+                  description: nativeDev.description,
+                  driverVersion: nativeDev.driverVersion,
+                  displayName: nativeDev.displayName,
+                ),
+              );
             }
           } catch (e) {
             if (!e.toString().contains('RustLib') &&
                 !e.toString().contains('not initialized')) {
               developer.log(
-                  '[Discovery] Native discovery error for ${dt.displayName}: $e',
-                  name: 'NativeBridge',
-                  level: 900);
+                '[Discovery] Native discovery error for ${dt.displayName}: $e',
+                name: 'NativeBridge',
+                level: 900,
+              );
             }
           }
         }());
@@ -283,27 +301,33 @@ extension _NativeBridgeDiscoveryOperations on _NativeBridgeImplementation {
           if (ascomType != null) {
             final ascomDrivers = await ascom.discoverAscomDrivers(ascomType);
             for (final driver in ascomDrivers) {
-              allDevices[dt]!.add(DeviceInfo(
-                id: driver.id,
-                name: driver.name,
-                deviceType: dt,
-                driverType: DriverType.ascom,
-                description: 'ASCOM driver: ${driver.progId}',
-                driverVersion: 'ASCOM',
-                displayName: driver.name,
-              ));
+              allDevices[dt]!.add(
+                DeviceInfo(
+                  id: driver.id,
+                  name: driver.name,
+                  deviceType: dt,
+                  driverType: DriverType.ascom,
+                  description: 'ASCOM driver: ${driver.progId}',
+                  driverVersion: 'ASCOM',
+                  displayName: driver.name,
+                ),
+              );
             }
           }
         } catch (e) {
           developer.log(
-              '[Discovery] ASCOM fallback discovery failed for ${dt.displayName}: $e',
-              name: 'NativeBridge',
-              level: 900);
+            '[Discovery] ASCOM fallback discovery failed for ${dt.displayName}: $e',
+            name: 'NativeBridge',
+            level: 900,
+          );
         }
       }
     } else if (!Platform.isWindows && !_ascomNotWindowsWarned) {
-      developer.log('[Discovery] ASCOM not available (non-Windows platform)',
-          name: 'NativeBridge', level: 800);
+      developer.log(
+        '[Discovery] ASCOM not available (non-Windows platform)',
+        name: 'NativeBridge',
+        level: 800,
+      );
       _ascomNotWindowsWarned = true;
     }
 
@@ -319,22 +343,27 @@ extension _NativeBridgeDiscoveryOperations on _NativeBridgeImplementation {
         for (final device in alpacaDevices) {
           for (final dt in DeviceType.values) {
             if (_alpacaTypeMatches(device.deviceType, dt)) {
-              allDevices[dt]!.add(DeviceInfo(
-                id: device.id,
-                name: device.deviceName,
-                deviceType: dt,
-                driverType: DriverType.alpaca,
-                description:
-                    'Alpaca device at ${device.server.host}:${device.server.port}',
-                driverVersion: 'Alpaca',
-                displayName: device.deviceName,
-              ));
+              allDevices[dt]!.add(
+                DeviceInfo(
+                  id: device.id,
+                  name: device.deviceName,
+                  deviceType: dt,
+                  driverType: DriverType.alpaca,
+                  description:
+                      'Alpaca device at ${device.server.host}:${device.server.port}',
+                  driverVersion: 'Alpaca',
+                  displayName: device.deviceName,
+                ),
+              );
             }
           }
         }
       } catch (e) {
-        developer.log('[Discovery] Alpaca discovery failed: $e',
-            name: 'NativeBridge', level: 900);
+        developer.log(
+          '[Discovery] Alpaca discovery failed: $e',
+          name: 'NativeBridge',
+          level: 900,
+        );
       }
 
       // =======================================================================
@@ -344,19 +373,24 @@ extension _NativeBridgeDiscoveryOperations on _NativeBridgeImplementation {
         final phd2Instances = await _discoverPhd2Instances();
 
         if (phd2Instances.isNotEmpty) {
-          allDevices[DeviceType.guider]!.add(const DeviceInfo(
-            id: 'phd2_guider',
-            name: 'PHD2 Guiding',
-            deviceType: DeviceType.guider,
-            driverType: DriverType.native,
-            description: 'PHD2 autoguiding software',
-            driverVersion: '2.6+',
-            displayName: 'PHD2 Guiding',
-          ));
+          allDevices[DeviceType.guider]!.add(
+            const DeviceInfo(
+              id: 'phd2_guider',
+              name: 'PHD2 Guiding',
+              deviceType: DeviceType.guider,
+              driverType: DriverType.native,
+              description: 'PHD2 autoguiding software',
+              driverVersion: '2.6+',
+              displayName: 'PHD2 Guiding',
+            ),
+          );
         }
       } catch (e) {
-        developer.log('[Discovery] PHD2 discovery failed: $e',
-            name: 'NativeBridge', level: 900);
+        developer.log(
+          '[Discovery] PHD2 discovery failed: $e',
+          name: 'NativeBridge',
+          level: 900,
+        );
       }
     }
 
@@ -378,15 +412,22 @@ extension _NativeBridgeDiscoveryOperations on _NativeBridgeImplementation {
       final count = allDevices[dt]!.length;
       if (count > 0) {
         parts.add(
-            '$count ${dt.displayName.toLowerCase()}${count == 1 ? '' : 's'}');
+          '$count ${dt.displayName.toLowerCase()}${count == 1 ? '' : 's'}',
+        );
       }
     }
     if (parts.isNotEmpty) {
-      developer.log('[Discovery] Complete: ${parts.join(', ')}',
-          name: 'NativeBridge', level: 800);
+      developer.log(
+        '[Discovery] Complete: ${parts.join(', ')}',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } else {
-      developer.log('[Discovery] Complete: no devices found',
-          name: 'NativeBridge', level: 800);
+      developer.log(
+        '[Discovery] Complete: no devices found',
+        name: 'NativeBridge',
+        level: 800,
+      );
     }
   }
 
@@ -451,8 +492,11 @@ extension _NativeBridgeDiscoveryOperations on _NativeBridgeImplementation {
         }
       }
     } catch (e) {
-      developer.log('[Discovery] PHD2 network scan failed: $e',
-          name: 'NativeBridge', level: 900);
+      developer.log(
+        '[Discovery] PHD2 network scan failed: $e',
+        name: 'NativeBridge',
+        level: 900,
+      );
       // Continue with local instance if we found one
     }
 
@@ -483,8 +527,11 @@ extension _NativeBridgeDiscoveryOperations on _NativeBridgeImplementation {
         }
       }
     } catch (e) {
-      developer.log('[Discovery] Failed to get network interfaces: $e',
-          name: 'NativeBridge', level: 900);
+      developer.log(
+        '[Discovery] Failed to get network interfaces: $e',
+        name: 'NativeBridge',
+        level: 900,
+      );
     }
 
     return subnets;
@@ -503,13 +550,17 @@ extension _NativeBridgeDiscoveryOperations on _NativeBridgeImplementation {
       // Skip localhost (already checked)
       if (i == 1 && (subnet == '127.0.0' || subnet == '::1')) continue;
 
-      futures.add(_checkPhd2AtHost(host, port).then((isRunning) {
-        if (isRunning) {
-          foundHosts.add(host);
-        }
-      }).catchError((e) {
-        // Ignore individual connection failures
-      }));
+      futures.add(
+        _checkPhd2AtHost(host, port)
+            .then((isRunning) {
+              if (isRunning) {
+                foundHosts.add(host);
+              }
+            })
+            .catchError((e) {
+              // Ignore individual connection failures
+            }),
+      );
 
       // Process in batches to avoid overwhelming the system
       if (futures.length >= 50) {
@@ -544,14 +595,9 @@ extension _NativeBridgeDiscoveryOperations on _NativeBridgeImplementation {
 
         // Wait for response with timeout
         final response = await socket
-            .timeout(
-              const Duration(seconds: 1),
-            )
+            .timeout(const Duration(seconds: 1))
             .first
-            .timeout(
-              const Duration(seconds: 1),
-              onTimeout: () => Uint8List(0),
-            );
+            .timeout(const Duration(seconds: 1), onTimeout: () => Uint8List(0));
 
         socket.destroy();
 
@@ -609,8 +655,10 @@ extension _NativeBridgeDiscoveryOperations on _NativeBridgeImplementation {
 
     // Check if phd2 process is running
     try {
-      final result =
-          await Process.run('tasklist', ['/FI', 'IMAGENAME eq phd2.exe']);
+      final result = await Process.run('tasklist', [
+        '/FI',
+        'IMAGENAME eq phd2.exe',
+      ]);
       if (result.exitCode == 0) {
         final output = result.stdout.toString();
         if (output.contains('phd2.exe')) {

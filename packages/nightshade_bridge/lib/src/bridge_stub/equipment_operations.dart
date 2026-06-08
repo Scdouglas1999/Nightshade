@@ -13,15 +13,21 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     try {
       return await gen_api.getCameraStatus(deviceId: deviceId);
     } catch (e) {
-      developer.log('[Bridge] Error getting camera status from native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error getting camera status from native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
 
   /// Set camera cooler
   Future<void> setCameraCooler(
-      String deviceId, bool enabled, double? targetTemp) async {
+    String deviceId,
+    bool enabled,
+    double? targetTemp,
+  ) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('setCameraCooler');
     }
@@ -32,8 +38,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
         targetTemp: targetTemp,
       );
     } catch (e) {
-      developer.log('[Bridge] Error setting camera cooler from native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error setting camera cooler from native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -46,8 +55,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     try {
       await gen_api.setCameraGain(deviceId: deviceId, gain: gain);
     } catch (e) {
-      developer.log('[Bridge] Error setting camera gain from native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error setting camera gain from native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -60,8 +72,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     try {
       await gen_api.setCameraOffset(deviceId: deviceId, offset: offset);
     } catch (e) {
-      developer.log('[Bridge] Error setting camera offset from native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error setting camera offset from native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -73,10 +88,16 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     }
     try {
       await gen_api.apiSetCameraBinning(
-          deviceId: deviceId, binX: binX, binY: binY);
+        deviceId: deviceId,
+        binX: binX,
+        binY: binY,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error setting camera binning from native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error setting camera binning from native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -96,8 +117,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
         modeIndex: modeIndex,
       );
     } catch (e) {
-      developer.log('[Bridge] Error calling native setReadoutMode: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error calling native setReadoutMode: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -124,8 +148,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
         binY: binY,
       );
     } catch (e) {
-      developer.log('[Bridge] Error calling native startExposure: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error calling native startExposure: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -138,8 +165,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     try {
       await gen_api.apiCameraCancelExposure(deviceId: deviceId);
     } catch (e) {
-      developer.log('[Bridge] Error calling native cancelExposure: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error calling native cancelExposure: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -151,24 +181,32 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     // trip. Promoted into the structured logger so they participate in level
     // filtering / file rotation like the rest of the bridge.
     developer.log(
-        '[Bridge] getLastImage called for device $deviceId, nativeAvailable=$_nativeAvailable',
-        name: 'NativeBridge',
-        level: 500);
+      '[Bridge] getLastImage called for device $deviceId, nativeAvailable=$_nativeAvailable',
+      name: 'NativeBridge',
+      level: 500,
+    );
     if (!_nativeAvailable) {
       _nativeBridgeRequired('getLastImage');
     }
     try {
-      developer.log('[Bridge] Calling crateApiApiGetLastImage...',
-          name: 'NativeBridge', level: 500);
+      developer.log(
+        '[Bridge] Calling crateApiApiGetLastImage...',
+        name: 'NativeBridge',
+        level: 500,
+      );
       final rustResult = await gen_api.apiGetLastImage(deviceId: deviceId);
       developer.log(
-          '[Bridge] Got result: ${rustResult.width}x${rustResult.height}, displayData size: ${rustResult.displayData.length}',
-          name: 'NativeBridge',
-          level: 500);
+        '[Bridge] Got result: ${rustResult.width}x${rustResult.height}, displayData size: ${rustResult.displayData.length}',
+        name: 'NativeBridge',
+        level: 500,
+      );
       return rustResult;
     } catch (e) {
-      developer.log('[Bridge] Error calling native getLastImage: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error calling native getLastImage: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -185,24 +223,36 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     try {
       return await gen_api.apiGetMountStatus(deviceId: deviceId);
     } catch (e) {
-      developer.log('[Bridge] Error getting mount status from native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error getting mount status from native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
 
   /// Slew the mount to coordinates
   Future<void> mountSlewToCoordinates(
-      String deviceId, double ra, double dec) async {
+    String deviceId,
+    double ra,
+    double dec,
+  ) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('mountSlewToCoordinates');
     }
     try {
       await gen_api.apiMountSlewToCoordinates(
-          deviceId: deviceId, ra: ra, dec: dec);
+        deviceId: deviceId,
+        ra: ra,
+        dec: dec,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error slewing mount via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error slewing mount via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -214,10 +264,16 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     }
     try {
       await gen_api.apiMountSyncToCoordinates(
-          deviceId: deviceId, ra: ra, dec: dec);
+        deviceId: deviceId,
+        ra: ra,
+        dec: dec,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error syncing mount via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error syncing mount via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -230,8 +286,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     try {
       await gen_api.apiMountPark(deviceId: deviceId);
     } catch (e) {
-      developer.log('[Bridge] Error parking mount via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error parking mount via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -244,8 +303,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     try {
       await gen_api.apiMountUnpark(deviceId: deviceId);
     } catch (e) {
-      developer.log('[Bridge] Error unparking mount via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error unparking mount via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -257,17 +319,25 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     }
     try {
       await gen_api.apiMountSetTracking(
-          deviceId: deviceId, enabled: enabled ? 1 : 0);
+        deviceId: deviceId,
+        enabled: enabled ? 1 : 0,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error setting mount tracking via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error setting mount tracking via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
 
   /// Pulse guide mount
   Future<void> mountPulseGuide(
-      String deviceId, String direction, int durationMs) async {
+    String deviceId,
+    String direction,
+    int durationMs,
+  ) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('mountPulseGuide');
     }
@@ -278,8 +348,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
         durationMs: durationMs,
       );
     } catch (e) {
-      developer.log('[Bridge] Error pulse guiding mount via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error pulse guiding mount via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -292,8 +365,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     try {
       await gen_api.mountSetTrackingRate(deviceId: deviceId, rate: rate);
     } catch (e) {
-      developer.log('[Bridge] Error setting tracking rate from native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error setting tracking rate from native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -306,8 +382,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     try {
       return await gen_api.mountGetTrackingRate(deviceId: deviceId);
     } catch (e) {
-      developer.log('[Bridge] Error getting tracking rate from native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error getting tracking rate from native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -322,24 +401,36 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     try {
       await gen_api.mountMoveAxis(deviceId: deviceId, axis: axis, rate: rate);
     } catch (e) {
-      developer.log('[Bridge] Error moving axis from native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error moving axis from native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
 
   /// Slew mount to alt/az coordinates
   Future<void> mountSlewAltAz(
-      String deviceId, double altitude, double azimuth) async {
+    String deviceId,
+    double altitude,
+    double azimuth,
+  ) async {
     if (!_nativeAvailable) {
       _nativeBridgeRequired('mountSlewAltAz');
     }
     try {
       await gen_api.mountSlewAltAz(
-          deviceId: deviceId, altitude: altitude, azimuth: azimuth);
+        deviceId: deviceId,
+        altitude: altitude,
+        azimuth: azimuth,
+      );
     } catch (e) {
-      developer.log('[Bridge] Error slewing mount to alt/az: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error slewing mount to alt/az: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -352,8 +443,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     try {
       await gen_api.mountFindHome(deviceId: deviceId);
     } catch (e) {
-      developer.log('[Bridge] Error finding mount home: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error finding mount home: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -366,8 +460,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     try {
       await gen_api.mountAbort(deviceId: deviceId);
     } catch (e) {
-      developer.log('[Bridge] Error aborting mount motion: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error aborting mount motion: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -384,8 +481,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     try {
       return await gen_api.apiGetFocuserStatus(deviceId: deviceId);
     } catch (e) {
-      developer.log('[Bridge] Error getting focuser status from native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error getting focuser status from native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -398,8 +498,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     try {
       await gen_api.apiFocuserMoveTo(deviceId: deviceId, position: position);
     } catch (e) {
-      developer.log('[Bridge] Error moving focuser via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error moving focuser via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -412,8 +515,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     try {
       await gen_api.apiFocuserMoveRelative(deviceId: deviceId, delta: delta);
     } catch (e) {
-      developer.log('[Bridge] Error moving focuser relative via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error moving focuser relative via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -426,8 +532,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     try {
       await gen_api.apiFocuserHalt(deviceId: deviceId);
     } catch (e) {
-      developer.log('[Bridge] Error halting focuser via native: $e',
-          name: 'NativeBridge', level: 1000);
+      developer.log(
+        '[Bridge] Error halting focuser via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -445,9 +554,10 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
       return await gen_api.apiGetFilterwheelStatus(deviceId: deviceId);
     } catch (e) {
       developer.log(
-          '[Bridge] Error getting filter wheel status from native: $e',
-          name: 'NativeBridge',
-          level: 1000);
+        '[Bridge] Error getting filter wheel status from native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -459,12 +569,15 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
     }
     try {
       await gen_api.apiFilterwheelSetPosition(
-          deviceId: deviceId, position: position);
+        deviceId: deviceId,
+        position: position,
+      );
     } catch (e) {
       developer.log(
-          '[Bridge] Error setting filter wheel position via native: $e',
-          name: 'NativeBridge',
-          level: 1000);
+        '[Bridge] Error setting filter wheel position via native: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -516,26 +629,33 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
   }
 
   /// Start a new imaging session
-  Future<void> startSession(
-      {String? targetName, double? ra, double? dec}) async {
-    _eventController.add(_FallbackNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.sequencer,
-      eventType: 'SessionStarted',
-      data: {'target': targetName},
-    ));
+  Future<void> startSession({
+    String? targetName,
+    double? ra,
+    double? dec,
+  }) async {
+    _eventController.add(
+      _FallbackNightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.info,
+        category: EventCategory.sequencer,
+        eventType: 'SessionStarted',
+        data: {'target': targetName},
+      ),
+    );
   }
 
   /// End the current session
   Future<void> endSession() async {
-    _eventController.add(_FallbackNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.sequencer,
-      eventType: 'SessionEnded',
-      data: {},
-    ));
+    _eventController.add(
+      _FallbackNightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.info,
+        category: EventCategory.sequencer,
+        eventType: 'SessionEnded',
+        data: {},
+      ),
+    );
   }
 
   // =========================================================================
@@ -602,8 +722,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
           config: config,
         );
       } catch (e) {
-        developer.log('[Bridge] Error running autofocus via native: $e',
-            name: 'NativeBridge', level: 1000);
+        developer.log(
+          '[Bridge] Error running autofocus via native: $e',
+          name: 'NativeBridge',
+          level: 1000,
+        );
         rethrow;
       }
     }
@@ -617,8 +740,11 @@ extension _NativeBridgeEquipmentOperations on _NativeBridgeImplementation {
         await gen_api.apiCancelAutofocus();
         return;
       } catch (e) {
-        developer.log('[Bridge] Error cancelling autofocus via native: $e',
-            name: 'NativeBridge', level: 1000);
+        developer.log(
+          '[Bridge] Error cancelling autofocus via native: $e',
+          name: 'NativeBridge',
+          level: 1000,
+        );
         rethrow;
       }
     }

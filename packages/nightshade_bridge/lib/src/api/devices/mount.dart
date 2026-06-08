@@ -9,16 +9,26 @@ import '../../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 /// Slew mount to coordinates
-Future<void> mountSlew(
-        {required String deviceId, required double ra, required double dec}) =>
-    RustLib.instance.api
-        .crateApiDevicesMountMountSlew(deviceId: deviceId, ra: ra, dec: dec);
+Future<void> mountSlew({
+  required String deviceId,
+  required double ra,
+  required double dec,
+}) => RustLib.instance.api.crateApiDevicesMountMountSlew(
+  deviceId: deviceId,
+  ra: ra,
+  dec: dec,
+);
 
 /// Sync mount to coordinates
-Future<void> mountSync(
-        {required String deviceId, required double ra, required double dec}) =>
-    RustLib.instance.api
-        .crateApiDevicesMountMountSync(deviceId: deviceId, ra: ra, dec: dec);
+Future<void> mountSync({
+  required String deviceId,
+  required double ra,
+  required double dec,
+}) => RustLib.instance.api.crateApiDevicesMountMountSync(
+  deviceId: deviceId,
+  ra: ra,
+  dec: dec,
+);
 
 /// Park mount
 Future<void> mountPark({required String deviceId}) =>
@@ -30,8 +40,9 @@ Future<void> mountUnpark({required String deviceId}) =>
 
 /// Get mount coordinates
 Future<(double, double)> mountGetCoordinates({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesMountMountGetCoordinates(deviceId: deviceId);
+    RustLib.instance.api.crateApiDevicesMountMountGetCoordinates(
+      deviceId: deviceId,
+    );
 
 /// Abort mount slew
 Future<void> mountAbort({required String deviceId}) =>
@@ -46,49 +57,67 @@ Future<bool> mountCanPark({required String deviceId}) =>
     RustLib.instance.api.crateApiDevicesMountMountCanPark(deviceId: deviceId);
 
 /// Set mount tracking
-Future<void> mountSetTracking(
-        {required String deviceId, required int enabled}) =>
-    RustLib.instance.api.crateApiDevicesMountMountSetTracking(
-        deviceId: deviceId, enabled: enabled);
+Future<void> mountSetTracking({
+  required String deviceId,
+  required int enabled,
+}) => RustLib.instance.api.crateApiDevicesMountMountSetTracking(
+  deviceId: deviceId,
+  enabled: enabled,
+);
 
 /// Set mount tracking rate (0=Sidereal, 1=Lunar, 2=Solar, 3=King)
-Future<void> mountSetTrackingRate(
-        {required String deviceId, required int rate}) =>
-    RustLib.instance.api.crateApiDevicesMountMountSetTrackingRate(
-        deviceId: deviceId, rate: rate);
+Future<void> mountSetTrackingRate({
+  required String deviceId,
+  required int rate,
+}) => RustLib.instance.api.crateApiDevicesMountMountSetTrackingRate(
+  deviceId: deviceId,
+  rate: rate,
+);
 
 /// Pulse guide mount
-Future<void> mountPulseGuide(
-        {required String deviceId,
-        required String direction,
-        required int durationMs}) =>
-    RustLib.instance.api.crateApiDevicesMountMountPulseGuide(
-        deviceId: deviceId, direction: direction, durationMs: durationMs);
+Future<void> mountPulseGuide({
+  required String deviceId,
+  required String direction,
+  required int durationMs,
+}) => RustLib.instance.api.crateApiDevicesMountMountPulseGuide(
+  deviceId: deviceId,
+  direction: direction,
+  durationMs: durationMs,
+);
 
 /// Get mount status
 Future<MountStatus> mountGetStatus({required String deviceId}) =>
     RustLib.instance.api.crateApiDevicesMountMountGetStatus(deviceId: deviceId);
 
 /// Get mount tracking rate (0=Sidereal, 1=Lunar, 2=Solar, 3=King)
-Future<int> mountGetTrackingRate({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesMountMountGetTrackingRate(deviceId: deviceId);
+Future<int> mountGetTrackingRate({required String deviceId}) => RustLib
+    .instance
+    .api
+    .crateApiDevicesMountMountGetTrackingRate(deviceId: deviceId);
 
 /// Move mount axis at specified rate (degrees/second)
 /// axis: 0=RA/Azimuth (primary), 1=Dec/Altitude (secondary)
 /// rate: degrees per second (positive = N/E, negative = S/W), 0 to stop
-Future<void> mountMoveAxis(
-        {required String deviceId, required int axis, required double rate}) =>
-    RustLib.instance.api.crateApiDevicesMountMountMoveAxis(
-        deviceId: deviceId, axis: axis, rate: rate);
+Future<void> mountMoveAxis({
+  required String deviceId,
+  required int axis,
+  required double rate,
+}) => RustLib.instance.api.crateApiDevicesMountMountMoveAxis(
+  deviceId: deviceId,
+  axis: axis,
+  rate: rate,
+);
 
 /// Slew mount to alt/az coordinates (altitude in degrees, azimuth in degrees)
-Future<void> mountSlewAltAz(
-        {required String deviceId,
-        required double altitude,
-        required double azimuth}) =>
-    RustLib.instance.api.crateApiDevicesMountMountSlewAltAz(
-        deviceId: deviceId, altitude: altitude, azimuth: azimuth);
+Future<void> mountSlewAltAz({
+  required String deviceId,
+  required double altitude,
+  required double azimuth,
+}) => RustLib.instance.api.crateApiDevicesMountMountSlewAltAz(
+  deviceId: deviceId,
+  altitude: altitude,
+  azimuth: azimuth,
+);
 
 /// Find mount home position
 Future<void> mountFindHome({required String deviceId}) =>

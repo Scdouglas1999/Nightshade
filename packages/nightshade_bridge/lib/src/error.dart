@@ -12,19 +12,16 @@ part 'error.freezed.dart';
 sealed class NightshadeError with _$NightshadeError implements FrbException {
   const NightshadeError._();
 
-  const factory NightshadeError.deviceNotFound(
-    String field0,
-  ) = NightshadeError_DeviceNotFound;
+  const factory NightshadeError.deviceNotFound(String field0) =
+      NightshadeError_DeviceNotFound;
   const factory NightshadeError.connectionFailed({
     required String deviceId,
     required String reason,
   }) = NightshadeError_ConnectionFailed;
-  const factory NightshadeError.alreadyConnected(
-    String field0,
-  ) = NightshadeError_AlreadyConnected;
-  const factory NightshadeError.notConnected(
-    String field0,
-  ) = NightshadeError_NotConnected;
+  const factory NightshadeError.alreadyConnected(String field0) =
+      NightshadeError_AlreadyConnected;
+  const factory NightshadeError.notConnected(String field0) =
+      NightshadeError_NotConnected;
   const factory NightshadeError.deviceDisconnected({
     required String deviceId,
     required String reason,
@@ -46,9 +43,8 @@ sealed class NightshadeError with _$NightshadeError implements FrbException {
   }) = NightshadeError_CommunicationError;
 
   /// Generic timeout error (for backwards compatibility)
-  const factory NightshadeError.timeout(
-    String field0,
-  ) = NightshadeError_Timeout;
+  const factory NightshadeError.timeout(String field0) =
+      NightshadeError_Timeout;
 
   /// Device-specific timeout with details
   const factory NightshadeError.deviceTimeout({
@@ -62,12 +58,10 @@ sealed class NightshadeError with _$NightshadeError implements FrbException {
     required String deviceId,
     required double timeoutSecs,
   }) = NightshadeError_ConnectionTimeout;
-  const factory NightshadeError.invalidParameter(
-    String field0,
-  ) = NightshadeError_InvalidParameter;
-  const factory NightshadeError.invalidInput(
-    String field0,
-  ) = NightshadeError_InvalidInput;
+  const factory NightshadeError.invalidParameter(String field0) =
+      NightshadeError_InvalidParameter;
+  const factory NightshadeError.invalidInput(String field0) =
+      NightshadeError_InvalidInput;
   const factory NightshadeError.invalidDeviceId({
     required String deviceId,
     required String reason,
@@ -78,9 +72,8 @@ sealed class NightshadeError with _$NightshadeError implements FrbException {
     required String min,
     required String max,
   }) = NightshadeError_ParameterOutOfRange;
-  const factory NightshadeError.operationFailed(
-    String field0,
-  ) = NightshadeError_OperationFailed;
+  const factory NightshadeError.operationFailed(String field0) =
+      NightshadeError_OperationFailed;
   const factory NightshadeError.notSupported({
     required String deviceId,
     required String operation,
@@ -89,12 +82,10 @@ sealed class NightshadeError with _$NightshadeError implements FrbException {
     required String deviceId,
     required String currentOperation,
   }) = NightshadeError_DeviceBusy;
-  const factory NightshadeError.imageError(
-    String field0,
-  ) = NightshadeError_ImageError;
-  const factory NightshadeError.cameraError(
-    String field0,
-  ) = NightshadeError_CameraError;
+  const factory NightshadeError.imageError(String field0) =
+      NightshadeError_ImageError;
+  const factory NightshadeError.cameraError(String field0) =
+      NightshadeError_CameraError;
   const factory NightshadeError.noImageAvailable() =
       NightshadeError_NoImageAvailable;
   const factory NightshadeError.exposureCancelled() =
@@ -107,18 +98,14 @@ sealed class NightshadeError with _$NightshadeError implements FrbException {
     required String cameraId,
     required String reason,
   }) = NightshadeError_DownloadFailed;
-  const factory NightshadeError.ioError(
-    String field0,
-  ) = NightshadeError_IoError;
-  const factory NightshadeError.serializationError(
-    String field0,
-  ) = NightshadeError_SerializationError;
-  const factory NightshadeError.plateSolveError(
-    String field0,
-  ) = NightshadeError_PlateSolveError;
-  const factory NightshadeError.sequenceError(
-    String field0,
-  ) = NightshadeError_SequenceError;
+  const factory NightshadeError.ioError(String field0) =
+      NightshadeError_IoError;
+  const factory NightshadeError.serializationError(String field0) =
+      NightshadeError_SerializationError;
+  const factory NightshadeError.plateSolveError(String field0) =
+      NightshadeError_PlateSolveError;
+  const factory NightshadeError.sequenceError(String field0) =
+      NightshadeError_SequenceError;
 
   /// ASCOM driver error (Windows only)
   const factory NightshadeError.ascomError({
@@ -155,13 +142,11 @@ sealed class NightshadeError with _$NightshadeError implements FrbException {
     required String message,
     required int hresult,
   }) = NightshadeError_ComError;
-  const factory NightshadeError.internal(
-    String field0,
-  ) = NightshadeError_Internal;
+  const factory NightshadeError.internal(String field0) =
+      NightshadeError_Internal;
   const factory NightshadeError.cancelled() = NightshadeError_Cancelled;
-  const factory NightshadeError.runtimeInitFailed(
-    String field0,
-  ) = NightshadeError_RuntimeInitFailed;
+  const factory NightshadeError.runtimeInitFailed(String field0) =
+      NightshadeError_RuntimeInitFailed;
   const factory NightshadeError.resourceExhausted({
     required String resource,
     required String message,

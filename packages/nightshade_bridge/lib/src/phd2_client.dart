@@ -157,10 +157,7 @@ class Phd2Client {
     ),
   );
 
-  Phd2Client({
-    this.host = 'localhost',
-    this.port = defaultPort,
-  });
+  Phd2Client({this.host = 'localhost', this.port = defaultPort});
 
   /// Check if connected to PHD2
   bool get isConnected => _connected && _socket != null;
@@ -221,8 +218,11 @@ class Phd2Client {
 
     try {
       await _circuitBreaker.execute(() async {
-        _socket = await Socket.connect(targetHost, targetPort,
-            timeout: const Duration(seconds: 5));
+        _socket = await Socket.connect(
+          targetHost,
+          targetPort,
+          timeout: const Duration(seconds: 5),
+        );
       });
 
       _connected = true;
@@ -233,13 +233,20 @@ class Phd2Client {
       _subscription = _socket!.listen(
         (data) => _handleData(data),
         onError: (Object error) {
-          developer.log('[PHD2] socket error: $error',
-              name: 'Phd2Client', level: 1000, error: error);
+          developer.log(
+            '[PHD2] socket error: $error',
+            name: 'Phd2Client',
+            level: 1000,
+            error: error,
+          );
           _handleConnectionLost();
         },
         onDone: () {
-          developer.log('[PHD2] connection closed',
-              name: 'Phd2Client', level: 900);
+          developer.log(
+            '[PHD2] connection closed',
+            name: 'Phd2Client',
+            level: 900,
+          );
           _handleConnectionLost();
         },
       );
@@ -251,11 +258,13 @@ class Phd2Client {
       // Fetch initial app state
       await _getAppState();
 
-      _eventController.add(Phd2Event(
-        event: 'Connected',
-        data: {'host': targetHost, 'port': targetPort},
-        timestamp: DateTime.now(),
-      ));
+      _eventController.add(
+        Phd2Event(
+          event: 'Connected',
+          data: {'host': targetHost, 'port': targetPort},
+          timestamp: DateTime.now(),
+        ),
+      );
     } catch (e) {
       _connected = false;
       _updateConnectionState(Phd2ConnectionState.disconnected);
@@ -284,8 +293,10 @@ class Phd2Client {
   /// Start heartbeat monitoring
   void _startHeartbeat() {
     _stopHeartbeat();
-    _heartbeatTimer =
-        Timer.periodic(heartbeatInterval, (_) => _sendHeartbeat());
+    _heartbeatTimer = Timer.periodic(
+      heartbeatInterval,
+      (_) => _sendHeartbeat(),
+    );
   }
 
   /// Stop heartbeat monitoring
@@ -302,8 +313,11 @@ class Phd2Client {
 
     // Check if connection is stale
     if (isStale) {
-      developer.log('[PHD2] connection is stale, triggering reconnect',
-          name: 'Phd2Client', level: 900);
+      developer.log(
+        '[PHD2] connection is stale, triggering reconnect',
+        name: 'Phd2Client',
+        level: 900,
+      );
       _updateConnectionState(Phd2ConnectionState.stale);
       _handleConnectionLost();
       return;
@@ -311,13 +325,19 @@ class Phd2Client {
 
     try {
       // Send lightweight ping using get_app_state
-      await _sendRequest('get_app_state').timeout(heartbeatTimeout,
-          onTimeout: () {
-        throw TimeoutException('Heartbeat timeout');
-      });
+      await _sendRequest('get_app_state').timeout(
+        heartbeatTimeout,
+        onTimeout: () {
+          throw TimeoutException('Heartbeat timeout');
+        },
+      );
     } on Exception catch (e) {
-      developer.log('[PHD2] heartbeat failed: $e',
-          name: 'Phd2Client', level: 900, error: e);
+      developer.log(
+        '[PHD2] heartbeat failed: $e',
+        name: 'Phd2Client',
+        level: 900,
+        error: e,
+      );
       _handleConnectionLost();
     }
   }
@@ -329,8 +349,11 @@ class Phd2Client {
     _handleDisconnect();
 
     if (_shouldReconnect && !_isReconnecting) {
-      developer.log('[PHD2] connection lost, starting reconnection...',
-          name: 'Phd2Client', level: 900);
+      developer.log(
+        '[PHD2] connection lost, starting reconnection...',
+        name: 'Phd2Client',
+        level: 900,
+      );
       _updateConnectionState(Phd2ConnectionState.reconnecting);
       _reconnectWithBackoff();
     }
@@ -357,35 +380,49 @@ class Phd2Client {
         onRetry: (attempt, error, delay) {
           _reconnectAttempts = attempt;
           developer.log(
-              '[PHD2] reconnect attempt $attempt failed: $error. '
-              'Retrying in ${delay.inSeconds}s...',
-              name: 'Phd2Client',
-              level: 900,
-              error: error);
+            '[PHD2] reconnect attempt $attempt failed: $error. '
+            'Retrying in ${delay.inSeconds}s...',
+            name: 'Phd2Client',
+            level: 900,
+            error: error,
+          );
         },
       );
 
       developer.log(
-          '[PHD2] reconnection successful after $_reconnectAttempts attempts',
-          name: 'Phd2Client',
-          level: 800);
-      _eventController.add(Phd2Event(
-        event: 'Reconnected',
-        data: {'attempts': _reconnectAttempts},
-        timestamp: DateTime.now(),
-      ));
+        '[PHD2] reconnection successful after $_reconnectAttempts attempts',
+        name: 'Phd2Client',
+        level: 800,
+      );
+      _eventController.add(
+        Phd2Event(
+          event: 'Reconnected',
+          data: {'attempts': _reconnectAttempts},
+          timestamp: DateTime.now(),
+        ),
+      );
     } on RetryExhaustedException catch (e) {
-      developer.log('[PHD2] reconnection failed after all attempts: $e',
-          name: 'Phd2Client', level: 1000, error: e);
+      developer.log(
+        '[PHD2] reconnection failed after all attempts: $e',
+        name: 'Phd2Client',
+        level: 1000,
+        error: e,
+      );
       _updateConnectionState(Phd2ConnectionState.failed);
-      _eventController.add(Phd2Event(
-        event: 'ReconnectionFailed',
-        data: {'attempts': e.attempts, 'error': e.lastException.toString()},
-        timestamp: DateTime.now(),
-      ));
+      _eventController.add(
+        Phd2Event(
+          event: 'ReconnectionFailed',
+          data: {'attempts': e.attempts, 'error': e.lastException.toString()},
+          timestamp: DateTime.now(),
+        ),
+      );
     } catch (e) {
-      developer.log('[PHD2] reconnection error: $e',
-          name: 'Phd2Client', level: 1000, error: e);
+      developer.log(
+        '[PHD2] reconnection error: $e',
+        name: 'Phd2Client',
+        level: 1000,
+        error: e,
+      );
       _updateConnectionState(Phd2ConnectionState.failed);
     } finally {
       _isReconnecting = false;
@@ -438,8 +475,12 @@ class Phd2Client {
         final json = jsonDecode(line) as Map<String, dynamic>;
         _handleMessage(json);
       } catch (e) {
-        developer.log('[PHD2] Failed to parse message: $line',
-            name: 'Phd2Client', level: 900, error: e);
+        developer.log(
+          '[PHD2] Failed to parse message: $line',
+          name: 'Phd2Client',
+          level: 900,
+          error: e,
+        );
       }
     }
   }
@@ -471,8 +512,11 @@ class Phd2Client {
   void _handleEvent(String event, Map<String, dynamic> json) {
     switch (event) {
       case 'Version':
-        developer.log('[PHD2] Version: ${json['PHDVersion']}',
-            name: 'Phd2Client', level: 800);
+        developer.log(
+          '[PHD2] Version: ${json['PHDVersion']}',
+          name: 'Phd2Client',
+          level: 800,
+        );
         break;
 
       case 'AppState':
@@ -545,11 +589,9 @@ class Phd2Client {
     }
 
     // Emit event
-    _eventController.add(Phd2Event(
-      event: event,
-      data: json,
-      timestamp: DateTime.now(),
-    ));
+    _eventController.add(
+      Phd2Event(event: event, data: json, timestamp: DateTime.now()),
+    );
   }
 
   void _handleGuideStep(Map<String, dynamic> json) {
@@ -668,10 +710,7 @@ class Phd2Client {
       'timeout': settleTimeout,
     };
 
-    await _sendRequest('guide', {
-      'settle': settle,
-      'recalibrate': recalibrate,
-    });
+    await _sendRequest('guide', {'settle': settle, 'recalibrate': recalibrate});
   }
 
   /// Stop guiding
@@ -755,8 +794,9 @@ class Phd2Client {
   Future<Map<String, dynamic>?> getCalibrationData() async {
     try {
       // PHD2's get_calibration_data returns calibration info for both axes
-      final result =
-          await _sendRequest('get_calibration_data', {'which': 'both'});
+      final result = await _sendRequest('get_calibration_data', {
+        'which': 'both',
+      });
       if (result == null) return null;
       return result as Map<String, dynamic>;
     } catch (_) {
@@ -892,11 +932,7 @@ class Phd2Event {
   final Map<String, dynamic> data;
   final DateTime timestamp;
 
-  Phd2Event({
-    required this.event,
-    required this.data,
-    required this.timestamp,
-  });
+  Phd2Event({required this.event, required this.data, required this.timestamp});
 }
 
 String _resolvePhd2ConnectHost(String host) {
@@ -908,8 +944,10 @@ String _resolvePhd2ConnectHost(String host) {
 }
 
 /// Check if PHD2 is running (try to connect briefly)
-Future<bool> checkPhd2Running(
-    {String host = 'localhost', int port = 4400}) async {
+Future<bool> checkPhd2Running({
+  String host = 'localhost',
+  int port = 4400,
+}) async {
   final connectHost = _resolvePhd2ConnectHost(host);
   try {
     final socket = await Socket.connect(

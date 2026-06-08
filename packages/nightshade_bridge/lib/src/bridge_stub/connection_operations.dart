@@ -90,61 +90,72 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
     // For devices discovered by native bridge (ascom:, native:, indi:),
     // always use native bridge connection. For other devices (alpaca:),
     // try native bridge first but fall back to the fallback path if needed.
-    final shouldUseNativeOnly = deviceId.startsWith('ascom:') ||
+    final shouldUseNativeOnly =
+        deviceId.startsWith('ascom:') ||
         deviceId.startsWith('native:') ||
         deviceId.startsWith('indi:');
 
     if (_nativeAvailable) {
       try {
-        developer.log('[Bridge] Attempting native connection for $deviceId...',
-            name: 'NativeBridge', level: 800);
+        developer.log(
+          '[Bridge] Attempting native connection for $deviceId...',
+          name: 'NativeBridge',
+          level: 800,
+        );
         final genDeviceType = _toGenDeviceType(deviceType);
         await gen_api.apiConnectDevice(
-            deviceType: genDeviceType, deviceId: deviceId);
-        developer.log(
-            '[Bridge] âœ“ Successfully connected to $deviceId via native bridge',
-            name: 'NativeBridge',
-            level: 800);
-
-        _recordConnectedDevice(
-          deviceType: deviceType,
+          deviceType: genDeviceType,
           deviceId: deviceId,
         );
+        developer.log(
+          '[Bridge] âœ“ Successfully connected to $deviceId via native bridge',
+          name: 'NativeBridge',
+          level: 800,
+        );
+
+        _recordConnectedDevice(deviceType: deviceType, deviceId: deviceId);
 
         // Emit connection event
-        _eventController.add(_FallbackNightshadeEvent(
-          timestamp: DateTime.now().millisecondsSinceEpoch,
-          severity: EventSeverity.info,
-          category: EventCategory.equipment,
-          eventType: 'Connected',
-          data: {'deviceType': deviceType.name, 'deviceId': deviceId},
-        ));
+        _eventController.add(
+          _FallbackNightshadeEvent(
+            timestamp: DateTime.now().millisecondsSinceEpoch,
+            severity: EventSeverity.info,
+            category: EventCategory.equipment,
+            eventType: 'Connected',
+            data: {'deviceType': deviceType.name, 'deviceId': deviceId},
+          ),
+        );
 
         return; // Success - native bridge handled it
       } catch (e, stackTrace) {
-        developer.log('[Bridge] âœ— Native connection failed for $deviceId',
-            name: 'NativeBridge',
-            level: 1000,
-            error: e,
-            stackTrace: stackTrace);
+        developer.log(
+          '[Bridge] âœ— Native connection failed for $deviceId',
+          name: 'NativeBridge',
+          level: 1000,
+          error: e,
+          stackTrace: stackTrace,
+        );
 
         // If this device must use native bridge (was discovered by it),
         // don't fall back - throw the error
         if (shouldUseNativeOnly) {
           throw Exception(
-              'Failed to connect to $deviceId via native bridge: $e');
+            'Failed to connect to $deviceId via native bridge: $e',
+          );
         }
 
         developer.log(
-            '[Bridge] Device supports fallback - trying fallback methods...',
-            name: 'NativeBridge',
-            level: 900);
+          '[Bridge] Device supports fallback - trying fallback methods...',
+          name: 'NativeBridge',
+          level: 900,
+        );
         // Continue to fallback bridge methods below
       }
     } else if (shouldUseNativeOnly) {
       // Native bridge required but not available
       throw Exception(
-          'Cannot connect to $deviceId: Native bridge required but not available');
+        'Cannot connect to $deviceId: Native bridge required but not available',
+      );
     }
 
     // =========================================================================
@@ -165,12 +176,15 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
 
     // Unknown device type - can't connect
     throw Exception(
-        'Unknown device: $deviceId. No ASCOM/Alpaca devices found.');
+      'Unknown device: $deviceId. No ASCOM/Alpaca devices found.',
+    );
   }
 
   /// Connect to an ASCOM device
   Future<void> _connectAscomDevice(
-      DeviceType deviceType, String deviceId) async {
+    DeviceType deviceType,
+    String deviceId,
+  ) async {
     if (!Platform.isWindows) {
       throw Exception('ASCOM is only available on Windows');
     }
@@ -189,8 +203,11 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
     );
 
     try {
-      developer.log('[ASCOM] Connecting to device: $progId',
-          name: 'NativeBridge', level: 800);
+      developer.log(
+        '[ASCOM] Connecting to device: $progId',
+        name: 'NativeBridge',
+        level: 800,
+      );
       await client.connect();
 
       _ascomClients[deviceId] = client;
@@ -200,16 +217,21 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
         driverType: DriverType.ascom,
       );
 
-      _eventController.add(_FallbackNightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.info,
-        category: EventCategory.equipment,
-        eventType: 'Connected',
-        data: {'deviceType': deviceType.name, 'deviceId': deviceId},
-      ));
+      _eventController.add(
+        _FallbackNightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.info,
+          category: EventCategory.equipment,
+          eventType: 'Connected',
+          data: {'deviceType': deviceType.name, 'deviceId': deviceId},
+        ),
+      );
 
-      developer.log('[ASCOM] Connected to device: $progId',
-          name: 'NativeBridge', level: 800);
+      developer.log(
+        '[ASCOM] Connected to device: $progId',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
       client.dispose();
       throw Exception('Failed to connect to ASCOM device: $e');
@@ -218,7 +240,9 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
 
   /// Connect to an Alpaca device
   Future<void> _connectAlpacaDevice(
-      DeviceType deviceType, String deviceId) async {
+    DeviceType deviceType,
+    String deviceId,
+  ) async {
     // Parse the device ID: alpaca:host:port/type/number
     final parts = deviceId.substring(7).split('/'); // Remove "alpaca:"
     if (parts.length < 3) {
@@ -265,8 +289,11 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
     }
 
     try {
-      developer.log('[Alpaca] Connecting to device: $deviceId',
-          name: 'NativeBridge', level: 800);
+      developer.log(
+        '[Alpaca] Connecting to device: $deviceId',
+        name: 'NativeBridge',
+        level: 800,
+      );
       await client.connect();
 
       _alpacaClients[deviceId] = client;
@@ -279,16 +306,21 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
         displayName: alpacaDevice.deviceName,
       );
 
-      _eventController.add(_FallbackNightshadeEvent(
-        timestamp: DateTime.now().millisecondsSinceEpoch,
-        severity: EventSeverity.info,
-        category: EventCategory.equipment,
-        eventType: 'Connected',
-        data: {'deviceType': deviceType.name, 'deviceId': deviceId},
-      ));
+      _eventController.add(
+        _FallbackNightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.info,
+          category: EventCategory.equipment,
+          eventType: 'Connected',
+          data: {'deviceType': deviceType.name, 'deviceId': deviceId},
+        ),
+      );
 
-      developer.log('[Alpaca] Connected to device: $deviceId',
-          name: 'NativeBridge', level: 800);
+      developer.log(
+        '[Alpaca] Connected to device: $deviceId',
+        name: 'NativeBridge',
+        level: 800,
+      );
     } catch (e) {
       client.dispose();
       throw Exception('Failed to connect to Alpaca device: $e');
@@ -309,8 +341,11 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
         try {
           await client.disconnect();
         } catch (e) {
-          developer.log('[Alpaca] Error disconnecting device: $e',
-              name: 'NativeBridge', level: 1000);
+          developer.log(
+            '[Alpaca] Error disconnecting device: $e',
+            name: 'NativeBridge',
+            level: 1000,
+          );
         }
         client.dispose();
         _alpacaClients.remove(deviceId);
@@ -325,8 +360,11 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
         try {
           await client.disconnect();
         } catch (e) {
-          developer.log('[ASCOM] Error disconnecting device: $e',
-              name: 'NativeBridge', level: 1000);
+          developer.log(
+            '[ASCOM] Error disconnecting device: $e',
+            name: 'NativeBridge',
+            level: 1000,
+          );
         }
         client.dispose();
         _ascomClients.remove(deviceId);
@@ -336,13 +374,15 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
     _connectedDevices.remove(deviceId);
     _connectedDeviceInfo.remove(deviceId);
 
-    _eventController.add(_FallbackNightshadeEvent(
-      timestamp: DateTime.now().millisecondsSinceEpoch,
-      severity: EventSeverity.info,
-      category: EventCategory.equipment,
-      eventType: 'Disconnected',
-      data: {'deviceType': deviceType.name, 'deviceId': deviceId},
-    ));
+    _eventController.add(
+      _FallbackNightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.info,
+        category: EventCategory.equipment,
+        eventType: 'Disconnected',
+        data: {'deviceType': deviceType.name, 'deviceId': deviceId},
+      ),
+    );
   }
 
   /// Check if a device is connected
@@ -351,12 +391,15 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
     if (_nativeAvailable) {
       try {
         return await gen_api.apiIsDeviceConnected(
-            deviceType: _toGenDeviceType(deviceType), deviceId: deviceId);
+          deviceType: _toGenDeviceType(deviceType),
+          deviceId: deviceId,
+        );
       } catch (e) {
         developer.log(
-            '[Bridge] Warning: Failed to check device connection from native API: $e',
-            name: 'NativeBridge',
-            level: 900);
+          '[Bridge] Warning: Failed to check device connection from native API: $e',
+          name: 'NativeBridge',
+          level: 900,
+        );
         // Fall through to local tracking
       }
     }
@@ -386,9 +429,10 @@ extension _NativeBridgeConnectionOperations on _NativeBridgeImplementation {
         return nativeDevices;
       } catch (e) {
         developer.log(
-            '[Bridge] Warning: Failed to get connected devices from native API: $e',
-            name: 'NativeBridge',
-            level: 900);
+          '[Bridge] Warning: Failed to get connected devices from native API: $e',
+          name: 'NativeBridge',
+          level: 900,
+        );
         // Fall through to fallback implementation
       }
     }

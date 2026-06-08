@@ -56,9 +56,8 @@ sealed class EquipmentEvent with _$EquipmentEvent {
   const factory EquipmentEvent.focuserMoveStarted({
     required int targetPosition,
   }) = EquipmentEvent_FocuserMoveStarted;
-  const factory EquipmentEvent.focuserMoveCompleted({
-    required int position,
-  }) = EquipmentEvent_FocuserMoveCompleted;
+  const factory EquipmentEvent.focuserMoveCompleted({required int position}) =
+      EquipmentEvent_FocuserMoveCompleted;
   const factory EquipmentEvent.focuserTemperatureChanged({
     required double temperature,
   }) = EquipmentEvent_FocuserTemperatureChanged;
@@ -74,9 +73,8 @@ sealed class EquipmentEvent with _$EquipmentEvent {
   const factory EquipmentEvent.rotatorMoveStarted({
     required double targetAngle,
   }) = EquipmentEvent_RotatorMoveStarted;
-  const factory EquipmentEvent.rotatorMoveCompleted({
-    required double angle,
-  }) = EquipmentEvent_RotatorMoveCompleted;
+  const factory EquipmentEvent.rotatorMoveCompleted({required double angle}) =
+      EquipmentEvent_RotatorMoveCompleted;
   const factory EquipmentEvent.cameraCoolingStarted({
     required double targetTemp,
   }) = EquipmentEvent_CameraCoolingStarted;
@@ -125,50 +123,33 @@ enum EventCategory {
   safety,
   system,
   polarAlignment,
-  ;
 }
 
 @freezed
 sealed class EventPayload with _$EventPayload {
   const EventPayload._();
 
-  const factory EventPayload.equipment(
-    EquipmentEvent field0,
-  ) = EventPayload_Equipment;
-  const factory EventPayload.imaging(
-    ImagingEvent field0,
-  ) = EventPayload_Imaging;
-  const factory EventPayload.guiding(
-    GuidingEvent field0,
-  ) = EventPayload_Guiding;
-  const factory EventPayload.sequencer(
-    SequencerEvent field0,
-  ) = EventPayload_Sequencer;
-  const factory EventPayload.safety(
-    SafetyEvent field0,
-  ) = EventPayload_Safety;
-  const factory EventPayload.system(
-    SystemEvent field0,
-  ) = EventPayload_System;
-  const factory EventPayload.polarAlignment(
-    PolarAlignmentEvent field0,
-  ) = EventPayload_PolarAlignment;
-  const factory EventPayload.polarAlignmentStatus(
-    PolarAlignmentStatus field0,
-  ) = EventPayload_PolarAlignmentStatus;
+  const factory EventPayload.equipment(EquipmentEvent field0) =
+      EventPayload_Equipment;
+  const factory EventPayload.imaging(ImagingEvent field0) =
+      EventPayload_Imaging;
+  const factory EventPayload.guiding(GuidingEvent field0) =
+      EventPayload_Guiding;
+  const factory EventPayload.sequencer(SequencerEvent field0) =
+      EventPayload_Sequencer;
+  const factory EventPayload.safety(SafetyEvent field0) = EventPayload_Safety;
+  const factory EventPayload.system(SystemEvent field0) = EventPayload_System;
+  const factory EventPayload.polarAlignment(PolarAlignmentEvent field0) =
+      EventPayload_PolarAlignment;
+  const factory EventPayload.polarAlignmentStatus(PolarAlignmentStatus field0) =
+      EventPayload_PolarAlignmentStatus;
   const factory EventPayload.polarAlignmentImage(
     PolarAlignmentImageEvent field0,
   ) = EventPayload_PolarAlignmentImage;
 }
 
 /// Event severity levels
-enum EventSeverity {
-  info,
-  warning,
-  error,
-  critical,
-  ;
-}
+enum EventSeverity { info, warning, error, critical }
 
 @freezed
 sealed class GuidingEvent with _$GuidingEvent {
@@ -180,13 +161,11 @@ sealed class GuidingEvent with _$GuidingEvent {
   const factory GuidingEvent.guidingStopped() = GuidingEvent_GuidingStopped;
   const factory GuidingEvent.paused() = GuidingEvent_Paused;
   const factory GuidingEvent.resumed() = GuidingEvent_Resumed;
-  const factory GuidingEvent.settled({
-    required double rms,
-  }) = GuidingEvent_Settled;
+  const factory GuidingEvent.settled({required double rms}) =
+      GuidingEvent_Settled;
   const factory GuidingEvent.lostStar() = GuidingEvent_LostStar;
-  const factory GuidingEvent.ditherStarted({
-    required double pixels,
-  }) = GuidingEvent_DitherStarted;
+  const factory GuidingEvent.ditherStarted({required double pixels}) =
+      GuidingEvent_DitherStarted;
   const factory GuidingEvent.ditherCompleted() = GuidingEvent_DitherCompleted;
   const factory GuidingEvent.correction({
     required double ra,
@@ -215,9 +194,8 @@ sealed class GuidingEvent with _$GuidingEvent {
   }) = GuidingEvent_StarSelected;
 
   /// PHD2 app state change (for states not covered by other events)
-  const factory GuidingEvent.appState({
-    required String state,
-  }) = GuidingEvent_AppState;
+  const factory GuidingEvent.appState({required String state}) =
+      GuidingEvent_AppState;
 
   /// SNR and star mass update from guide step
   const factory GuidingEvent.guideStats({
@@ -242,7 +220,6 @@ enum HeartbeatStatus {
 
   /// Successfully reconnected after failures
   reconnected,
-  ;
 }
 
 @freezed
@@ -274,9 +251,8 @@ sealed class ImagingEvent with _$ImagingEvent {
     required double hfr,
     required int starsDetected,
   }) = ImagingEvent_ExposureCompletedWithFrame;
-  const factory ImagingEvent.exposureFailed({
-    required String error,
-  }) = ImagingEvent_ExposureFailed;
+  const factory ImagingEvent.exposureFailed({required String error}) =
+      ImagingEvent_ExposureFailed;
   const factory ImagingEvent.exposureCancelled() =
       ImagingEvent_ExposureCancelled;
   const factory ImagingEvent.downloadStarted() = ImagingEvent_DownloadStarted;
@@ -286,19 +262,40 @@ sealed class ImagingEvent with _$ImagingEvent {
     required int width,
     required int height,
   }) = ImagingEvent_ImageReady;
-  const factory ImagingEvent.imageSaved({
-    required String filePath,
-  }) = ImagingEvent_ImageSaved;
+  const factory ImagingEvent.imageSaved({required String filePath}) =
+      ImagingEvent_ImageSaved;
+
+  /// Progress update from the offline batch-integration pipeline
+  /// ([`crate::api::post_session::api_integrate_session`]). Emitted at every
+  /// phase boundary and, during the per-frame register loop, per frame —
+  /// never per pixel. The UI filters these by `category == Imaging` +
+  /// `eventType == "IntegrationProgress"` and drives a progress bar from
+  /// `fraction`.
+  const factory ImagingEvent.integrationProgress({
+    /// Current pipeline phase: one of `"calibrating"`, `"registering"`,
+    /// `"normalizing"`, `"weighting"`, `"integrating"`, `"writing"`, or
+    /// `"preview"`.
+    required String phase,
+
+    /// Overall completion fraction in `0.0..=1.0`, monotonically advancing
+    /// across the phase sequence above.
+    required double fraction,
+
+    /// Frames processed so far in the current phase (`None` when the phase
+    /// has no per-frame granularity, e.g. `integrating`/`writing`).
+    int? framesDone,
+
+    /// Total frames in the current phase (`None` when N/A).
+    int? framesTotal,
+  }) = ImagingEvent_IntegrationProgress;
   const factory ImagingEvent.temperatureChanged({
     required double tempCelsius,
     required double coolerPower,
   }) = ImagingEvent_TemperatureChanged;
-  const factory ImagingEvent.exposureComplete({
-    required bool success,
-  }) = ImagingEvent_ExposureComplete;
-  const factory ImagingEvent.exposureFailedOld({
-    required String reason,
-  }) = ImagingEvent_ExposureFailedOld;
+  const factory ImagingEvent.exposureComplete({required bool success}) =
+      ImagingEvent_ExposureComplete;
+  const factory ImagingEvent.exposureFailedOld({required String reason}) =
+      ImagingEvent_ExposureFailedOld;
 }
 
 /// A unified event that can be any category
@@ -493,16 +490,13 @@ class PolarAlignmentStatus {
 sealed class SafetyEvent with _$SafetyEvent {
   const SafetyEvent._();
 
-  const factory SafetyEvent.weatherUnsafe({
-    required String reason,
-  }) = SafetyEvent_WeatherUnsafe;
+  const factory SafetyEvent.weatherUnsafe({required String reason}) =
+      SafetyEvent_WeatherUnsafe;
   const factory SafetyEvent.weatherSafe() = SafetyEvent_WeatherSafe;
-  const factory SafetyEvent.emergencyStop({
-    required String reason,
-  }) = SafetyEvent_EmergencyStop;
-  const factory SafetyEvent.parkInitiated({
-    required String reason,
-  }) = SafetyEvent_ParkInitiated;
+  const factory SafetyEvent.emergencyStop({required String reason}) =
+      SafetyEvent_EmergencyStop;
+  const factory SafetyEvent.parkInitiated({required String reason}) =
+      SafetyEvent_ParkInitiated;
   const factory SafetyEvent.parkCompleted() = SafetyEvent_ParkCompleted;
 }
 
@@ -558,9 +552,8 @@ class SchedulerScoreEntry {
 sealed class SequencerEvent with _$SequencerEvent {
   const SequencerEvent._();
 
-  const factory SequencerEvent.started({
-    required String sequenceName,
-  }) = SequencerEvent_Started;
+  const factory SequencerEvent.started({required String sequenceName}) =
+      SequencerEvent_Started;
   const factory SequencerEvent.paused() = SequencerEvent_Paused;
   const factory SequencerEvent.resumed() = SequencerEvent_Resumed;
   const factory SequencerEvent.stopped() = SequencerEvent_Stopped;
@@ -588,9 +581,8 @@ sealed class SequencerEvent with _$SequencerEvent {
     /// Declination in degrees (-90 to +90), if available from the target header
     double? dec,
   }) = SequencerEvent_TargetChanged;
-  const factory SequencerEvent.targetCompleted({
-    required String targetName,
-  }) = SequencerEvent_TargetCompleted;
+  const factory SequencerEvent.targetCompleted({required String targetName}) =
+      SequencerEvent_TargetCompleted;
   const factory SequencerEvent.exposureStarted({
     required int frame,
     required int total,
@@ -602,9 +594,8 @@ sealed class SequencerEvent with _$SequencerEvent {
     required int total,
     required double durationSecs,
   }) = SequencerEvent_ExposureCompleted;
-  const factory SequencerEvent.error({
-    required String message,
-  }) = SequencerEvent_Error;
+  const factory SequencerEvent.error({required String message}) =
+      SequencerEvent_Error;
 
   /// A trigger watchdog fired during sequence execution
   const factory SequencerEvent.triggerFired({
@@ -953,12 +944,10 @@ sealed class SystemEvent with _$SystemEvent {
 
   const factory SystemEvent.initialized() = SystemEvent_Initialized;
   const factory SystemEvent.shuttingDown() = SystemEvent_ShuttingDown;
-  const factory SystemEvent.error({
-    required String message,
-  }) = SystemEvent_Error;
-  const factory SystemEvent.diskSpaceLow({
-    required double availableGb,
-  }) = SystemEvent_DiskSpaceLow;
+  const factory SystemEvent.error({required String message}) =
+      SystemEvent_Error;
+  const factory SystemEvent.diskSpaceLow({required double availableGb}) =
+      SystemEvent_DiskSpaceLow;
   const factory SystemEvent.notification({
     required String title,
     required String message,
