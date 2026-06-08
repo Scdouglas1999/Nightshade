@@ -12,10 +12,15 @@
 //! - PHD2 guiding integration
 //! - Buffer pooling for efficient image capture
 
+pub mod background_extraction; // NEW: DBE/ABE-style background gradient extraction
 pub mod buffer_pool;
 pub mod calibration;
 pub mod calibration_masters; // NEW: Master-flat build + cosmetic (hot/cold) correction
+pub mod channel_combine; // NEW: Narrowband/LRGB channel combination
+pub mod color_calibration; // NEW: Photometric color calibration (per-channel white balance)
+pub mod deconvolution; // NEW: PSF estimation + Richardson-Lucy deconvolution
 pub mod defect_map;
+pub mod drizzle; // NEW: Drizzle (variable-pixel linear reconstruction) integration
 
 mod camera;
 mod debayer;
@@ -25,6 +30,7 @@ pub mod integration; // NEW: Advanced weighted batch integration + pixel rejecti
 pub mod master_accumulation; // NEW: Multi-night accumulating master frame
 mod naming;
 pub mod normalization; // NEW: Light-frame normalization to a reference (batch integration)
+pub mod optimizer; // NEW: Marginal-SNR integration optimizer (subset recommendation)
 mod phd2;
 mod platesolve;
 mod processing; // NEW: Tiled image processing
@@ -32,27 +38,35 @@ mod raw; // NEW: RAW file support
 mod reader; // NEW: Memory-mapped readers
 pub mod registration; // NEW: High-quality star-based registration
 pub mod stacking;
+pub mod star_reduction; // NEW: Star-size reduction (morphological + screen recombine)
 mod stats;
 mod stretch;
 mod xisf;
 
+pub use background_extraction::*; // NEW: Export background-extraction types
 pub use buffer_pool::*;
 pub use calibration::*;
 pub use calibration_masters::*; // NEW: Export master-flat / cosmetic-correction types
+pub use channel_combine::*; // NEW: Export channel-combination types
+pub use color_calibration::*; // NEW: Export color-calibration types
 pub use camera::*;
+pub use deconvolution::*; // NEW: Export deconvolution types
 pub use debayer::*;
+pub use drizzle::*; // NEW: Export drizzle types
 pub use fits::*;
 pub use frame_weighting::*; // NEW: Export frame-weighting types
 pub use integration::*; // NEW: Export batch-integration types
 pub use master_accumulation::*; // NEW: Export accumulating-master types
 pub use naming::*;
 pub use normalization::*; // NEW: Export normalization types
+pub use optimizer::*; // NEW: Export integration-optimizer types
 pub use phd2::*;
 pub use platesolve::*;
 pub use processing::*; // NEW: Export processing types
 pub use raw::*; // NEW: Export RAW types
 pub use reader::*; // NEW: Export reader types
 pub use registration::*; // NEW: Export registration types
+pub use star_reduction::*; // NEW: Export star-reduction types
 pub use stats::*;
 pub use stretch::*;
 pub use xisf::*;
