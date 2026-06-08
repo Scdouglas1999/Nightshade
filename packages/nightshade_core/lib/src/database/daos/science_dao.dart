@@ -224,6 +224,18 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
         .get();
   }
 
+  /// The PSF field tiles for a single captured sub — the per-sub field map the
+  /// Morning Report workbench renders.
+  Future<List<PsfFieldTileRow>> getPsfTilesForImage(int capturedImageId) {
+    return (select(psfFieldTiles)
+          ..where((tbl) => tbl.capturedImageId.equals(capturedImageId))
+          ..orderBy([
+            (tbl) => OrderingTerm.asc(tbl.tileRow),
+            (tbl) => OrderingTerm.asc(tbl.tileCol),
+          ]))
+        .get();
+  }
+
   Future<void> insertFrameQualityMetrics(
       ScienceFrameQualityMetricsCompanion metrics) {
     return into(scienceFrameQualityMetrics).insert(metrics);

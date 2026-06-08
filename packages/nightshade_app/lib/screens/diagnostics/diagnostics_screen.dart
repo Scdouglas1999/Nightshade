@@ -7,6 +7,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 
 import '../../localization/nightshade_localizations.dart';
+import 'diagnostics_screen/psf_field_map_view.dart';
 part 'diagnostics_screen/header_widgets.dart';
 part 'diagnostics_screen/content_layout.dart';
 part 'diagnostics_screen/health_summary_cards.dart';

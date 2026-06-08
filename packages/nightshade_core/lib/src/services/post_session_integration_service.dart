@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -196,6 +197,64 @@ class PostSessionIntegrationService {
     return outcomes;
   }
 
+  /// Run a **throwaway, non-persisting** integration of the accepted light
+  /// [subs] (first filter group) with [settings], for exploratory comparison
+  /// (e.g. the A/B recipe panel). Writes the master/preview to a temp directory
+  /// and returns the decoded [IntegrateSessionResult] **without** inserting an
+  /// `integrated_masters` row, the improvement curve, the optional finishing
+  /// passes, or any fold records — so a comparison run never pollutes the master
+  /// library or the durable smart-report state.
+  ///
+  /// Returns null when [subs] is empty.
+  Future<IntegrateSessionResult?> previewIntegrate({
+    required List<CapturedImage> subs,
+    required IntegrationSettings settings,
+    bool generatePreview = true,
+  }) async {
+    if (subs.isEmpty) return null;
+
+    // Compare on the dominant filter group only — A/B is about the recipe, not
+    // multi-filter fan-out; mixing filters into one throwaway master is never
+    // what the comparison wants.
+    final groups = _groupByFilter(subs);
+    final entry = groups.entries.first;
+    final groupSubs = entry.value;
+
+    final calibration = await _resolveCalibration(
+      subs: groupSubs,
+      biasPath: null,
+      cosmeticCorrection: settings.cosmeticCorrection,
+    );
+
+    final tempDir = await Directory.systemTemp.createTemp('ns_ab_preview');
+    final stamp = DateTime.now().microsecondsSinceEpoch;
+    final masterFitsPath = '${tempDir.path}/ab_preview_$stamp.fits';
+    final previewPath =
+        generatePreview ? _swapExtension(masterFitsPath, '.png') : null;
+    final rejectionMapPath = settings.generateRejectionMap
+        ? _suffixBeforeExtension(masterFitsPath, '_rejmap')
+        : null;
+
+    final reference = _chooseReferencePath(groupSubs);
+    final exposures =
+        groupSubs.map((s) => s.exposureDuration).toList(growable: false);
+
+    final args = <String, dynamic>{
+      'lightPaths': groupSubs.map((s) => s.filePath).toList(),
+      if (reference != null) 'reference': reference,
+      'exposuresSec': exposures,
+      'calibration': calibration.toBridgeJson(),
+      'settings': settings.toBridgeSettings(),
+      'output': {
+        'masterFitsPath': masterFitsPath,
+        if (previewPath != null) 'previewPngPath': previewPath,
+        if (rejectionMapPath != null) 'rejectionMapPath': rejectionMapPath,
+      },
+    };
+
+    return _seam.integrateSession(args);
+  }
+
   /// Build the per-sub `analyzeNight` inputs from the accepted per-frame records,
   /// invoke the seam, and persist the resulting [IntegrationCurve] (as
   /// `improvement_curve_json`) plus the full-night SNR / integration-time anchor
@@ -212,6 +271,13 @@ class PostSessionIntegrationService {
       final qualities = <Map<String, dynamic>>[];
       final weights = <double>[];
       final exposures = <double>[];
+      // The exact ordered population the optimizer ranks — the sub on-disk paths
+      // in the same (filtered, capture) order the qualities/weights arrays use.
+      // Persisted alongside the curve so a later curve-linked cull can map the
+      // recommendation's `keptIndices` back to specific subs and bail out when
+      // the live accepted set no longer matches this population (rather than
+      // silently rejecting the wrong subs by raw index).
+      final population = <String>[];
       for (final record in result.perFrameStats) {
         // Only accepted, measured subs carry honest quality descriptors; the
         // optimizer ranks the population, so unmeasured/dropped subs are skipped.
@@ -225,6 +291,7 @@ class PostSessionIntegrationService {
         // Per-sub exposure is not on the per-frame record; fall back to the
         // night's mean exposure so the cumulative-time axis stays meaningful.
         exposures.add(_meanExposurePerSub(result));
+        population.add(record.path);
       }
       if (qualities.isEmpty) return;
 
@@ -234,10 +301,16 @@ class PostSessionIntegrationService {
         exposuresS: exposures,
       );
 
+      // Store the curve JSON with the population identity as a sibling key so
+      // the typed [IntegrationCurve] stays pure (it round-trips its own keys and
+      // ignores the extra one) while the cull path can recover the ordering.
+      final stored = curve.toJson()
+        ..['population'] = population;
+
       final anchor = curve.points.isNotEmpty ? curve.points.last : null;
       await _mastersDao.updateSmartFields(
         masterId,
-        improvementCurveJson: jsonEncode(curve.toJson()),
+        improvementCurveJson: jsonEncode(stored),
         targetSnr: anchor?.snr,
         targetIntegrationS: anchor?.cumulativeIntegrationS,
       );
