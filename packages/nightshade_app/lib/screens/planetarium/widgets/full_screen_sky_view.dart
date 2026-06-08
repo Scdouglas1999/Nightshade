@@ -14,5 +14,6 @@ class FullScreenSkyView extends AdaptiveInteractiveSkyView {
     super.listedObjectIds,
     super.bortleClass,
     super.horizonAltitudes,
+    super.measurementMode,
   }) : super(syncViewPoseFromV1: true);
 }

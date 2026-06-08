@@ -12,6 +12,7 @@ import '../../../services/mount_command_service.dart';
 import '../../../utils/plan_tonight_sequencer_helper.dart';
 import '../../../utils/snackbar_helper.dart';
 import '../../framing/add_target_to_sequence_flow.dart';
+import 'fov_presets_panel.dart';
 import 'sidebar_shared_widgets.dart';
 
 class InfoTab extends ConsumerWidget {
@@ -27,21 +28,34 @@ class InfoTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (selectedObject.object == null && selectedObject.coordinates == null) {
-      return Center(
+      // No selection: still surface the FOV framing manager so a rig can be
+      // configured and overlaid before picking a target.
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(8),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(NightshadeIcons.info, size: 48, color: colors.textMuted),
-            const SizedBox(height: 16),
-            Text(
-              'Select an object',
-              style: TextStyle(color: colors.textMuted),
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(NightshadeIcons.info, size: 48, color: colors.textMuted),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Select an object',
+                    style: TextStyle(color: colors.textMuted),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Click on the sky to select',
+                    style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize12,
+                        color: colors.textMuted),
+                  ),
+                ],
+              ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Click on the sky to select',
-              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
-            ),
+            FovPresetsPanel(colors: colors, selectedObject: selectedObject),
           ],
         ),
       );
@@ -61,9 +75,16 @@ class InfoTab extends ConsumerWidget {
           showVisibilityGraph: true,
           cloudCoverPercent:
               ref.watch(cloudCoverPercentageProvider).valueOrNull,
-          extraContent: ImagingHistorySection(
-            object: obj,
-            colors: colors,
+          extraContent: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              ImagingHistorySection(
+                object: obj,
+                colors: colors,
+              ),
+              const SizedBox(height: 8),
+              FovPresetsPanel(colors: colors, selectedObject: selectedObject),
+            ],
           ),
           onGoTo: () {
             final coords = obj.coordinates;
@@ -202,6 +223,8 @@ class InfoTab extends ConsumerWidget {
               ],
             ),
           ),
+          const SizedBox(height: 12),
+          FovPresetsPanel(colors: colors, selectedObject: selectedObject),
         ],
       ),
     );

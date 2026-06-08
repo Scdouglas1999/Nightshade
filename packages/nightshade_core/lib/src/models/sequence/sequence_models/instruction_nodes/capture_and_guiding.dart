@@ -166,7 +166,7 @@ class CenterNode extends SequenceNode {
 /// hand-rolled equality so we stay consistent with the rest of the
 /// sequence-models package (no freezed annotations here).
 @Freezed(fromJson: true, toJson: true)
-class AdaptiveExposureConfig with _$AdaptiveExposureConfig {
+abstract class AdaptiveExposureConfig with _$AdaptiveExposureConfig {
   const AdaptiveExposureConfig._();
 
   @JsonSerializable(fieldRename: FieldRename.snake)

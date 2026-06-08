@@ -1,5 +1,5 @@
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
@@ -9,206 +9,142 @@ part of 'target_suggestion.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// dart format off
 T _$identity<T>(T value) => value;
-
-final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
-
-TargetSuggestion _$TargetSuggestionFromJson(Map<String, dynamic> json) {
-  return _TargetSuggestion.fromJson(json);
-}
 
 /// @nodoc
 mixin _$TargetSuggestion {
   /// Database target ID
-  int get targetId => throw _privateConstructorUsedError;
+  int get targetId;
 
   /// Display name of the target
-  String get targetName => throw _privateConstructorUsedError;
+  String get targetName;
 
   /// Catalog identifier (e.g., "NGC 7000", "M31")
-  String? get catalogId => throw _privateConstructorUsedError;
+  String? get catalogId;
 
   /// Right Ascension in hours (0-24)
-  double get raHours => throw _privateConstructorUsedError;
+  double get raHours;
 
   /// Declination in degrees (-90 to +90)
-  double get decDegrees => throw _privateConstructorUsedError;
+  double get decDegrees;
 
   /// Overall score from 0-100
-  double get totalScore => throw _privateConstructorUsedError;
+  double get totalScore;
 
   /// Breakdown of individual score components
   /// Keys: altitude, moonDistance, transitProximity, darkness, airmass
-  Map<String, double> get scoreBreakdown => throw _privateConstructorUsedError;
+  Map<String, double> get scoreBreakdown;
 
   /// Warnings about target conditions
   @TargetWarningListConverter()
-  List<TargetWarning> get warnings => throw _privateConstructorUsedError;
+  List<TargetWarning> get warnings;
 
   /// Visibility information for this target
   @TargetVisibilityInfoConverter()
-  TargetVisibilityInfo get visibility => throw _privateConstructorUsedError;
+  TargetVisibilityInfo get visibility;
 
   /// Human-readable explanation of why this target is suggested
-  String get reasoning => throw _privateConstructorUsedError;
+  String get reasoning;
 
   /// Progress of data collection for this target (0.0 to 1.0)
   /// 0.0 = no data collected, 1.0 = fully complete
-  double get dataProgress => throw _privateConstructorUsedError;
+  double get dataProgress;
 
   /// Object type (e.g., "Galaxy", "Emission Nebula", "Open Cluster")
-  String? get objectType => throw _privateConstructorUsedError;
+  String? get objectType;
 
   /// Visual magnitude
-  double? get magnitude => throw _privateConstructorUsedError;
+  double? get magnitude;
 
   /// Angular size in arcminutes
-  double? get sizeArcmin => throw _privateConstructorUsedError;
+  double? get sizeArcmin;
 
   /// Constellation abbreviation
-  String? get constellation => throw _privateConstructorUsedError;
+  String? get constellation;
 
   /// Informational tags (e.g., "Mosaic recommended")
-  List<String> get tags => throw _privateConstructorUsedError;
+  List<String> get tags;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $TargetSuggestionCopyWith<TargetSuggestion> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $TargetSuggestionCopyWith<$Res> {
-  factory $TargetSuggestionCopyWith(
-          TargetSuggestion value, $Res Function(TargetSuggestion) then) =
-      _$TargetSuggestionCopyWithImpl<$Res, TargetSuggestion>;
-  @useResult
-  $Res call(
-      {int targetId,
-      String targetName,
-      String? catalogId,
-      double raHours,
-      double decDegrees,
-      double totalScore,
-      Map<String, double> scoreBreakdown,
-      @TargetWarningListConverter() List<TargetWarning> warnings,
-      @TargetVisibilityInfoConverter() TargetVisibilityInfo visibility,
-      String reasoning,
-      double dataProgress,
-      String? objectType,
-      double? magnitude,
-      double? sizeArcmin,
-      String? constellation,
-      List<String> tags});
-}
-
-/// @nodoc
-class _$TargetSuggestionCopyWithImpl<$Res, $Val extends TargetSuggestion>
-    implements $TargetSuggestionCopyWith<$Res> {
-  _$TargetSuggestionCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of TargetSuggestion
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $TargetSuggestionCopyWith<TargetSuggestion> get copyWith =>
+      _$TargetSuggestionCopyWithImpl<TargetSuggestion>(
+          this as TargetSuggestion, _$identity);
+
+  /// Serializes this TargetSuggestion to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? targetId = null,
-    Object? targetName = null,
-    Object? catalogId = freezed,
-    Object? raHours = null,
-    Object? decDegrees = null,
-    Object? totalScore = null,
-    Object? scoreBreakdown = null,
-    Object? warnings = null,
-    Object? visibility = null,
-    Object? reasoning = null,
-    Object? dataProgress = null,
-    Object? objectType = freezed,
-    Object? magnitude = freezed,
-    Object? sizeArcmin = freezed,
-    Object? constellation = freezed,
-    Object? tags = null,
-  }) {
-    return _then(_value.copyWith(
-      targetId: null == targetId
-          ? _value.targetId
-          : targetId // ignore: cast_nullable_to_non_nullable
-              as int,
-      targetName: null == targetName
-          ? _value.targetName
-          : targetName // ignore: cast_nullable_to_non_nullable
-              as String,
-      catalogId: freezed == catalogId
-          ? _value.catalogId
-          : catalogId // ignore: cast_nullable_to_non_nullable
-              as String?,
-      raHours: null == raHours
-          ? _value.raHours
-          : raHours // ignore: cast_nullable_to_non_nullable
-              as double,
-      decDegrees: null == decDegrees
-          ? _value.decDegrees
-          : decDegrees // ignore: cast_nullable_to_non_nullable
-              as double,
-      totalScore: null == totalScore
-          ? _value.totalScore
-          : totalScore // ignore: cast_nullable_to_non_nullable
-              as double,
-      scoreBreakdown: null == scoreBreakdown
-          ? _value.scoreBreakdown
-          : scoreBreakdown // ignore: cast_nullable_to_non_nullable
-              as Map<String, double>,
-      warnings: null == warnings
-          ? _value.warnings
-          : warnings // ignore: cast_nullable_to_non_nullable
-              as List<TargetWarning>,
-      visibility: null == visibility
-          ? _value.visibility
-          : visibility // ignore: cast_nullable_to_non_nullable
-              as TargetVisibilityInfo,
-      reasoning: null == reasoning
-          ? _value.reasoning
-          : reasoning // ignore: cast_nullable_to_non_nullable
-              as String,
-      dataProgress: null == dataProgress
-          ? _value.dataProgress
-          : dataProgress // ignore: cast_nullable_to_non_nullable
-              as double,
-      objectType: freezed == objectType
-          ? _value.objectType
-          : objectType // ignore: cast_nullable_to_non_nullable
-              as String?,
-      magnitude: freezed == magnitude
-          ? _value.magnitude
-          : magnitude // ignore: cast_nullable_to_non_nullable
-              as double?,
-      sizeArcmin: freezed == sizeArcmin
-          ? _value.sizeArcmin
-          : sizeArcmin // ignore: cast_nullable_to_non_nullable
-              as double?,
-      constellation: freezed == constellation
-          ? _value.constellation
-          : constellation // ignore: cast_nullable_to_non_nullable
-              as String?,
-      tags: null == tags
-          ? _value.tags
-          : tags // ignore: cast_nullable_to_non_nullable
-              as List<String>,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is TargetSuggestion &&
+            (identical(other.targetId, targetId) ||
+                other.targetId == targetId) &&
+            (identical(other.targetName, targetName) ||
+                other.targetName == targetName) &&
+            (identical(other.catalogId, catalogId) ||
+                other.catalogId == catalogId) &&
+            (identical(other.raHours, raHours) || other.raHours == raHours) &&
+            (identical(other.decDegrees, decDegrees) ||
+                other.decDegrees == decDegrees) &&
+            (identical(other.totalScore, totalScore) ||
+                other.totalScore == totalScore) &&
+            const DeepCollectionEquality()
+                .equals(other.scoreBreakdown, scoreBreakdown) &&
+            const DeepCollectionEquality().equals(other.warnings, warnings) &&
+            (identical(other.visibility, visibility) ||
+                other.visibility == visibility) &&
+            (identical(other.reasoning, reasoning) ||
+                other.reasoning == reasoning) &&
+            (identical(other.dataProgress, dataProgress) ||
+                other.dataProgress == dataProgress) &&
+            (identical(other.objectType, objectType) ||
+                other.objectType == objectType) &&
+            (identical(other.magnitude, magnitude) ||
+                other.magnitude == magnitude) &&
+            (identical(other.sizeArcmin, sizeArcmin) ||
+                other.sizeArcmin == sizeArcmin) &&
+            (identical(other.constellation, constellation) ||
+                other.constellation == constellation) &&
+            const DeepCollectionEquality().equals(other.tags, tags));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      targetId,
+      targetName,
+      catalogId,
+      raHours,
+      decDegrees,
+      totalScore,
+      const DeepCollectionEquality().hash(scoreBreakdown),
+      const DeepCollectionEquality().hash(warnings),
+      visibility,
+      reasoning,
+      dataProgress,
+      objectType,
+      magnitude,
+      sizeArcmin,
+      constellation,
+      const DeepCollectionEquality().hash(tags));
+
+  @override
+  String toString() {
+    return 'TargetSuggestion(targetId: $targetId, targetName: $targetName, catalogId: $catalogId, raHours: $raHours, decDegrees: $decDegrees, totalScore: $totalScore, scoreBreakdown: $scoreBreakdown, warnings: $warnings, visibility: $visibility, reasoning: $reasoning, dataProgress: $dataProgress, objectType: $objectType, magnitude: $magnitude, sizeArcmin: $sizeArcmin, constellation: $constellation, tags: $tags)';
   }
 }
 
 /// @nodoc
-abstract class _$$TargetSuggestionImplCopyWith<$Res>
-    implements $TargetSuggestionCopyWith<$Res> {
-  factory _$$TargetSuggestionImplCopyWith(_$TargetSuggestionImpl value,
-          $Res Function(_$TargetSuggestionImpl) then) =
-      __$$TargetSuggestionImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $TargetSuggestionCopyWith<$Res> {
+  factory $TargetSuggestionCopyWith(
+          TargetSuggestion value, $Res Function(TargetSuggestion) _then) =
+      _$TargetSuggestionCopyWithImpl;
   @useResult
   $Res call(
       {int targetId,
@@ -230,13 +166,15 @@ abstract class _$$TargetSuggestionImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$TargetSuggestionImplCopyWithImpl<$Res>
-    extends _$TargetSuggestionCopyWithImpl<$Res, _$TargetSuggestionImpl>
-    implements _$$TargetSuggestionImplCopyWith<$Res> {
-  __$$TargetSuggestionImplCopyWithImpl(_$TargetSuggestionImpl _value,
-      $Res Function(_$TargetSuggestionImpl) _then)
-      : super(_value, _then);
+class _$TargetSuggestionCopyWithImpl<$Res>
+    implements $TargetSuggestionCopyWith<$Res> {
+  _$TargetSuggestionCopyWithImpl(this._self, this._then);
 
+  final TargetSuggestion _self;
+  final $Res Function(TargetSuggestion) _then;
+
+  /// Create a copy of TargetSuggestion
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -257,79 +195,335 @@ class __$$TargetSuggestionImplCopyWithImpl<$Res>
     Object? constellation = freezed,
     Object? tags = null,
   }) {
-    return _then(_$TargetSuggestionImpl(
+    return _then(_self.copyWith(
       targetId: null == targetId
-          ? _value.targetId
+          ? _self.targetId
           : targetId // ignore: cast_nullable_to_non_nullable
               as int,
       targetName: null == targetName
-          ? _value.targetName
+          ? _self.targetName
           : targetName // ignore: cast_nullable_to_non_nullable
               as String,
       catalogId: freezed == catalogId
-          ? _value.catalogId
+          ? _self.catalogId
           : catalogId // ignore: cast_nullable_to_non_nullable
               as String?,
       raHours: null == raHours
-          ? _value.raHours
+          ? _self.raHours
           : raHours // ignore: cast_nullable_to_non_nullable
               as double,
       decDegrees: null == decDegrees
-          ? _value.decDegrees
+          ? _self.decDegrees
           : decDegrees // ignore: cast_nullable_to_non_nullable
               as double,
       totalScore: null == totalScore
-          ? _value.totalScore
+          ? _self.totalScore
           : totalScore // ignore: cast_nullable_to_non_nullable
               as double,
       scoreBreakdown: null == scoreBreakdown
-          ? _value._scoreBreakdown
+          ? _self.scoreBreakdown
           : scoreBreakdown // ignore: cast_nullable_to_non_nullable
               as Map<String, double>,
       warnings: null == warnings
-          ? _value._warnings
+          ? _self.warnings
           : warnings // ignore: cast_nullable_to_non_nullable
               as List<TargetWarning>,
       visibility: null == visibility
-          ? _value.visibility
+          ? _self.visibility
           : visibility // ignore: cast_nullable_to_non_nullable
               as TargetVisibilityInfo,
       reasoning: null == reasoning
-          ? _value.reasoning
+          ? _self.reasoning
           : reasoning // ignore: cast_nullable_to_non_nullable
               as String,
       dataProgress: null == dataProgress
-          ? _value.dataProgress
+          ? _self.dataProgress
           : dataProgress // ignore: cast_nullable_to_non_nullable
               as double,
       objectType: freezed == objectType
-          ? _value.objectType
+          ? _self.objectType
           : objectType // ignore: cast_nullable_to_non_nullable
               as String?,
       magnitude: freezed == magnitude
-          ? _value.magnitude
+          ? _self.magnitude
           : magnitude // ignore: cast_nullable_to_non_nullable
               as double?,
       sizeArcmin: freezed == sizeArcmin
-          ? _value.sizeArcmin
+          ? _self.sizeArcmin
           : sizeArcmin // ignore: cast_nullable_to_non_nullable
               as double?,
       constellation: freezed == constellation
-          ? _value.constellation
+          ? _self.constellation
           : constellation // ignore: cast_nullable_to_non_nullable
               as String?,
       tags: null == tags
-          ? _value._tags
+          ? _self.tags
           : tags // ignore: cast_nullable_to_non_nullable
               as List<String>,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [TargetSuggestion].
+extension TargetSuggestionPatterns on TargetSuggestion {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_TargetSuggestion value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _TargetSuggestion() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_TargetSuggestion value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _TargetSuggestion():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_TargetSuggestion value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _TargetSuggestion() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            int targetId,
+            String targetName,
+            String? catalogId,
+            double raHours,
+            double decDegrees,
+            double totalScore,
+            Map<String, double> scoreBreakdown,
+            @TargetWarningListConverter() List<TargetWarning> warnings,
+            @TargetVisibilityInfoConverter() TargetVisibilityInfo visibility,
+            String reasoning,
+            double dataProgress,
+            String? objectType,
+            double? magnitude,
+            double? sizeArcmin,
+            String? constellation,
+            List<String> tags)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _TargetSuggestion() when $default != null:
+        return $default(
+            _that.targetId,
+            _that.targetName,
+            _that.catalogId,
+            _that.raHours,
+            _that.decDegrees,
+            _that.totalScore,
+            _that.scoreBreakdown,
+            _that.warnings,
+            _that.visibility,
+            _that.reasoning,
+            _that.dataProgress,
+            _that.objectType,
+            _that.magnitude,
+            _that.sizeArcmin,
+            _that.constellation,
+            _that.tags);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            int targetId,
+            String targetName,
+            String? catalogId,
+            double raHours,
+            double decDegrees,
+            double totalScore,
+            Map<String, double> scoreBreakdown,
+            @TargetWarningListConverter() List<TargetWarning> warnings,
+            @TargetVisibilityInfoConverter() TargetVisibilityInfo visibility,
+            String reasoning,
+            double dataProgress,
+            String? objectType,
+            double? magnitude,
+            double? sizeArcmin,
+            String? constellation,
+            List<String> tags)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _TargetSuggestion():
+        return $default(
+            _that.targetId,
+            _that.targetName,
+            _that.catalogId,
+            _that.raHours,
+            _that.decDegrees,
+            _that.totalScore,
+            _that.scoreBreakdown,
+            _that.warnings,
+            _that.visibility,
+            _that.reasoning,
+            _that.dataProgress,
+            _that.objectType,
+            _that.magnitude,
+            _that.sizeArcmin,
+            _that.constellation,
+            _that.tags);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            int targetId,
+            String targetName,
+            String? catalogId,
+            double raHours,
+            double decDegrees,
+            double totalScore,
+            Map<String, double> scoreBreakdown,
+            @TargetWarningListConverter() List<TargetWarning> warnings,
+            @TargetVisibilityInfoConverter() TargetVisibilityInfo visibility,
+            String reasoning,
+            double dataProgress,
+            String? objectType,
+            double? magnitude,
+            double? sizeArcmin,
+            String? constellation,
+            List<String> tags)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _TargetSuggestion() when $default != null:
+        return $default(
+            _that.targetId,
+            _that.targetName,
+            _that.catalogId,
+            _that.raHours,
+            _that.decDegrees,
+            _that.totalScore,
+            _that.scoreBreakdown,
+            _that.warnings,
+            _that.visibility,
+            _that.reasoning,
+            _that.dataProgress,
+            _that.objectType,
+            _that.magnitude,
+            _that.sizeArcmin,
+            _that.constellation,
+            _that.tags);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$TargetSuggestionImpl implements _TargetSuggestion {
-  const _$TargetSuggestionImpl(
+class _TargetSuggestion implements TargetSuggestion {
+  const _TargetSuggestion(
       {required this.targetId,
       required this.targetName,
       this.catalogId,
@@ -350,9 +544,8 @@ class _$TargetSuggestionImpl implements _TargetSuggestion {
       : _scoreBreakdown = scoreBreakdown,
         _warnings = warnings,
         _tags = tags;
-
-  factory _$TargetSuggestionImpl.fromJson(Map<String, dynamic> json) =>
-      _$$TargetSuggestionImplFromJson(json);
+  factory _TargetSuggestion.fromJson(Map<String, dynamic> json) =>
+      _$TargetSuggestionFromJson(json);
 
   /// Database target ID
   @override
@@ -449,16 +642,26 @@ class _$TargetSuggestionImpl implements _TargetSuggestion {
     return EqualUnmodifiableListView(_tags);
   }
 
+  /// Create a copy of TargetSuggestion
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'TargetSuggestion(targetId: $targetId, targetName: $targetName, catalogId: $catalogId, raHours: $raHours, decDegrees: $decDegrees, totalScore: $totalScore, scoreBreakdown: $scoreBreakdown, warnings: $warnings, visibility: $visibility, reasoning: $reasoning, dataProgress: $dataProgress, objectType: $objectType, magnitude: $magnitude, sizeArcmin: $sizeArcmin, constellation: $constellation, tags: $tags)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$TargetSuggestionCopyWith<_TargetSuggestion> get copyWith =>
+      __$TargetSuggestionCopyWithImpl<_TargetSuggestion>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$TargetSuggestionToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$TargetSuggestionImpl &&
+            other is _TargetSuggestion &&
             (identical(other.targetId, targetId) ||
                 other.targetId == targetId) &&
             (identical(other.targetName, targetName) ||
@@ -490,7 +693,7 @@ class _$TargetSuggestionImpl implements _TargetSuggestion {
             const DeepCollectionEquality().equals(other._tags, _tags));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,
@@ -511,222 +714,210 @@ class _$TargetSuggestionImpl implements _TargetSuggestion {
       constellation,
       const DeepCollectionEquality().hash(_tags));
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$TargetSuggestionImplCopyWith<_$TargetSuggestionImpl> get copyWith =>
-      __$$TargetSuggestionImplCopyWithImpl<_$TargetSuggestionImpl>(
-          this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$TargetSuggestionImplToJson(
-      this,
-    );
+  String toString() {
+    return 'TargetSuggestion(targetId: $targetId, targetName: $targetName, catalogId: $catalogId, raHours: $raHours, decDegrees: $decDegrees, totalScore: $totalScore, scoreBreakdown: $scoreBreakdown, warnings: $warnings, visibility: $visibility, reasoning: $reasoning, dataProgress: $dataProgress, objectType: $objectType, magnitude: $magnitude, sizeArcmin: $sizeArcmin, constellation: $constellation, tags: $tags)';
   }
 }
 
-abstract class _TargetSuggestion implements TargetSuggestion {
-  const factory _TargetSuggestion(
-      {required final int targetId,
-      required final String targetName,
-      final String? catalogId,
-      required final double raHours,
-      required final double decDegrees,
-      required final double totalScore,
-      final Map<String, double> scoreBreakdown,
-      @TargetWarningListConverter() final List<TargetWarning> warnings,
-      @TargetVisibilityInfoConverter()
-      required final TargetVisibilityInfo visibility,
-      final String reasoning,
-      final double dataProgress,
-      final String? objectType,
-      final double? magnitude,
-      final double? sizeArcmin,
-      final String? constellation,
-      final List<String> tags}) = _$TargetSuggestionImpl;
-
-  factory _TargetSuggestion.fromJson(Map<String, dynamic> json) =
-      _$TargetSuggestionImpl.fromJson;
-
+/// @nodoc
+abstract mixin class _$TargetSuggestionCopyWith<$Res>
+    implements $TargetSuggestionCopyWith<$Res> {
+  factory _$TargetSuggestionCopyWith(
+          _TargetSuggestion value, $Res Function(_TargetSuggestion) _then) =
+      __$TargetSuggestionCopyWithImpl;
   @override
-
-  /// Database target ID
-  int get targetId;
-  @override
-
-  /// Display name of the target
-  String get targetName;
-  @override
-
-  /// Catalog identifier (e.g., "NGC 7000", "M31")
-  String? get catalogId;
-  @override
-
-  /// Right Ascension in hours (0-24)
-  double get raHours;
-  @override
-
-  /// Declination in degrees (-90 to +90)
-  double get decDegrees;
-  @override
-
-  /// Overall score from 0-100
-  double get totalScore;
-  @override
-
-  /// Breakdown of individual score components
-  /// Keys: altitude, moonDistance, transitProximity, darkness, airmass
-  Map<String, double> get scoreBreakdown;
-  @override
-
-  /// Warnings about target conditions
-  @TargetWarningListConverter()
-  List<TargetWarning> get warnings;
-  @override
-
-  /// Visibility information for this target
-  @TargetVisibilityInfoConverter()
-  TargetVisibilityInfo get visibility;
-  @override
-
-  /// Human-readable explanation of why this target is suggested
-  String get reasoning;
-  @override
-
-  /// Progress of data collection for this target (0.0 to 1.0)
-  /// 0.0 = no data collected, 1.0 = fully complete
-  double get dataProgress;
-  @override
-
-  /// Object type (e.g., "Galaxy", "Emission Nebula", "Open Cluster")
-  String? get objectType;
-  @override
-
-  /// Visual magnitude
-  double? get magnitude;
-  @override
-
-  /// Angular size in arcminutes
-  double? get sizeArcmin;
-  @override
-
-  /// Constellation abbreviation
-  String? get constellation;
-  @override
-
-  /// Informational tags (e.g., "Mosaic recommended")
-  List<String> get tags;
-  @override
-  @JsonKey(ignore: true)
-  _$$TargetSuggestionImplCopyWith<_$TargetSuggestionImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  @useResult
+  $Res call(
+      {int targetId,
+      String targetName,
+      String? catalogId,
+      double raHours,
+      double decDegrees,
+      double totalScore,
+      Map<String, double> scoreBreakdown,
+      @TargetWarningListConverter() List<TargetWarning> warnings,
+      @TargetVisibilityInfoConverter() TargetVisibilityInfo visibility,
+      String reasoning,
+      double dataProgress,
+      String? objectType,
+      double? magnitude,
+      double? sizeArcmin,
+      String? constellation,
+      List<String> tags});
 }
 
-TargetSuggestionConfig _$TargetSuggestionConfigFromJson(
-    Map<String, dynamic> json) {
-  return _TargetSuggestionConfig.fromJson(json);
+/// @nodoc
+class __$TargetSuggestionCopyWithImpl<$Res>
+    implements _$TargetSuggestionCopyWith<$Res> {
+  __$TargetSuggestionCopyWithImpl(this._self, this._then);
+
+  final _TargetSuggestion _self;
+  final $Res Function(_TargetSuggestion) _then;
+
+  /// Create a copy of TargetSuggestion
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? targetId = null,
+    Object? targetName = null,
+    Object? catalogId = freezed,
+    Object? raHours = null,
+    Object? decDegrees = null,
+    Object? totalScore = null,
+    Object? scoreBreakdown = null,
+    Object? warnings = null,
+    Object? visibility = null,
+    Object? reasoning = null,
+    Object? dataProgress = null,
+    Object? objectType = freezed,
+    Object? magnitude = freezed,
+    Object? sizeArcmin = freezed,
+    Object? constellation = freezed,
+    Object? tags = null,
+  }) {
+    return _then(_TargetSuggestion(
+      targetId: null == targetId
+          ? _self.targetId
+          : targetId // ignore: cast_nullable_to_non_nullable
+              as int,
+      targetName: null == targetName
+          ? _self.targetName
+          : targetName // ignore: cast_nullable_to_non_nullable
+              as String,
+      catalogId: freezed == catalogId
+          ? _self.catalogId
+          : catalogId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      raHours: null == raHours
+          ? _self.raHours
+          : raHours // ignore: cast_nullable_to_non_nullable
+              as double,
+      decDegrees: null == decDegrees
+          ? _self.decDegrees
+          : decDegrees // ignore: cast_nullable_to_non_nullable
+              as double,
+      totalScore: null == totalScore
+          ? _self.totalScore
+          : totalScore // ignore: cast_nullable_to_non_nullable
+              as double,
+      scoreBreakdown: null == scoreBreakdown
+          ? _self._scoreBreakdown
+          : scoreBreakdown // ignore: cast_nullable_to_non_nullable
+              as Map<String, double>,
+      warnings: null == warnings
+          ? _self._warnings
+          : warnings // ignore: cast_nullable_to_non_nullable
+              as List<TargetWarning>,
+      visibility: null == visibility
+          ? _self.visibility
+          : visibility // ignore: cast_nullable_to_non_nullable
+              as TargetVisibilityInfo,
+      reasoning: null == reasoning
+          ? _self.reasoning
+          : reasoning // ignore: cast_nullable_to_non_nullable
+              as String,
+      dataProgress: null == dataProgress
+          ? _self.dataProgress
+          : dataProgress // ignore: cast_nullable_to_non_nullable
+              as double,
+      objectType: freezed == objectType
+          ? _self.objectType
+          : objectType // ignore: cast_nullable_to_non_nullable
+              as String?,
+      magnitude: freezed == magnitude
+          ? _self.magnitude
+          : magnitude // ignore: cast_nullable_to_non_nullable
+              as double?,
+      sizeArcmin: freezed == sizeArcmin
+          ? _self.sizeArcmin
+          : sizeArcmin // ignore: cast_nullable_to_non_nullable
+              as double?,
+      constellation: freezed == constellation
+          ? _self.constellation
+          : constellation // ignore: cast_nullable_to_non_nullable
+              as String?,
+      tags: null == tags
+          ? _self._tags
+          : tags // ignore: cast_nullable_to_non_nullable
+              as List<String>,
+    ));
+  }
 }
 
 /// @nodoc
 mixin _$TargetSuggestionConfig {
   /// Minimum altitude in degrees for targets to be considered
-  double get minAltitude => throw _privateConstructorUsedError;
+  double get minAltitude;
 
   /// Maximum distance from moon in degrees (null = no limit)
-  double? get maxMoonDistance => throw _privateConstructorUsedError;
+  double? get maxMoonDistance;
 
   /// Preferred object types to prioritize (e.g., ["Galaxy", "Nebula"])
-  List<String> get preferredObjectTypes => throw _privateConstructorUsedError;
+  List<String> get preferredObjectTypes;
 
   /// Whether to prioritize targets that need more data
-  bool get prioritizeIncomplete => throw _privateConstructorUsedError;
+  bool get prioritizeIncomplete;
 
   /// Minimum score (0-100) for a target to be suggested
-  double get minScore => throw _privateConstructorUsedError;
+  double get minScore;
 
   /// How to sort the suggestions
-  SuggestionSortMode get sortMode => throw _privateConstructorUsedError;
+  SuggestionSortMode get sortMode;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $TargetSuggestionConfigCopyWith<TargetSuggestionConfig> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $TargetSuggestionConfigCopyWith<$Res> {
-  factory $TargetSuggestionConfigCopyWith(TargetSuggestionConfig value,
-          $Res Function(TargetSuggestionConfig) then) =
-      _$TargetSuggestionConfigCopyWithImpl<$Res, TargetSuggestionConfig>;
-  @useResult
-  $Res call(
-      {double minAltitude,
-      double? maxMoonDistance,
-      List<String> preferredObjectTypes,
-      bool prioritizeIncomplete,
-      double minScore,
-      SuggestionSortMode sortMode});
-}
-
-/// @nodoc
-class _$TargetSuggestionConfigCopyWithImpl<$Res,
-        $Val extends TargetSuggestionConfig>
-    implements $TargetSuggestionConfigCopyWith<$Res> {
-  _$TargetSuggestionConfigCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of TargetSuggestionConfig
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $TargetSuggestionConfigCopyWith<TargetSuggestionConfig> get copyWith =>
+      _$TargetSuggestionConfigCopyWithImpl<TargetSuggestionConfig>(
+          this as TargetSuggestionConfig, _$identity);
+
+  /// Serializes this TargetSuggestionConfig to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? minAltitude = null,
-    Object? maxMoonDistance = freezed,
-    Object? preferredObjectTypes = null,
-    Object? prioritizeIncomplete = null,
-    Object? minScore = null,
-    Object? sortMode = null,
-  }) {
-    return _then(_value.copyWith(
-      minAltitude: null == minAltitude
-          ? _value.minAltitude
-          : minAltitude // ignore: cast_nullable_to_non_nullable
-              as double,
-      maxMoonDistance: freezed == maxMoonDistance
-          ? _value.maxMoonDistance
-          : maxMoonDistance // ignore: cast_nullable_to_non_nullable
-              as double?,
-      preferredObjectTypes: null == preferredObjectTypes
-          ? _value.preferredObjectTypes
-          : preferredObjectTypes // ignore: cast_nullable_to_non_nullable
-              as List<String>,
-      prioritizeIncomplete: null == prioritizeIncomplete
-          ? _value.prioritizeIncomplete
-          : prioritizeIncomplete // ignore: cast_nullable_to_non_nullable
-              as bool,
-      minScore: null == minScore
-          ? _value.minScore
-          : minScore // ignore: cast_nullable_to_non_nullable
-              as double,
-      sortMode: null == sortMode
-          ? _value.sortMode
-          : sortMode // ignore: cast_nullable_to_non_nullable
-              as SuggestionSortMode,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is TargetSuggestionConfig &&
+            (identical(other.minAltitude, minAltitude) ||
+                other.minAltitude == minAltitude) &&
+            (identical(other.maxMoonDistance, maxMoonDistance) ||
+                other.maxMoonDistance == maxMoonDistance) &&
+            const DeepCollectionEquality()
+                .equals(other.preferredObjectTypes, preferredObjectTypes) &&
+            (identical(other.prioritizeIncomplete, prioritizeIncomplete) ||
+                other.prioritizeIncomplete == prioritizeIncomplete) &&
+            (identical(other.minScore, minScore) ||
+                other.minScore == minScore) &&
+            (identical(other.sortMode, sortMode) ||
+                other.sortMode == sortMode));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      minAltitude,
+      maxMoonDistance,
+      const DeepCollectionEquality().hash(preferredObjectTypes),
+      prioritizeIncomplete,
+      minScore,
+      sortMode);
+
+  @override
+  String toString() {
+    return 'TargetSuggestionConfig(minAltitude: $minAltitude, maxMoonDistance: $maxMoonDistance, preferredObjectTypes: $preferredObjectTypes, prioritizeIncomplete: $prioritizeIncomplete, minScore: $minScore, sortMode: $sortMode)';
   }
 }
 
 /// @nodoc
-abstract class _$$TargetSuggestionConfigImplCopyWith<$Res>
-    implements $TargetSuggestionConfigCopyWith<$Res> {
-  factory _$$TargetSuggestionConfigImplCopyWith(
-          _$TargetSuggestionConfigImpl value,
-          $Res Function(_$TargetSuggestionConfigImpl) then) =
-      __$$TargetSuggestionConfigImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $TargetSuggestionConfigCopyWith<$Res> {
+  factory $TargetSuggestionConfigCopyWith(TargetSuggestionConfig value,
+          $Res Function(TargetSuggestionConfig) _then) =
+      _$TargetSuggestionConfigCopyWithImpl;
   @useResult
   $Res call(
       {double minAltitude,
@@ -738,15 +929,15 @@ abstract class _$$TargetSuggestionConfigImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$TargetSuggestionConfigImplCopyWithImpl<$Res>
-    extends _$TargetSuggestionConfigCopyWithImpl<$Res,
-        _$TargetSuggestionConfigImpl>
-    implements _$$TargetSuggestionConfigImplCopyWith<$Res> {
-  __$$TargetSuggestionConfigImplCopyWithImpl(
-      _$TargetSuggestionConfigImpl _value,
-      $Res Function(_$TargetSuggestionConfigImpl) _then)
-      : super(_value, _then);
+class _$TargetSuggestionConfigCopyWithImpl<$Res>
+    implements $TargetSuggestionConfigCopyWith<$Res> {
+  _$TargetSuggestionConfigCopyWithImpl(this._self, this._then);
 
+  final TargetSuggestionConfig _self;
+  final $Res Function(TargetSuggestionConfig) _then;
+
+  /// Create a copy of TargetSuggestionConfig
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -757,39 +948,235 @@ class __$$TargetSuggestionConfigImplCopyWithImpl<$Res>
     Object? minScore = null,
     Object? sortMode = null,
   }) {
-    return _then(_$TargetSuggestionConfigImpl(
+    return _then(_self.copyWith(
       minAltitude: null == minAltitude
-          ? _value.minAltitude
+          ? _self.minAltitude
           : minAltitude // ignore: cast_nullable_to_non_nullable
               as double,
       maxMoonDistance: freezed == maxMoonDistance
-          ? _value.maxMoonDistance
+          ? _self.maxMoonDistance
           : maxMoonDistance // ignore: cast_nullable_to_non_nullable
               as double?,
       preferredObjectTypes: null == preferredObjectTypes
-          ? _value._preferredObjectTypes
+          ? _self.preferredObjectTypes
           : preferredObjectTypes // ignore: cast_nullable_to_non_nullable
               as List<String>,
       prioritizeIncomplete: null == prioritizeIncomplete
-          ? _value.prioritizeIncomplete
+          ? _self.prioritizeIncomplete
           : prioritizeIncomplete // ignore: cast_nullable_to_non_nullable
               as bool,
       minScore: null == minScore
-          ? _value.minScore
+          ? _self.minScore
           : minScore // ignore: cast_nullable_to_non_nullable
               as double,
       sortMode: null == sortMode
-          ? _value.sortMode
+          ? _self.sortMode
           : sortMode // ignore: cast_nullable_to_non_nullable
               as SuggestionSortMode,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [TargetSuggestionConfig].
+extension TargetSuggestionConfigPatterns on TargetSuggestionConfig {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_TargetSuggestionConfig value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _TargetSuggestionConfig() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_TargetSuggestionConfig value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _TargetSuggestionConfig():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_TargetSuggestionConfig value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _TargetSuggestionConfig() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            double minAltitude,
+            double? maxMoonDistance,
+            List<String> preferredObjectTypes,
+            bool prioritizeIncomplete,
+            double minScore,
+            SuggestionSortMode sortMode)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _TargetSuggestionConfig() when $default != null:
+        return $default(
+            _that.minAltitude,
+            _that.maxMoonDistance,
+            _that.preferredObjectTypes,
+            _that.prioritizeIncomplete,
+            _that.minScore,
+            _that.sortMode);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            double minAltitude,
+            double? maxMoonDistance,
+            List<String> preferredObjectTypes,
+            bool prioritizeIncomplete,
+            double minScore,
+            SuggestionSortMode sortMode)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _TargetSuggestionConfig():
+        return $default(
+            _that.minAltitude,
+            _that.maxMoonDistance,
+            _that.preferredObjectTypes,
+            _that.prioritizeIncomplete,
+            _that.minScore,
+            _that.sortMode);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            double minAltitude,
+            double? maxMoonDistance,
+            List<String> preferredObjectTypes,
+            bool prioritizeIncomplete,
+            double minScore,
+            SuggestionSortMode sortMode)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _TargetSuggestionConfig() when $default != null:
+        return $default(
+            _that.minAltitude,
+            _that.maxMoonDistance,
+            _that.preferredObjectTypes,
+            _that.prioritizeIncomplete,
+            _that.minScore,
+            _that.sortMode);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$TargetSuggestionConfigImpl implements _TargetSuggestionConfig {
-  const _$TargetSuggestionConfigImpl(
+class _TargetSuggestionConfig implements TargetSuggestionConfig {
+  const _TargetSuggestionConfig(
       {this.minAltitude = 30.0,
       this.maxMoonDistance,
       final List<String> preferredObjectTypes = const <String>[],
@@ -797,9 +1184,8 @@ class _$TargetSuggestionConfigImpl implements _TargetSuggestionConfig {
       this.minScore = 50.0,
       this.sortMode = SuggestionSortMode.bestScore})
       : _preferredObjectTypes = preferredObjectTypes;
-
-  factory _$TargetSuggestionConfigImpl.fromJson(Map<String, dynamic> json) =>
-      _$$TargetSuggestionConfigImplFromJson(json);
+  factory _TargetSuggestionConfig.fromJson(Map<String, dynamic> json) =>
+      _$TargetSuggestionConfigFromJson(json);
 
   /// Minimum altitude in degrees for targets to be considered
   @override
@@ -838,16 +1224,27 @@ class _$TargetSuggestionConfigImpl implements _TargetSuggestionConfig {
   @JsonKey()
   final SuggestionSortMode sortMode;
 
+  /// Create a copy of TargetSuggestionConfig
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'TargetSuggestionConfig(minAltitude: $minAltitude, maxMoonDistance: $maxMoonDistance, preferredObjectTypes: $preferredObjectTypes, prioritizeIncomplete: $prioritizeIncomplete, minScore: $minScore, sortMode: $sortMode)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$TargetSuggestionConfigCopyWith<_TargetSuggestionConfig> get copyWith =>
+      __$TargetSuggestionConfigCopyWithImpl<_TargetSuggestionConfig>(
+          this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$TargetSuggestionConfigToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$TargetSuggestionConfigImpl &&
+            other is _TargetSuggestionConfig &&
             (identical(other.minAltitude, minAltitude) ||
                 other.minAltitude == minAltitude) &&
             (identical(other.maxMoonDistance, maxMoonDistance) ||
@@ -862,7 +1259,7 @@ class _$TargetSuggestionConfigImpl implements _TargetSuggestionConfig {
                 other.sortMode == sortMode));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,
@@ -873,59 +1270,76 @@ class _$TargetSuggestionConfigImpl implements _TargetSuggestionConfig {
       minScore,
       sortMode);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$TargetSuggestionConfigImplCopyWith<_$TargetSuggestionConfigImpl>
-      get copyWith => __$$TargetSuggestionConfigImplCopyWithImpl<
-          _$TargetSuggestionConfigImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$TargetSuggestionConfigImplToJson(
-      this,
-    );
+  String toString() {
+    return 'TargetSuggestionConfig(minAltitude: $minAltitude, maxMoonDistance: $maxMoonDistance, preferredObjectTypes: $preferredObjectTypes, prioritizeIncomplete: $prioritizeIncomplete, minScore: $minScore, sortMode: $sortMode)';
   }
 }
 
-abstract class _TargetSuggestionConfig implements TargetSuggestionConfig {
-  const factory _TargetSuggestionConfig(
-      {final double minAltitude,
-      final double? maxMoonDistance,
-      final List<String> preferredObjectTypes,
-      final bool prioritizeIncomplete,
-      final double minScore,
-      final SuggestionSortMode sortMode}) = _$TargetSuggestionConfigImpl;
-
-  factory _TargetSuggestionConfig.fromJson(Map<String, dynamic> json) =
-      _$TargetSuggestionConfigImpl.fromJson;
-
+/// @nodoc
+abstract mixin class _$TargetSuggestionConfigCopyWith<$Res>
+    implements $TargetSuggestionConfigCopyWith<$Res> {
+  factory _$TargetSuggestionConfigCopyWith(_TargetSuggestionConfig value,
+          $Res Function(_TargetSuggestionConfig) _then) =
+      __$TargetSuggestionConfigCopyWithImpl;
   @override
-
-  /// Minimum altitude in degrees for targets to be considered
-  double get minAltitude;
-  @override
-
-  /// Maximum distance from moon in degrees (null = no limit)
-  double? get maxMoonDistance;
-  @override
-
-  /// Preferred object types to prioritize (e.g., ["Galaxy", "Nebula"])
-  List<String> get preferredObjectTypes;
-  @override
-
-  /// Whether to prioritize targets that need more data
-  bool get prioritizeIncomplete;
-  @override
-
-  /// Minimum score (0-100) for a target to be suggested
-  double get minScore;
-  @override
-
-  /// How to sort the suggestions
-  SuggestionSortMode get sortMode;
-  @override
-  @JsonKey(ignore: true)
-  _$$TargetSuggestionConfigImplCopyWith<_$TargetSuggestionConfigImpl>
-      get copyWith => throw _privateConstructorUsedError;
+  @useResult
+  $Res call(
+      {double minAltitude,
+      double? maxMoonDistance,
+      List<String> preferredObjectTypes,
+      bool prioritizeIncomplete,
+      double minScore,
+      SuggestionSortMode sortMode});
 }
+
+/// @nodoc
+class __$TargetSuggestionConfigCopyWithImpl<$Res>
+    implements _$TargetSuggestionConfigCopyWith<$Res> {
+  __$TargetSuggestionConfigCopyWithImpl(this._self, this._then);
+
+  final _TargetSuggestionConfig _self;
+  final $Res Function(_TargetSuggestionConfig) _then;
+
+  /// Create a copy of TargetSuggestionConfig
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? minAltitude = null,
+    Object? maxMoonDistance = freezed,
+    Object? preferredObjectTypes = null,
+    Object? prioritizeIncomplete = null,
+    Object? minScore = null,
+    Object? sortMode = null,
+  }) {
+    return _then(_TargetSuggestionConfig(
+      minAltitude: null == minAltitude
+          ? _self.minAltitude
+          : minAltitude // ignore: cast_nullable_to_non_nullable
+              as double,
+      maxMoonDistance: freezed == maxMoonDistance
+          ? _self.maxMoonDistance
+          : maxMoonDistance // ignore: cast_nullable_to_non_nullable
+              as double?,
+      preferredObjectTypes: null == preferredObjectTypes
+          ? _self._preferredObjectTypes
+          : preferredObjectTypes // ignore: cast_nullable_to_non_nullable
+              as List<String>,
+      prioritizeIncomplete: null == prioritizeIncomplete
+          ? _self.prioritizeIncomplete
+          : prioritizeIncomplete // ignore: cast_nullable_to_non_nullable
+              as bool,
+      minScore: null == minScore
+          ? _self.minScore
+          : minScore // ignore: cast_nullable_to_non_nullable
+              as double,
+      sortMode: null == sortMode
+          ? _self.sortMode
+          : sortMode // ignore: cast_nullable_to_non_nullable
+              as SuggestionSortMode,
+    ));
+  }
+}
+
+// dart format on

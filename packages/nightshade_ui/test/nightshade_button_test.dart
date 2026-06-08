@@ -1,3 +1,5 @@
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -128,7 +130,7 @@ void main() {
         ),
       );
       expect(semantics.flagsCollection.isButton, isTrue);
-      expect(semantics.flagsCollection.isEnabled, isFalse);
+      expect(semantics.flagsCollection.isEnabled, Tristate.isFalse);
     } finally {
       handle.dispose();
     }
@@ -151,7 +153,7 @@ void main() {
         ),
       );
       expect(semantics.flagsCollection.isButton, isTrue);
-      expect(semantics.flagsCollection.isEnabled, isTrue);
+      expect(semantics.flagsCollection.isEnabled, Tristate.isTrue);
     } finally {
       handle.dispose();
     }

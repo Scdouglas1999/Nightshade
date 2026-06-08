@@ -9,9 +9,12 @@ duplicated_c_output:
   - ../../packages/nightshade_bridge/macos/bridge_generated.h
   - ../../packages/nightshade_bridge/linux/bridge_generated.h
 
-# LLVM path for ffigen (fixes stdbool.h not found on Windows)
-llvm_path:
-  - 'C:\Program Files\LLVM'
+# LLVM path for ffigen. On Linux/macOS clang headers are discovered
+# automatically so no override is needed. On Windows, scripts/dev.ps1 sets
+# CPATH to the LLVM/MSVC/Windows-SDK include dirs (fixes stdbool.h not found);
+# if running codegen on Windows outside that script, re-add:
+#   llvm_path:
+#     - 'C:\Program Files\LLVM'
 
 # Enable features
 full_dep: true

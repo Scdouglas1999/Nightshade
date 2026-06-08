@@ -22,7 +22,16 @@ final loadedDsosProvider = FutureProvider<List<DeepSkyObject>>((ref) async {
 final starSpatialIndexProvider = FutureProvider<StarSpatialIndex>((ref) async {
   final stars = await ref.watch(loadedStarsProvider.future);
   final index = StarSpatialIndex();
-  index.addAll(stars);
+  // The loader isolate already returns stars sorted by magnitude (brightest
+  // first), so prime the magnitude view instead of re-sorting on the UI thread.
+  index.addAllPreSortedByMagnitude(stars);
+  // Warm the grid off the critical path so the first zoom past the wide-field
+  // threshold (~12 deg) doesn't hitch building the grid mid-gesture.
+  Future.delayed(const Duration(milliseconds: 400), () {
+    try {
+      index.warmGrid();
+    } catch (_) {}
+  });
   return index;
 });
 
@@ -30,7 +39,14 @@ final starSpatialIndexProvider = FutureProvider<StarSpatialIndex>((ref) async {
 final dsoSpatialIndexProvider = FutureProvider<DsoSpatialIndex>((ref) async {
   final dsos = await ref.watch(loadedDsosProvider.future);
   final index = DsoSpatialIndex();
-  index.addAll(dsos);
+  // Loader isolate returns DSOs magnitude-sorted; prime to skip a UI-thread sort.
+  index.addAllPreSortedByMagnitude(dsos);
+  // Warm the grid off the critical path (see starSpatialIndexProvider).
+  Future.delayed(const Duration(milliseconds: 400), () {
+    try {
+      index.warmGrid();
+    } catch (_) {}
+  });
   return index;
 });
 
@@ -41,15 +57,19 @@ final fovFilteredStarsProvider = Provider<AsyncValue<List<Star>>>((ref) {
   final indexAsync = ref.watch(starSpatialIndexProvider);
   final (starMagLimit, _) = ref.watch(dynamicMagnitudeLimitsProvider);
   final viewState = ref.watch(skyViewStateProvider);
+  final maxStars = ref.watch(fovAdaptiveQualityProvider).maxStarsToRender;
 
   return indexAsync.whenData((index) {
-    final result = index.queryViewportFiltered(
+    // Return only the brightest [maxStars] in view — the exact set the renderer
+    // draws (it caps to maxStarsToRender). At wide fields this avoids gathering
+    // and full-sorting tens of thousands of stars every pan frame.
+    return index.queryBrightestInViewport(
       viewState.centerRA,
       viewState.centerDec,
       viewState.fieldOfView,
       maxMagnitude: starMagLimit,
+      maxResults: maxStars,
     );
-    return result;
   });
 });
 
@@ -61,13 +81,15 @@ final fovFilteredDsosProvider =
   final indexAsync = ref.watch(dsoSpatialIndexProvider);
   final (_, dsoMagLimit) = ref.watch(dynamicMagnitudeLimitsProvider);
   final viewState = ref.watch(skyViewStateProvider);
+  final maxDsos = ref.watch(fovAdaptiveQualityProvider).maxDsosToRender;
 
   return indexAsync.whenData((index) {
-    return index.queryViewportFiltered(
+    return index.queryBrightestInViewport(
       viewState.centerRA,
       viewState.centerDec,
       viewState.fieldOfView,
       maxMagnitude: dsoMagLimit,
+      maxResults: maxDsos,
     );
   });
 });

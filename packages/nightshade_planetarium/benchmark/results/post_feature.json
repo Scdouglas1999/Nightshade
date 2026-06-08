@@ -1,0 +1,11 @@
+{
+  "p50Ms": 18.18,
+  "p95Ms": 33.566,
+  "p99Ms": 37.095,
+  "avgFps": 49.8,
+  "rssMb": 184.6,
+  "objectsDrawn": 14900,
+  "frames": 180,
+  "scene": "Seeded synthetic worst-case stress scene (seed 0x5eed5301).",
+  "note": "POST-FEATURE REFERENCE (planetarium v1, feature-complete) under the CORRECTED rasterize-and-readback metric. Median of 3 stable runs (p95 spread 33.19-33.69ms, ~1%). The previous git-history numbers (p95~1.9ms) timed only display-list RECORDING, which was blind to rasterization and noise-dominated; this times real fill/blend/glow/atlas cost via the software rasterizer (CPU GPU-proxy, no vsync). This is the no-quality-loss reference the optimization loop must beat (paired with the committed goldens). avgFps = 1000/meanMs raster-bound ceiling, not on-display FPS. balanced quality; 1280x800."
+}

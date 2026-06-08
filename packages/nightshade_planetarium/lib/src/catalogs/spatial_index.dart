@@ -14,44 +14,152 @@ class CelestialSpatialIndex<T extends CelestialObject> {
   /// Number of cells along the Dec axis (-90 to +90 degrees)
   static const int decCells = 18;
 
-  /// Grid storage: [raCell][decCell] -> list of objects
-  final List<List<List<T>>> _grid;
+  /// Grid storage: [raCell][decCell] -> list of objects.
+  ///
+  /// Built LAZILY on first cell query ([queryViewport]); the wide-field
+  /// magnitude walk ([queryBrightestInViewport]) doesn't need it, so a
+  /// freshly-loaded index serving the default wide view never pays the grid
+  /// build cost on the UI thread at app open. Rebuilt on the next query after
+  /// the object set changes.
+  List<List<List<T>>>? _grid;
 
   /// All objects stored in the index
   final List<T> _allObjects = [];
 
-  CelestialSpatialIndex()
-      : _grid = List.generate(
-          raCells,
-          (_) => List.generate(decCells, (_) => <T>[]),
-        );
+  /// Lazily-built magnitude-sorted view (brightest first), used by
+  /// [queryBrightestInViewport]. Invalidated whenever the object set changes.
+  List<T>? _byMagnitude;
+
+  CelestialSpatialIndex();
+
+  /// Eagerly build the grid off the critical path.
+  ///
+  /// The grid is normally built lazily on the first cell query
+  /// ([queryViewport]). Calling this from a deferred future after the index is
+  /// constructed warms the grid so the first zoom past the wide-field threshold
+  /// (~12 deg) doesn't pay the build cost on the UI thread mid-gesture.
+  void warmGrid() => _ensureGrid();
+
+  /// Build the grid from [_allObjects] on demand.
+  void _ensureGrid() {
+    if (_grid != null) return;
+    final grid = List.generate(
+      raCells,
+      (_) => List.generate(decCells, (_) => <T>[]),
+    );
+    for (final obj in _allObjects) {
+      grid[_raToCell(obj.coordinates.ra)][_decToCell(obj.coordinates.dec)]
+          .add(obj);
+    }
+    _grid = grid;
+  }
 
   /// Clear all objects from the index
   void clear() {
-    for (var ra = 0; ra < raCells; ra++) {
-      for (var dec = 0; dec < decCells; dec++) {
-        _grid[ra][dec].clear();
-      }
-    }
+    _grid = null;
     _allObjects.clear();
+    _byMagnitude = null;
   }
 
   /// Add a single object to the index
   void add(T object) {
-    final raCell = _raToCell(object.coordinates.ra);
-    final decCell = _decToCell(object.coordinates.dec);
-    _grid[raCell][decCell].add(object);
     _allObjects.add(object);
+    _grid = null;
+    _byMagnitude = null;
   }
 
   /// Add multiple objects to the index
   void addAll(List<T> objects) {
-    for (final obj in objects) {
-      final raCell = _raToCell(obj.coordinates.ra);
-      final decCell = _decToCell(obj.coordinates.dec);
-      _grid[raCell][decCell].add(obj);
-    }
     _allObjects.addAll(objects);
+    _grid = null;
+    _byMagnitude = null;
+  }
+
+  /// Add objects that are ALREADY sorted ascending by magnitude (brightest
+  /// first), priming the magnitude-sorted view without an on-UI-thread re-sort.
+  ///
+  /// The loader isolate sorts the catalog once (off the UI thread), so the first
+  /// [queryBrightestInViewport] at app open doesn't sort 100k+ objects on the UI
+  /// thread (a measurable first-open hitch). The grid stays lazy.
+  void addAllPreSortedByMagnitude(List<T> objectsBrightestFirst) {
+    _allObjects.addAll(objectsBrightestFirst);
+    _grid = null;
+    _byMagnitude = objectsBrightestFirst;
+  }
+
+  /// Returns up to [maxResults] of the BRIGHTEST objects with magnitude
+  /// `<= maxMagnitude` that fall within the viewport region (same generous
+  /// 1.5×-FOV bounds as [queryViewport]), brightest-first.
+  ///
+  /// This walks a magnitude-sorted view and stops as soon as [maxResults] are
+  /// collected or the magnitude limit is passed. At wide fields — where the
+  /// region can contain tens of thousands of stars but the renderer only draws
+  /// the brightest few thousand — this avoids gathering and full-sorting the
+  /// whole region every frame (the dominant per-frame pan cost). The result is
+  /// identical to taking the brightest [maxResults] of [queryViewportFiltered].
+  /// FOV (degrees) below which the grid-cell query is cheaper than walking the
+  /// magnitude-sorted list. At narrow fields few objects fall in view, so the
+  /// magnitude walk would scan most of the catalog before collecting
+  /// [maxResults]; the cell query touches only a handful of cells instead.
+  static const double _magWalkMinFovDegrees = 12.0;
+
+  List<T> queryBrightestInViewport(
+    double centerRA,
+    double centerDec,
+    double fovDegrees, {
+    required double maxMagnitude,
+    required int maxResults,
+  }) {
+    if (maxResults <= 0 || _allObjects.isEmpty) return const [];
+
+    // Narrow field: the grid cells already restrict to a small candidate set,
+    // so gather + sort + cap is cheaper than a whole-catalog magnitude walk.
+    if (fovDegrees < _magWalkMinFovDegrees) {
+      final candidates = queryViewport(centerRA, centerDec, fovDegrees);
+      final filtered = <T>[];
+      for (final o in candidates) {
+        if ((o.magnitude ?? 99.0) <= maxMagnitude) filtered.add(o);
+      }
+      filtered.sort(
+          (a, b) => (a.magnitude ?? 99.0).compareTo(b.magnitude ?? 99.0));
+      return filtered.length > maxResults
+          ? filtered.sublist(0, maxResults)
+          : filtered;
+    }
+
+    var sorted = _byMagnitude;
+    if (sorted == null) {
+      sorted = List<T>.of(_allObjects)
+        ..sort((a, b) =>
+            (a.magnitude ?? 99.0).compareTo(b.magnitude ?? 99.0));
+      _byMagnitude = sorted;
+    }
+
+    // Region bounds match queryViewport (1.5x FOV margin).
+    final queryFov = fovDegrees * 1.5;
+    final decRangeHalf = queryFov / 2;
+    final minDec = (centerDec - decRangeHalf).clamp(-90.0, 90.0);
+    final maxDec = (centerDec + decRangeHalf).clamp(-90.0, 90.0);
+    final cosDec = math.cos(centerDec.abs() * math.pi / 180);
+    final raRangeHalf =
+        cosDec > 0.1 ? (queryFov / 15 / cosDec).clamp(0.0, 12.0) / 2 : 12.0;
+    final raWrapsWholeSky = raRangeHalf >= 12.0;
+
+    final results = <T>[];
+    for (final obj in sorted) {
+      final mag = obj.magnitude ?? 99.0;
+      if (mag > maxMagnitude) break; // remaining are fainter — done
+      final c = obj.coordinates;
+      if (c.dec < minDec || c.dec > maxDec) continue;
+      if (!raWrapsWholeSky) {
+        var dRa = (c.ra - centerRA).abs();
+        if (dRa > 12) dRa = 24 - dRa; // RA wraparound at 0h/24h
+        if (dRa > raRangeHalf) continue;
+      }
+      results.add(obj);
+      if (results.length >= maxResults) break;
+    }
+    return results;
   }
 
   /// Get all objects in the index
@@ -72,6 +180,7 @@ class CelestialSpatialIndex<T extends CelestialObject> {
     double fovDegrees, {
     int? maxResults,
   }) {
+    _ensureGrid();
     // Calculate the RA and Dec ranges that might be visible.
     // Use a generous margin (1.5x FOV) to avoid clipping objects at viewport edges
     // — the stereographic projection shows objects beyond the nominal FOV circle.
@@ -101,7 +210,7 @@ class CelestialSpatialIndex<T extends CelestialObject> {
       for (var r = startCell; r <= endCell; r++) {
         for (var d = startDecCell; d <= endDecCell; d++) {
           if (maxResults != null && results.length >= maxResults) return;
-          results.addAll(_grid[r][d]);
+          results.addAll(_grid![r][d]);
         }
       }
     }

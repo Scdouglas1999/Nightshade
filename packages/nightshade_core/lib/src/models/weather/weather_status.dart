@@ -8,7 +8,7 @@ part 'weather_status.g.dart';
 
 /// Combined weather status for UI display
 @freezed
-class WeatherStatus with _$WeatherStatus {
+abstract class WeatherStatus with _$WeatherStatus {
   const factory WeatherStatus({
     /// Current alert level
     @Default(AlertLevel.clear) AlertLevel currentLevel,

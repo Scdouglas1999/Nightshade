@@ -6,9 +6,8 @@ part of 'template_snippet.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$TemplateSnippetImpl _$$TemplateSnippetImplFromJson(
-        Map<String, dynamic> json) =>
-    _$TemplateSnippetImpl(
+_TemplateSnippet _$TemplateSnippetFromJson(Map<String, dynamic> json) =>
+    _TemplateSnippet(
       id: json['id'] as String,
       name: json['name'] as String,
       description: json['description'] as String,
@@ -21,8 +20,7 @@ _$TemplateSnippetImpl _$$TemplateSnippetImplFromJson(
       createdAt: DateTime.parse(json['createdAt'] as String),
     );
 
-Map<String, dynamic> _$$TemplateSnippetImplToJson(
-        _$TemplateSnippetImpl instance) =>
+Map<String, dynamic> _$TemplateSnippetToJson(_TemplateSnippet instance) =>
     <String, dynamic>{
       'id': instance.id,
       'name': instance.name,

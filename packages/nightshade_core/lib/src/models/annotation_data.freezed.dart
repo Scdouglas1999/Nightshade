@@ -1,5 +1,5 @@
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
@@ -9,35 +9,59 @@ part of 'annotation_data.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// dart format off
 T _$identity<T>(T value) => value;
-
-final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
-
-ImageAnnotation _$ImageAnnotationFromJson(Map<String, dynamic> json) {
-  return _ImageAnnotation.fromJson(json);
-}
 
 /// @nodoc
 mixin _$ImageAnnotation {
-  String get imagePath => throw _privateConstructorUsedError;
-  DateTime get timestamp => throw _privateConstructorUsedError;
-  PlateSolveData get plateSolve => throw _privateConstructorUsedError;
-  List<CelestialObjectAnnotation> get objects =>
-      throw _privateConstructorUsedError;
-  bool get visible => throw _privateConstructorUsedError;
+  String get imagePath;
+  DateTime get timestamp;
+  PlateSolveData get plateSolve;
+  List<CelestialObjectAnnotation> get objects;
+  bool get visible;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
+  /// Create a copy of ImageAnnotation
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
   $ImageAnnotationCopyWith<ImageAnnotation> get copyWith =>
-      throw _privateConstructorUsedError;
+      _$ImageAnnotationCopyWithImpl<ImageAnnotation>(
+          this as ImageAnnotation, _$identity);
+
+  /// Serializes this ImageAnnotation to a JSON map.
+  Map<String, dynamic> toJson();
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is ImageAnnotation &&
+            (identical(other.imagePath, imagePath) ||
+                other.imagePath == imagePath) &&
+            (identical(other.timestamp, timestamp) ||
+                other.timestamp == timestamp) &&
+            (identical(other.plateSolve, plateSolve) ||
+                other.plateSolve == plateSolve) &&
+            const DeepCollectionEquality().equals(other.objects, objects) &&
+            (identical(other.visible, visible) || other.visible == visible));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, imagePath, timestamp, plateSolve,
+      const DeepCollectionEquality().hash(objects), visible);
+
+  @override
+  String toString() {
+    return 'ImageAnnotation(imagePath: $imagePath, timestamp: $timestamp, plateSolve: $plateSolve, objects: $objects, visible: $visible)';
+  }
 }
 
 /// @nodoc
-abstract class $ImageAnnotationCopyWith<$Res> {
+abstract mixin class $ImageAnnotationCopyWith<$Res> {
   factory $ImageAnnotationCopyWith(
-          ImageAnnotation value, $Res Function(ImageAnnotation) then) =
-      _$ImageAnnotationCopyWithImpl<$Res, ImageAnnotation>;
+          ImageAnnotation value, $Res Function(ImageAnnotation) _then) =
+      _$ImageAnnotationCopyWithImpl;
   @useResult
   $Res call(
       {String imagePath,
@@ -50,15 +74,15 @@ abstract class $ImageAnnotationCopyWith<$Res> {
 }
 
 /// @nodoc
-class _$ImageAnnotationCopyWithImpl<$Res, $Val extends ImageAnnotation>
+class _$ImageAnnotationCopyWithImpl<$Res>
     implements $ImageAnnotationCopyWith<$Res> {
-  _$ImageAnnotationCopyWithImpl(this._value, this._then);
+  _$ImageAnnotationCopyWithImpl(this._self, this._then);
 
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
+  final ImageAnnotation _self;
+  final $Res Function(ImageAnnotation) _then;
 
+  /// Create a copy of ImageAnnotation
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -68,113 +92,231 @@ class _$ImageAnnotationCopyWithImpl<$Res, $Val extends ImageAnnotation>
     Object? objects = null,
     Object? visible = null,
   }) {
-    return _then(_value.copyWith(
+    return _then(_self.copyWith(
       imagePath: null == imagePath
-          ? _value.imagePath
+          ? _self.imagePath
           : imagePath // ignore: cast_nullable_to_non_nullable
               as String,
       timestamp: null == timestamp
-          ? _value.timestamp
+          ? _self.timestamp
           : timestamp // ignore: cast_nullable_to_non_nullable
               as DateTime,
       plateSolve: null == plateSolve
-          ? _value.plateSolve
+          ? _self.plateSolve
           : plateSolve // ignore: cast_nullable_to_non_nullable
               as PlateSolveData,
       objects: null == objects
-          ? _value.objects
+          ? _self.objects
           : objects // ignore: cast_nullable_to_non_nullable
               as List<CelestialObjectAnnotation>,
       visible: null == visible
-          ? _value.visible
+          ? _self.visible
           : visible // ignore: cast_nullable_to_non_nullable
               as bool,
-    ) as $Val);
+    ));
   }
 
+  /// Create a copy of ImageAnnotation
+  /// with the given fields replaced by the non-null parameter values.
   @override
   @pragma('vm:prefer-inline')
   $PlateSolveDataCopyWith<$Res> get plateSolve {
-    return $PlateSolveDataCopyWith<$Res>(_value.plateSolve, (value) {
-      return _then(_value.copyWith(plateSolve: value) as $Val);
+    return $PlateSolveDataCopyWith<$Res>(_self.plateSolve, (value) {
+      return _then(_self.copyWith(plateSolve: value));
     });
   }
 }
 
-/// @nodoc
-abstract class _$$ImageAnnotationImplCopyWith<$Res>
-    implements $ImageAnnotationCopyWith<$Res> {
-  factory _$$ImageAnnotationImplCopyWith(_$ImageAnnotationImpl value,
-          $Res Function(_$ImageAnnotationImpl) then) =
-      __$$ImageAnnotationImplCopyWithImpl<$Res>;
-  @override
-  @useResult
-  $Res call(
-      {String imagePath,
-      DateTime timestamp,
-      PlateSolveData plateSolve,
-      List<CelestialObjectAnnotation> objects,
-      bool visible});
+/// Adds pattern-matching-related methods to [ImageAnnotation].
+extension ImageAnnotationPatterns on ImageAnnotation {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
 
-  @override
-  $PlateSolveDataCopyWith<$Res> get plateSolve;
-}
-
-/// @nodoc
-class __$$ImageAnnotationImplCopyWithImpl<$Res>
-    extends _$ImageAnnotationCopyWithImpl<$Res, _$ImageAnnotationImpl>
-    implements _$$ImageAnnotationImplCopyWith<$Res> {
-  __$$ImageAnnotationImplCopyWithImpl(
-      _$ImageAnnotationImpl _value, $Res Function(_$ImageAnnotationImpl) _then)
-      : super(_value, _then);
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? imagePath = null,
-    Object? timestamp = null,
-    Object? plateSolve = null,
-    Object? objects = null,
-    Object? visible = null,
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_ImageAnnotation value)? $default, {
+    required TResult orElse(),
   }) {
-    return _then(_$ImageAnnotationImpl(
-      imagePath: null == imagePath
-          ? _value.imagePath
-          : imagePath // ignore: cast_nullable_to_non_nullable
-              as String,
-      timestamp: null == timestamp
-          ? _value.timestamp
-          : timestamp // ignore: cast_nullable_to_non_nullable
-              as DateTime,
-      plateSolve: null == plateSolve
-          ? _value.plateSolve
-          : plateSolve // ignore: cast_nullable_to_non_nullable
-              as PlateSolveData,
-      objects: null == objects
-          ? _value._objects
-          : objects // ignore: cast_nullable_to_non_nullable
-              as List<CelestialObjectAnnotation>,
-      visible: null == visible
-          ? _value.visible
-          : visible // ignore: cast_nullable_to_non_nullable
-              as bool,
-    ));
+    final _that = this;
+    switch (_that) {
+      case _ImageAnnotation() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_ImageAnnotation value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ImageAnnotation():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_ImageAnnotation value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ImageAnnotation() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            String imagePath,
+            DateTime timestamp,
+            PlateSolveData plateSolve,
+            List<CelestialObjectAnnotation> objects,
+            bool visible)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _ImageAnnotation() when $default != null:
+        return $default(_that.imagePath, _that.timestamp, _that.plateSolve,
+            _that.objects, _that.visible);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            String imagePath,
+            DateTime timestamp,
+            PlateSolveData plateSolve,
+            List<CelestialObjectAnnotation> objects,
+            bool visible)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ImageAnnotation():
+        return $default(_that.imagePath, _that.timestamp, _that.plateSolve,
+            _that.objects, _that.visible);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            String imagePath,
+            DateTime timestamp,
+            PlateSolveData plateSolve,
+            List<CelestialObjectAnnotation> objects,
+            bool visible)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ImageAnnotation() when $default != null:
+        return $default(_that.imagePath, _that.timestamp, _that.plateSolve,
+            _that.objects, _that.visible);
+      case _:
+        return null;
+    }
   }
 }
 
 /// @nodoc
 @JsonSerializable()
-class _$ImageAnnotationImpl implements _ImageAnnotation {
-  const _$ImageAnnotationImpl(
+class _ImageAnnotation implements ImageAnnotation {
+  const _ImageAnnotation(
       {required this.imagePath,
       required this.timestamp,
       required this.plateSolve,
       required final List<CelestialObjectAnnotation> objects,
       this.visible = true})
       : _objects = objects;
-
-  factory _$ImageAnnotationImpl.fromJson(Map<String, dynamic> json) =>
-      _$$ImageAnnotationImplFromJson(json);
+  factory _ImageAnnotation.fromJson(Map<String, dynamic> json) =>
+      _$ImageAnnotationFromJson(json);
 
   @override
   final String imagePath;
@@ -194,16 +336,26 @@ class _$ImageAnnotationImpl implements _ImageAnnotation {
   @JsonKey()
   final bool visible;
 
+  /// Create a copy of ImageAnnotation
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'ImageAnnotation(imagePath: $imagePath, timestamp: $timestamp, plateSolve: $plateSolve, objects: $objects, visible: $visible)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$ImageAnnotationCopyWith<_ImageAnnotation> get copyWith =>
+      __$ImageAnnotationCopyWithImpl<_ImageAnnotation>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$ImageAnnotationToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$ImageAnnotationImpl &&
+            other is _ImageAnnotation &&
             (identical(other.imagePath, imagePath) ||
                 other.imagePath == imagePath) &&
             (identical(other.timestamp, timestamp) ||
@@ -214,157 +366,149 @@ class _$ImageAnnotationImpl implements _ImageAnnotation {
             (identical(other.visible, visible) || other.visible == visible));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(runtimeType, imagePath, timestamp, plateSolve,
       const DeepCollectionEquality().hash(_objects), visible);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$ImageAnnotationImplCopyWith<_$ImageAnnotationImpl> get copyWith =>
-      __$$ImageAnnotationImplCopyWithImpl<_$ImageAnnotationImpl>(
-          this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$ImageAnnotationImplToJson(
-      this,
-    );
+  String toString() {
+    return 'ImageAnnotation(imagePath: $imagePath, timestamp: $timestamp, plateSolve: $plateSolve, objects: $objects, visible: $visible)';
   }
 }
 
-abstract class _ImageAnnotation implements ImageAnnotation {
-  const factory _ImageAnnotation(
-      {required final String imagePath,
-      required final DateTime timestamp,
-      required final PlateSolveData plateSolve,
-      required final List<CelestialObjectAnnotation> objects,
-      final bool visible}) = _$ImageAnnotationImpl;
+/// @nodoc
+abstract mixin class _$ImageAnnotationCopyWith<$Res>
+    implements $ImageAnnotationCopyWith<$Res> {
+  factory _$ImageAnnotationCopyWith(
+          _ImageAnnotation value, $Res Function(_ImageAnnotation) _then) =
+      __$ImageAnnotationCopyWithImpl;
+  @override
+  @useResult
+  $Res call(
+      {String imagePath,
+      DateTime timestamp,
+      PlateSolveData plateSolve,
+      List<CelestialObjectAnnotation> objects,
+      bool visible});
 
-  factory _ImageAnnotation.fromJson(Map<String, dynamic> json) =
-      _$ImageAnnotationImpl.fromJson;
-
   @override
-  String get imagePath;
-  @override
-  DateTime get timestamp;
-  @override
-  PlateSolveData get plateSolve;
-  @override
-  List<CelestialObjectAnnotation> get objects;
-  @override
-  bool get visible;
-  @override
-  @JsonKey(ignore: true)
-  _$$ImageAnnotationImplCopyWith<_$ImageAnnotationImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  $PlateSolveDataCopyWith<$Res> get plateSolve;
 }
 
-PlateSolveData _$PlateSolveDataFromJson(Map<String, dynamic> json) {
-  return _PlateSolveData.fromJson(json);
+/// @nodoc
+class __$ImageAnnotationCopyWithImpl<$Res>
+    implements _$ImageAnnotationCopyWith<$Res> {
+  __$ImageAnnotationCopyWithImpl(this._self, this._then);
+
+  final _ImageAnnotation _self;
+  final $Res Function(_ImageAnnotation) _then;
+
+  /// Create a copy of ImageAnnotation
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? imagePath = null,
+    Object? timestamp = null,
+    Object? plateSolve = null,
+    Object? objects = null,
+    Object? visible = null,
+  }) {
+    return _then(_ImageAnnotation(
+      imagePath: null == imagePath
+          ? _self.imagePath
+          : imagePath // ignore: cast_nullable_to_non_nullable
+              as String,
+      timestamp: null == timestamp
+          ? _self.timestamp
+          : timestamp // ignore: cast_nullable_to_non_nullable
+              as DateTime,
+      plateSolve: null == plateSolve
+          ? _self.plateSolve
+          : plateSolve // ignore: cast_nullable_to_non_nullable
+              as PlateSolveData,
+      objects: null == objects
+          ? _self._objects
+          : objects // ignore: cast_nullable_to_non_nullable
+              as List<CelestialObjectAnnotation>,
+      visible: null == visible
+          ? _self.visible
+          : visible // ignore: cast_nullable_to_non_nullable
+              as bool,
+    ));
+  }
+
+  /// Create a copy of ImageAnnotation
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $PlateSolveDataCopyWith<$Res> get plateSolve {
+    return $PlateSolveDataCopyWith<$Res>(_self.plateSolve, (value) {
+      return _then(_self.copyWith(plateSolve: value));
+    });
+  }
 }
 
 /// @nodoc
 mixin _$PlateSolveData {
-  double get ra => throw _privateConstructorUsedError;
-  double get dec => throw _privateConstructorUsedError;
-  double get pixelScale => throw _privateConstructorUsedError; // arcsec/pixel
-  double get rotation => throw _privateConstructorUsedError; // degrees
-  double get fieldWidth => throw _privateConstructorUsedError; // degrees
-  double get fieldHeight => throw _privateConstructorUsedError; // degrees
-  int get imageWidth => throw _privateConstructorUsedError; // pixels
-  int get imageHeight => throw _privateConstructorUsedError;
+  double get ra;
+  double get dec;
+  double get pixelScale; // arcsec/pixel
+  double get rotation; // degrees
+  double get fieldWidth; // degrees
+  double get fieldHeight; // degrees
+  int get imageWidth; // pixels
+  int get imageHeight;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $PlateSolveDataCopyWith<PlateSolveData> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $PlateSolveDataCopyWith<$Res> {
-  factory $PlateSolveDataCopyWith(
-          PlateSolveData value, $Res Function(PlateSolveData) then) =
-      _$PlateSolveDataCopyWithImpl<$Res, PlateSolveData>;
-  @useResult
-  $Res call(
-      {double ra,
-      double dec,
-      double pixelScale,
-      double rotation,
-      double fieldWidth,
-      double fieldHeight,
-      int imageWidth,
-      int imageHeight});
-}
-
-/// @nodoc
-class _$PlateSolveDataCopyWithImpl<$Res, $Val extends PlateSolveData>
-    implements $PlateSolveDataCopyWith<$Res> {
-  _$PlateSolveDataCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of PlateSolveData
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $PlateSolveDataCopyWith<PlateSolveData> get copyWith =>
+      _$PlateSolveDataCopyWithImpl<PlateSolveData>(
+          this as PlateSolveData, _$identity);
+
+  /// Serializes this PlateSolveData to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? ra = null,
-    Object? dec = null,
-    Object? pixelScale = null,
-    Object? rotation = null,
-    Object? fieldWidth = null,
-    Object? fieldHeight = null,
-    Object? imageWidth = null,
-    Object? imageHeight = null,
-  }) {
-    return _then(_value.copyWith(
-      ra: null == ra
-          ? _value.ra
-          : ra // ignore: cast_nullable_to_non_nullable
-              as double,
-      dec: null == dec
-          ? _value.dec
-          : dec // ignore: cast_nullable_to_non_nullable
-              as double,
-      pixelScale: null == pixelScale
-          ? _value.pixelScale
-          : pixelScale // ignore: cast_nullable_to_non_nullable
-              as double,
-      rotation: null == rotation
-          ? _value.rotation
-          : rotation // ignore: cast_nullable_to_non_nullable
-              as double,
-      fieldWidth: null == fieldWidth
-          ? _value.fieldWidth
-          : fieldWidth // ignore: cast_nullable_to_non_nullable
-              as double,
-      fieldHeight: null == fieldHeight
-          ? _value.fieldHeight
-          : fieldHeight // ignore: cast_nullable_to_non_nullable
-              as double,
-      imageWidth: null == imageWidth
-          ? _value.imageWidth
-          : imageWidth // ignore: cast_nullable_to_non_nullable
-              as int,
-      imageHeight: null == imageHeight
-          ? _value.imageHeight
-          : imageHeight // ignore: cast_nullable_to_non_nullable
-              as int,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is PlateSolveData &&
+            (identical(other.ra, ra) || other.ra == ra) &&
+            (identical(other.dec, dec) || other.dec == dec) &&
+            (identical(other.pixelScale, pixelScale) ||
+                other.pixelScale == pixelScale) &&
+            (identical(other.rotation, rotation) ||
+                other.rotation == rotation) &&
+            (identical(other.fieldWidth, fieldWidth) ||
+                other.fieldWidth == fieldWidth) &&
+            (identical(other.fieldHeight, fieldHeight) ||
+                other.fieldHeight == fieldHeight) &&
+            (identical(other.imageWidth, imageWidth) ||
+                other.imageWidth == imageWidth) &&
+            (identical(other.imageHeight, imageHeight) ||
+                other.imageHeight == imageHeight));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, ra, dec, pixelScale, rotation,
+      fieldWidth, fieldHeight, imageWidth, imageHeight);
+
+  @override
+  String toString() {
+    return 'PlateSolveData(ra: $ra, dec: $dec, pixelScale: $pixelScale, rotation: $rotation, fieldWidth: $fieldWidth, fieldHeight: $fieldHeight, imageWidth: $imageWidth, imageHeight: $imageHeight)';
   }
 }
 
 /// @nodoc
-abstract class _$$PlateSolveDataImplCopyWith<$Res>
-    implements $PlateSolveDataCopyWith<$Res> {
-  factory _$$PlateSolveDataImplCopyWith(_$PlateSolveDataImpl value,
-          $Res Function(_$PlateSolveDataImpl) then) =
-      __$$PlateSolveDataImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $PlateSolveDataCopyWith<$Res> {
+  factory $PlateSolveDataCopyWith(
+          PlateSolveData value, $Res Function(PlateSolveData) _then) =
+      _$PlateSolveDataCopyWithImpl;
   @useResult
   $Res call(
       {double ra,
@@ -378,13 +522,15 @@ abstract class _$$PlateSolveDataImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$PlateSolveDataImplCopyWithImpl<$Res>
-    extends _$PlateSolveDataCopyWithImpl<$Res, _$PlateSolveDataImpl>
-    implements _$$PlateSolveDataImplCopyWith<$Res> {
-  __$$PlateSolveDataImplCopyWithImpl(
-      _$PlateSolveDataImpl _value, $Res Function(_$PlateSolveDataImpl) _then)
-      : super(_value, _then);
+class _$PlateSolveDataCopyWithImpl<$Res>
+    implements $PlateSolveDataCopyWith<$Res> {
+  _$PlateSolveDataCopyWithImpl(this._self, this._then);
 
+  final PlateSolveData _self;
+  final $Res Function(PlateSolveData) _then;
+
+  /// Create a copy of PlateSolveData
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -397,47 +543,255 @@ class __$$PlateSolveDataImplCopyWithImpl<$Res>
     Object? imageWidth = null,
     Object? imageHeight = null,
   }) {
-    return _then(_$PlateSolveDataImpl(
+    return _then(_self.copyWith(
       ra: null == ra
-          ? _value.ra
+          ? _self.ra
           : ra // ignore: cast_nullable_to_non_nullable
               as double,
       dec: null == dec
-          ? _value.dec
+          ? _self.dec
           : dec // ignore: cast_nullable_to_non_nullable
               as double,
       pixelScale: null == pixelScale
-          ? _value.pixelScale
+          ? _self.pixelScale
           : pixelScale // ignore: cast_nullable_to_non_nullable
               as double,
       rotation: null == rotation
-          ? _value.rotation
+          ? _self.rotation
           : rotation // ignore: cast_nullable_to_non_nullable
               as double,
       fieldWidth: null == fieldWidth
-          ? _value.fieldWidth
+          ? _self.fieldWidth
           : fieldWidth // ignore: cast_nullable_to_non_nullable
               as double,
       fieldHeight: null == fieldHeight
-          ? _value.fieldHeight
+          ? _self.fieldHeight
           : fieldHeight // ignore: cast_nullable_to_non_nullable
               as double,
       imageWidth: null == imageWidth
-          ? _value.imageWidth
+          ? _self.imageWidth
           : imageWidth // ignore: cast_nullable_to_non_nullable
               as int,
       imageHeight: null == imageHeight
-          ? _value.imageHeight
+          ? _self.imageHeight
           : imageHeight // ignore: cast_nullable_to_non_nullable
               as int,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [PlateSolveData].
+extension PlateSolveDataPatterns on PlateSolveData {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_PlateSolveData value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _PlateSolveData() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_PlateSolveData value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _PlateSolveData():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_PlateSolveData value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _PlateSolveData() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            double ra,
+            double dec,
+            double pixelScale,
+            double rotation,
+            double fieldWidth,
+            double fieldHeight,
+            int imageWidth,
+            int imageHeight)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _PlateSolveData() when $default != null:
+        return $default(
+            _that.ra,
+            _that.dec,
+            _that.pixelScale,
+            _that.rotation,
+            _that.fieldWidth,
+            _that.fieldHeight,
+            _that.imageWidth,
+            _that.imageHeight);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            double ra,
+            double dec,
+            double pixelScale,
+            double rotation,
+            double fieldWidth,
+            double fieldHeight,
+            int imageWidth,
+            int imageHeight)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _PlateSolveData():
+        return $default(
+            _that.ra,
+            _that.dec,
+            _that.pixelScale,
+            _that.rotation,
+            _that.fieldWidth,
+            _that.fieldHeight,
+            _that.imageWidth,
+            _that.imageHeight);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            double ra,
+            double dec,
+            double pixelScale,
+            double rotation,
+            double fieldWidth,
+            double fieldHeight,
+            int imageWidth,
+            int imageHeight)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _PlateSolveData() when $default != null:
+        return $default(
+            _that.ra,
+            _that.dec,
+            _that.pixelScale,
+            _that.rotation,
+            _that.fieldWidth,
+            _that.fieldHeight,
+            _that.imageWidth,
+            _that.imageHeight);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$PlateSolveDataImpl implements _PlateSolveData {
-  const _$PlateSolveDataImpl(
+class _PlateSolveData implements PlateSolveData {
+  const _PlateSolveData(
       {required this.ra,
       required this.dec,
       required this.pixelScale,
@@ -446,9 +800,8 @@ class _$PlateSolveDataImpl implements _PlateSolveData {
       required this.fieldHeight,
       required this.imageWidth,
       required this.imageHeight});
-
-  factory _$PlateSolveDataImpl.fromJson(Map<String, dynamic> json) =>
-      _$$PlateSolveDataImplFromJson(json);
+  factory _PlateSolveData.fromJson(Map<String, dynamic> json) =>
+      _$PlateSolveDataFromJson(json);
 
   @override
   final double ra;
@@ -472,16 +825,26 @@ class _$PlateSolveDataImpl implements _PlateSolveData {
   @override
   final int imageHeight;
 
+  /// Create a copy of PlateSolveData
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'PlateSolveData(ra: $ra, dec: $dec, pixelScale: $pixelScale, rotation: $rotation, fieldWidth: $fieldWidth, fieldHeight: $fieldHeight, imageWidth: $imageWidth, imageHeight: $imageHeight)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$PlateSolveDataCopyWith<_PlateSolveData> get copyWith =>
+      __$PlateSolveDataCopyWithImpl<_PlateSolveData>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$PlateSolveDataToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$PlateSolveDataImpl &&
+            other is _PlateSolveData &&
             (identical(other.ra, ra) || other.ra == ra) &&
             (identical(other.dec, dec) || other.dec == dec) &&
             (identical(other.pixelScale, pixelScale) ||
@@ -498,328 +861,521 @@ class _$PlateSolveDataImpl implements _PlateSolveData {
                 other.imageHeight == imageHeight));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(runtimeType, ra, dec, pixelScale, rotation,
       fieldWidth, fieldHeight, imageWidth, imageHeight);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$PlateSolveDataImplCopyWith<_$PlateSolveDataImpl> get copyWith =>
-      __$$PlateSolveDataImplCopyWithImpl<_$PlateSolveDataImpl>(
-          this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$PlateSolveDataImplToJson(
-      this,
-    );
-  }
-}
-
-abstract class _PlateSolveData implements PlateSolveData {
-  const factory _PlateSolveData(
-      {required final double ra,
-      required final double dec,
-      required final double pixelScale,
-      required final double rotation,
-      required final double fieldWidth,
-      required final double fieldHeight,
-      required final int imageWidth,
-      required final int imageHeight}) = _$PlateSolveDataImpl;
-
-  factory _PlateSolveData.fromJson(Map<String, dynamic> json) =
-      _$PlateSolveDataImpl.fromJson;
-
-  @override
-  double get ra;
-  @override
-  double get dec;
-  @override
-  double get pixelScale;
-  @override // arcsec/pixel
-  double get rotation;
-  @override // degrees
-  double get fieldWidth;
-  @override // degrees
-  double get fieldHeight;
-  @override // degrees
-  int get imageWidth;
-  @override // pixels
-  int get imageHeight;
-  @override
-  @JsonKey(ignore: true)
-  _$$PlateSolveDataImplCopyWith<_$PlateSolveDataImpl> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-CelestialObjectAnnotation _$CelestialObjectAnnotationFromJson(
-    Map<String, dynamic> json) {
-  return _CelestialObjectAnnotation.fromJson(json);
-}
-
-/// @nodoc
-mixin _$CelestialObjectAnnotation {
-  String get id => throw _privateConstructorUsedError;
-  String get name => throw _privateConstructorUsedError;
-  ObjectType get type => throw _privateConstructorUsedError;
-  double get ra => throw _privateConstructorUsedError; // J2000
-  double get dec => throw _privateConstructorUsedError; // J2000
-  double get x => throw _privateConstructorUsedError; // Image pixel X
-  double get y => throw _privateConstructorUsedError; // Image pixel Y
-  String? get catalogId =>
-      throw _privateConstructorUsedError; // e.g., "NGC 224", "M 31"
-  String? get commonName =>
-      throw _privateConstructorUsedError; // Common name (e.g., "Andromeda Galaxy")
-  double? get magnitude => throw _privateConstructorUsedError;
-  double? get size => throw _privateConstructorUsedError; // arcminutes
-  ObjectData? get detailedData => throw _privateConstructorUsedError;
-  bool get visible => throw _privateConstructorUsedError;
-
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $CelestialObjectAnnotationCopyWith<CelestialObjectAnnotation> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $CelestialObjectAnnotationCopyWith<$Res> {
-  factory $CelestialObjectAnnotationCopyWith(CelestialObjectAnnotation value,
-          $Res Function(CelestialObjectAnnotation) then) =
-      _$CelestialObjectAnnotationCopyWithImpl<$Res, CelestialObjectAnnotation>;
-  @useResult
-  $Res call(
-      {String id,
-      String name,
-      ObjectType type,
-      double ra,
-      double dec,
-      double x,
-      double y,
-      String? catalogId,
-      String? commonName,
-      double? magnitude,
-      double? size,
-      ObjectData? detailedData,
-      bool visible});
-
-  $ObjectDataCopyWith<$Res>? get detailedData;
-}
-
-/// @nodoc
-class _$CelestialObjectAnnotationCopyWithImpl<$Res,
-        $Val extends CelestialObjectAnnotation>
-    implements $CelestialObjectAnnotationCopyWith<$Res> {
-  _$CelestialObjectAnnotationCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? id = null,
-    Object? name = null,
-    Object? type = null,
-    Object? ra = null,
-    Object? dec = null,
-    Object? x = null,
-    Object? y = null,
-    Object? catalogId = freezed,
-    Object? commonName = freezed,
-    Object? magnitude = freezed,
-    Object? size = freezed,
-    Object? detailedData = freezed,
-    Object? visible = null,
-  }) {
-    return _then(_value.copyWith(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as String,
-      name: null == name
-          ? _value.name
-          : name // ignore: cast_nullable_to_non_nullable
-              as String,
-      type: null == type
-          ? _value.type
-          : type // ignore: cast_nullable_to_non_nullable
-              as ObjectType,
-      ra: null == ra
-          ? _value.ra
-          : ra // ignore: cast_nullable_to_non_nullable
-              as double,
-      dec: null == dec
-          ? _value.dec
-          : dec // ignore: cast_nullable_to_non_nullable
-              as double,
-      x: null == x
-          ? _value.x
-          : x // ignore: cast_nullable_to_non_nullable
-              as double,
-      y: null == y
-          ? _value.y
-          : y // ignore: cast_nullable_to_non_nullable
-              as double,
-      catalogId: freezed == catalogId
-          ? _value.catalogId
-          : catalogId // ignore: cast_nullable_to_non_nullable
-              as String?,
-      commonName: freezed == commonName
-          ? _value.commonName
-          : commonName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      magnitude: freezed == magnitude
-          ? _value.magnitude
-          : magnitude // ignore: cast_nullable_to_non_nullable
-              as double?,
-      size: freezed == size
-          ? _value.size
-          : size // ignore: cast_nullable_to_non_nullable
-              as double?,
-      detailedData: freezed == detailedData
-          ? _value.detailedData
-          : detailedData // ignore: cast_nullable_to_non_nullable
-              as ObjectData?,
-      visible: null == visible
-          ? _value.visible
-          : visible // ignore: cast_nullable_to_non_nullable
-              as bool,
-    ) as $Val);
-  }
-
-  @override
-  @pragma('vm:prefer-inline')
-  $ObjectDataCopyWith<$Res>? get detailedData {
-    if (_value.detailedData == null) {
-      return null;
-    }
-
-    return $ObjectDataCopyWith<$Res>(_value.detailedData!, (value) {
-      return _then(_value.copyWith(detailedData: value) as $Val);
-    });
+  String toString() {
+    return 'PlateSolveData(ra: $ra, dec: $dec, pixelScale: $pixelScale, rotation: $rotation, fieldWidth: $fieldWidth, fieldHeight: $fieldHeight, imageWidth: $imageWidth, imageHeight: $imageHeight)';
   }
 }
 
 /// @nodoc
-abstract class _$$CelestialObjectAnnotationImplCopyWith<$Res>
-    implements $CelestialObjectAnnotationCopyWith<$Res> {
-  factory _$$CelestialObjectAnnotationImplCopyWith(
-          _$CelestialObjectAnnotationImpl value,
-          $Res Function(_$CelestialObjectAnnotationImpl) then) =
-      __$$CelestialObjectAnnotationImplCopyWithImpl<$Res>;
+abstract mixin class _$PlateSolveDataCopyWith<$Res>
+    implements $PlateSolveDataCopyWith<$Res> {
+  factory _$PlateSolveDataCopyWith(
+          _PlateSolveData value, $Res Function(_PlateSolveData) _then) =
+      __$PlateSolveDataCopyWithImpl;
   @override
   @useResult
   $Res call(
-      {String id,
-      String name,
-      ObjectType type,
-      double ra,
+      {double ra,
       double dec,
-      double x,
-      double y,
-      String? catalogId,
-      String? commonName,
-      double? magnitude,
-      double? size,
-      ObjectData? detailedData,
-      bool visible});
-
-  @override
-  $ObjectDataCopyWith<$Res>? get detailedData;
+      double pixelScale,
+      double rotation,
+      double fieldWidth,
+      double fieldHeight,
+      int imageWidth,
+      int imageHeight});
 }
 
 /// @nodoc
-class __$$CelestialObjectAnnotationImplCopyWithImpl<$Res>
-    extends _$CelestialObjectAnnotationCopyWithImpl<$Res,
-        _$CelestialObjectAnnotationImpl>
-    implements _$$CelestialObjectAnnotationImplCopyWith<$Res> {
-  __$$CelestialObjectAnnotationImplCopyWithImpl(
-      _$CelestialObjectAnnotationImpl _value,
-      $Res Function(_$CelestialObjectAnnotationImpl) _then)
-      : super(_value, _then);
+class __$PlateSolveDataCopyWithImpl<$Res>
+    implements _$PlateSolveDataCopyWith<$Res> {
+  __$PlateSolveDataCopyWithImpl(this._self, this._then);
 
-  @pragma('vm:prefer-inline')
+  final _PlateSolveData _self;
+  final $Res Function(_PlateSolveData) _then;
+
+  /// Create a copy of PlateSolveData
+  /// with the given fields replaced by the non-null parameter values.
   @override
+  @pragma('vm:prefer-inline')
   $Res call({
-    Object? id = null,
-    Object? name = null,
-    Object? type = null,
     Object? ra = null,
     Object? dec = null,
-    Object? x = null,
-    Object? y = null,
-    Object? catalogId = freezed,
-    Object? commonName = freezed,
-    Object? magnitude = freezed,
-    Object? size = freezed,
-    Object? detailedData = freezed,
-    Object? visible = null,
+    Object? pixelScale = null,
+    Object? rotation = null,
+    Object? fieldWidth = null,
+    Object? fieldHeight = null,
+    Object? imageWidth = null,
+    Object? imageHeight = null,
   }) {
-    return _then(_$CelestialObjectAnnotationImpl(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as String,
-      name: null == name
-          ? _value.name
-          : name // ignore: cast_nullable_to_non_nullable
-              as String,
-      type: null == type
-          ? _value.type
-          : type // ignore: cast_nullable_to_non_nullable
-              as ObjectType,
+    return _then(_PlateSolveData(
       ra: null == ra
-          ? _value.ra
+          ? _self.ra
           : ra // ignore: cast_nullable_to_non_nullable
               as double,
       dec: null == dec
-          ? _value.dec
+          ? _self.dec
           : dec // ignore: cast_nullable_to_non_nullable
               as double,
-      x: null == x
-          ? _value.x
-          : x // ignore: cast_nullable_to_non_nullable
+      pixelScale: null == pixelScale
+          ? _self.pixelScale
+          : pixelScale // ignore: cast_nullable_to_non_nullable
               as double,
-      y: null == y
-          ? _value.y
-          : y // ignore: cast_nullable_to_non_nullable
+      rotation: null == rotation
+          ? _self.rotation
+          : rotation // ignore: cast_nullable_to_non_nullable
               as double,
-      catalogId: freezed == catalogId
-          ? _value.catalogId
-          : catalogId // ignore: cast_nullable_to_non_nullable
-              as String?,
-      commonName: freezed == commonName
-          ? _value.commonName
-          : commonName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      magnitude: freezed == magnitude
-          ? _value.magnitude
-          : magnitude // ignore: cast_nullable_to_non_nullable
-              as double?,
-      size: freezed == size
-          ? _value.size
-          : size // ignore: cast_nullable_to_non_nullable
-              as double?,
-      detailedData: freezed == detailedData
-          ? _value.detailedData
-          : detailedData // ignore: cast_nullable_to_non_nullable
-              as ObjectData?,
-      visible: null == visible
-          ? _value.visible
-          : visible // ignore: cast_nullable_to_non_nullable
-              as bool,
+      fieldWidth: null == fieldWidth
+          ? _self.fieldWidth
+          : fieldWidth // ignore: cast_nullable_to_non_nullable
+              as double,
+      fieldHeight: null == fieldHeight
+          ? _self.fieldHeight
+          : fieldHeight // ignore: cast_nullable_to_non_nullable
+              as double,
+      imageWidth: null == imageWidth
+          ? _self.imageWidth
+          : imageWidth // ignore: cast_nullable_to_non_nullable
+              as int,
+      imageHeight: null == imageHeight
+          ? _self.imageHeight
+          : imageHeight // ignore: cast_nullable_to_non_nullable
+              as int,
     ));
   }
 }
 
 /// @nodoc
+mixin _$CelestialObjectAnnotation {
+  String get id;
+  String get name;
+  ObjectType get type;
+  double get ra; // J2000
+  double get dec; // J2000
+  double get x; // Image pixel X
+  double get y; // Image pixel Y
+  String? get catalogId; // e.g., "NGC 224", "M 31"
+  String? get commonName; // Common name (e.g., "Andromeda Galaxy")
+  double? get magnitude;
+  double? get size; // arcminutes
+  ObjectData? get detailedData;
+  bool get visible;
+
+  /// Create a copy of CelestialObjectAnnotation
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $CelestialObjectAnnotationCopyWith<CelestialObjectAnnotation> get copyWith =>
+      _$CelestialObjectAnnotationCopyWithImpl<CelestialObjectAnnotation>(
+          this as CelestialObjectAnnotation, _$identity);
+
+  /// Serializes this CelestialObjectAnnotation to a JSON map.
+  Map<String, dynamic> toJson();
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is CelestialObjectAnnotation &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.name, name) || other.name == name) &&
+            (identical(other.type, type) || other.type == type) &&
+            (identical(other.ra, ra) || other.ra == ra) &&
+            (identical(other.dec, dec) || other.dec == dec) &&
+            (identical(other.x, x) || other.x == x) &&
+            (identical(other.y, y) || other.y == y) &&
+            (identical(other.catalogId, catalogId) ||
+                other.catalogId == catalogId) &&
+            (identical(other.commonName, commonName) ||
+                other.commonName == commonName) &&
+            (identical(other.magnitude, magnitude) ||
+                other.magnitude == magnitude) &&
+            (identical(other.size, size) || other.size == size) &&
+            (identical(other.detailedData, detailedData) ||
+                other.detailedData == detailedData) &&
+            (identical(other.visible, visible) || other.visible == visible));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, id, name, type, ra, dec, x, y,
+      catalogId, commonName, magnitude, size, detailedData, visible);
+
+  @override
+  String toString() {
+    return 'CelestialObjectAnnotation(id: $id, name: $name, type: $type, ra: $ra, dec: $dec, x: $x, y: $y, catalogId: $catalogId, commonName: $commonName, magnitude: $magnitude, size: $size, detailedData: $detailedData, visible: $visible)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $CelestialObjectAnnotationCopyWith<$Res> {
+  factory $CelestialObjectAnnotationCopyWith(CelestialObjectAnnotation value,
+          $Res Function(CelestialObjectAnnotation) _then) =
+      _$CelestialObjectAnnotationCopyWithImpl;
+  @useResult
+  $Res call(
+      {String id,
+      String name,
+      ObjectType type,
+      double ra,
+      double dec,
+      double x,
+      double y,
+      String? catalogId,
+      String? commonName,
+      double? magnitude,
+      double? size,
+      ObjectData? detailedData,
+      bool visible});
+
+  $ObjectDataCopyWith<$Res>? get detailedData;
+}
+
+/// @nodoc
+class _$CelestialObjectAnnotationCopyWithImpl<$Res>
+    implements $CelestialObjectAnnotationCopyWith<$Res> {
+  _$CelestialObjectAnnotationCopyWithImpl(this._self, this._then);
+
+  final CelestialObjectAnnotation _self;
+  final $Res Function(CelestialObjectAnnotation) _then;
+
+  /// Create a copy of CelestialObjectAnnotation
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? name = null,
+    Object? type = null,
+    Object? ra = null,
+    Object? dec = null,
+    Object? x = null,
+    Object? y = null,
+    Object? catalogId = freezed,
+    Object? commonName = freezed,
+    Object? magnitude = freezed,
+    Object? size = freezed,
+    Object? detailedData = freezed,
+    Object? visible = null,
+  }) {
+    return _then(_self.copyWith(
+      id: null == id
+          ? _self.id
+          : id // ignore: cast_nullable_to_non_nullable
+              as String,
+      name: null == name
+          ? _self.name
+          : name // ignore: cast_nullable_to_non_nullable
+              as String,
+      type: null == type
+          ? _self.type
+          : type // ignore: cast_nullable_to_non_nullable
+              as ObjectType,
+      ra: null == ra
+          ? _self.ra
+          : ra // ignore: cast_nullable_to_non_nullable
+              as double,
+      dec: null == dec
+          ? _self.dec
+          : dec // ignore: cast_nullable_to_non_nullable
+              as double,
+      x: null == x
+          ? _self.x
+          : x // ignore: cast_nullable_to_non_nullable
+              as double,
+      y: null == y
+          ? _self.y
+          : y // ignore: cast_nullable_to_non_nullable
+              as double,
+      catalogId: freezed == catalogId
+          ? _self.catalogId
+          : catalogId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      commonName: freezed == commonName
+          ? _self.commonName
+          : commonName // ignore: cast_nullable_to_non_nullable
+              as String?,
+      magnitude: freezed == magnitude
+          ? _self.magnitude
+          : magnitude // ignore: cast_nullable_to_non_nullable
+              as double?,
+      size: freezed == size
+          ? _self.size
+          : size // ignore: cast_nullable_to_non_nullable
+              as double?,
+      detailedData: freezed == detailedData
+          ? _self.detailedData
+          : detailedData // ignore: cast_nullable_to_non_nullable
+              as ObjectData?,
+      visible: null == visible
+          ? _self.visible
+          : visible // ignore: cast_nullable_to_non_nullable
+              as bool,
+    ));
+  }
+
+  /// Create a copy of CelestialObjectAnnotation
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $ObjectDataCopyWith<$Res>? get detailedData {
+    if (_self.detailedData == null) {
+      return null;
+    }
+
+    return $ObjectDataCopyWith<$Res>(_self.detailedData!, (value) {
+      return _then(_self.copyWith(detailedData: value));
+    });
+  }
+}
+
+/// Adds pattern-matching-related methods to [CelestialObjectAnnotation].
+extension CelestialObjectAnnotationPatterns on CelestialObjectAnnotation {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_CelestialObjectAnnotation value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _CelestialObjectAnnotation() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_CelestialObjectAnnotation value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _CelestialObjectAnnotation():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_CelestialObjectAnnotation value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _CelestialObjectAnnotation() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            String id,
+            String name,
+            ObjectType type,
+            double ra,
+            double dec,
+            double x,
+            double y,
+            String? catalogId,
+            String? commonName,
+            double? magnitude,
+            double? size,
+            ObjectData? detailedData,
+            bool visible)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _CelestialObjectAnnotation() when $default != null:
+        return $default(
+            _that.id,
+            _that.name,
+            _that.type,
+            _that.ra,
+            _that.dec,
+            _that.x,
+            _that.y,
+            _that.catalogId,
+            _that.commonName,
+            _that.magnitude,
+            _that.size,
+            _that.detailedData,
+            _that.visible);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            String id,
+            String name,
+            ObjectType type,
+            double ra,
+            double dec,
+            double x,
+            double y,
+            String? catalogId,
+            String? commonName,
+            double? magnitude,
+            double? size,
+            ObjectData? detailedData,
+            bool visible)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _CelestialObjectAnnotation():
+        return $default(
+            _that.id,
+            _that.name,
+            _that.type,
+            _that.ra,
+            _that.dec,
+            _that.x,
+            _that.y,
+            _that.catalogId,
+            _that.commonName,
+            _that.magnitude,
+            _that.size,
+            _that.detailedData,
+            _that.visible);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            String id,
+            String name,
+            ObjectType type,
+            double ra,
+            double dec,
+            double x,
+            double y,
+            String? catalogId,
+            String? commonName,
+            double? magnitude,
+            double? size,
+            ObjectData? detailedData,
+            bool visible)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _CelestialObjectAnnotation() when $default != null:
+        return $default(
+            _that.id,
+            _that.name,
+            _that.type,
+            _that.ra,
+            _that.dec,
+            _that.x,
+            _that.y,
+            _that.catalogId,
+            _that.commonName,
+            _that.magnitude,
+            _that.size,
+            _that.detailedData,
+            _that.visible);
+      case _:
+        return null;
+    }
+  }
+}
+
+/// @nodoc
 @JsonSerializable()
-class _$CelestialObjectAnnotationImpl implements _CelestialObjectAnnotation {
-  const _$CelestialObjectAnnotationImpl(
+class _CelestialObjectAnnotation implements CelestialObjectAnnotation {
+  const _CelestialObjectAnnotation(
       {required this.id,
       required this.name,
       required this.type,
@@ -833,9 +1389,8 @@ class _$CelestialObjectAnnotationImpl implements _CelestialObjectAnnotation {
       this.size,
       this.detailedData,
       this.visible = true});
-
-  factory _$CelestialObjectAnnotationImpl.fromJson(Map<String, dynamic> json) =>
-      _$$CelestialObjectAnnotationImplFromJson(json);
+  factory _CelestialObjectAnnotation.fromJson(Map<String, dynamic> json) =>
+      _$CelestialObjectAnnotationFromJson(json);
 
   @override
   final String id;
@@ -872,16 +1427,28 @@ class _$CelestialObjectAnnotationImpl implements _CelestialObjectAnnotation {
   @JsonKey()
   final bool visible;
 
+  /// Create a copy of CelestialObjectAnnotation
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'CelestialObjectAnnotation(id: $id, name: $name, type: $type, ra: $ra, dec: $dec, x: $x, y: $y, catalogId: $catalogId, commonName: $commonName, magnitude: $magnitude, size: $size, detailedData: $detailedData, visible: $visible)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$CelestialObjectAnnotationCopyWith<_CelestialObjectAnnotation>
+      get copyWith =>
+          __$CelestialObjectAnnotationCopyWithImpl<_CelestialObjectAnnotation>(
+              this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$CelestialObjectAnnotationToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$CelestialObjectAnnotationImpl &&
+            other is _CelestialObjectAnnotation &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.name, name) || other.name == name) &&
             (identical(other.type, type) || other.type == type) &&
@@ -901,267 +1468,256 @@ class _$CelestialObjectAnnotationImpl implements _CelestialObjectAnnotation {
             (identical(other.visible, visible) || other.visible == visible));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(runtimeType, id, name, type, ra, dec, x, y,
       catalogId, commonName, magnitude, size, detailedData, visible);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$CelestialObjectAnnotationImplCopyWith<_$CelestialObjectAnnotationImpl>
-      get copyWith => __$$CelestialObjectAnnotationImplCopyWithImpl<
-          _$CelestialObjectAnnotationImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$CelestialObjectAnnotationImplToJson(
-      this,
-    );
+  String toString() {
+    return 'CelestialObjectAnnotation(id: $id, name: $name, type: $type, ra: $ra, dec: $dec, x: $x, y: $y, catalogId: $catalogId, commonName: $commonName, magnitude: $magnitude, size: $size, detailedData: $detailedData, visible: $visible)';
   }
 }
 
-abstract class _CelestialObjectAnnotation implements CelestialObjectAnnotation {
-  const factory _CelestialObjectAnnotation(
-      {required final String id,
-      required final String name,
-      required final ObjectType type,
-      required final double ra,
-      required final double dec,
-      required final double x,
-      required final double y,
-      final String? catalogId,
-      final String? commonName,
-      final double? magnitude,
-      final double? size,
-      final ObjectData? detailedData,
-      final bool visible}) = _$CelestialObjectAnnotationImpl;
+/// @nodoc
+abstract mixin class _$CelestialObjectAnnotationCopyWith<$Res>
+    implements $CelestialObjectAnnotationCopyWith<$Res> {
+  factory _$CelestialObjectAnnotationCopyWith(_CelestialObjectAnnotation value,
+          $Res Function(_CelestialObjectAnnotation) _then) =
+      __$CelestialObjectAnnotationCopyWithImpl;
+  @override
+  @useResult
+  $Res call(
+      {String id,
+      String name,
+      ObjectType type,
+      double ra,
+      double dec,
+      double x,
+      double y,
+      String? catalogId,
+      String? commonName,
+      double? magnitude,
+      double? size,
+      ObjectData? detailedData,
+      bool visible});
 
-  factory _CelestialObjectAnnotation.fromJson(Map<String, dynamic> json) =
-      _$CelestialObjectAnnotationImpl.fromJson;
-
   @override
-  String get id;
-  @override
-  String get name;
-  @override
-  ObjectType get type;
-  @override
-  double get ra;
-  @override // J2000
-  double get dec;
-  @override // J2000
-  double get x;
-  @override // Image pixel X
-  double get y;
-  @override // Image pixel Y
-  String? get catalogId;
-  @override // e.g., "NGC 224", "M 31"
-  String? get commonName;
-  @override // Common name (e.g., "Andromeda Galaxy")
-  double? get magnitude;
-  @override
-  double? get size;
-  @override // arcminutes
-  ObjectData? get detailedData;
-  @override
-  bool get visible;
-  @override
-  @JsonKey(ignore: true)
-  _$$CelestialObjectAnnotationImplCopyWith<_$CelestialObjectAnnotationImpl>
-      get copyWith => throw _privateConstructorUsedError;
+  $ObjectDataCopyWith<$Res>? get detailedData;
 }
 
-ObjectData _$ObjectDataFromJson(Map<String, dynamic> json) {
-  return _ObjectData.fromJson(json);
+/// @nodoc
+class __$CelestialObjectAnnotationCopyWithImpl<$Res>
+    implements _$CelestialObjectAnnotationCopyWith<$Res> {
+  __$CelestialObjectAnnotationCopyWithImpl(this._self, this._then);
+
+  final _CelestialObjectAnnotation _self;
+  final $Res Function(_CelestialObjectAnnotation) _then;
+
+  /// Create a copy of CelestialObjectAnnotation
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? id = null,
+    Object? name = null,
+    Object? type = null,
+    Object? ra = null,
+    Object? dec = null,
+    Object? x = null,
+    Object? y = null,
+    Object? catalogId = freezed,
+    Object? commonName = freezed,
+    Object? magnitude = freezed,
+    Object? size = freezed,
+    Object? detailedData = freezed,
+    Object? visible = null,
+  }) {
+    return _then(_CelestialObjectAnnotation(
+      id: null == id
+          ? _self.id
+          : id // ignore: cast_nullable_to_non_nullable
+              as String,
+      name: null == name
+          ? _self.name
+          : name // ignore: cast_nullable_to_non_nullable
+              as String,
+      type: null == type
+          ? _self.type
+          : type // ignore: cast_nullable_to_non_nullable
+              as ObjectType,
+      ra: null == ra
+          ? _self.ra
+          : ra // ignore: cast_nullable_to_non_nullable
+              as double,
+      dec: null == dec
+          ? _self.dec
+          : dec // ignore: cast_nullable_to_non_nullable
+              as double,
+      x: null == x
+          ? _self.x
+          : x // ignore: cast_nullable_to_non_nullable
+              as double,
+      y: null == y
+          ? _self.y
+          : y // ignore: cast_nullable_to_non_nullable
+              as double,
+      catalogId: freezed == catalogId
+          ? _self.catalogId
+          : catalogId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      commonName: freezed == commonName
+          ? _self.commonName
+          : commonName // ignore: cast_nullable_to_non_nullable
+              as String?,
+      magnitude: freezed == magnitude
+          ? _self.magnitude
+          : magnitude // ignore: cast_nullable_to_non_nullable
+              as double?,
+      size: freezed == size
+          ? _self.size
+          : size // ignore: cast_nullable_to_non_nullable
+              as double?,
+      detailedData: freezed == detailedData
+          ? _self.detailedData
+          : detailedData // ignore: cast_nullable_to_non_nullable
+              as ObjectData?,
+      visible: null == visible
+          ? _self.visible
+          : visible // ignore: cast_nullable_to_non_nullable
+              as bool,
+    ));
+  }
+
+  /// Create a copy of CelestialObjectAnnotation
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $ObjectDataCopyWith<$Res>? get detailedData {
+    if (_self.detailedData == null) {
+      return null;
+    }
+
+    return $ObjectDataCopyWith<$Res>(_self.detailedData!, (value) {
+      return _then(_self.copyWith(detailedData: value));
+    });
+  }
 }
 
 /// @nodoc
 mixin _$ObjectData {
 // Basic info
-  String? get description => throw _privateConstructorUsedError;
-  String? get objectClass =>
-      throw _privateConstructorUsedError; // e.g., "Spiral Galaxy", "Open Cluster"
+  String? get description;
+  String? get objectClass; // e.g., "Spiral Galaxy", "Open Cluster"
 // Stellar data (for stars)
-  SpectralClass? get spectralType => throw _privateConstructorUsedError;
-  double? get temperature => throw _privateConstructorUsedError; // Kelvin
-  double? get mass => throw _privateConstructorUsedError; // Solar masses
-  double? get radius => throw _privateConstructorUsedError; // Solar radii
-  double? get luminosity =>
-      throw _privateConstructorUsedError; // Solar luminosities
-  double? get distance => throw _privateConstructorUsedError; // parsecs
-  double? get parallax => throw _privateConstructorUsedError; // milliarcseconds
-  String? get properMotion =>
-      throw _privateConstructorUsedError; // Exoplanet data
-  List<ExoplanetData>? get exoplanets =>
-      throw _privateConstructorUsedError; // DSO data (galaxies, nebulae, clusters)
-  double? get surfaceBrightness => throw _privateConstructorUsedError;
-  double? get redshift => throw _privateConstructorUsedError;
-  String? get morphology =>
-      throw _privateConstructorUsedError; // External references
-  String? get simbadId => throw _privateConstructorUsedError;
-  String? get wikipediaUrl => throw _privateConstructorUsedError;
-  Map<String, String>? get catalogIds =>
-      throw _privateConstructorUsedError; // {"NGC": "224", "M": "31"}
+  SpectralClass? get spectralType;
+  double? get temperature; // Kelvin
+  double? get mass; // Solar masses
+  double? get radius; // Solar radii
+  double? get luminosity; // Solar luminosities
+  double? get distance; // parsecs
+  double? get parallax; // milliarcseconds
+  String? get properMotion; // Exoplanet data
+  List<ExoplanetData>? get exoplanets; // DSO data (galaxies, nebulae, clusters)
+  double? get surfaceBrightness;
+  double? get redshift;
+  String? get morphology; // External references
+  String? get simbadId;
+  String? get wikipediaUrl;
+  Map<String, String>? get catalogIds; // {"NGC": "224", "M": "31"}
 // Cache metadata
-  DateTime? get lastUpdated => throw _privateConstructorUsedError;
-  String? get dataSource => throw _privateConstructorUsedError;
+  DateTime? get lastUpdated;
+  String? get dataSource;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $ObjectDataCopyWith<ObjectData> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $ObjectDataCopyWith<$Res> {
-  factory $ObjectDataCopyWith(
-          ObjectData value, $Res Function(ObjectData) then) =
-      _$ObjectDataCopyWithImpl<$Res, ObjectData>;
-  @useResult
-  $Res call(
-      {String? description,
-      String? objectClass,
-      SpectralClass? spectralType,
-      double? temperature,
-      double? mass,
-      double? radius,
-      double? luminosity,
-      double? distance,
-      double? parallax,
-      String? properMotion,
-      List<ExoplanetData>? exoplanets,
-      double? surfaceBrightness,
-      double? redshift,
-      String? morphology,
-      String? simbadId,
-      String? wikipediaUrl,
-      Map<String, String>? catalogIds,
-      DateTime? lastUpdated,
-      String? dataSource});
-}
-
-/// @nodoc
-class _$ObjectDataCopyWithImpl<$Res, $Val extends ObjectData>
-    implements $ObjectDataCopyWith<$Res> {
-  _$ObjectDataCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of ObjectData
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $ObjectDataCopyWith<ObjectData> get copyWith =>
+      _$ObjectDataCopyWithImpl<ObjectData>(this as ObjectData, _$identity);
+
+  /// Serializes this ObjectData to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? description = freezed,
-    Object? objectClass = freezed,
-    Object? spectralType = freezed,
-    Object? temperature = freezed,
-    Object? mass = freezed,
-    Object? radius = freezed,
-    Object? luminosity = freezed,
-    Object? distance = freezed,
-    Object? parallax = freezed,
-    Object? properMotion = freezed,
-    Object? exoplanets = freezed,
-    Object? surfaceBrightness = freezed,
-    Object? redshift = freezed,
-    Object? morphology = freezed,
-    Object? simbadId = freezed,
-    Object? wikipediaUrl = freezed,
-    Object? catalogIds = freezed,
-    Object? lastUpdated = freezed,
-    Object? dataSource = freezed,
-  }) {
-    return _then(_value.copyWith(
-      description: freezed == description
-          ? _value.description
-          : description // ignore: cast_nullable_to_non_nullable
-              as String?,
-      objectClass: freezed == objectClass
-          ? _value.objectClass
-          : objectClass // ignore: cast_nullable_to_non_nullable
-              as String?,
-      spectralType: freezed == spectralType
-          ? _value.spectralType
-          : spectralType // ignore: cast_nullable_to_non_nullable
-              as SpectralClass?,
-      temperature: freezed == temperature
-          ? _value.temperature
-          : temperature // ignore: cast_nullable_to_non_nullable
-              as double?,
-      mass: freezed == mass
-          ? _value.mass
-          : mass // ignore: cast_nullable_to_non_nullable
-              as double?,
-      radius: freezed == radius
-          ? _value.radius
-          : radius // ignore: cast_nullable_to_non_nullable
-              as double?,
-      luminosity: freezed == luminosity
-          ? _value.luminosity
-          : luminosity // ignore: cast_nullable_to_non_nullable
-              as double?,
-      distance: freezed == distance
-          ? _value.distance
-          : distance // ignore: cast_nullable_to_non_nullable
-              as double?,
-      parallax: freezed == parallax
-          ? _value.parallax
-          : parallax // ignore: cast_nullable_to_non_nullable
-              as double?,
-      properMotion: freezed == properMotion
-          ? _value.properMotion
-          : properMotion // ignore: cast_nullable_to_non_nullable
-              as String?,
-      exoplanets: freezed == exoplanets
-          ? _value.exoplanets
-          : exoplanets // ignore: cast_nullable_to_non_nullable
-              as List<ExoplanetData>?,
-      surfaceBrightness: freezed == surfaceBrightness
-          ? _value.surfaceBrightness
-          : surfaceBrightness // ignore: cast_nullable_to_non_nullable
-              as double?,
-      redshift: freezed == redshift
-          ? _value.redshift
-          : redshift // ignore: cast_nullable_to_non_nullable
-              as double?,
-      morphology: freezed == morphology
-          ? _value.morphology
-          : morphology // ignore: cast_nullable_to_non_nullable
-              as String?,
-      simbadId: freezed == simbadId
-          ? _value.simbadId
-          : simbadId // ignore: cast_nullable_to_non_nullable
-              as String?,
-      wikipediaUrl: freezed == wikipediaUrl
-          ? _value.wikipediaUrl
-          : wikipediaUrl // ignore: cast_nullable_to_non_nullable
-              as String?,
-      catalogIds: freezed == catalogIds
-          ? _value.catalogIds
-          : catalogIds // ignore: cast_nullable_to_non_nullable
-              as Map<String, String>?,
-      lastUpdated: freezed == lastUpdated
-          ? _value.lastUpdated
-          : lastUpdated // ignore: cast_nullable_to_non_nullable
-              as DateTime?,
-      dataSource: freezed == dataSource
-          ? _value.dataSource
-          : dataSource // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is ObjectData &&
+            (identical(other.description, description) ||
+                other.description == description) &&
+            (identical(other.objectClass, objectClass) ||
+                other.objectClass == objectClass) &&
+            (identical(other.spectralType, spectralType) ||
+                other.spectralType == spectralType) &&
+            (identical(other.temperature, temperature) ||
+                other.temperature == temperature) &&
+            (identical(other.mass, mass) || other.mass == mass) &&
+            (identical(other.radius, radius) || other.radius == radius) &&
+            (identical(other.luminosity, luminosity) ||
+                other.luminosity == luminosity) &&
+            (identical(other.distance, distance) ||
+                other.distance == distance) &&
+            (identical(other.parallax, parallax) ||
+                other.parallax == parallax) &&
+            (identical(other.properMotion, properMotion) ||
+                other.properMotion == properMotion) &&
+            const DeepCollectionEquality()
+                .equals(other.exoplanets, exoplanets) &&
+            (identical(other.surfaceBrightness, surfaceBrightness) ||
+                other.surfaceBrightness == surfaceBrightness) &&
+            (identical(other.redshift, redshift) ||
+                other.redshift == redshift) &&
+            (identical(other.morphology, morphology) ||
+                other.morphology == morphology) &&
+            (identical(other.simbadId, simbadId) ||
+                other.simbadId == simbadId) &&
+            (identical(other.wikipediaUrl, wikipediaUrl) ||
+                other.wikipediaUrl == wikipediaUrl) &&
+            const DeepCollectionEquality()
+                .equals(other.catalogIds, catalogIds) &&
+            (identical(other.lastUpdated, lastUpdated) ||
+                other.lastUpdated == lastUpdated) &&
+            (identical(other.dataSource, dataSource) ||
+                other.dataSource == dataSource));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hashAll([
+        runtimeType,
+        description,
+        objectClass,
+        spectralType,
+        temperature,
+        mass,
+        radius,
+        luminosity,
+        distance,
+        parallax,
+        properMotion,
+        const DeepCollectionEquality().hash(exoplanets),
+        surfaceBrightness,
+        redshift,
+        morphology,
+        simbadId,
+        wikipediaUrl,
+        const DeepCollectionEquality().hash(catalogIds),
+        lastUpdated,
+        dataSource
+      ]);
+
+  @override
+  String toString() {
+    return 'ObjectData(description: $description, objectClass: $objectClass, spectralType: $spectralType, temperature: $temperature, mass: $mass, radius: $radius, luminosity: $luminosity, distance: $distance, parallax: $parallax, properMotion: $properMotion, exoplanets: $exoplanets, surfaceBrightness: $surfaceBrightness, redshift: $redshift, morphology: $morphology, simbadId: $simbadId, wikipediaUrl: $wikipediaUrl, catalogIds: $catalogIds, lastUpdated: $lastUpdated, dataSource: $dataSource)';
   }
 }
 
 /// @nodoc
-abstract class _$$ObjectDataImplCopyWith<$Res>
-    implements $ObjectDataCopyWith<$Res> {
-  factory _$$ObjectDataImplCopyWith(
-          _$ObjectDataImpl value, $Res Function(_$ObjectDataImpl) then) =
-      __$$ObjectDataImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $ObjectDataCopyWith<$Res> {
+  factory $ObjectDataCopyWith(
+          ObjectData value, $Res Function(ObjectData) _then) =
+      _$ObjectDataCopyWithImpl;
   @useResult
   $Res call(
       {String? description,
@@ -1186,13 +1742,14 @@ abstract class _$$ObjectDataImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$ObjectDataImplCopyWithImpl<$Res>
-    extends _$ObjectDataCopyWithImpl<$Res, _$ObjectDataImpl>
-    implements _$$ObjectDataImplCopyWith<$Res> {
-  __$$ObjectDataImplCopyWithImpl(
-      _$ObjectDataImpl _value, $Res Function(_$ObjectDataImpl) _then)
-      : super(_value, _then);
+class _$ObjectDataCopyWithImpl<$Res> implements $ObjectDataCopyWith<$Res> {
+  _$ObjectDataCopyWithImpl(this._self, this._then);
 
+  final ObjectData _self;
+  final $Res Function(ObjectData) _then;
+
+  /// Create a copy of ObjectData
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -1216,91 +1773,365 @@ class __$$ObjectDataImplCopyWithImpl<$Res>
     Object? lastUpdated = freezed,
     Object? dataSource = freezed,
   }) {
-    return _then(_$ObjectDataImpl(
+    return _then(_self.copyWith(
       description: freezed == description
-          ? _value.description
+          ? _self.description
           : description // ignore: cast_nullable_to_non_nullable
               as String?,
       objectClass: freezed == objectClass
-          ? _value.objectClass
+          ? _self.objectClass
           : objectClass // ignore: cast_nullable_to_non_nullable
               as String?,
       spectralType: freezed == spectralType
-          ? _value.spectralType
+          ? _self.spectralType
           : spectralType // ignore: cast_nullable_to_non_nullable
               as SpectralClass?,
       temperature: freezed == temperature
-          ? _value.temperature
+          ? _self.temperature
           : temperature // ignore: cast_nullable_to_non_nullable
               as double?,
       mass: freezed == mass
-          ? _value.mass
+          ? _self.mass
           : mass // ignore: cast_nullable_to_non_nullable
               as double?,
       radius: freezed == radius
-          ? _value.radius
+          ? _self.radius
           : radius // ignore: cast_nullable_to_non_nullable
               as double?,
       luminosity: freezed == luminosity
-          ? _value.luminosity
+          ? _self.luminosity
           : luminosity // ignore: cast_nullable_to_non_nullable
               as double?,
       distance: freezed == distance
-          ? _value.distance
+          ? _self.distance
           : distance // ignore: cast_nullable_to_non_nullable
               as double?,
       parallax: freezed == parallax
-          ? _value.parallax
+          ? _self.parallax
           : parallax // ignore: cast_nullable_to_non_nullable
               as double?,
       properMotion: freezed == properMotion
-          ? _value.properMotion
+          ? _self.properMotion
           : properMotion // ignore: cast_nullable_to_non_nullable
               as String?,
       exoplanets: freezed == exoplanets
-          ? _value._exoplanets
+          ? _self.exoplanets
           : exoplanets // ignore: cast_nullable_to_non_nullable
               as List<ExoplanetData>?,
       surfaceBrightness: freezed == surfaceBrightness
-          ? _value.surfaceBrightness
+          ? _self.surfaceBrightness
           : surfaceBrightness // ignore: cast_nullable_to_non_nullable
               as double?,
       redshift: freezed == redshift
-          ? _value.redshift
+          ? _self.redshift
           : redshift // ignore: cast_nullable_to_non_nullable
               as double?,
       morphology: freezed == morphology
-          ? _value.morphology
+          ? _self.morphology
           : morphology // ignore: cast_nullable_to_non_nullable
               as String?,
       simbadId: freezed == simbadId
-          ? _value.simbadId
+          ? _self.simbadId
           : simbadId // ignore: cast_nullable_to_non_nullable
               as String?,
       wikipediaUrl: freezed == wikipediaUrl
-          ? _value.wikipediaUrl
+          ? _self.wikipediaUrl
           : wikipediaUrl // ignore: cast_nullable_to_non_nullable
               as String?,
       catalogIds: freezed == catalogIds
-          ? _value._catalogIds
+          ? _self.catalogIds
           : catalogIds // ignore: cast_nullable_to_non_nullable
               as Map<String, String>?,
       lastUpdated: freezed == lastUpdated
-          ? _value.lastUpdated
+          ? _self.lastUpdated
           : lastUpdated // ignore: cast_nullable_to_non_nullable
               as DateTime?,
       dataSource: freezed == dataSource
-          ? _value.dataSource
+          ? _self.dataSource
           : dataSource // ignore: cast_nullable_to_non_nullable
               as String?,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [ObjectData].
+extension ObjectDataPatterns on ObjectData {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_ObjectData value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _ObjectData() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_ObjectData value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ObjectData():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_ObjectData value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ObjectData() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            String? description,
+            String? objectClass,
+            SpectralClass? spectralType,
+            double? temperature,
+            double? mass,
+            double? radius,
+            double? luminosity,
+            double? distance,
+            double? parallax,
+            String? properMotion,
+            List<ExoplanetData>? exoplanets,
+            double? surfaceBrightness,
+            double? redshift,
+            String? morphology,
+            String? simbadId,
+            String? wikipediaUrl,
+            Map<String, String>? catalogIds,
+            DateTime? lastUpdated,
+            String? dataSource)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _ObjectData() when $default != null:
+        return $default(
+            _that.description,
+            _that.objectClass,
+            _that.spectralType,
+            _that.temperature,
+            _that.mass,
+            _that.radius,
+            _that.luminosity,
+            _that.distance,
+            _that.parallax,
+            _that.properMotion,
+            _that.exoplanets,
+            _that.surfaceBrightness,
+            _that.redshift,
+            _that.morphology,
+            _that.simbadId,
+            _that.wikipediaUrl,
+            _that.catalogIds,
+            _that.lastUpdated,
+            _that.dataSource);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            String? description,
+            String? objectClass,
+            SpectralClass? spectralType,
+            double? temperature,
+            double? mass,
+            double? radius,
+            double? luminosity,
+            double? distance,
+            double? parallax,
+            String? properMotion,
+            List<ExoplanetData>? exoplanets,
+            double? surfaceBrightness,
+            double? redshift,
+            String? morphology,
+            String? simbadId,
+            String? wikipediaUrl,
+            Map<String, String>? catalogIds,
+            DateTime? lastUpdated,
+            String? dataSource)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ObjectData():
+        return $default(
+            _that.description,
+            _that.objectClass,
+            _that.spectralType,
+            _that.temperature,
+            _that.mass,
+            _that.radius,
+            _that.luminosity,
+            _that.distance,
+            _that.parallax,
+            _that.properMotion,
+            _that.exoplanets,
+            _that.surfaceBrightness,
+            _that.redshift,
+            _that.morphology,
+            _that.simbadId,
+            _that.wikipediaUrl,
+            _that.catalogIds,
+            _that.lastUpdated,
+            _that.dataSource);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            String? description,
+            String? objectClass,
+            SpectralClass? spectralType,
+            double? temperature,
+            double? mass,
+            double? radius,
+            double? luminosity,
+            double? distance,
+            double? parallax,
+            String? properMotion,
+            List<ExoplanetData>? exoplanets,
+            double? surfaceBrightness,
+            double? redshift,
+            String? morphology,
+            String? simbadId,
+            String? wikipediaUrl,
+            Map<String, String>? catalogIds,
+            DateTime? lastUpdated,
+            String? dataSource)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ObjectData() when $default != null:
+        return $default(
+            _that.description,
+            _that.objectClass,
+            _that.spectralType,
+            _that.temperature,
+            _that.mass,
+            _that.radius,
+            _that.luminosity,
+            _that.distance,
+            _that.parallax,
+            _that.properMotion,
+            _that.exoplanets,
+            _that.surfaceBrightness,
+            _that.redshift,
+            _that.morphology,
+            _that.simbadId,
+            _that.wikipediaUrl,
+            _that.catalogIds,
+            _that.lastUpdated,
+            _that.dataSource);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$ObjectDataImpl implements _ObjectData {
-  const _$ObjectDataImpl(
+class _ObjectData implements ObjectData {
+  const _ObjectData(
       {this.description,
       this.objectClass,
       this.spectralType,
@@ -1322,9 +2153,8 @@ class _$ObjectDataImpl implements _ObjectData {
       this.dataSource})
       : _exoplanets = exoplanets,
         _catalogIds = catalogIds;
-
-  factory _$ObjectDataImpl.fromJson(Map<String, dynamic> json) =>
-      _$$ObjectDataImplFromJson(json);
+  factory _ObjectData.fromJson(Map<String, dynamic> json) =>
+      _$ObjectDataFromJson(json);
 
 // Basic info
   @override
@@ -1396,16 +2226,26 @@ class _$ObjectDataImpl implements _ObjectData {
   @override
   final String? dataSource;
 
+  /// Create a copy of ObjectData
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'ObjectData(description: $description, objectClass: $objectClass, spectralType: $spectralType, temperature: $temperature, mass: $mass, radius: $radius, luminosity: $luminosity, distance: $distance, parallax: $parallax, properMotion: $properMotion, exoplanets: $exoplanets, surfaceBrightness: $surfaceBrightness, redshift: $redshift, morphology: $morphology, simbadId: $simbadId, wikipediaUrl: $wikipediaUrl, catalogIds: $catalogIds, lastUpdated: $lastUpdated, dataSource: $dataSource)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$ObjectDataCopyWith<_ObjectData> get copyWith =>
+      __$ObjectDataCopyWithImpl<_ObjectData>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$ObjectDataToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$ObjectDataImpl &&
+            other is _ObjectData &&
             (identical(other.description, description) ||
                 other.description == description) &&
             (identical(other.objectClass, objectClass) ||
@@ -1444,7 +2284,7 @@ class _$ObjectDataImpl implements _ObjectData {
                 other.dataSource == dataSource));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hashAll([
         runtimeType,
@@ -1469,202 +2309,225 @@ class _$ObjectDataImpl implements _ObjectData {
         dataSource
       ]);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$ObjectDataImplCopyWith<_$ObjectDataImpl> get copyWith =>
-      __$$ObjectDataImplCopyWithImpl<_$ObjectDataImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$ObjectDataImplToJson(
-      this,
-    );
+  String toString() {
+    return 'ObjectData(description: $description, objectClass: $objectClass, spectralType: $spectralType, temperature: $temperature, mass: $mass, radius: $radius, luminosity: $luminosity, distance: $distance, parallax: $parallax, properMotion: $properMotion, exoplanets: $exoplanets, surfaceBrightness: $surfaceBrightness, redshift: $redshift, morphology: $morphology, simbadId: $simbadId, wikipediaUrl: $wikipediaUrl, catalogIds: $catalogIds, lastUpdated: $lastUpdated, dataSource: $dataSource)';
   }
 }
 
-abstract class _ObjectData implements ObjectData {
-  const factory _ObjectData(
-      {final String? description,
-      final String? objectClass,
-      final SpectralClass? spectralType,
-      final double? temperature,
-      final double? mass,
-      final double? radius,
-      final double? luminosity,
-      final double? distance,
-      final double? parallax,
-      final String? properMotion,
-      final List<ExoplanetData>? exoplanets,
-      final double? surfaceBrightness,
-      final double? redshift,
-      final String? morphology,
-      final String? simbadId,
-      final String? wikipediaUrl,
-      final Map<String, String>? catalogIds,
-      final DateTime? lastUpdated,
-      final String? dataSource}) = _$ObjectDataImpl;
-
-  factory _ObjectData.fromJson(Map<String, dynamic> json) =
-      _$ObjectDataImpl.fromJson;
-
-  @override // Basic info
-  String? get description;
+/// @nodoc
+abstract mixin class _$ObjectDataCopyWith<$Res>
+    implements $ObjectDataCopyWith<$Res> {
+  factory _$ObjectDataCopyWith(
+          _ObjectData value, $Res Function(_ObjectData) _then) =
+      __$ObjectDataCopyWithImpl;
   @override
-  String? get objectClass;
-  @override // e.g., "Spiral Galaxy", "Open Cluster"
-// Stellar data (for stars)
-  SpectralClass? get spectralType;
-  @override
-  double? get temperature;
-  @override // Kelvin
-  double? get mass;
-  @override // Solar masses
-  double? get radius;
-  @override // Solar radii
-  double? get luminosity;
-  @override // Solar luminosities
-  double? get distance;
-  @override // parsecs
-  double? get parallax;
-  @override // milliarcseconds
-  String? get properMotion;
-  @override // Exoplanet data
-  List<ExoplanetData>? get exoplanets;
-  @override // DSO data (galaxies, nebulae, clusters)
-  double? get surfaceBrightness;
-  @override
-  double? get redshift;
-  @override
-  String? get morphology;
-  @override // External references
-  String? get simbadId;
-  @override
-  String? get wikipediaUrl;
-  @override
-  Map<String, String>? get catalogIds;
-  @override // {"NGC": "224", "M": "31"}
-// Cache metadata
-  DateTime? get lastUpdated;
-  @override
-  String? get dataSource;
-  @override
-  @JsonKey(ignore: true)
-  _$$ObjectDataImplCopyWith<_$ObjectDataImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  @useResult
+  $Res call(
+      {String? description,
+      String? objectClass,
+      SpectralClass? spectralType,
+      double? temperature,
+      double? mass,
+      double? radius,
+      double? luminosity,
+      double? distance,
+      double? parallax,
+      String? properMotion,
+      List<ExoplanetData>? exoplanets,
+      double? surfaceBrightness,
+      double? redshift,
+      String? morphology,
+      String? simbadId,
+      String? wikipediaUrl,
+      Map<String, String>? catalogIds,
+      DateTime? lastUpdated,
+      String? dataSource});
 }
 
-ExoplanetData _$ExoplanetDataFromJson(Map<String, dynamic> json) {
-  return _ExoplanetData.fromJson(json);
+/// @nodoc
+class __$ObjectDataCopyWithImpl<$Res> implements _$ObjectDataCopyWith<$Res> {
+  __$ObjectDataCopyWithImpl(this._self, this._then);
+
+  final _ObjectData _self;
+  final $Res Function(_ObjectData) _then;
+
+  /// Create a copy of ObjectData
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? description = freezed,
+    Object? objectClass = freezed,
+    Object? spectralType = freezed,
+    Object? temperature = freezed,
+    Object? mass = freezed,
+    Object? radius = freezed,
+    Object? luminosity = freezed,
+    Object? distance = freezed,
+    Object? parallax = freezed,
+    Object? properMotion = freezed,
+    Object? exoplanets = freezed,
+    Object? surfaceBrightness = freezed,
+    Object? redshift = freezed,
+    Object? morphology = freezed,
+    Object? simbadId = freezed,
+    Object? wikipediaUrl = freezed,
+    Object? catalogIds = freezed,
+    Object? lastUpdated = freezed,
+    Object? dataSource = freezed,
+  }) {
+    return _then(_ObjectData(
+      description: freezed == description
+          ? _self.description
+          : description // ignore: cast_nullable_to_non_nullable
+              as String?,
+      objectClass: freezed == objectClass
+          ? _self.objectClass
+          : objectClass // ignore: cast_nullable_to_non_nullable
+              as String?,
+      spectralType: freezed == spectralType
+          ? _self.spectralType
+          : spectralType // ignore: cast_nullable_to_non_nullable
+              as SpectralClass?,
+      temperature: freezed == temperature
+          ? _self.temperature
+          : temperature // ignore: cast_nullable_to_non_nullable
+              as double?,
+      mass: freezed == mass
+          ? _self.mass
+          : mass // ignore: cast_nullable_to_non_nullable
+              as double?,
+      radius: freezed == radius
+          ? _self.radius
+          : radius // ignore: cast_nullable_to_non_nullable
+              as double?,
+      luminosity: freezed == luminosity
+          ? _self.luminosity
+          : luminosity // ignore: cast_nullable_to_non_nullable
+              as double?,
+      distance: freezed == distance
+          ? _self.distance
+          : distance // ignore: cast_nullable_to_non_nullable
+              as double?,
+      parallax: freezed == parallax
+          ? _self.parallax
+          : parallax // ignore: cast_nullable_to_non_nullable
+              as double?,
+      properMotion: freezed == properMotion
+          ? _self.properMotion
+          : properMotion // ignore: cast_nullable_to_non_nullable
+              as String?,
+      exoplanets: freezed == exoplanets
+          ? _self._exoplanets
+          : exoplanets // ignore: cast_nullable_to_non_nullable
+              as List<ExoplanetData>?,
+      surfaceBrightness: freezed == surfaceBrightness
+          ? _self.surfaceBrightness
+          : surfaceBrightness // ignore: cast_nullable_to_non_nullable
+              as double?,
+      redshift: freezed == redshift
+          ? _self.redshift
+          : redshift // ignore: cast_nullable_to_non_nullable
+              as double?,
+      morphology: freezed == morphology
+          ? _self.morphology
+          : morphology // ignore: cast_nullable_to_non_nullable
+              as String?,
+      simbadId: freezed == simbadId
+          ? _self.simbadId
+          : simbadId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      wikipediaUrl: freezed == wikipediaUrl
+          ? _self.wikipediaUrl
+          : wikipediaUrl // ignore: cast_nullable_to_non_nullable
+              as String?,
+      catalogIds: freezed == catalogIds
+          ? _self._catalogIds
+          : catalogIds // ignore: cast_nullable_to_non_nullable
+              as Map<String, String>?,
+      lastUpdated: freezed == lastUpdated
+          ? _self.lastUpdated
+          : lastUpdated // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      dataSource: freezed == dataSource
+          ? _self.dataSource
+          : dataSource // ignore: cast_nullable_to_non_nullable
+              as String?,
+    ));
+  }
 }
 
 /// @nodoc
 mixin _$ExoplanetData {
-  String get name => throw _privateConstructorUsedError;
-  double? get mass => throw _privateConstructorUsedError; // Jupiter masses
-  double? get radius => throw _privateConstructorUsedError; // Jupiter radii
-  double? get orbitalPeriod => throw _privateConstructorUsedError; // days
-  double? get semiMajorAxis => throw _privateConstructorUsedError; // AU
-  double? get eccentricity => throw _privateConstructorUsedError;
-  String? get discoveryMethod => throw _privateConstructorUsedError;
-  int? get discoveryYear => throw _privateConstructorUsedError;
-  double? get equilibriumTemp => throw _privateConstructorUsedError;
+  String get name;
+  double? get mass; // Jupiter masses
+  double? get radius; // Jupiter radii
+  double? get orbitalPeriod; // days
+  double? get semiMajorAxis; // AU
+  double? get eccentricity;
+  String? get discoveryMethod;
+  int? get discoveryYear;
+  double? get equilibriumTemp;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $ExoplanetDataCopyWith<ExoplanetData> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $ExoplanetDataCopyWith<$Res> {
-  factory $ExoplanetDataCopyWith(
-          ExoplanetData value, $Res Function(ExoplanetData) then) =
-      _$ExoplanetDataCopyWithImpl<$Res, ExoplanetData>;
-  @useResult
-  $Res call(
-      {String name,
-      double? mass,
-      double? radius,
-      double? orbitalPeriod,
-      double? semiMajorAxis,
-      double? eccentricity,
-      String? discoveryMethod,
-      int? discoveryYear,
-      double? equilibriumTemp});
-}
-
-/// @nodoc
-class _$ExoplanetDataCopyWithImpl<$Res, $Val extends ExoplanetData>
-    implements $ExoplanetDataCopyWith<$Res> {
-  _$ExoplanetDataCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of ExoplanetData
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $ExoplanetDataCopyWith<ExoplanetData> get copyWith =>
+      _$ExoplanetDataCopyWithImpl<ExoplanetData>(
+          this as ExoplanetData, _$identity);
+
+  /// Serializes this ExoplanetData to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? name = null,
-    Object? mass = freezed,
-    Object? radius = freezed,
-    Object? orbitalPeriod = freezed,
-    Object? semiMajorAxis = freezed,
-    Object? eccentricity = freezed,
-    Object? discoveryMethod = freezed,
-    Object? discoveryYear = freezed,
-    Object? equilibriumTemp = freezed,
-  }) {
-    return _then(_value.copyWith(
-      name: null == name
-          ? _value.name
-          : name // ignore: cast_nullable_to_non_nullable
-              as String,
-      mass: freezed == mass
-          ? _value.mass
-          : mass // ignore: cast_nullable_to_non_nullable
-              as double?,
-      radius: freezed == radius
-          ? _value.radius
-          : radius // ignore: cast_nullable_to_non_nullable
-              as double?,
-      orbitalPeriod: freezed == orbitalPeriod
-          ? _value.orbitalPeriod
-          : orbitalPeriod // ignore: cast_nullable_to_non_nullable
-              as double?,
-      semiMajorAxis: freezed == semiMajorAxis
-          ? _value.semiMajorAxis
-          : semiMajorAxis // ignore: cast_nullable_to_non_nullable
-              as double?,
-      eccentricity: freezed == eccentricity
-          ? _value.eccentricity
-          : eccentricity // ignore: cast_nullable_to_non_nullable
-              as double?,
-      discoveryMethod: freezed == discoveryMethod
-          ? _value.discoveryMethod
-          : discoveryMethod // ignore: cast_nullable_to_non_nullable
-              as String?,
-      discoveryYear: freezed == discoveryYear
-          ? _value.discoveryYear
-          : discoveryYear // ignore: cast_nullable_to_non_nullable
-              as int?,
-      equilibriumTemp: freezed == equilibriumTemp
-          ? _value.equilibriumTemp
-          : equilibriumTemp // ignore: cast_nullable_to_non_nullable
-              as double?,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is ExoplanetData &&
+            (identical(other.name, name) || other.name == name) &&
+            (identical(other.mass, mass) || other.mass == mass) &&
+            (identical(other.radius, radius) || other.radius == radius) &&
+            (identical(other.orbitalPeriod, orbitalPeriod) ||
+                other.orbitalPeriod == orbitalPeriod) &&
+            (identical(other.semiMajorAxis, semiMajorAxis) ||
+                other.semiMajorAxis == semiMajorAxis) &&
+            (identical(other.eccentricity, eccentricity) ||
+                other.eccentricity == eccentricity) &&
+            (identical(other.discoveryMethod, discoveryMethod) ||
+                other.discoveryMethod == discoveryMethod) &&
+            (identical(other.discoveryYear, discoveryYear) ||
+                other.discoveryYear == discoveryYear) &&
+            (identical(other.equilibriumTemp, equilibriumTemp) ||
+                other.equilibriumTemp == equilibriumTemp));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      name,
+      mass,
+      radius,
+      orbitalPeriod,
+      semiMajorAxis,
+      eccentricity,
+      discoveryMethod,
+      discoveryYear,
+      equilibriumTemp);
+
+  @override
+  String toString() {
+    return 'ExoplanetData(name: $name, mass: $mass, radius: $radius, orbitalPeriod: $orbitalPeriod, semiMajorAxis: $semiMajorAxis, eccentricity: $eccentricity, discoveryMethod: $discoveryMethod, discoveryYear: $discoveryYear, equilibriumTemp: $equilibriumTemp)';
   }
 }
 
 /// @nodoc
-abstract class _$$ExoplanetDataImplCopyWith<$Res>
-    implements $ExoplanetDataCopyWith<$Res> {
-  factory _$$ExoplanetDataImplCopyWith(
-          _$ExoplanetDataImpl value, $Res Function(_$ExoplanetDataImpl) then) =
-      __$$ExoplanetDataImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $ExoplanetDataCopyWith<$Res> {
+  factory $ExoplanetDataCopyWith(
+          ExoplanetData value, $Res Function(ExoplanetData) _then) =
+      _$ExoplanetDataCopyWithImpl;
   @useResult
   $Res call(
       {String name,
@@ -1679,13 +2542,15 @@ abstract class _$$ExoplanetDataImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$ExoplanetDataImplCopyWithImpl<$Res>
-    extends _$ExoplanetDataCopyWithImpl<$Res, _$ExoplanetDataImpl>
-    implements _$$ExoplanetDataImplCopyWith<$Res> {
-  __$$ExoplanetDataImplCopyWithImpl(
-      _$ExoplanetDataImpl _value, $Res Function(_$ExoplanetDataImpl) _then)
-      : super(_value, _then);
+class _$ExoplanetDataCopyWithImpl<$Res>
+    implements $ExoplanetDataCopyWith<$Res> {
+  _$ExoplanetDataCopyWithImpl(this._self, this._then);
 
+  final ExoplanetData _self;
+  final $Res Function(ExoplanetData) _then;
+
+  /// Create a copy of ExoplanetData
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -1699,51 +2564,265 @@ class __$$ExoplanetDataImplCopyWithImpl<$Res>
     Object? discoveryYear = freezed,
     Object? equilibriumTemp = freezed,
   }) {
-    return _then(_$ExoplanetDataImpl(
+    return _then(_self.copyWith(
       name: null == name
-          ? _value.name
+          ? _self.name
           : name // ignore: cast_nullable_to_non_nullable
               as String,
       mass: freezed == mass
-          ? _value.mass
+          ? _self.mass
           : mass // ignore: cast_nullable_to_non_nullable
               as double?,
       radius: freezed == radius
-          ? _value.radius
+          ? _self.radius
           : radius // ignore: cast_nullable_to_non_nullable
               as double?,
       orbitalPeriod: freezed == orbitalPeriod
-          ? _value.orbitalPeriod
+          ? _self.orbitalPeriod
           : orbitalPeriod // ignore: cast_nullable_to_non_nullable
               as double?,
       semiMajorAxis: freezed == semiMajorAxis
-          ? _value.semiMajorAxis
+          ? _self.semiMajorAxis
           : semiMajorAxis // ignore: cast_nullable_to_non_nullable
               as double?,
       eccentricity: freezed == eccentricity
-          ? _value.eccentricity
+          ? _self.eccentricity
           : eccentricity // ignore: cast_nullable_to_non_nullable
               as double?,
       discoveryMethod: freezed == discoveryMethod
-          ? _value.discoveryMethod
+          ? _self.discoveryMethod
           : discoveryMethod // ignore: cast_nullable_to_non_nullable
               as String?,
       discoveryYear: freezed == discoveryYear
-          ? _value.discoveryYear
+          ? _self.discoveryYear
           : discoveryYear // ignore: cast_nullable_to_non_nullable
               as int?,
       equilibriumTemp: freezed == equilibriumTemp
-          ? _value.equilibriumTemp
+          ? _self.equilibriumTemp
           : equilibriumTemp // ignore: cast_nullable_to_non_nullable
               as double?,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [ExoplanetData].
+extension ExoplanetDataPatterns on ExoplanetData {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_ExoplanetData value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _ExoplanetData() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_ExoplanetData value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ExoplanetData():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_ExoplanetData value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ExoplanetData() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            String name,
+            double? mass,
+            double? radius,
+            double? orbitalPeriod,
+            double? semiMajorAxis,
+            double? eccentricity,
+            String? discoveryMethod,
+            int? discoveryYear,
+            double? equilibriumTemp)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _ExoplanetData() when $default != null:
+        return $default(
+            _that.name,
+            _that.mass,
+            _that.radius,
+            _that.orbitalPeriod,
+            _that.semiMajorAxis,
+            _that.eccentricity,
+            _that.discoveryMethod,
+            _that.discoveryYear,
+            _that.equilibriumTemp);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            String name,
+            double? mass,
+            double? radius,
+            double? orbitalPeriod,
+            double? semiMajorAxis,
+            double? eccentricity,
+            String? discoveryMethod,
+            int? discoveryYear,
+            double? equilibriumTemp)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ExoplanetData():
+        return $default(
+            _that.name,
+            _that.mass,
+            _that.radius,
+            _that.orbitalPeriod,
+            _that.semiMajorAxis,
+            _that.eccentricity,
+            _that.discoveryMethod,
+            _that.discoveryYear,
+            _that.equilibriumTemp);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            String name,
+            double? mass,
+            double? radius,
+            double? orbitalPeriod,
+            double? semiMajorAxis,
+            double? eccentricity,
+            String? discoveryMethod,
+            int? discoveryYear,
+            double? equilibriumTemp)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ExoplanetData() when $default != null:
+        return $default(
+            _that.name,
+            _that.mass,
+            _that.radius,
+            _that.orbitalPeriod,
+            _that.semiMajorAxis,
+            _that.eccentricity,
+            _that.discoveryMethod,
+            _that.discoveryYear,
+            _that.equilibriumTemp);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$ExoplanetDataImpl implements _ExoplanetData {
-  const _$ExoplanetDataImpl(
+class _ExoplanetData implements ExoplanetData {
+  const _ExoplanetData(
       {required this.name,
       this.mass,
       this.radius,
@@ -1753,9 +2832,8 @@ class _$ExoplanetDataImpl implements _ExoplanetData {
       this.discoveryMethod,
       this.discoveryYear,
       this.equilibriumTemp});
-
-  factory _$ExoplanetDataImpl.fromJson(Map<String, dynamic> json) =>
-      _$$ExoplanetDataImplFromJson(json);
+  factory _ExoplanetData.fromJson(Map<String, dynamic> json) =>
+      _$ExoplanetDataFromJson(json);
 
   @override
   final String name;
@@ -1780,16 +2858,26 @@ class _$ExoplanetDataImpl implements _ExoplanetData {
   @override
   final double? equilibriumTemp;
 
+  /// Create a copy of ExoplanetData
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'ExoplanetData(name: $name, mass: $mass, radius: $radius, orbitalPeriod: $orbitalPeriod, semiMajorAxis: $semiMajorAxis, eccentricity: $eccentricity, discoveryMethod: $discoveryMethod, discoveryYear: $discoveryYear, equilibriumTemp: $equilibriumTemp)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$ExoplanetDataCopyWith<_ExoplanetData> get copyWith =>
+      __$ExoplanetDataCopyWithImpl<_ExoplanetData>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$ExoplanetDataToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$ExoplanetDataImpl &&
+            other is _ExoplanetData &&
             (identical(other.name, name) || other.name == name) &&
             (identical(other.mass, mass) || other.mass == mass) &&
             (identical(other.radius, radius) || other.radius == radius) &&
@@ -1807,7 +2895,7 @@ class _$ExoplanetDataImpl implements _ExoplanetData {
                 other.equilibriumTemp == equilibriumTemp));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,
@@ -1821,55 +2909,94 @@ class _$ExoplanetDataImpl implements _ExoplanetData {
       discoveryYear,
       equilibriumTemp);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$ExoplanetDataImplCopyWith<_$ExoplanetDataImpl> get copyWith =>
-      __$$ExoplanetDataImplCopyWithImpl<_$ExoplanetDataImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$ExoplanetDataImplToJson(
-      this,
-    );
+  String toString() {
+    return 'ExoplanetData(name: $name, mass: $mass, radius: $radius, orbitalPeriod: $orbitalPeriod, semiMajorAxis: $semiMajorAxis, eccentricity: $eccentricity, discoveryMethod: $discoveryMethod, discoveryYear: $discoveryYear, equilibriumTemp: $equilibriumTemp)';
   }
 }
 
-abstract class _ExoplanetData implements ExoplanetData {
-  const factory _ExoplanetData(
-      {required final String name,
-      final double? mass,
-      final double? radius,
-      final double? orbitalPeriod,
-      final double? semiMajorAxis,
-      final double? eccentricity,
-      final String? discoveryMethod,
-      final int? discoveryYear,
-      final double? equilibriumTemp}) = _$ExoplanetDataImpl;
-
-  factory _ExoplanetData.fromJson(Map<String, dynamic> json) =
-      _$ExoplanetDataImpl.fromJson;
-
+/// @nodoc
+abstract mixin class _$ExoplanetDataCopyWith<$Res>
+    implements $ExoplanetDataCopyWith<$Res> {
+  factory _$ExoplanetDataCopyWith(
+          _ExoplanetData value, $Res Function(_ExoplanetData) _then) =
+      __$ExoplanetDataCopyWithImpl;
   @override
-  String get name;
-  @override
-  double? get mass;
-  @override // Jupiter masses
-  double? get radius;
-  @override // Jupiter radii
-  double? get orbitalPeriod;
-  @override // days
-  double? get semiMajorAxis;
-  @override // AU
-  double? get eccentricity;
-  @override
-  String? get discoveryMethod;
-  @override
-  int? get discoveryYear;
-  @override
-  double? get equilibriumTemp;
-  @override
-  @JsonKey(ignore: true)
-  _$$ExoplanetDataImplCopyWith<_$ExoplanetDataImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  @useResult
+  $Res call(
+      {String name,
+      double? mass,
+      double? radius,
+      double? orbitalPeriod,
+      double? semiMajorAxis,
+      double? eccentricity,
+      String? discoveryMethod,
+      int? discoveryYear,
+      double? equilibriumTemp});
 }
+
+/// @nodoc
+class __$ExoplanetDataCopyWithImpl<$Res>
+    implements _$ExoplanetDataCopyWith<$Res> {
+  __$ExoplanetDataCopyWithImpl(this._self, this._then);
+
+  final _ExoplanetData _self;
+  final $Res Function(_ExoplanetData) _then;
+
+  /// Create a copy of ExoplanetData
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? name = null,
+    Object? mass = freezed,
+    Object? radius = freezed,
+    Object? orbitalPeriod = freezed,
+    Object? semiMajorAxis = freezed,
+    Object? eccentricity = freezed,
+    Object? discoveryMethod = freezed,
+    Object? discoveryYear = freezed,
+    Object? equilibriumTemp = freezed,
+  }) {
+    return _then(_ExoplanetData(
+      name: null == name
+          ? _self.name
+          : name // ignore: cast_nullable_to_non_nullable
+              as String,
+      mass: freezed == mass
+          ? _self.mass
+          : mass // ignore: cast_nullable_to_non_nullable
+              as double?,
+      radius: freezed == radius
+          ? _self.radius
+          : radius // ignore: cast_nullable_to_non_nullable
+              as double?,
+      orbitalPeriod: freezed == orbitalPeriod
+          ? _self.orbitalPeriod
+          : orbitalPeriod // ignore: cast_nullable_to_non_nullable
+              as double?,
+      semiMajorAxis: freezed == semiMajorAxis
+          ? _self.semiMajorAxis
+          : semiMajorAxis // ignore: cast_nullable_to_non_nullable
+              as double?,
+      eccentricity: freezed == eccentricity
+          ? _self.eccentricity
+          : eccentricity // ignore: cast_nullable_to_non_nullable
+              as double?,
+      discoveryMethod: freezed == discoveryMethod
+          ? _self.discoveryMethod
+          : discoveryMethod // ignore: cast_nullable_to_non_nullable
+              as String?,
+      discoveryYear: freezed == discoveryYear
+          ? _self.discoveryYear
+          : discoveryYear // ignore: cast_nullable_to_non_nullable
+              as int?,
+      equilibriumTemp: freezed == equilibriumTemp
+          ? _self.equilibriumTemp
+          : equilibriumTemp // ignore: cast_nullable_to_non_nullable
+              as double?,
+    ));
+  }
+}
+
+// dart format on

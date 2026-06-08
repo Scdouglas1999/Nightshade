@@ -16,7 +16,7 @@ enum RadarTileType {
 
 /// Represents a single radar frame in the animation sequence
 @freezed
-class RadarFrame with _$RadarFrame {
+abstract class RadarFrame with _$RadarFrame {
   const factory RadarFrame({
     /// When this radar frame was captured
     required DateTime timestamp,

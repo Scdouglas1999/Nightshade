@@ -12,6 +12,8 @@ import '../screens/planetarium/planetarium_screen.dart';
 import '../screens/framing/framing_screen.dart';
 import '../screens/analytics/analytics_screen.dart';
 import '../screens/stack_result/stack_result_screen.dart';
+import '../screens/session_review/session_review_controller.dart';
+import '../screens/session_review/session_review_screen.dart';
 import '../screens/flat_wizard/flat_wizard_screen.dart';
 import '../screens/weather/weather_screen.dart';
 import '../screens/settings/settings_screen.dart';
@@ -185,6 +187,33 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               final resultId = int.tryParse(idParam ?? '') ?? -1;
               return CustomTransitionPage(
                 child: StackResultScreen(resultId: resultId),
+                transitionsBuilder: PageTransitions.slideFadeTransition,
+                transitionDuration: const Duration(milliseconds: 300),
+              );
+            },
+          ),
+          // Session Review / Morning Report. Reached from the run-completion
+          // path, the analytics session list, and "image ready" notifications
+          // via `/session-review?session=<id>` (one night) or
+          // `/session-review?target=<id>` (all of a target's subs, multi-night).
+          // A `session` param takes precedence; when neither is a valid int the
+          // screen falls back to a sentinel session id (`-1`) and renders its
+          // empty state rather than crashing on a deep link.
+          GoRoute(
+            path: '/session-review',
+            name: 'session-review',
+            pageBuilder: (context, state) {
+              final sessionId =
+                  int.tryParse(state.uri.queryParameters['session'] ?? '');
+              final targetId =
+                  int.tryParse(state.uri.queryParameters['target'] ?? '');
+              final scope = sessionId != null
+                  ? SessionReviewScope.session(sessionId)
+                  : (targetId != null
+                      ? SessionReviewScope.target(targetId)
+                      : const SessionReviewScope.session(-1));
+              return CustomTransitionPage(
+                child: SessionReviewScreen(scope: scope),
                 transitionsBuilder: PageTransitions.slideFadeTransition,
                 transitionDuration: const Duration(milliseconds: 300),
               );

@@ -213,17 +213,20 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                           vertical: 8,
                         ),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                          borderRadius:
+                              BorderRadius.circular(NightshadeTokens.radiusMd),
                           borderSide: BorderSide(
                               color: NightshadeColors.of(context).border),
                         ),
                         enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                          borderRadius:
+                              BorderRadius.circular(NightshadeTokens.radiusMd),
                           borderSide: BorderSide(
                               color: NightshadeColors.of(context).border),
                         ),
                         focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+                          borderRadius:
+                              BorderRadius.circular(NightshadeTokens.radiusMd),
                           borderSide: BorderSide(
                             color: NightshadeColors.of(context).primary,
                             width: 2,
@@ -369,97 +372,102 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                 child: Container(
                   decoration: BoxDecoration(
                     color: NightshadeColors.of(context).surface,
-                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+                    borderRadius:
+                        BorderRadius.circular(NightshadeTokens.radiusLg),
                     border:
                         Border.all(color: NightshadeColors.of(context).border),
                   ),
-                  child: ExpansionTile(
-                    tilePadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    childrenPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      LucideIcons.slidersHorizontal,
-                      size: 16,
-                      color: NightshadeColors.of(context).textMuted,
-                    ),
-                    title: Text(
-                      l10n.text('remoteAccessDetailsTitle'),
-                      style: NightshadeTypography.labelStrong.copyWith(color: NightshadeColors.of(context).textPrimary),
-                    ),
-                    subtitle: Text(
-                      l10n.text('remoteAccessDetailsBody'),
-                      style: TextStyle(
-                        fontSize: NightshadeTypography.fontSize12,
+                  child: Material(
+                    type: MaterialType.transparency,
+                    child: ExpansionTile(
+                      tilePadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
+                      childrenPadding: EdgeInsets.zero,
+                      leading: Icon(
+                        LucideIcons.slidersHorizontal,
+                        size: 16,
                         color: NightshadeColors.of(context).textMuted,
                       ),
+                      title: Text(
+                        l10n.text('remoteAccessDetailsTitle'),
+                        style: NightshadeTypography.labelStrong.copyWith(
+                            color: NightshadeColors.of(context).textPrimary),
+                      ),
+                      subtitle: Text(
+                        l10n.text('remoteAccessDetailsBody'),
+                        style: TextStyle(
+                          fontSize: NightshadeTypography.fontSize12,
+                          color: NightshadeColors.of(context).textMuted,
+                        ),
+                      ),
+                      children: [
+                        _StatusRow(
+                          icon: webState.isRunning
+                              ? LucideIcons.checkCircle2
+                              : LucideIcons.xCircle,
+                          iconColor: webState.isRunning
+                              ? NightshadeColors.of(context).success
+                              : NightshadeColors.of(context).textMuted,
+                          label: l10n.text('remoteAccessServerStatus'),
+                          value: webState.isRunning
+                              ? l10n.text('remoteAccessRunning')
+                              : l10n.text('remoteAccessStopped'),
+                        ),
+                        _StatusRow(
+                          icon: LucideIcons.shield,
+                          iconColor: webState.requiresAuthentication
+                              ? NightshadeColors.of(context).primary
+                              : NightshadeColors.of(context).textMuted,
+                          label: l10n.text('remoteAccessAuth'),
+                          value: webState.requiresAuthentication
+                              ? l10n.text('remoteAccessAuthRequired')
+                              : l10n.text('remoteAccessAuthNotRequired'),
+                        ),
+                        _StatusRow(
+                          icon: LucideIcons.wifi,
+                          iconColor: webState.bindLocalOnly
+                              ? NightshadeColors.of(context).textMuted
+                              : NightshadeColors.of(context).primary,
+                          label: l10n.text('remoteAccessScope'),
+                          value: webState.bindLocalOnly
+                              ? l10n.text('remoteAccessScopeLocal')
+                              : l10n.text('remoteAccessScopeLan'),
+                        ),
+                        _StatusRow(
+                          icon: LucideIcons.monitor,
+                          iconColor: webState.dashboardAvailable
+                              ? NightshadeColors.of(context).success
+                              : NightshadeColors.of(context).warning,
+                          label: l10n.text('remoteAccessDashboard'),
+                          value: webState.dashboardAvailable
+                              ? l10n.text('remoteAccessDashboardAvailable')
+                              : l10n.text('remoteAccessDashboardMissing'),
+                        ),
+                        _StatusRow(
+                          icon: LucideIcons.users,
+                          iconColor: webState.activeViewers > 0
+                              ? NightshadeColors.of(context).primary
+                              : NightshadeColors.of(context).textMuted,
+                          label: l10n.text('remoteAccessActiveViewers'),
+                          value: webState.activeViewers.toString(),
+                        ),
+                        _StatusRow(
+                          icon: webState.lastError.isEmpty
+                              ? LucideIcons.info
+                              : LucideIcons.alertTriangle,
+                          iconColor: webState.lastError.isEmpty
+                              ? NightshadeColors.of(context).textMuted
+                              : NightshadeColors.of(context).error,
+                          label: l10n.text('remoteAccessLastError'),
+                          value: webState.lastError.isEmpty
+                              ? l10n.text('remoteAccessNoErrors')
+                              : webState.lastError,
+                          isLast: true,
+                        ),
+                      ],
                     ),
-                    children: [
-                      _StatusRow(
-                        icon: webState.isRunning
-                            ? LucideIcons.checkCircle2
-                            : LucideIcons.xCircle,
-                        iconColor: webState.isRunning
-                            ? NightshadeColors.of(context).success
-                            : NightshadeColors.of(context).textMuted,
-                        label: l10n.text('remoteAccessServerStatus'),
-                        value: webState.isRunning
-                            ? l10n.text('remoteAccessRunning')
-                            : l10n.text('remoteAccessStopped'),
-                      ),
-                      _StatusRow(
-                        icon: LucideIcons.shield,
-                        iconColor: webState.requiresAuthentication
-                            ? NightshadeColors.of(context).primary
-                            : NightshadeColors.of(context).textMuted,
-                        label: l10n.text('remoteAccessAuth'),
-                        value: webState.requiresAuthentication
-                            ? l10n.text('remoteAccessAuthRequired')
-                            : l10n.text('remoteAccessAuthNotRequired'),
-                      ),
-                      _StatusRow(
-                        icon: LucideIcons.wifi,
-                        iconColor: webState.bindLocalOnly
-                            ? NightshadeColors.of(context).textMuted
-                            : NightshadeColors.of(context).primary,
-                        label: l10n.text('remoteAccessScope'),
-                        value: webState.bindLocalOnly
-                            ? l10n.text('remoteAccessScopeLocal')
-                            : l10n.text('remoteAccessScopeLan'),
-                      ),
-                      _StatusRow(
-                        icon: LucideIcons.monitor,
-                        iconColor: webState.dashboardAvailable
-                            ? NightshadeColors.of(context).success
-                            : NightshadeColors.of(context).warning,
-                        label: l10n.text('remoteAccessDashboard'),
-                        value: webState.dashboardAvailable
-                            ? l10n.text('remoteAccessDashboardAvailable')
-                            : l10n.text('remoteAccessDashboardMissing'),
-                      ),
-                      _StatusRow(
-                        icon: LucideIcons.users,
-                        iconColor: webState.activeViewers > 0
-                            ? NightshadeColors.of(context).primary
-                            : NightshadeColors.of(context).textMuted,
-                        label: l10n.text('remoteAccessActiveViewers'),
-                        value: webState.activeViewers.toString(),
-                      ),
-                      _StatusRow(
-                        icon: webState.lastError.isEmpty
-                            ? LucideIcons.info
-                            : LucideIcons.alertTriangle,
-                        iconColor: webState.lastError.isEmpty
-                            ? NightshadeColors.of(context).textMuted
-                            : NightshadeColors.of(context).error,
-                        label: l10n.text('remoteAccessLastError'),
-                        value: webState.lastError.isEmpty
-                            ? l10n.text('remoteAccessNoErrors')
-                            : webState.lastError,
-                        isLast: true,
-                      ),
-                    ],
                   ),
                 ),
               ),

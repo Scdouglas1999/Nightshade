@@ -28,7 +28,14 @@ class _ConfigExpansionState extends State<_ConfigExpansion> {
     return Theme(
       data: Theme.of(context).copyWith(
           dividerColor: Colors.transparent, splashColor: Colors.transparent),
-      child: ExpansionTile(
+      // ExpansionTile's header is a ListTile; the surrounding NightshadeCard
+      // is a DecoratedBox with a background color, which (Flutter 3.44) trips
+      // the "ListTile ink/background may be invisible" assertion. A
+      // transparent Material gives the ListTile a Material ancestor to paint
+      // on without changing the visuals.
+      child: Material(
+        type: MaterialType.transparency,
+        child: ExpansionTile(
         tilePadding: EdgeInsets.zero,
         childrenPadding: EdgeInsets.zero,
         initiallyExpanded: _expanded,
@@ -95,6 +102,7 @@ class _ConfigExpansionState extends State<_ConfigExpansion> {
             onChanged: widget.onHysteresisChanged,
           ),
         ],
+        ),
       ),
     );
   }

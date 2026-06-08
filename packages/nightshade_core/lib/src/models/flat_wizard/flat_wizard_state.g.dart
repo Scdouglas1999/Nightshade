@@ -6,40 +6,38 @@ part of 'flat_wizard_state.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$AduMeasurementImpl _$$AduMeasurementImplFromJson(Map<String, dynamic> json) =>
-    _$AduMeasurementImpl(
+_AduMeasurement _$AduMeasurementFromJson(Map<String, dynamic> json) =>
+    _AduMeasurement(
       exposure: (json['exposure'] as num).toDouble(),
       adu: (json['adu'] as num).toDouble(),
       timestamp: DateTime.parse(json['timestamp'] as String),
     );
 
-Map<String, dynamic> _$$AduMeasurementImplToJson(
-        _$AduMeasurementImpl instance) =>
+Map<String, dynamic> _$AduMeasurementToJson(_AduMeasurement instance) =>
     <String, dynamic>{
       'exposure': instance.exposure,
       'adu': instance.adu,
       'timestamp': instance.timestamp.toIso8601String(),
     };
 
-_$SkyBrightnessMeasurementImpl _$$SkyBrightnessMeasurementImplFromJson(
+_SkyBrightnessMeasurement _$SkyBrightnessMeasurementFromJson(
         Map<String, dynamic> json) =>
-    _$SkyBrightnessMeasurementImpl(
+    _SkyBrightnessMeasurement(
       adu: (json['adu'] as num).toDouble(),
       exposureUsed: (json['exposureUsed'] as num).toDouble(),
       timestamp: DateTime.parse(json['timestamp'] as String),
     );
 
-Map<String, dynamic> _$$SkyBrightnessMeasurementImplToJson(
-        _$SkyBrightnessMeasurementImpl instance) =>
+Map<String, dynamic> _$SkyBrightnessMeasurementToJson(
+        _SkyBrightnessMeasurement instance) =>
     <String, dynamic>{
       'adu': instance.adu,
       'exposureUsed': instance.exposureUsed,
       'timestamp': instance.timestamp.toIso8601String(),
     };
 
-_$FlatWizardStateImpl _$$FlatWizardStateImplFromJson(
-        Map<String, dynamic> json) =>
-    _$FlatWizardStateImpl(
+_FlatWizardState _$FlatWizardStateFromJson(Map<String, dynamic> json) =>
+    _FlatWizardState(
       mode: $enumDecodeNullable(_$FlatWizardModeEnumMap, json['mode']) ??
           FlatWizardMode.quick,
       globalSettings: json['globalSettings'] == null
@@ -90,8 +88,7 @@ _$FlatWizardStateImpl _$$FlatWizardStateImplFromJson(
       showHistogramOverlay: json['showHistogramOverlay'] as bool? ?? false,
     );
 
-Map<String, dynamic> _$$FlatWizardStateImplToJson(
-        _$FlatWizardStateImpl instance) =>
+Map<String, dynamic> _$FlatWizardStateToJson(_FlatWizardState instance) =>
     <String, dynamic>{
       'mode': _$FlatWizardModeEnumMap[instance.mode]!,
       'globalSettings': instance.globalSettings,

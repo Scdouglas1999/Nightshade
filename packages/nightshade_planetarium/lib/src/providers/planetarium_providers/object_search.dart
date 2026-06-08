@@ -251,6 +251,48 @@ const Map<String, String> _wellKnownStarNames = {
   'barnard\'s star': 'Barnard\'s Star',
 };
 
+/// A solar-system body (major planet, comet, or asteroid) exposed to the
+/// unified search as a searchable [CelestialObject].
+///
+/// Solar-system bodies move, so they are not part of the static star/DSO
+/// catalogs the search otherwise scans. This provider computes their current
+/// positions on demand from the orbital theory (VSOP87 for planets, Keplerian
+/// propagation for minor bodies) so the omnibox can resolve "jupiter" or
+/// "ceres" regardless of whether the corresponding sky overlay is toggled on.
+///
+/// Each body is wrapped as a [Star] using the same id conventions the sky-view
+/// tap handler uses (`PLANET_<name>` / `MINORBODY_<name>`) so selection,
+/// fly-to, and the details panel treat a searched planet identically to a
+/// tapped one.
+final solarSystemSearchObjectsProvider = Provider<List<CelestialObject>>((ref) {
+  final time = ref.watch(observationMinuteProvider);
+  final objects = <CelestialObject>[];
+
+  for (final planet in PlanetaryPositions.getAllPlanetPositions(time)) {
+    objects.add(Star(
+      id: 'PLANET_${planet.name}',
+      name: planet.name,
+      coordinates: CelestialCoordinate(ra: planet.ra, dec: planet.dec),
+      magnitude: planet.magnitude,
+    ));
+  }
+
+  final minorBodies = KeplerianPropagator.computePositions(
+    elements: MinorPlanetCatalog.all,
+    time: time,
+  );
+  for (final body in minorBodies) {
+    objects.add(Star(
+      id: 'MINORBODY_${body.name}',
+      name: body.name,
+      coordinates: body.coordinates,
+      magnitude: body.visualMag,
+    ));
+  }
+
+  return objects;
+});
+
 class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
   final Ref _ref;
 
@@ -452,6 +494,30 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
         }
       }
 
+      // Search solar-system bodies (major planets, comets, asteroids).
+      //
+      // These are not deep-sky catalog members, so they only participate when
+      // the type filter is not narrowed to a specific DSO/star class.
+      if (filters.typeFilter == SearchObjectTypeFilter.all) {
+        try {
+          final bodies = _ref.read(solarSystemSearchObjectsProvider);
+          for (final body in bodies) {
+            if (!_passesFilters(body, filters)) continue;
+            final nameScore = _scoreMatch(qLower, body.name);
+            if (nameScore != null) {
+              scored.add(ScoredSearchResult(
+                object: body,
+                score: nameScore,
+                matchSource: 'name',
+              ));
+            }
+          }
+        } catch (e) {
+          developer.log('[Planetarium] Solar-system search error: $e',
+              name: 'PlanetariumProviders', level: 900, error: e);
+        }
+      }
+
       // Sort by score (lower = better), then by magnitude (brighter first)
       scored.sort((a, b) {
         final scoreCmp = a.score.compareTo(b.score);
@@ -474,6 +540,19 @@ class ObjectSearchNotifier extends StateNotifier<ObjectSearchState> {
         filters: filters,
       );
     }
+  }
+
+  /// Resolve [query] to the single best-matching object across all catalogs
+  /// (Messier/NGC/IC/HIP/HD/common names/planets/comets/asteroids).
+  ///
+  /// Runs the full ranked search and returns the top result, or null if nothing
+  /// matched. Used by the omnibox for Enter/submit "fly-to the best match"
+  /// without the caller having to inspect search state. Leaves
+  /// [state] populated so any open autocomplete reflects the same query.
+  Future<CelestialObject?> resolveBest(String query) async {
+    await search(query);
+    final results = state.results;
+    return results.isEmpty ? null : results.first;
   }
 
   bool _passesFilters(CelestialObject obj, SearchFilters filters) {

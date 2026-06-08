@@ -26,6 +26,7 @@ import 'api/init.dart';
 import 'api/phd2.dart';
 import 'api/plate_solve.dart';
 import 'api/polar_alignment.dart';
+import 'api/post_session.dart';
 import 'api/sequencer.dart';
 import 'api/session.dart';
 import 'api/storage.dart';
@@ -6798,6 +6799,29 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__sequencer__api_broadcast_get_activePtr
           .asFunction<WireSyncRust2DartDco Function()>();
 
+  void wire__crate__api__post_session__api_build_master_flat(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__post_session__api_build_master_flat(
+      port_,
+      args_json,
+    );
+  }
+
+  late final _wire__crate__api__post_session__api_build_master_flatPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__post_session__api_build_master_flat',
+  );
+  late final _wire__crate__api__post_session__api_build_master_flat =
+      _wire__crate__api__post_session__api_build_master_flatPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
   WireSyncRust2DartDco wire__crate__api__sequencer__api_build_sequence(
     ffi.Pointer<wire_cst_list_prim_u_8_strict> id,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> name,
@@ -10675,6 +10699,29 @@ class RustLibWire implements BaseWire {
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
           )>();
 
+  void wire__crate__api__post_session__api_integrate_session(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__post_session__api_integrate_session(
+      port_,
+      args_json,
+    );
+  }
+
+  late final _wire__crate__api__post_session__api_integrate_sessionPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__post_session__api_integrate_session',
+  );
+  late final _wire__crate__api__post_session__api_integrate_session =
+      _wire__crate__api__post_session__api_integrate_sessionPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
   void wire__crate__api__api_invalidate_discovery_cache(int port_) {
     return _wire__crate__api__api_invalidate_discovery_cache(port_);
   }
@@ -10826,6 +10873,29 @@ class RustLibWire implements BaseWire {
       'frbgen_nightshade_bridge_wire__crate__api__storage__api_load_profile');
   late final _wire__crate__api__storage__api_load_profile =
       _wire__crate__api__storage__api_load_profilePtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__post_session__api_master_accumulate(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__post_session__api_master_accumulate(
+      port_,
+      args_json,
+    );
+  }
+
+  late final _wire__crate__api__post_session__api_master_accumulatePtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__post_session__api_master_accumulate',
+  );
+  late final _wire__crate__api__post_session__api_master_accumulate =
+      _wire__crate__api__post_session__api_master_accumulatePtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
 
   void wire__crate__api__devices__simulation__api_mount_find_home(
@@ -11925,6 +11995,28 @@ class RustLibWire implements BaseWire {
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             ffi.Pointer<wire_cst_fits_write_header>,
           )>();
+
+  void wire__crate__api__post_session__api_save_fits_master(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__post_session__api_save_fits_master(
+      port_,
+      args_json,
+    );
+  }
+
+  late final _wire__crate__api__post_session__api_save_fits_masterPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__post_session__api_save_fits_master',
+  );
+  late final _wire__crate__api__post_session__api_save_fits_master =
+      _wire__crate__api__post_session__api_save_fits_masterPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
 
   void wire__crate__api__imaging__api_save_jpeg_file(
     int port_,

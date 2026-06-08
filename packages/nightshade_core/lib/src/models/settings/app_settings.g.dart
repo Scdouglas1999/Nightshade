@@ -6,24 +6,21 @@ part of 'app_settings.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$ObserverLocationImpl _$$ObserverLocationImplFromJson(
-        Map<String, dynamic> json) =>
-    _$ObserverLocationImpl(
+_ObserverLocation _$ObserverLocationFromJson(Map<String, dynamic> json) =>
+    _ObserverLocation(
       latitude: (json['latitude'] as num).toDouble(),
       longitude: (json['longitude'] as num).toDouble(),
       elevation: (json['elevation'] as num).toDouble(),
     );
 
-Map<String, dynamic> _$$ObserverLocationImplToJson(
-        _$ObserverLocationImpl instance) =>
+Map<String, dynamic> _$ObserverLocationToJson(_ObserverLocation instance) =>
     <String, dynamic>{
       'latitude': instance.latitude,
       'longitude': instance.longitude,
       'elevation': instance.elevation,
     };
 
-_$AppSettingsImpl _$$AppSettingsImplFromJson(Map<String, dynamic> json) =>
-    _$AppSettingsImpl(
+_AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
       location: json['location'] == null
           ? null
           : ObserverLocation.fromJson(json['location'] as Map<String, dynamic>),
@@ -232,7 +229,7 @@ _$AppSettingsImpl _$$AppSettingsImplFromJson(Map<String, dynamic> json) =>
       useSystemTime: json['useSystemTime'] as bool? ?? true,
     );
 
-Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
+Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
     <String, dynamic>{
       'location': instance.location,
       'theme': instance.theme,

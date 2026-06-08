@@ -27,7 +27,7 @@ enum SnippetCategory {
 
 /// A reusable template snippet that can be inserted into sequences
 @freezed
-class TemplateSnippet with _$TemplateSnippet {
+abstract class TemplateSnippet with _$TemplateSnippet {
   const TemplateSnippet._();
 
   const factory TemplateSnippet({

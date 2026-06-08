@@ -6,9 +6,8 @@ part of 'annotation_settings.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$AnnotationSettingsImpl _$$AnnotationSettingsImplFromJson(
-        Map<String, dynamic> json) =>
-    _$AnnotationSettingsImpl(
+_AnnotationSettings _$AnnotationSettingsFromJson(Map<String, dynamic> json) =>
+    _AnnotationSettings(
       enabled: json['enabled'] as bool? ?? true,
       magnitudeCutoff: (json['magnitudeCutoff'] as num?)?.toDouble() ?? 15.0,
       minMagnitude: (json['minMagnitude'] as num?)?.toDouble() ?? -5.0,
@@ -42,8 +41,7 @@ _$AnnotationSettingsImpl _$$AnnotationSettingsImplFromJson(
       showSolveResiduals: json['showSolveResiduals'] as bool? ?? false,
     );
 
-Map<String, dynamic> _$$AnnotationSettingsImplToJson(
-        _$AnnotationSettingsImpl instance) =>
+Map<String, dynamic> _$AnnotationSettingsToJson(_AnnotationSettings instance) =>
     <String, dynamic>{
       'enabled': instance.enabled,
       'magnitudeCutoff': instance.magnitudeCutoff,
@@ -83,9 +81,9 @@ const _$GridTypeEnumMap = {
   GridType.celestial: 'celestial',
 };
 
-_$AnnotationMarkerStyleImpl _$$AnnotationMarkerStyleImplFromJson(
+_AnnotationMarkerStyle _$AnnotationMarkerStyleFromJson(
         Map<String, dynamic> json) =>
-    _$AnnotationMarkerStyleImpl(
+    _AnnotationMarkerStyle(
       galaxyColor: (json['galaxyColor'] as num?)?.toInt() ?? 0xFFFFD700,
       nebulaColor: (json['nebulaColor'] as num?)?.toInt() ?? 0xFFFF00FF,
       clusterColor: (json['clusterColor'] as num?)?.toInt() ?? 0xFF00FFFF,
@@ -100,8 +98,8 @@ _$AnnotationMarkerStyleImpl _$$AnnotationMarkerStyleImplFromJson(
       maxMarkerSize: (json['maxMarkerSize'] as num?)?.toDouble() ?? 100.0,
     );
 
-Map<String, dynamic> _$$AnnotationMarkerStyleImplToJson(
-        _$AnnotationMarkerStyleImpl instance) =>
+Map<String, dynamic> _$AnnotationMarkerStyleToJson(
+        _AnnotationMarkerStyle instance) =>
     <String, dynamic>{
       'galaxyColor': instance.galaxyColor,
       'nebulaColor': instance.nebulaColor,
@@ -116,9 +114,8 @@ Map<String, dynamic> _$$AnnotationMarkerStyleImplToJson(
       'maxMarkerSize': instance.maxMarkerSize,
     };
 
-_$AnnotationPresetImpl _$$AnnotationPresetImplFromJson(
-        Map<String, dynamic> json) =>
-    _$AnnotationPresetImpl(
+_AnnotationPreset _$AnnotationPresetFromJson(Map<String, dynamic> json) =>
+    _AnnotationPreset(
       name: json['name'] as String,
       visibleTypes: (json['visibleTypes'] as List<dynamic>)
           .map((e) => $enumDecode(_$AnnotationObjectFilterEnumMap, e))
@@ -130,8 +127,7 @@ _$AnnotationPresetImpl _$$AnnotationPresetImplFromJson(
       isBuiltIn: json['isBuiltIn'] as bool? ?? false,
     );
 
-Map<String, dynamic> _$$AnnotationPresetImplToJson(
-        _$AnnotationPresetImpl instance) =>
+Map<String, dynamic> _$AnnotationPresetToJson(_AnnotationPreset instance) =>
     <String, dynamic>{
       'name': instance.name,
       'visibleTypes': instance.visibleTypes
@@ -144,9 +140,8 @@ Map<String, dynamic> _$$AnnotationPresetImplToJson(
       'isBuiltIn': instance.isBuiltIn,
     };
 
-_$CustomAnnotationImpl _$$CustomAnnotationImplFromJson(
-        Map<String, dynamic> json) =>
-    _$CustomAnnotationImpl(
+_CustomAnnotation _$CustomAnnotationFromJson(Map<String, dynamic> json) =>
+    _CustomAnnotation(
       id: json['id'] as String,
       type: $enumDecode(_$CustomAnnotationTypeEnumMap, json['type']),
       x: (json['x'] as num).toDouble(),
@@ -158,8 +153,7 @@ _$CustomAnnotationImpl _$$CustomAnnotationImplFromJson(
       color: (json['color'] as num?)?.toInt() ?? 0xFFFF6B6B,
     );
 
-Map<String, dynamic> _$$CustomAnnotationImplToJson(
-        _$CustomAnnotationImpl instance) =>
+Map<String, dynamic> _$CustomAnnotationToJson(_CustomAnnotation instance) =>
     <String, dynamic>{
       'id': instance.id,
       'type': _$CustomAnnotationTypeEnumMap[instance.type]!,

@@ -1,5 +1,5 @@
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
@@ -9,89 +9,65 @@ part of 'update_manifest.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// dart format off
 T _$identity<T>(T value) => value;
-
-final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
-
-UpdateFileInfo _$UpdateFileInfoFromJson(Map<String, dynamic> json) {
-  return _UpdateFileInfo.fromJson(json);
-}
 
 /// @nodoc
 mixin _$UpdateFileInfo {
-  String get path => throw _privateConstructorUsedError;
-  int get size => throw _privateConstructorUsedError;
-  String get sha256 => throw _privateConstructorUsedError;
+  String get path;
+  int get size;
+  String get sha256;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $UpdateFileInfoCopyWith<UpdateFileInfo> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $UpdateFileInfoCopyWith<$Res> {
-  factory $UpdateFileInfoCopyWith(
-          UpdateFileInfo value, $Res Function(UpdateFileInfo) then) =
-      _$UpdateFileInfoCopyWithImpl<$Res, UpdateFileInfo>;
-  @useResult
-  $Res call({String path, int size, String sha256});
-}
-
-/// @nodoc
-class _$UpdateFileInfoCopyWithImpl<$Res, $Val extends UpdateFileInfo>
-    implements $UpdateFileInfoCopyWith<$Res> {
-  _$UpdateFileInfoCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of UpdateFileInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $UpdateFileInfoCopyWith<UpdateFileInfo> get copyWith =>
+      _$UpdateFileInfoCopyWithImpl<UpdateFileInfo>(
+          this as UpdateFileInfo, _$identity);
+
+  /// Serializes this UpdateFileInfo to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? path = null,
-    Object? size = null,
-    Object? sha256 = null,
-  }) {
-    return _then(_value.copyWith(
-      path: null == path
-          ? _value.path
-          : path // ignore: cast_nullable_to_non_nullable
-              as String,
-      size: null == size
-          ? _value.size
-          : size // ignore: cast_nullable_to_non_nullable
-              as int,
-      sha256: null == sha256
-          ? _value.sha256
-          : sha256 // ignore: cast_nullable_to_non_nullable
-              as String,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is UpdateFileInfo &&
+            (identical(other.path, path) || other.path == path) &&
+            (identical(other.size, size) || other.size == size) &&
+            (identical(other.sha256, sha256) || other.sha256 == sha256));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, path, size, sha256);
+
+  @override
+  String toString() {
+    return 'UpdateFileInfo(path: $path, size: $size, sha256: $sha256)';
   }
 }
 
 /// @nodoc
-abstract class _$$UpdateFileInfoImplCopyWith<$Res>
-    implements $UpdateFileInfoCopyWith<$Res> {
-  factory _$$UpdateFileInfoImplCopyWith(_$UpdateFileInfoImpl value,
-          $Res Function(_$UpdateFileInfoImpl) then) =
-      __$$UpdateFileInfoImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $UpdateFileInfoCopyWith<$Res> {
+  factory $UpdateFileInfoCopyWith(
+          UpdateFileInfo value, $Res Function(UpdateFileInfo) _then) =
+      _$UpdateFileInfoCopyWithImpl;
   @useResult
   $Res call({String path, int size, String sha256});
 }
 
 /// @nodoc
-class __$$UpdateFileInfoImplCopyWithImpl<$Res>
-    extends _$UpdateFileInfoCopyWithImpl<$Res, _$UpdateFileInfoImpl>
-    implements _$$UpdateFileInfoImplCopyWith<$Res> {
-  __$$UpdateFileInfoImplCopyWithImpl(
-      _$UpdateFileInfoImpl _value, $Res Function(_$UpdateFileInfoImpl) _then)
-      : super(_value, _then);
+class _$UpdateFileInfoCopyWithImpl<$Res>
+    implements $UpdateFileInfoCopyWith<$Res> {
+  _$UpdateFileInfoCopyWithImpl(this._self, this._then);
 
+  final UpdateFileInfo _self;
+  final $Res Function(UpdateFileInfo) _then;
+
+  /// Create a copy of UpdateFileInfo
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -99,31 +75,187 @@ class __$$UpdateFileInfoImplCopyWithImpl<$Res>
     Object? size = null,
     Object? sha256 = null,
   }) {
-    return _then(_$UpdateFileInfoImpl(
+    return _then(_self.copyWith(
       path: null == path
-          ? _value.path
+          ? _self.path
           : path // ignore: cast_nullable_to_non_nullable
               as String,
       size: null == size
-          ? _value.size
+          ? _self.size
           : size // ignore: cast_nullable_to_non_nullable
               as int,
       sha256: null == sha256
-          ? _value.sha256
+          ? _self.sha256
           : sha256 // ignore: cast_nullable_to_non_nullable
               as String,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [UpdateFileInfo].
+extension UpdateFileInfoPatterns on UpdateFileInfo {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_UpdateFileInfo value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _UpdateFileInfo() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_UpdateFileInfo value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _UpdateFileInfo():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_UpdateFileInfo value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _UpdateFileInfo() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(String path, int size, String sha256)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _UpdateFileInfo() when $default != null:
+        return $default(_that.path, _that.size, _that.sha256);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(String path, int size, String sha256) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _UpdateFileInfo():
+        return $default(_that.path, _that.size, _that.sha256);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(String path, int size, String sha256)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _UpdateFileInfo() when $default != null:
+        return $default(_that.path, _that.size, _that.sha256);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$UpdateFileInfoImpl implements _UpdateFileInfo {
-  const _$UpdateFileInfoImpl(
+class _UpdateFileInfo implements UpdateFileInfo {
+  const _UpdateFileInfo(
       {required this.path, required this.size, required this.sha256});
-
-  factory _$UpdateFileInfoImpl.fromJson(Map<String, dynamic> json) =>
-      _$$UpdateFileInfoImplFromJson(json);
+  factory _UpdateFileInfo.fromJson(Map<String, dynamic> json) =>
+      _$UpdateFileInfoFromJson(json);
 
   @override
   final String path;
@@ -132,225 +264,197 @@ class _$UpdateFileInfoImpl implements _UpdateFileInfo {
   @override
   final String sha256;
 
+  /// Create a copy of UpdateFileInfo
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'UpdateFileInfo(path: $path, size: $size, sha256: $sha256)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$UpdateFileInfoCopyWith<_UpdateFileInfo> get copyWith =>
+      __$UpdateFileInfoCopyWithImpl<_UpdateFileInfo>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$UpdateFileInfoToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$UpdateFileInfoImpl &&
+            other is _UpdateFileInfo &&
             (identical(other.path, path) || other.path == path) &&
             (identical(other.size, size) || other.size == size) &&
             (identical(other.sha256, sha256) || other.sha256 == sha256));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(runtimeType, path, size, sha256);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$UpdateFileInfoImplCopyWith<_$UpdateFileInfoImpl> get copyWith =>
-      __$$UpdateFileInfoImplCopyWithImpl<_$UpdateFileInfoImpl>(
-          this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$UpdateFileInfoImplToJson(
-      this,
-    );
+  String toString() {
+    return 'UpdateFileInfo(path: $path, size: $size, sha256: $sha256)';
   }
 }
 
-abstract class _UpdateFileInfo implements UpdateFileInfo {
-  const factory _UpdateFileInfo(
-      {required final String path,
-      required final int size,
-      required final String sha256}) = _$UpdateFileInfoImpl;
-
-  factory _UpdateFileInfo.fromJson(Map<String, dynamic> json) =
-      _$UpdateFileInfoImpl.fromJson;
-
+/// @nodoc
+abstract mixin class _$UpdateFileInfoCopyWith<$Res>
+    implements $UpdateFileInfoCopyWith<$Res> {
+  factory _$UpdateFileInfoCopyWith(
+          _UpdateFileInfo value, $Res Function(_UpdateFileInfo) _then) =
+      __$UpdateFileInfoCopyWithImpl;
   @override
-  String get path;
-  @override
-  int get size;
-  @override
-  String get sha256;
-  @override
-  @JsonKey(ignore: true)
-  _$$UpdateFileInfoImplCopyWith<_$UpdateFileInfoImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  @useResult
+  $Res call({String path, int size, String sha256});
 }
 
-UpdateManifest _$UpdateManifestFromJson(Map<String, dynamic> json) {
-  return _UpdateManifest.fromJson(json);
+/// @nodoc
+class __$UpdateFileInfoCopyWithImpl<$Res>
+    implements _$UpdateFileInfoCopyWith<$Res> {
+  __$UpdateFileInfoCopyWithImpl(this._self, this._then);
+
+  final _UpdateFileInfo _self;
+  final $Res Function(_UpdateFileInfo) _then;
+
+  /// Create a copy of UpdateFileInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? path = null,
+    Object? size = null,
+    Object? sha256 = null,
+  }) {
+    return _then(_UpdateFileInfo(
+      path: null == path
+          ? _self.path
+          : path // ignore: cast_nullable_to_non_nullable
+              as String,
+      size: null == size
+          ? _self.size
+          : size // ignore: cast_nullable_to_non_nullable
+              as int,
+      sha256: null == sha256
+          ? _self.sha256
+          : sha256 // ignore: cast_nullable_to_non_nullable
+              as String,
+    ));
+  }
 }
 
 /// @nodoc
 mixin _$UpdateManifest {
   /// Version string (e.g., "2.1.0")
-  String get version => throw _privateConstructorUsedError;
+  String get version;
 
   /// Build number for ordering
-  int get buildNumber => throw _privateConstructorUsedError;
+  int get buildNumber;
 
   /// Release date
-  DateTime get releaseDate => throw _privateConstructorUsedError;
+  DateTime get releaseDate;
 
   /// Target platform (windows, macos, linux)
-  String get platform => throw _privateConstructorUsedError;
+  String get platform;
 
   /// Architecture (x64, arm64)
-  String get arch => throw _privateConstructorUsedError;
+  String get arch;
 
   /// Minimum version required to update from
-  String? get minVersion => throw _privateConstructorUsedError;
+  String? get minVersion;
 
   /// Map of file path to file info
-  Map<String, UpdateFileInfo> get files => throw _privateConstructorUsedError;
+  Map<String, UpdateFileInfo> get files;
 
   /// Total uncompressed size in bytes
-  int get totalSize => throw _privateConstructorUsedError;
+  int get totalSize;
 
   /// Compressed package size in bytes
-  int get compressedSize => throw _privateConstructorUsedError;
+  int get compressedSize;
 
   /// SHA-256 hash of the downloaded package archive
-  String? get packageSha256 => throw _privateConstructorUsedError;
+  String? get packageSha256;
 
   /// Download URL for the update package
-  String get downloadUrl => throw _privateConstructorUsedError;
+  String get downloadUrl;
 
   /// Release notes (markdown)
-  String? get releaseNotes => throw _privateConstructorUsedError;
+  String? get releaseNotes;
 
   /// Ed25519 signature for the canonical manifest payload
-  String? get signature => throw _privateConstructorUsedError;
+  String? get signature;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $UpdateManifestCopyWith<UpdateManifest> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $UpdateManifestCopyWith<$Res> {
-  factory $UpdateManifestCopyWith(
-          UpdateManifest value, $Res Function(UpdateManifest) then) =
-      _$UpdateManifestCopyWithImpl<$Res, UpdateManifest>;
-  @useResult
-  $Res call(
-      {String version,
-      int buildNumber,
-      DateTime releaseDate,
-      String platform,
-      String arch,
-      String? minVersion,
-      Map<String, UpdateFileInfo> files,
-      int totalSize,
-      int compressedSize,
-      String? packageSha256,
-      String downloadUrl,
-      String? releaseNotes,
-      String? signature});
-}
-
-/// @nodoc
-class _$UpdateManifestCopyWithImpl<$Res, $Val extends UpdateManifest>
-    implements $UpdateManifestCopyWith<$Res> {
-  _$UpdateManifestCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of UpdateManifest
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $UpdateManifestCopyWith<UpdateManifest> get copyWith =>
+      _$UpdateManifestCopyWithImpl<UpdateManifest>(
+          this as UpdateManifest, _$identity);
+
+  /// Serializes this UpdateManifest to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? version = null,
-    Object? buildNumber = null,
-    Object? releaseDate = null,
-    Object? platform = null,
-    Object? arch = null,
-    Object? minVersion = freezed,
-    Object? files = null,
-    Object? totalSize = null,
-    Object? compressedSize = null,
-    Object? packageSha256 = freezed,
-    Object? downloadUrl = null,
-    Object? releaseNotes = freezed,
-    Object? signature = freezed,
-  }) {
-    return _then(_value.copyWith(
-      version: null == version
-          ? _value.version
-          : version // ignore: cast_nullable_to_non_nullable
-              as String,
-      buildNumber: null == buildNumber
-          ? _value.buildNumber
-          : buildNumber // ignore: cast_nullable_to_non_nullable
-              as int,
-      releaseDate: null == releaseDate
-          ? _value.releaseDate
-          : releaseDate // ignore: cast_nullable_to_non_nullable
-              as DateTime,
-      platform: null == platform
-          ? _value.platform
-          : platform // ignore: cast_nullable_to_non_nullable
-              as String,
-      arch: null == arch
-          ? _value.arch
-          : arch // ignore: cast_nullable_to_non_nullable
-              as String,
-      minVersion: freezed == minVersion
-          ? _value.minVersion
-          : minVersion // ignore: cast_nullable_to_non_nullable
-              as String?,
-      files: null == files
-          ? _value.files
-          : files // ignore: cast_nullable_to_non_nullable
-              as Map<String, UpdateFileInfo>,
-      totalSize: null == totalSize
-          ? _value.totalSize
-          : totalSize // ignore: cast_nullable_to_non_nullable
-              as int,
-      compressedSize: null == compressedSize
-          ? _value.compressedSize
-          : compressedSize // ignore: cast_nullable_to_non_nullable
-              as int,
-      packageSha256: freezed == packageSha256
-          ? _value.packageSha256
-          : packageSha256 // ignore: cast_nullable_to_non_nullable
-              as String?,
-      downloadUrl: null == downloadUrl
-          ? _value.downloadUrl
-          : downloadUrl // ignore: cast_nullable_to_non_nullable
-              as String,
-      releaseNotes: freezed == releaseNotes
-          ? _value.releaseNotes
-          : releaseNotes // ignore: cast_nullable_to_non_nullable
-              as String?,
-      signature: freezed == signature
-          ? _value.signature
-          : signature // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is UpdateManifest &&
+            (identical(other.version, version) || other.version == version) &&
+            (identical(other.buildNumber, buildNumber) ||
+                other.buildNumber == buildNumber) &&
+            (identical(other.releaseDate, releaseDate) ||
+                other.releaseDate == releaseDate) &&
+            (identical(other.platform, platform) ||
+                other.platform == platform) &&
+            (identical(other.arch, arch) || other.arch == arch) &&
+            (identical(other.minVersion, minVersion) ||
+                other.minVersion == minVersion) &&
+            const DeepCollectionEquality().equals(other.files, files) &&
+            (identical(other.totalSize, totalSize) ||
+                other.totalSize == totalSize) &&
+            (identical(other.compressedSize, compressedSize) ||
+                other.compressedSize == compressedSize) &&
+            (identical(other.packageSha256, packageSha256) ||
+                other.packageSha256 == packageSha256) &&
+            (identical(other.downloadUrl, downloadUrl) ||
+                other.downloadUrl == downloadUrl) &&
+            (identical(other.releaseNotes, releaseNotes) ||
+                other.releaseNotes == releaseNotes) &&
+            (identical(other.signature, signature) ||
+                other.signature == signature));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      version,
+      buildNumber,
+      releaseDate,
+      platform,
+      arch,
+      minVersion,
+      const DeepCollectionEquality().hash(files),
+      totalSize,
+      compressedSize,
+      packageSha256,
+      downloadUrl,
+      releaseNotes,
+      signature);
+
+  @override
+  String toString() {
+    return 'UpdateManifest(version: $version, buildNumber: $buildNumber, releaseDate: $releaseDate, platform: $platform, arch: $arch, minVersion: $minVersion, files: $files, totalSize: $totalSize, compressedSize: $compressedSize, packageSha256: $packageSha256, downloadUrl: $downloadUrl, releaseNotes: $releaseNotes, signature: $signature)';
   }
 }
 
 /// @nodoc
-abstract class _$$UpdateManifestImplCopyWith<$Res>
-    implements $UpdateManifestCopyWith<$Res> {
-  factory _$$UpdateManifestImplCopyWith(_$UpdateManifestImpl value,
-          $Res Function(_$UpdateManifestImpl) then) =
-      __$$UpdateManifestImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $UpdateManifestCopyWith<$Res> {
+  factory $UpdateManifestCopyWith(
+          UpdateManifest value, $Res Function(UpdateManifest) _then) =
+      _$UpdateManifestCopyWithImpl;
   @useResult
   $Res call(
       {String version,
@@ -369,13 +473,15 @@ abstract class _$$UpdateManifestImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$UpdateManifestImplCopyWithImpl<$Res>
-    extends _$UpdateManifestCopyWithImpl<$Res, _$UpdateManifestImpl>
-    implements _$$UpdateManifestImplCopyWith<$Res> {
-  __$$UpdateManifestImplCopyWithImpl(
-      _$UpdateManifestImpl _value, $Res Function(_$UpdateManifestImpl) _then)
-      : super(_value, _then);
+class _$UpdateManifestCopyWithImpl<$Res>
+    implements $UpdateManifestCopyWith<$Res> {
+  _$UpdateManifestCopyWithImpl(this._self, this._then);
 
+  final UpdateManifest _self;
+  final $Res Function(UpdateManifest) _then;
+
+  /// Create a copy of UpdateManifest
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -393,67 +499,305 @@ class __$$UpdateManifestImplCopyWithImpl<$Res>
     Object? releaseNotes = freezed,
     Object? signature = freezed,
   }) {
-    return _then(_$UpdateManifestImpl(
+    return _then(_self.copyWith(
       version: null == version
-          ? _value.version
+          ? _self.version
           : version // ignore: cast_nullable_to_non_nullable
               as String,
       buildNumber: null == buildNumber
-          ? _value.buildNumber
+          ? _self.buildNumber
           : buildNumber // ignore: cast_nullable_to_non_nullable
               as int,
       releaseDate: null == releaseDate
-          ? _value.releaseDate
+          ? _self.releaseDate
           : releaseDate // ignore: cast_nullable_to_non_nullable
               as DateTime,
       platform: null == platform
-          ? _value.platform
+          ? _self.platform
           : platform // ignore: cast_nullable_to_non_nullable
               as String,
       arch: null == arch
-          ? _value.arch
+          ? _self.arch
           : arch // ignore: cast_nullable_to_non_nullable
               as String,
       minVersion: freezed == minVersion
-          ? _value.minVersion
+          ? _self.minVersion
           : minVersion // ignore: cast_nullable_to_non_nullable
               as String?,
       files: null == files
-          ? _value._files
+          ? _self.files
           : files // ignore: cast_nullable_to_non_nullable
               as Map<String, UpdateFileInfo>,
       totalSize: null == totalSize
-          ? _value.totalSize
+          ? _self.totalSize
           : totalSize // ignore: cast_nullable_to_non_nullable
               as int,
       compressedSize: null == compressedSize
-          ? _value.compressedSize
+          ? _self.compressedSize
           : compressedSize // ignore: cast_nullable_to_non_nullable
               as int,
       packageSha256: freezed == packageSha256
-          ? _value.packageSha256
+          ? _self.packageSha256
           : packageSha256 // ignore: cast_nullable_to_non_nullable
               as String?,
       downloadUrl: null == downloadUrl
-          ? _value.downloadUrl
+          ? _self.downloadUrl
           : downloadUrl // ignore: cast_nullable_to_non_nullable
               as String,
       releaseNotes: freezed == releaseNotes
-          ? _value.releaseNotes
+          ? _self.releaseNotes
           : releaseNotes // ignore: cast_nullable_to_non_nullable
               as String?,
       signature: freezed == signature
-          ? _value.signature
+          ? _self.signature
           : signature // ignore: cast_nullable_to_non_nullable
               as String?,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [UpdateManifest].
+extension UpdateManifestPatterns on UpdateManifest {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_UpdateManifest value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _UpdateManifest() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_UpdateManifest value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _UpdateManifest():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_UpdateManifest value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _UpdateManifest() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            String version,
+            int buildNumber,
+            DateTime releaseDate,
+            String platform,
+            String arch,
+            String? minVersion,
+            Map<String, UpdateFileInfo> files,
+            int totalSize,
+            int compressedSize,
+            String? packageSha256,
+            String downloadUrl,
+            String? releaseNotes,
+            String? signature)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _UpdateManifest() when $default != null:
+        return $default(
+            _that.version,
+            _that.buildNumber,
+            _that.releaseDate,
+            _that.platform,
+            _that.arch,
+            _that.minVersion,
+            _that.files,
+            _that.totalSize,
+            _that.compressedSize,
+            _that.packageSha256,
+            _that.downloadUrl,
+            _that.releaseNotes,
+            _that.signature);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            String version,
+            int buildNumber,
+            DateTime releaseDate,
+            String platform,
+            String arch,
+            String? minVersion,
+            Map<String, UpdateFileInfo> files,
+            int totalSize,
+            int compressedSize,
+            String? packageSha256,
+            String downloadUrl,
+            String? releaseNotes,
+            String? signature)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _UpdateManifest():
+        return $default(
+            _that.version,
+            _that.buildNumber,
+            _that.releaseDate,
+            _that.platform,
+            _that.arch,
+            _that.minVersion,
+            _that.files,
+            _that.totalSize,
+            _that.compressedSize,
+            _that.packageSha256,
+            _that.downloadUrl,
+            _that.releaseNotes,
+            _that.signature);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            String version,
+            int buildNumber,
+            DateTime releaseDate,
+            String platform,
+            String arch,
+            String? minVersion,
+            Map<String, UpdateFileInfo> files,
+            int totalSize,
+            int compressedSize,
+            String? packageSha256,
+            String downloadUrl,
+            String? releaseNotes,
+            String? signature)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _UpdateManifest() when $default != null:
+        return $default(
+            _that.version,
+            _that.buildNumber,
+            _that.releaseDate,
+            _that.platform,
+            _that.arch,
+            _that.minVersion,
+            _that.files,
+            _that.totalSize,
+            _that.compressedSize,
+            _that.packageSha256,
+            _that.downloadUrl,
+            _that.releaseNotes,
+            _that.signature);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$UpdateManifestImpl extends _UpdateManifest {
-  const _$UpdateManifestImpl(
+class _UpdateManifest extends UpdateManifest {
+  const _UpdateManifest(
       {required this.version,
       required this.buildNumber,
       required this.releaseDate,
@@ -469,9 +813,8 @@ class _$UpdateManifestImpl extends _UpdateManifest {
       this.signature})
       : _files = files,
         super._();
-
-  factory _$UpdateManifestImpl.fromJson(Map<String, dynamic> json) =>
-      _$$UpdateManifestImplFromJson(json);
+  factory _UpdateManifest.fromJson(Map<String, dynamic> json) =>
+      _$UpdateManifestFromJson(json);
 
   /// Version string (e.g., "2.1.0")
   @override
@@ -532,16 +875,26 @@ class _$UpdateManifestImpl extends _UpdateManifest {
   @override
   final String? signature;
 
+  /// Create a copy of UpdateManifest
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'UpdateManifest(version: $version, buildNumber: $buildNumber, releaseDate: $releaseDate, platform: $platform, arch: $arch, minVersion: $minVersion, files: $files, totalSize: $totalSize, compressedSize: $compressedSize, packageSha256: $packageSha256, downloadUrl: $downloadUrl, releaseNotes: $releaseNotes, signature: $signature)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$UpdateManifestCopyWith<_UpdateManifest> get copyWith =>
+      __$UpdateManifestCopyWithImpl<_UpdateManifest>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$UpdateManifestToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$UpdateManifestImpl &&
+            other is _UpdateManifest &&
             (identical(other.version, version) || other.version == version) &&
             (identical(other.buildNumber, buildNumber) ||
                 other.buildNumber == buildNumber) &&
@@ -567,7 +920,7 @@ class _$UpdateManifestImpl extends _UpdateManifest {
                 other.signature == signature));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,
@@ -585,255 +938,426 @@ class _$UpdateManifestImpl extends _UpdateManifest {
       releaseNotes,
       signature);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$UpdateManifestImplCopyWith<_$UpdateManifestImpl> get copyWith =>
-      __$$UpdateManifestImplCopyWithImpl<_$UpdateManifestImpl>(
-          this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$UpdateManifestImplToJson(
-      this,
-    );
-  }
-}
-
-abstract class _UpdateManifest extends UpdateManifest {
-  const factory _UpdateManifest(
-      {required final String version,
-      required final int buildNumber,
-      required final DateTime releaseDate,
-      required final String platform,
-      required final String arch,
-      final String? minVersion,
-      required final Map<String, UpdateFileInfo> files,
-      required final int totalSize,
-      required final int compressedSize,
-      final String? packageSha256,
-      required final String downloadUrl,
-      final String? releaseNotes,
-      final String? signature}) = _$UpdateManifestImpl;
-  const _UpdateManifest._() : super._();
-
-  factory _UpdateManifest.fromJson(Map<String, dynamic> json) =
-      _$UpdateManifestImpl.fromJson;
-
-  @override
-
-  /// Version string (e.g., "2.1.0")
-  String get version;
-  @override
-
-  /// Build number for ordering
-  int get buildNumber;
-  @override
-
-  /// Release date
-  DateTime get releaseDate;
-  @override
-
-  /// Target platform (windows, macos, linux)
-  String get platform;
-  @override
-
-  /// Architecture (x64, arm64)
-  String get arch;
-  @override
-
-  /// Minimum version required to update from
-  String? get minVersion;
-  @override
-
-  /// Map of file path to file info
-  Map<String, UpdateFileInfo> get files;
-  @override
-
-  /// Total uncompressed size in bytes
-  int get totalSize;
-  @override
-
-  /// Compressed package size in bytes
-  int get compressedSize;
-  @override
-
-  /// SHA-256 hash of the downloaded package archive
-  String? get packageSha256;
-  @override
-
-  /// Download URL for the update package
-  String get downloadUrl;
-  @override
-
-  /// Release notes (markdown)
-  String? get releaseNotes;
-  @override
-
-  /// Ed25519 signature for the canonical manifest payload
-  String? get signature;
-  @override
-  @JsonKey(ignore: true)
-  _$$UpdateManifestImplCopyWith<_$UpdateManifestImpl> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-VersionInfo _$VersionInfoFromJson(Map<String, dynamic> json) {
-  return _VersionInfo.fromJson(json);
-}
-
-/// @nodoc
-mixin _$VersionInfo {
-  /// Latest stable version
-  String get latestVersion => throw _privateConstructorUsedError;
-
-  /// Latest build number
-  int get latestBuildNumber => throw _privateConstructorUsedError;
-
-  /// Available channels
-  Map<String, ChannelInfo> get channels => throw _privateConstructorUsedError;
-
-  /// Minimum supported version (older versions must update)
-  String? get minSupportedVersion => throw _privateConstructorUsedError;
-
-  /// Server version for compatibility checks
-  String? get serverVersion => throw _privateConstructorUsedError;
-
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $VersionInfoCopyWith<VersionInfo> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $VersionInfoCopyWith<$Res> {
-  factory $VersionInfoCopyWith(
-          VersionInfo value, $Res Function(VersionInfo) then) =
-      _$VersionInfoCopyWithImpl<$Res, VersionInfo>;
-  @useResult
-  $Res call(
-      {String latestVersion,
-      int latestBuildNumber,
-      Map<String, ChannelInfo> channels,
-      String? minSupportedVersion,
-      String? serverVersion});
-}
-
-/// @nodoc
-class _$VersionInfoCopyWithImpl<$Res, $Val extends VersionInfo>
-    implements $VersionInfoCopyWith<$Res> {
-  _$VersionInfoCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? latestVersion = null,
-    Object? latestBuildNumber = null,
-    Object? channels = null,
-    Object? minSupportedVersion = freezed,
-    Object? serverVersion = freezed,
-  }) {
-    return _then(_value.copyWith(
-      latestVersion: null == latestVersion
-          ? _value.latestVersion
-          : latestVersion // ignore: cast_nullable_to_non_nullable
-              as String,
-      latestBuildNumber: null == latestBuildNumber
-          ? _value.latestBuildNumber
-          : latestBuildNumber // ignore: cast_nullable_to_non_nullable
-              as int,
-      channels: null == channels
-          ? _value.channels
-          : channels // ignore: cast_nullable_to_non_nullable
-              as Map<String, ChannelInfo>,
-      minSupportedVersion: freezed == minSupportedVersion
-          ? _value.minSupportedVersion
-          : minSupportedVersion // ignore: cast_nullable_to_non_nullable
-              as String?,
-      serverVersion: freezed == serverVersion
-          ? _value.serverVersion
-          : serverVersion // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+  String toString() {
+    return 'UpdateManifest(version: $version, buildNumber: $buildNumber, releaseDate: $releaseDate, platform: $platform, arch: $arch, minVersion: $minVersion, files: $files, totalSize: $totalSize, compressedSize: $compressedSize, packageSha256: $packageSha256, downloadUrl: $downloadUrl, releaseNotes: $releaseNotes, signature: $signature)';
   }
 }
 
 /// @nodoc
-abstract class _$$VersionInfoImplCopyWith<$Res>
-    implements $VersionInfoCopyWith<$Res> {
-  factory _$$VersionInfoImplCopyWith(
-          _$VersionInfoImpl value, $Res Function(_$VersionInfoImpl) then) =
-      __$$VersionInfoImplCopyWithImpl<$Res>;
+abstract mixin class _$UpdateManifestCopyWith<$Res>
+    implements $UpdateManifestCopyWith<$Res> {
+  factory _$UpdateManifestCopyWith(
+          _UpdateManifest value, $Res Function(_UpdateManifest) _then) =
+      __$UpdateManifestCopyWithImpl;
   @override
   @useResult
   $Res call(
-      {String latestVersion,
-      int latestBuildNumber,
-      Map<String, ChannelInfo> channels,
-      String? minSupportedVersion,
-      String? serverVersion});
+      {String version,
+      int buildNumber,
+      DateTime releaseDate,
+      String platform,
+      String arch,
+      String? minVersion,
+      Map<String, UpdateFileInfo> files,
+      int totalSize,
+      int compressedSize,
+      String? packageSha256,
+      String downloadUrl,
+      String? releaseNotes,
+      String? signature});
 }
 
 /// @nodoc
-class __$$VersionInfoImplCopyWithImpl<$Res>
-    extends _$VersionInfoCopyWithImpl<$Res, _$VersionInfoImpl>
-    implements _$$VersionInfoImplCopyWith<$Res> {
-  __$$VersionInfoImplCopyWithImpl(
-      _$VersionInfoImpl _value, $Res Function(_$VersionInfoImpl) _then)
-      : super(_value, _then);
+class __$UpdateManifestCopyWithImpl<$Res>
+    implements _$UpdateManifestCopyWith<$Res> {
+  __$UpdateManifestCopyWithImpl(this._self, this._then);
 
-  @pragma('vm:prefer-inline')
+  final _UpdateManifest _self;
+  final $Res Function(_UpdateManifest) _then;
+
+  /// Create a copy of UpdateManifest
+  /// with the given fields replaced by the non-null parameter values.
   @override
+  @pragma('vm:prefer-inline')
   $Res call({
-    Object? latestVersion = null,
-    Object? latestBuildNumber = null,
-    Object? channels = null,
-    Object? minSupportedVersion = freezed,
-    Object? serverVersion = freezed,
+    Object? version = null,
+    Object? buildNumber = null,
+    Object? releaseDate = null,
+    Object? platform = null,
+    Object? arch = null,
+    Object? minVersion = freezed,
+    Object? files = null,
+    Object? totalSize = null,
+    Object? compressedSize = null,
+    Object? packageSha256 = freezed,
+    Object? downloadUrl = null,
+    Object? releaseNotes = freezed,
+    Object? signature = freezed,
   }) {
-    return _then(_$VersionInfoImpl(
-      latestVersion: null == latestVersion
-          ? _value.latestVersion
-          : latestVersion // ignore: cast_nullable_to_non_nullable
+    return _then(_UpdateManifest(
+      version: null == version
+          ? _self.version
+          : version // ignore: cast_nullable_to_non_nullable
               as String,
-      latestBuildNumber: null == latestBuildNumber
-          ? _value.latestBuildNumber
-          : latestBuildNumber // ignore: cast_nullable_to_non_nullable
+      buildNumber: null == buildNumber
+          ? _self.buildNumber
+          : buildNumber // ignore: cast_nullable_to_non_nullable
               as int,
-      channels: null == channels
-          ? _value._channels
-          : channels // ignore: cast_nullable_to_non_nullable
-              as Map<String, ChannelInfo>,
-      minSupportedVersion: freezed == minSupportedVersion
-          ? _value.minSupportedVersion
-          : minSupportedVersion // ignore: cast_nullable_to_non_nullable
+      releaseDate: null == releaseDate
+          ? _self.releaseDate
+          : releaseDate // ignore: cast_nullable_to_non_nullable
+              as DateTime,
+      platform: null == platform
+          ? _self.platform
+          : platform // ignore: cast_nullable_to_non_nullable
+              as String,
+      arch: null == arch
+          ? _self.arch
+          : arch // ignore: cast_nullable_to_non_nullable
+              as String,
+      minVersion: freezed == minVersion
+          ? _self.minVersion
+          : minVersion // ignore: cast_nullable_to_non_nullable
               as String?,
-      serverVersion: freezed == serverVersion
-          ? _value.serverVersion
-          : serverVersion // ignore: cast_nullable_to_non_nullable
+      files: null == files
+          ? _self._files
+          : files // ignore: cast_nullable_to_non_nullable
+              as Map<String, UpdateFileInfo>,
+      totalSize: null == totalSize
+          ? _self.totalSize
+          : totalSize // ignore: cast_nullable_to_non_nullable
+              as int,
+      compressedSize: null == compressedSize
+          ? _self.compressedSize
+          : compressedSize // ignore: cast_nullable_to_non_nullable
+              as int,
+      packageSha256: freezed == packageSha256
+          ? _self.packageSha256
+          : packageSha256 // ignore: cast_nullable_to_non_nullable
+              as String?,
+      downloadUrl: null == downloadUrl
+          ? _self.downloadUrl
+          : downloadUrl // ignore: cast_nullable_to_non_nullable
+              as String,
+      releaseNotes: freezed == releaseNotes
+          ? _self.releaseNotes
+          : releaseNotes // ignore: cast_nullable_to_non_nullable
+              as String?,
+      signature: freezed == signature
+          ? _self.signature
+          : signature // ignore: cast_nullable_to_non_nullable
               as String?,
     ));
   }
 }
 
 /// @nodoc
+mixin _$VersionInfo {
+  /// Latest stable version
+  String get latestVersion;
+
+  /// Latest build number
+  int get latestBuildNumber;
+
+  /// Available channels
+  Map<String, ChannelInfo> get channels;
+
+  /// Minimum supported version (older versions must update)
+  String? get minSupportedVersion;
+
+  /// Server version for compatibility checks
+  String? get serverVersion;
+
+  /// Create a copy of VersionInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $VersionInfoCopyWith<VersionInfo> get copyWith =>
+      _$VersionInfoCopyWithImpl<VersionInfo>(this as VersionInfo, _$identity);
+
+  /// Serializes this VersionInfo to a JSON map.
+  Map<String, dynamic> toJson();
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is VersionInfo &&
+            (identical(other.latestVersion, latestVersion) ||
+                other.latestVersion == latestVersion) &&
+            (identical(other.latestBuildNumber, latestBuildNumber) ||
+                other.latestBuildNumber == latestBuildNumber) &&
+            const DeepCollectionEquality().equals(other.channels, channels) &&
+            (identical(other.minSupportedVersion, minSupportedVersion) ||
+                other.minSupportedVersion == minSupportedVersion) &&
+            (identical(other.serverVersion, serverVersion) ||
+                other.serverVersion == serverVersion));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      latestVersion,
+      latestBuildNumber,
+      const DeepCollectionEquality().hash(channels),
+      minSupportedVersion,
+      serverVersion);
+
+  @override
+  String toString() {
+    return 'VersionInfo(latestVersion: $latestVersion, latestBuildNumber: $latestBuildNumber, channels: $channels, minSupportedVersion: $minSupportedVersion, serverVersion: $serverVersion)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $VersionInfoCopyWith<$Res> {
+  factory $VersionInfoCopyWith(
+          VersionInfo value, $Res Function(VersionInfo) _then) =
+      _$VersionInfoCopyWithImpl;
+  @useResult
+  $Res call(
+      {String latestVersion,
+      int latestBuildNumber,
+      Map<String, ChannelInfo> channels,
+      String? minSupportedVersion,
+      String? serverVersion});
+}
+
+/// @nodoc
+class _$VersionInfoCopyWithImpl<$Res> implements $VersionInfoCopyWith<$Res> {
+  _$VersionInfoCopyWithImpl(this._self, this._then);
+
+  final VersionInfo _self;
+  final $Res Function(VersionInfo) _then;
+
+  /// Create a copy of VersionInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? latestVersion = null,
+    Object? latestBuildNumber = null,
+    Object? channels = null,
+    Object? minSupportedVersion = freezed,
+    Object? serverVersion = freezed,
+  }) {
+    return _then(_self.copyWith(
+      latestVersion: null == latestVersion
+          ? _self.latestVersion
+          : latestVersion // ignore: cast_nullable_to_non_nullable
+              as String,
+      latestBuildNumber: null == latestBuildNumber
+          ? _self.latestBuildNumber
+          : latestBuildNumber // ignore: cast_nullable_to_non_nullable
+              as int,
+      channels: null == channels
+          ? _self.channels
+          : channels // ignore: cast_nullable_to_non_nullable
+              as Map<String, ChannelInfo>,
+      minSupportedVersion: freezed == minSupportedVersion
+          ? _self.minSupportedVersion
+          : minSupportedVersion // ignore: cast_nullable_to_non_nullable
+              as String?,
+      serverVersion: freezed == serverVersion
+          ? _self.serverVersion
+          : serverVersion // ignore: cast_nullable_to_non_nullable
+              as String?,
+    ));
+  }
+}
+
+/// Adds pattern-matching-related methods to [VersionInfo].
+extension VersionInfoPatterns on VersionInfo {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_VersionInfo value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _VersionInfo() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_VersionInfo value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _VersionInfo():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_VersionInfo value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _VersionInfo() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            String latestVersion,
+            int latestBuildNumber,
+            Map<String, ChannelInfo> channels,
+            String? minSupportedVersion,
+            String? serverVersion)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _VersionInfo() when $default != null:
+        return $default(_that.latestVersion, _that.latestBuildNumber,
+            _that.channels, _that.minSupportedVersion, _that.serverVersion);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            String latestVersion,
+            int latestBuildNumber,
+            Map<String, ChannelInfo> channels,
+            String? minSupportedVersion,
+            String? serverVersion)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _VersionInfo():
+        return $default(_that.latestVersion, _that.latestBuildNumber,
+            _that.channels, _that.minSupportedVersion, _that.serverVersion);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            String latestVersion,
+            int latestBuildNumber,
+            Map<String, ChannelInfo> channels,
+            String? minSupportedVersion,
+            String? serverVersion)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _VersionInfo() when $default != null:
+        return $default(_that.latestVersion, _that.latestBuildNumber,
+            _that.channels, _that.minSupportedVersion, _that.serverVersion);
+      case _:
+        return null;
+    }
+  }
+}
+
+/// @nodoc
 @JsonSerializable()
-class _$VersionInfoImpl implements _VersionInfo {
-  const _$VersionInfoImpl(
+class _VersionInfo implements VersionInfo {
+  const _VersionInfo(
       {required this.latestVersion,
       required this.latestBuildNumber,
       required final Map<String, ChannelInfo> channels,
       this.minSupportedVersion,
       this.serverVersion})
       : _channels = channels;
-
-  factory _$VersionInfoImpl.fromJson(Map<String, dynamic> json) =>
-      _$$VersionInfoImplFromJson(json);
+  factory _VersionInfo.fromJson(Map<String, dynamic> json) =>
+      _$VersionInfoFromJson(json);
 
   /// Latest stable version
   @override
@@ -862,16 +1386,26 @@ class _$VersionInfoImpl implements _VersionInfo {
   @override
   final String? serverVersion;
 
+  /// Create a copy of VersionInfo
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'VersionInfo(latestVersion: $latestVersion, latestBuildNumber: $latestBuildNumber, channels: $channels, minSupportedVersion: $minSupportedVersion, serverVersion: $serverVersion)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$VersionInfoCopyWith<_VersionInfo> get copyWith =>
+      __$VersionInfoCopyWithImpl<_VersionInfo>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$VersionInfoToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$VersionInfoImpl &&
+            other is _VersionInfo &&
             (identical(other.latestVersion, latestVersion) ||
                 other.latestVersion == latestVersion) &&
             (identical(other.latestBuildNumber, latestBuildNumber) ||
@@ -883,7 +1417,7 @@ class _$VersionInfoImpl implements _VersionInfo {
                 other.serverVersion == serverVersion));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,
@@ -893,208 +1427,384 @@ class _$VersionInfoImpl implements _VersionInfo {
       minSupportedVersion,
       serverVersion);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$VersionInfoImplCopyWith<_$VersionInfoImpl> get copyWith =>
-      __$$VersionInfoImplCopyWithImpl<_$VersionInfoImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$VersionInfoImplToJson(
-      this,
-    );
+  String toString() {
+    return 'VersionInfo(latestVersion: $latestVersion, latestBuildNumber: $latestBuildNumber, channels: $channels, minSupportedVersion: $minSupportedVersion, serverVersion: $serverVersion)';
   }
 }
 
-abstract class _VersionInfo implements VersionInfo {
-  const factory _VersionInfo(
-      {required final String latestVersion,
-      required final int latestBuildNumber,
-      required final Map<String, ChannelInfo> channels,
-      final String? minSupportedVersion,
-      final String? serverVersion}) = _$VersionInfoImpl;
-
-  factory _VersionInfo.fromJson(Map<String, dynamic> json) =
-      _$VersionInfoImpl.fromJson;
-
+/// @nodoc
+abstract mixin class _$VersionInfoCopyWith<$Res>
+    implements $VersionInfoCopyWith<$Res> {
+  factory _$VersionInfoCopyWith(
+          _VersionInfo value, $Res Function(_VersionInfo) _then) =
+      __$VersionInfoCopyWithImpl;
   @override
-
-  /// Latest stable version
-  String get latestVersion;
-  @override
-
-  /// Latest build number
-  int get latestBuildNumber;
-  @override
-
-  /// Available channels
-  Map<String, ChannelInfo> get channels;
-  @override
-
-  /// Minimum supported version (older versions must update)
-  String? get minSupportedVersion;
-  @override
-
-  /// Server version for compatibility checks
-  String? get serverVersion;
-  @override
-  @JsonKey(ignore: true)
-  _$$VersionInfoImplCopyWith<_$VersionInfoImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  @useResult
+  $Res call(
+      {String latestVersion,
+      int latestBuildNumber,
+      Map<String, ChannelInfo> channels,
+      String? minSupportedVersion,
+      String? serverVersion});
 }
 
-ChannelInfo _$ChannelInfoFromJson(Map<String, dynamic> json) {
-  return _ChannelInfo.fromJson(json);
+/// @nodoc
+class __$VersionInfoCopyWithImpl<$Res> implements _$VersionInfoCopyWith<$Res> {
+  __$VersionInfoCopyWithImpl(this._self, this._then);
+
+  final _VersionInfo _self;
+  final $Res Function(_VersionInfo) _then;
+
+  /// Create a copy of VersionInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? latestVersion = null,
+    Object? latestBuildNumber = null,
+    Object? channels = null,
+    Object? minSupportedVersion = freezed,
+    Object? serverVersion = freezed,
+  }) {
+    return _then(_VersionInfo(
+      latestVersion: null == latestVersion
+          ? _self.latestVersion
+          : latestVersion // ignore: cast_nullable_to_non_nullable
+              as String,
+      latestBuildNumber: null == latestBuildNumber
+          ? _self.latestBuildNumber
+          : latestBuildNumber // ignore: cast_nullable_to_non_nullable
+              as int,
+      channels: null == channels
+          ? _self._channels
+          : channels // ignore: cast_nullable_to_non_nullable
+              as Map<String, ChannelInfo>,
+      minSupportedVersion: freezed == minSupportedVersion
+          ? _self.minSupportedVersion
+          : minSupportedVersion // ignore: cast_nullable_to_non_nullable
+              as String?,
+      serverVersion: freezed == serverVersion
+          ? _self.serverVersion
+          : serverVersion // ignore: cast_nullable_to_non_nullable
+              as String?,
+    ));
+  }
 }
 
 /// @nodoc
 mixin _$ChannelInfo {
-  String get version => throw _privateConstructorUsedError;
-  String get manifestUrl => throw _privateConstructorUsedError;
+  String get version;
+  String get manifestUrl;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $ChannelInfoCopyWith<ChannelInfo> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $ChannelInfoCopyWith<$Res> {
-  factory $ChannelInfoCopyWith(
-          ChannelInfo value, $Res Function(ChannelInfo) then) =
-      _$ChannelInfoCopyWithImpl<$Res, ChannelInfo>;
-  @useResult
-  $Res call({String version, String manifestUrl});
-}
-
-/// @nodoc
-class _$ChannelInfoCopyWithImpl<$Res, $Val extends ChannelInfo>
-    implements $ChannelInfoCopyWith<$Res> {
-  _$ChannelInfoCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of ChannelInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $ChannelInfoCopyWith<ChannelInfo> get copyWith =>
+      _$ChannelInfoCopyWithImpl<ChannelInfo>(this as ChannelInfo, _$identity);
+
+  /// Serializes this ChannelInfo to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? version = null,
-    Object? manifestUrl = null,
-  }) {
-    return _then(_value.copyWith(
-      version: null == version
-          ? _value.version
-          : version // ignore: cast_nullable_to_non_nullable
-              as String,
-      manifestUrl: null == manifestUrl
-          ? _value.manifestUrl
-          : manifestUrl // ignore: cast_nullable_to_non_nullable
-              as String,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is ChannelInfo &&
+            (identical(other.version, version) || other.version == version) &&
+            (identical(other.manifestUrl, manifestUrl) ||
+                other.manifestUrl == manifestUrl));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, version, manifestUrl);
+
+  @override
+  String toString() {
+    return 'ChannelInfo(version: $version, manifestUrl: $manifestUrl)';
   }
 }
 
 /// @nodoc
-abstract class _$$ChannelInfoImplCopyWith<$Res>
-    implements $ChannelInfoCopyWith<$Res> {
-  factory _$$ChannelInfoImplCopyWith(
-          _$ChannelInfoImpl value, $Res Function(_$ChannelInfoImpl) then) =
-      __$$ChannelInfoImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $ChannelInfoCopyWith<$Res> {
+  factory $ChannelInfoCopyWith(
+          ChannelInfo value, $Res Function(ChannelInfo) _then) =
+      _$ChannelInfoCopyWithImpl;
   @useResult
   $Res call({String version, String manifestUrl});
 }
 
 /// @nodoc
-class __$$ChannelInfoImplCopyWithImpl<$Res>
-    extends _$ChannelInfoCopyWithImpl<$Res, _$ChannelInfoImpl>
-    implements _$$ChannelInfoImplCopyWith<$Res> {
-  __$$ChannelInfoImplCopyWithImpl(
-      _$ChannelInfoImpl _value, $Res Function(_$ChannelInfoImpl) _then)
-      : super(_value, _then);
+class _$ChannelInfoCopyWithImpl<$Res> implements $ChannelInfoCopyWith<$Res> {
+  _$ChannelInfoCopyWithImpl(this._self, this._then);
 
+  final ChannelInfo _self;
+  final $Res Function(ChannelInfo) _then;
+
+  /// Create a copy of ChannelInfo
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
     Object? version = null,
     Object? manifestUrl = null,
   }) {
-    return _then(_$ChannelInfoImpl(
+    return _then(_self.copyWith(
       version: null == version
-          ? _value.version
+          ? _self.version
           : version // ignore: cast_nullable_to_non_nullable
               as String,
       manifestUrl: null == manifestUrl
-          ? _value.manifestUrl
+          ? _self.manifestUrl
           : manifestUrl // ignore: cast_nullable_to_non_nullable
               as String,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [ChannelInfo].
+extension ChannelInfoPatterns on ChannelInfo {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_ChannelInfo value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _ChannelInfo() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_ChannelInfo value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ChannelInfo():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_ChannelInfo value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ChannelInfo() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(String version, String manifestUrl)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _ChannelInfo() when $default != null:
+        return $default(_that.version, _that.manifestUrl);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(String version, String manifestUrl) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ChannelInfo():
+        return $default(_that.version, _that.manifestUrl);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(String version, String manifestUrl)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ChannelInfo() when $default != null:
+        return $default(_that.version, _that.manifestUrl);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$ChannelInfoImpl implements _ChannelInfo {
-  const _$ChannelInfoImpl({required this.version, required this.manifestUrl});
-
-  factory _$ChannelInfoImpl.fromJson(Map<String, dynamic> json) =>
-      _$$ChannelInfoImplFromJson(json);
+class _ChannelInfo implements ChannelInfo {
+  const _ChannelInfo({required this.version, required this.manifestUrl});
+  factory _ChannelInfo.fromJson(Map<String, dynamic> json) =>
+      _$ChannelInfoFromJson(json);
 
   @override
   final String version;
   @override
   final String manifestUrl;
 
+  /// Create a copy of ChannelInfo
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'ChannelInfo(version: $version, manifestUrl: $manifestUrl)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$ChannelInfoCopyWith<_ChannelInfo> get copyWith =>
+      __$ChannelInfoCopyWithImpl<_ChannelInfo>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$ChannelInfoToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$ChannelInfoImpl &&
+            other is _ChannelInfo &&
             (identical(other.version, version) || other.version == version) &&
             (identical(other.manifestUrl, manifestUrl) ||
                 other.manifestUrl == manifestUrl));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(runtimeType, version, manifestUrl);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$ChannelInfoImplCopyWith<_$ChannelInfoImpl> get copyWith =>
-      __$$ChannelInfoImplCopyWithImpl<_$ChannelInfoImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$ChannelInfoImplToJson(
-      this,
-    );
+  String toString() {
+    return 'ChannelInfo(version: $version, manifestUrl: $manifestUrl)';
   }
 }
 
-abstract class _ChannelInfo implements ChannelInfo {
-  const factory _ChannelInfo(
-      {required final String version,
-      required final String manifestUrl}) = _$ChannelInfoImpl;
-
-  factory _ChannelInfo.fromJson(Map<String, dynamic> json) =
-      _$ChannelInfoImpl.fromJson;
-
+/// @nodoc
+abstract mixin class _$ChannelInfoCopyWith<$Res>
+    implements $ChannelInfoCopyWith<$Res> {
+  factory _$ChannelInfoCopyWith(
+          _ChannelInfo value, $Res Function(_ChannelInfo) _then) =
+      __$ChannelInfoCopyWithImpl;
   @override
-  String get version;
-  @override
-  String get manifestUrl;
-  @override
-  @JsonKey(ignore: true)
-  _$$ChannelInfoImplCopyWith<_$ChannelInfoImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  @useResult
+  $Res call({String version, String manifestUrl});
 }
+
+/// @nodoc
+class __$ChannelInfoCopyWithImpl<$Res> implements _$ChannelInfoCopyWith<$Res> {
+  __$ChannelInfoCopyWithImpl(this._self, this._then);
+
+  final _ChannelInfo _self;
+  final $Res Function(_ChannelInfo) _then;
+
+  /// Create a copy of ChannelInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? version = null,
+    Object? manifestUrl = null,
+  }) {
+    return _then(_ChannelInfo(
+      version: null == version
+          ? _self.version
+          : version // ignore: cast_nullable_to_non_nullable
+              as String,
+      manifestUrl: null == manifestUrl
+          ? _self.manifestUrl
+          : manifestUrl // ignore: cast_nullable_to_non_nullable
+              as String,
+    ));
+  }
+}
+
+// dart format on

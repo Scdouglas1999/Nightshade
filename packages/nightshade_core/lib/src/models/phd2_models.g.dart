@@ -6,8 +6,8 @@ part of 'phd2_models.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$Phd2StarImageImpl _$$Phd2StarImageImplFromJson(Map<String, dynamic> json) =>
-    _$Phd2StarImageImpl(
+_Phd2StarImage _$Phd2StarImageFromJson(Map<String, dynamic> json) =>
+    _Phd2StarImage(
       frame: (json['frame'] as num).toInt(),
       width: (json['width'] as num).toInt(),
       height: (json['height'] as num).toInt(),
@@ -16,7 +16,7 @@ _$Phd2StarImageImpl _$$Phd2StarImageImplFromJson(Map<String, dynamic> json) =>
       pixels: const Uint8ListConverter().fromJson(json['pixels'] as List<int>),
     );
 
-Map<String, dynamic> _$$Phd2StarImageImplToJson(_$Phd2StarImageImpl instance) =>
+Map<String, dynamic> _$Phd2StarImageToJson(_Phd2StarImage instance) =>
     <String, dynamic>{
       'frame': instance.frame,
       'width': instance.width,
@@ -26,21 +26,20 @@ Map<String, dynamic> _$$Phd2StarImageImplToJson(_$Phd2StarImageImpl instance) =>
       'pixels': const Uint8ListConverter().toJson(instance.pixels),
     };
 
-_$Phd2AlgoParamImpl _$$Phd2AlgoParamImplFromJson(Map<String, dynamic> json) =>
-    _$Phd2AlgoParamImpl(
+_Phd2AlgoParam _$Phd2AlgoParamFromJson(Map<String, dynamic> json) =>
+    _Phd2AlgoParam(
       name: json['name'] as String,
       value: (json['value'] as num).toDouble(),
     );
 
-Map<String, dynamic> _$$Phd2AlgoParamImplToJson(_$Phd2AlgoParamImpl instance) =>
+Map<String, dynamic> _$Phd2AlgoParamToJson(_Phd2AlgoParam instance) =>
     <String, dynamic>{
       'name': instance.name,
       'value': instance.value,
     };
 
-_$Phd2BrainParamsImpl _$$Phd2BrainParamsImplFromJson(
-        Map<String, dynamic> json) =>
-    _$Phd2BrainParamsImpl(
+_Phd2BrainParams _$Phd2BrainParamsFromJson(Map<String, dynamic> json) =>
+    _Phd2BrainParams(
       raParamNames: (json['raParamNames'] as List<dynamic>)
           .map((e) => e as String)
           .toList(),
@@ -55,8 +54,7 @@ _$Phd2BrainParamsImpl _$$Phd2BrainParamsImplFromJson(
       ),
     );
 
-Map<String, dynamic> _$$Phd2BrainParamsImplToJson(
-        _$Phd2BrainParamsImpl instance) =>
+Map<String, dynamic> _$Phd2BrainParamsToJson(_Phd2BrainParams instance) =>
     <String, dynamic>{
       'raParamNames': instance.raParamNames,
       'decParamNames': instance.decParamNames,
@@ -64,24 +62,22 @@ Map<String, dynamic> _$$Phd2BrainParamsImplToJson(
       'decParams': instance.decParams,
     };
 
-_$GuideErrorPointImpl _$$GuideErrorPointImplFromJson(
-        Map<String, dynamic> json) =>
-    _$GuideErrorPointImpl(
+_GuideErrorPoint _$GuideErrorPointFromJson(Map<String, dynamic> json) =>
+    _GuideErrorPoint(
       raError: (json['raError'] as num).toDouble(),
       decError: (json['decError'] as num).toDouble(),
       timestamp: DateTime.parse(json['timestamp'] as String),
     );
 
-Map<String, dynamic> _$$GuideErrorPointImplToJson(
-        _$GuideErrorPointImpl instance) =>
+Map<String, dynamic> _$GuideErrorPointToJson(_GuideErrorPoint instance) =>
     <String, dynamic>{
       'raError': instance.raError,
       'decError': instance.decError,
       'timestamp': instance.timestamp.toIso8601String(),
     };
 
-_$Phd2GuideStatsImpl _$$Phd2GuideStatsImplFromJson(Map<String, dynamic> json) =>
-    _$Phd2GuideStatsImpl(
+_Phd2GuideStats _$Phd2GuideStatsFromJson(Map<String, dynamic> json) =>
+    _Phd2GuideStats(
       rmsRa: (json['rmsRa'] as num?)?.toDouble() ?? 0.0,
       rmsDec: (json['rmsDec'] as num?)?.toDouble() ?? 0.0,
       rmsTotal: (json['rmsTotal'] as num?)?.toDouble() ?? 0.0,
@@ -96,8 +92,7 @@ _$Phd2GuideStatsImpl _$$Phd2GuideStatsImplFromJson(Map<String, dynamic> json) =>
       frameCount: (json['frameCount'] as num?)?.toInt() ?? 0,
     );
 
-Map<String, dynamic> _$$Phd2GuideStatsImplToJson(
-        _$Phd2GuideStatsImpl instance) =>
+Map<String, dynamic> _$Phd2GuideStatsToJson(_Phd2GuideStats instance) =>
     <String, dynamic>{
       'rmsRa': instance.rmsRa,
       'rmsDec': instance.rmsDec,
@@ -113,9 +108,8 @@ Map<String, dynamic> _$$Phd2GuideStatsImplToJson(
       'frameCount': instance.frameCount,
     };
 
-_$Phd2CalibrationDataImpl _$$Phd2CalibrationDataImplFromJson(
-        Map<String, dynamic> json) =>
-    _$Phd2CalibrationDataImpl(
+_Phd2CalibrationData _$Phd2CalibrationDataFromJson(Map<String, dynamic> json) =>
+    _Phd2CalibrationData(
       isCalibrated: json['isCalibrated'] as bool? ?? false,
       calibratedAt: json['calibratedAt'] == null
           ? null
@@ -126,8 +120,8 @@ _$Phd2CalibrationDataImpl _$$Phd2CalibrationDataImplFromJson(
       decGuideMode: json['decGuideMode'] as String?,
     );
 
-Map<String, dynamic> _$$Phd2CalibrationDataImplToJson(
-        _$Phd2CalibrationDataImpl instance) =>
+Map<String, dynamic> _$Phd2CalibrationDataToJson(
+        _Phd2CalibrationData instance) =>
     <String, dynamic>{
       'isCalibrated': instance.isCalibrated,
       'calibratedAt': instance.calibratedAt?.toIso8601String(),

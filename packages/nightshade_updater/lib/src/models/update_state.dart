@@ -35,7 +35,7 @@ enum UpdateStatus {
 
 /// Current state of the update system
 @freezed
-class UpdateState with _$UpdateState {
+abstract class UpdateState with _$UpdateState {
   const UpdateState._();
 
   const factory UpdateState({
@@ -121,7 +121,7 @@ class UpdateState with _$UpdateState {
 
 /// Settings for the update system
 @freezed
-class UpdateSettings with _$UpdateSettings {
+abstract class UpdateSettings with _$UpdateSettings {
   const factory UpdateSettings({
     /// Whether automatic update checking is enabled
     @Default(true) bool autoCheckEnabled,

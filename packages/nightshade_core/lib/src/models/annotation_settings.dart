@@ -27,7 +27,7 @@ enum AnnotationObjectFilter {
 
 /// Settings for controlling annotation display and behavior
 @freezed
-class AnnotationSettings with _$AnnotationSettings {
+abstract class AnnotationSettings with _$AnnotationSettings {
   const factory AnnotationSettings({
     /// Whether annotations are enabled
     @Default(true) bool enabled,
@@ -103,7 +103,7 @@ class AnnotationSettings with _$AnnotationSettings {
 
 /// Display settings for individual annotation markers
 @freezed
-class AnnotationMarkerStyle with _$AnnotationMarkerStyle {
+abstract class AnnotationMarkerStyle with _$AnnotationMarkerStyle {
   const factory AnnotationMarkerStyle({
     /// Color for galaxy markers (gold)
     @Default(0xFFFFD700) int galaxyColor,
@@ -145,7 +145,7 @@ class AnnotationMarkerStyle with _$AnnotationMarkerStyle {
 
 /// Named preset for annotation display settings
 @freezed
-class AnnotationPreset with _$AnnotationPreset {
+abstract class AnnotationPreset with _$AnnotationPreset {
   const factory AnnotationPreset({
     required String name,
     required Set<AnnotationObjectFilter> visibleTypes,
@@ -169,7 +169,7 @@ enum CustomAnnotationType {
 
 /// A user-drawn annotation on the image (circle, arrow, or text)
 @freezed
-class CustomAnnotation with _$CustomAnnotation {
+abstract class CustomAnnotation with _$CustomAnnotation {
   const factory CustomAnnotation({
     required String id,
     required CustomAnnotationType type,

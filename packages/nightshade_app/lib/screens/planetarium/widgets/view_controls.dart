@@ -101,6 +101,21 @@ class ViewControls extends ConsumerWidget {
             },
           ),
           const SizedBox(height: 4),
+          // Angular-measurement tool toggle (separation + position angle).
+          Consumer(
+            builder: (context, ref, _) {
+              return ViewControlButton(
+                icon: NightshadeIcons.ruler,
+                isActive: ref.watch(measurementModeProvider),
+                onTap: () {
+                  final notifier = ref.read(measurementModeProvider.notifier);
+                  notifier.state = !notifier.state;
+                },
+                tooltip: 'Measure angular separation + position angle',
+              );
+            },
+          ),
+          const SizedBox(height: 4),
           // Night-vision (red) mode toggle
           Consumer(
             builder: (context, ref, _) {
@@ -127,6 +142,25 @@ class ViewControls extends ConsumerWidget {
                   notifier.state = !notifier.state;
                 },
                 tooltip: 'Toggle performance HUD',
+              );
+            },
+          ),
+          const SizedBox(height: 4),
+          // Planning overlays toggle: altitude track + meridian-flip marker for
+          // the selected target, plus the twilight (dusk/dawn) indicator.
+          Consumer(
+            builder: (context, ref, _) {
+              final config = ref.watch(skyRenderConfigProvider);
+              return ViewControlButton(
+                icon: NightshadeIcons.chart,
+                isActive: config.showPlanningOverlays,
+                onTap: () {
+                  ref
+                      .read(skyRenderConfigProvider.notifier)
+                      .togglePlanningOverlays();
+                },
+                tooltip: 'Toggle planning overlays (altitude track, '
+                    'meridian flip, twilight)',
               );
             },
           ),
@@ -212,6 +246,25 @@ class ViewControls extends ConsumerWidget {
           const SizedBox(height: 4),
           QualitySettingsButton(colors: colors),
           const Divider(height: 16, color: Colors.white24),
+          // Alt/Az ("tonight from my site") view-mode toggle. Reframes the sky
+          // horizon-up / zenith-centered as the observer sees it; tap again to
+          // return to the equatorial (star-atlas) frame.
+          ViewControlButton(
+            icon: NightshadeIcons.layers,
+            isActive: viewState.viewMode == SkyViewMode.horizontal,
+            onTap: () {
+              final notifier = ref.read(skyViewStateProvider.notifier);
+              notifier.setViewMode(
+                viewState.viewMode == SkyViewMode.horizontal
+                    ? SkyViewMode.equatorial
+                    : SkyViewMode.horizontal,
+              );
+            },
+            tooltip: viewState.viewMode == SkyViewMode.horizontal
+                ? 'Alt/Az view (horizon-up) — tap for equatorial'
+                : 'Switch to Alt/Az view (tonight from my site)',
+          ),
+          const SizedBox(height: 4),
           ProjectionSelectorButton(colors: colors),
           const Divider(height: 16, color: Colors.white24),
           ExportChartButton(colors: colors),

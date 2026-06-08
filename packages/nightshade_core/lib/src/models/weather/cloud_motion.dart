@@ -5,7 +5,7 @@ part 'cloud_motion.g.dart';
 
 /// Cloud movement analysis and prediction
 @freezed
-class CloudMotion with _$CloudMotion {
+abstract class CloudMotion with _$CloudMotion {
   const factory CloudMotion({
     /// Cloud movement speed in km/h
     required double speedKmh,

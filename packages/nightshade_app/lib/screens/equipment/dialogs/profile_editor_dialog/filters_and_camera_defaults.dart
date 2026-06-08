@@ -229,7 +229,9 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
                         border: Border.all(color: colors.border),
                       ),
-                      child: CheckboxListTile(
+                      child: Material(
+                        type: MaterialType.transparency,
+                        child: CheckboxListTile(
                         value: _coolOnConnect,
                         onChanged: (v) =>
                             setState(() => _coolOnConnect = v ?? false),
@@ -246,6 +248,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
                         contentPadding:
                             const EdgeInsets.symmetric(horizontal: 12),
                         dense: true,
+                      ),
                       ),
                     ),
                   ],

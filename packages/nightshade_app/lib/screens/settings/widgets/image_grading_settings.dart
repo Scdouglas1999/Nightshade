@@ -18,6 +18,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../session_review/auto_integration_service.dart';
 import 'settings_widgets.dart';
 
 class ImageGradingSettings extends ConsumerStatefulWidget {
@@ -232,6 +233,22 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
               ],
             ),
             SettingsSection(
+              title: 'Post-session integration',
+              children: [
+                SettingRow(
+                  icon: LucideIcons.sparkles,
+                  title: 'Auto-integrate at end of run',
+                  subtitle:
+                      'When on, the accepted subs are integrated into an '
+                      'archival master automatically when a sequence run '
+                      'completes — wake up to a finished image. The result '
+                      'lands in Session Review › Masters.',
+                  trailing: const _AutoIntegrateSwitch(),
+                  isLast: true,
+                ),
+              ],
+            ),
+            SettingsSection(
               title: 'Reject folder',
               children: [
                 SettingRow(
@@ -257,6 +274,57 @@ class _ImageGradingSettingsState extends ConsumerState<ImageGradingSettings> {
             ),
           ],
         );
+      },
+    );
+  }
+}
+
+/// Opt-in toggle for the post-session auto-integration hook. Persists the
+/// boolean directly through [settingsDaoProvider] under
+/// [kAutoIntegrateSettingKey] (a feature-local key, no AppSettings schema
+/// change), defaulting to off so unattended-night auto-processing is opt-in.
+class _AutoIntegrateSwitch extends ConsumerStatefulWidget {
+  const _AutoIntegrateSwitch();
+
+  @override
+  ConsumerState<_AutoIntegrateSwitch> createState() =>
+      _AutoIntegrateSwitchState();
+}
+
+class _AutoIntegrateSwitchState extends ConsumerState<_AutoIntegrateSwitch> {
+  bool _enabled = false;
+  bool _loaded = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _read();
+  }
+
+  Future<void> _read() async {
+    final raw =
+        await ref.read(settingsDaoProvider).getSetting(kAutoIntegrateSettingKey);
+    if (!mounted) return;
+    setState(() {
+      _enabled = raw == 'true';
+      _loaded = true;
+    });
+  }
+
+  Future<void> _set(bool value) async {
+    setState(() => _enabled = value);
+    await ref
+        .read(settingsDaoProvider)
+        .setSetting(kAutoIntegrateSettingKey, value.toString());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingsSwitch(
+      value: _enabled,
+      onChanged: (v) {
+        if (!_loaded) return;
+        _set(v);
       },
     );
   }

@@ -1,5 +1,5 @@
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
@@ -9,205 +9,142 @@ part of 'meridian_flip_settings.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// dart format off
 T _$identity<T>(T value) => value;
-
-final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
-
-MeridianFlipSettings _$MeridianFlipSettingsFromJson(Map<String, dynamic> json) {
-  return _MeridianFlipSettings.fromJson(json);
-}
 
 /// @nodoc
 mixin _$MeridianFlipSettings {
 // === Mode Control ===
   /// Enable standalone monitoring when no sequence is running
-  bool get standaloneMonitoringEnabled =>
-      throw _privateConstructorUsedError; // === Trigger Conditions ===
+  bool get standaloneMonitoringEnabled; // === Trigger Conditions ===
   /// Which method to use for determining flip timing
-  MeridianTriggerMethod get triggerMethod => throw _privateConstructorUsedError;
+  MeridianTriggerMethod get triggerMethod;
 
   /// Minutes past meridian to trigger flip (default: 5)
-  double get minutesPastMeridian => throw _privateConstructorUsedError;
+  double get minutesPastMeridian;
 
   /// Minutes before mount limit to trigger flip (default: 10)
-  double get minutesBeforeLimit => throw _privateConstructorUsedError;
+  double get minutesBeforeLimit;
 
   /// Hour angle threshold in hours to trigger flip (default: 0.5 = 30 min)
-  double get hourAngleThreshold => throw _privateConstructorUsedError;
+  double get hourAngleThreshold;
 
   /// Minutes to wait after tracking limit hit before flipping (0 = immediate).
   /// Only used with onTrackingLimitHit trigger method.
-  double get trackingLimitWaitMinutes =>
-      throw _privateConstructorUsedError; // === Flip Sequence Options ===
+  double get trackingLimitWaitMinutes; // === Flip Sequence Options ===
   /// Pause guider before flip
-  bool get pauseGuidingBeforeFlip => throw _privateConstructorUsedError;
+  bool get pauseGuidingBeforeFlip;
 
   /// Plate solve and re-center after flip
-  bool get recenterAfterFlip => throw _privateConstructorUsedError;
+  bool get recenterAfterFlip;
 
   /// Run autofocus after flip
-  bool get refocusAfterFlip => throw _privateConstructorUsedError;
+  bool get refocusAfterFlip;
 
   /// Settle time in seconds after flip completes
-  double get settleTimeSeconds => throw _privateConstructorUsedError;
+  double get settleTimeSeconds;
 
   /// Resume guiding after flip (if was running)
-  bool get resumeGuidingAfterFlip =>
-      throw _privateConstructorUsedError; // === Error Handling ===
+  bool get resumeGuidingAfterFlip; // === Error Handling ===
   /// Maximum retry attempts
-  int get maxRetries => throw _privateConstructorUsedError;
+  int get maxRetries;
 
   /// Delay between retries in seconds
-  List<double> get retryDelaysSeconds => throw _privateConstructorUsedError;
+  List<double> get retryDelaysSeconds;
 
   /// Action to take on permanent failure
-  FlipFailureAction get failureAction =>
-      throw _privateConstructorUsedError; // === Notifications ===
+  FlipFailureAction get failureAction; // === Notifications ===
   /// Play sound alert when flip starts/completes/fails
-  bool get soundAlertOnFlip => throw _privateConstructorUsedError;
+  bool get soundAlertOnFlip;
 
   /// Send push notification to mobile app
-  bool get pushNotificationOnFlip => throw _privateConstructorUsedError;
+  bool get pushNotificationOnFlip;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $MeridianFlipSettingsCopyWith<MeridianFlipSettings> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $MeridianFlipSettingsCopyWith<$Res> {
-  factory $MeridianFlipSettingsCopyWith(MeridianFlipSettings value,
-          $Res Function(MeridianFlipSettings) then) =
-      _$MeridianFlipSettingsCopyWithImpl<$Res, MeridianFlipSettings>;
-  @useResult
-  $Res call(
-      {bool standaloneMonitoringEnabled,
-      MeridianTriggerMethod triggerMethod,
-      double minutesPastMeridian,
-      double minutesBeforeLimit,
-      double hourAngleThreshold,
-      double trackingLimitWaitMinutes,
-      bool pauseGuidingBeforeFlip,
-      bool recenterAfterFlip,
-      bool refocusAfterFlip,
-      double settleTimeSeconds,
-      bool resumeGuidingAfterFlip,
-      int maxRetries,
-      List<double> retryDelaysSeconds,
-      FlipFailureAction failureAction,
-      bool soundAlertOnFlip,
-      bool pushNotificationOnFlip});
-}
-
-/// @nodoc
-class _$MeridianFlipSettingsCopyWithImpl<$Res,
-        $Val extends MeridianFlipSettings>
-    implements $MeridianFlipSettingsCopyWith<$Res> {
-  _$MeridianFlipSettingsCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of MeridianFlipSettings
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $MeridianFlipSettingsCopyWith<MeridianFlipSettings> get copyWith =>
+      _$MeridianFlipSettingsCopyWithImpl<MeridianFlipSettings>(
+          this as MeridianFlipSettings, _$identity);
+
+  /// Serializes this MeridianFlipSettings to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? standaloneMonitoringEnabled = null,
-    Object? triggerMethod = null,
-    Object? minutesPastMeridian = null,
-    Object? minutesBeforeLimit = null,
-    Object? hourAngleThreshold = null,
-    Object? trackingLimitWaitMinutes = null,
-    Object? pauseGuidingBeforeFlip = null,
-    Object? recenterAfterFlip = null,
-    Object? refocusAfterFlip = null,
-    Object? settleTimeSeconds = null,
-    Object? resumeGuidingAfterFlip = null,
-    Object? maxRetries = null,
-    Object? retryDelaysSeconds = null,
-    Object? failureAction = null,
-    Object? soundAlertOnFlip = null,
-    Object? pushNotificationOnFlip = null,
-  }) {
-    return _then(_value.copyWith(
-      standaloneMonitoringEnabled: null == standaloneMonitoringEnabled
-          ? _value.standaloneMonitoringEnabled
-          : standaloneMonitoringEnabled // ignore: cast_nullable_to_non_nullable
-              as bool,
-      triggerMethod: null == triggerMethod
-          ? _value.triggerMethod
-          : triggerMethod // ignore: cast_nullable_to_non_nullable
-              as MeridianTriggerMethod,
-      minutesPastMeridian: null == minutesPastMeridian
-          ? _value.minutesPastMeridian
-          : minutesPastMeridian // ignore: cast_nullable_to_non_nullable
-              as double,
-      minutesBeforeLimit: null == minutesBeforeLimit
-          ? _value.minutesBeforeLimit
-          : minutesBeforeLimit // ignore: cast_nullable_to_non_nullable
-              as double,
-      hourAngleThreshold: null == hourAngleThreshold
-          ? _value.hourAngleThreshold
-          : hourAngleThreshold // ignore: cast_nullable_to_non_nullable
-              as double,
-      trackingLimitWaitMinutes: null == trackingLimitWaitMinutes
-          ? _value.trackingLimitWaitMinutes
-          : trackingLimitWaitMinutes // ignore: cast_nullable_to_non_nullable
-              as double,
-      pauseGuidingBeforeFlip: null == pauseGuidingBeforeFlip
-          ? _value.pauseGuidingBeforeFlip
-          : pauseGuidingBeforeFlip // ignore: cast_nullable_to_non_nullable
-              as bool,
-      recenterAfterFlip: null == recenterAfterFlip
-          ? _value.recenterAfterFlip
-          : recenterAfterFlip // ignore: cast_nullable_to_non_nullable
-              as bool,
-      refocusAfterFlip: null == refocusAfterFlip
-          ? _value.refocusAfterFlip
-          : refocusAfterFlip // ignore: cast_nullable_to_non_nullable
-              as bool,
-      settleTimeSeconds: null == settleTimeSeconds
-          ? _value.settleTimeSeconds
-          : settleTimeSeconds // ignore: cast_nullable_to_non_nullable
-              as double,
-      resumeGuidingAfterFlip: null == resumeGuidingAfterFlip
-          ? _value.resumeGuidingAfterFlip
-          : resumeGuidingAfterFlip // ignore: cast_nullable_to_non_nullable
-              as bool,
-      maxRetries: null == maxRetries
-          ? _value.maxRetries
-          : maxRetries // ignore: cast_nullable_to_non_nullable
-              as int,
-      retryDelaysSeconds: null == retryDelaysSeconds
-          ? _value.retryDelaysSeconds
-          : retryDelaysSeconds // ignore: cast_nullable_to_non_nullable
-              as List<double>,
-      failureAction: null == failureAction
-          ? _value.failureAction
-          : failureAction // ignore: cast_nullable_to_non_nullable
-              as FlipFailureAction,
-      soundAlertOnFlip: null == soundAlertOnFlip
-          ? _value.soundAlertOnFlip
-          : soundAlertOnFlip // ignore: cast_nullable_to_non_nullable
-              as bool,
-      pushNotificationOnFlip: null == pushNotificationOnFlip
-          ? _value.pushNotificationOnFlip
-          : pushNotificationOnFlip // ignore: cast_nullable_to_non_nullable
-              as bool,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is MeridianFlipSettings &&
+            (identical(other.standaloneMonitoringEnabled,
+                    standaloneMonitoringEnabled) ||
+                other.standaloneMonitoringEnabled ==
+                    standaloneMonitoringEnabled) &&
+            (identical(other.triggerMethod, triggerMethod) ||
+                other.triggerMethod == triggerMethod) &&
+            (identical(other.minutesPastMeridian, minutesPastMeridian) ||
+                other.minutesPastMeridian == minutesPastMeridian) &&
+            (identical(other.minutesBeforeLimit, minutesBeforeLimit) ||
+                other.minutesBeforeLimit == minutesBeforeLimit) &&
+            (identical(other.hourAngleThreshold, hourAngleThreshold) ||
+                other.hourAngleThreshold == hourAngleThreshold) &&
+            (identical(
+                    other.trackingLimitWaitMinutes, trackingLimitWaitMinutes) ||
+                other.trackingLimitWaitMinutes == trackingLimitWaitMinutes) &&
+            (identical(other.pauseGuidingBeforeFlip, pauseGuidingBeforeFlip) ||
+                other.pauseGuidingBeforeFlip == pauseGuidingBeforeFlip) &&
+            (identical(other.recenterAfterFlip, recenterAfterFlip) ||
+                other.recenterAfterFlip == recenterAfterFlip) &&
+            (identical(other.refocusAfterFlip, refocusAfterFlip) ||
+                other.refocusAfterFlip == refocusAfterFlip) &&
+            (identical(other.settleTimeSeconds, settleTimeSeconds) ||
+                other.settleTimeSeconds == settleTimeSeconds) &&
+            (identical(other.resumeGuidingAfterFlip, resumeGuidingAfterFlip) ||
+                other.resumeGuidingAfterFlip == resumeGuidingAfterFlip) &&
+            (identical(other.maxRetries, maxRetries) ||
+                other.maxRetries == maxRetries) &&
+            const DeepCollectionEquality()
+                .equals(other.retryDelaysSeconds, retryDelaysSeconds) &&
+            (identical(other.failureAction, failureAction) ||
+                other.failureAction == failureAction) &&
+            (identical(other.soundAlertOnFlip, soundAlertOnFlip) ||
+                other.soundAlertOnFlip == soundAlertOnFlip) &&
+            (identical(other.pushNotificationOnFlip, pushNotificationOnFlip) ||
+                other.pushNotificationOnFlip == pushNotificationOnFlip));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      standaloneMonitoringEnabled,
+      triggerMethod,
+      minutesPastMeridian,
+      minutesBeforeLimit,
+      hourAngleThreshold,
+      trackingLimitWaitMinutes,
+      pauseGuidingBeforeFlip,
+      recenterAfterFlip,
+      refocusAfterFlip,
+      settleTimeSeconds,
+      resumeGuidingAfterFlip,
+      maxRetries,
+      const DeepCollectionEquality().hash(retryDelaysSeconds),
+      failureAction,
+      soundAlertOnFlip,
+      pushNotificationOnFlip);
+
+  @override
+  String toString() {
+    return 'MeridianFlipSettings(standaloneMonitoringEnabled: $standaloneMonitoringEnabled, triggerMethod: $triggerMethod, minutesPastMeridian: $minutesPastMeridian, minutesBeforeLimit: $minutesBeforeLimit, hourAngleThreshold: $hourAngleThreshold, trackingLimitWaitMinutes: $trackingLimitWaitMinutes, pauseGuidingBeforeFlip: $pauseGuidingBeforeFlip, recenterAfterFlip: $recenterAfterFlip, refocusAfterFlip: $refocusAfterFlip, settleTimeSeconds: $settleTimeSeconds, resumeGuidingAfterFlip: $resumeGuidingAfterFlip, maxRetries: $maxRetries, retryDelaysSeconds: $retryDelaysSeconds, failureAction: $failureAction, soundAlertOnFlip: $soundAlertOnFlip, pushNotificationOnFlip: $pushNotificationOnFlip)';
   }
 }
 
 /// @nodoc
-abstract class _$$MeridianFlipSettingsImplCopyWith<$Res>
-    implements $MeridianFlipSettingsCopyWith<$Res> {
-  factory _$$MeridianFlipSettingsImplCopyWith(_$MeridianFlipSettingsImpl value,
-          $Res Function(_$MeridianFlipSettingsImpl) then) =
-      __$$MeridianFlipSettingsImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $MeridianFlipSettingsCopyWith<$Res> {
+  factory $MeridianFlipSettingsCopyWith(MeridianFlipSettings value,
+          $Res Function(MeridianFlipSettings) _then) =
+      _$MeridianFlipSettingsCopyWithImpl;
   @useResult
   $Res call(
       {bool standaloneMonitoringEnabled,
@@ -229,13 +166,15 @@ abstract class _$$MeridianFlipSettingsImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$MeridianFlipSettingsImplCopyWithImpl<$Res>
-    extends _$MeridianFlipSettingsCopyWithImpl<$Res, _$MeridianFlipSettingsImpl>
-    implements _$$MeridianFlipSettingsImplCopyWith<$Res> {
-  __$$MeridianFlipSettingsImplCopyWithImpl(_$MeridianFlipSettingsImpl _value,
-      $Res Function(_$MeridianFlipSettingsImpl) _then)
-      : super(_value, _then);
+class _$MeridianFlipSettingsCopyWithImpl<$Res>
+    implements $MeridianFlipSettingsCopyWith<$Res> {
+  _$MeridianFlipSettingsCopyWithImpl(this._self, this._then);
 
+  final MeridianFlipSettings _self;
+  final $Res Function(MeridianFlipSettings) _then;
+
+  /// Create a copy of MeridianFlipSettings
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -256,79 +195,335 @@ class __$$MeridianFlipSettingsImplCopyWithImpl<$Res>
     Object? soundAlertOnFlip = null,
     Object? pushNotificationOnFlip = null,
   }) {
-    return _then(_$MeridianFlipSettingsImpl(
+    return _then(_self.copyWith(
       standaloneMonitoringEnabled: null == standaloneMonitoringEnabled
-          ? _value.standaloneMonitoringEnabled
+          ? _self.standaloneMonitoringEnabled
           : standaloneMonitoringEnabled // ignore: cast_nullable_to_non_nullable
               as bool,
       triggerMethod: null == triggerMethod
-          ? _value.triggerMethod
+          ? _self.triggerMethod
           : triggerMethod // ignore: cast_nullable_to_non_nullable
               as MeridianTriggerMethod,
       minutesPastMeridian: null == minutesPastMeridian
-          ? _value.minutesPastMeridian
+          ? _self.minutesPastMeridian
           : minutesPastMeridian // ignore: cast_nullable_to_non_nullable
               as double,
       minutesBeforeLimit: null == minutesBeforeLimit
-          ? _value.minutesBeforeLimit
+          ? _self.minutesBeforeLimit
           : minutesBeforeLimit // ignore: cast_nullable_to_non_nullable
               as double,
       hourAngleThreshold: null == hourAngleThreshold
-          ? _value.hourAngleThreshold
+          ? _self.hourAngleThreshold
           : hourAngleThreshold // ignore: cast_nullable_to_non_nullable
               as double,
       trackingLimitWaitMinutes: null == trackingLimitWaitMinutes
-          ? _value.trackingLimitWaitMinutes
+          ? _self.trackingLimitWaitMinutes
           : trackingLimitWaitMinutes // ignore: cast_nullable_to_non_nullable
               as double,
       pauseGuidingBeforeFlip: null == pauseGuidingBeforeFlip
-          ? _value.pauseGuidingBeforeFlip
+          ? _self.pauseGuidingBeforeFlip
           : pauseGuidingBeforeFlip // ignore: cast_nullable_to_non_nullable
               as bool,
       recenterAfterFlip: null == recenterAfterFlip
-          ? _value.recenterAfterFlip
+          ? _self.recenterAfterFlip
           : recenterAfterFlip // ignore: cast_nullable_to_non_nullable
               as bool,
       refocusAfterFlip: null == refocusAfterFlip
-          ? _value.refocusAfterFlip
+          ? _self.refocusAfterFlip
           : refocusAfterFlip // ignore: cast_nullable_to_non_nullable
               as bool,
       settleTimeSeconds: null == settleTimeSeconds
-          ? _value.settleTimeSeconds
+          ? _self.settleTimeSeconds
           : settleTimeSeconds // ignore: cast_nullable_to_non_nullable
               as double,
       resumeGuidingAfterFlip: null == resumeGuidingAfterFlip
-          ? _value.resumeGuidingAfterFlip
+          ? _self.resumeGuidingAfterFlip
           : resumeGuidingAfterFlip // ignore: cast_nullable_to_non_nullable
               as bool,
       maxRetries: null == maxRetries
-          ? _value.maxRetries
+          ? _self.maxRetries
           : maxRetries // ignore: cast_nullable_to_non_nullable
               as int,
       retryDelaysSeconds: null == retryDelaysSeconds
-          ? _value._retryDelaysSeconds
+          ? _self.retryDelaysSeconds
           : retryDelaysSeconds // ignore: cast_nullable_to_non_nullable
               as List<double>,
       failureAction: null == failureAction
-          ? _value.failureAction
+          ? _self.failureAction
           : failureAction // ignore: cast_nullable_to_non_nullable
               as FlipFailureAction,
       soundAlertOnFlip: null == soundAlertOnFlip
-          ? _value.soundAlertOnFlip
+          ? _self.soundAlertOnFlip
           : soundAlertOnFlip // ignore: cast_nullable_to_non_nullable
               as bool,
       pushNotificationOnFlip: null == pushNotificationOnFlip
-          ? _value.pushNotificationOnFlip
+          ? _self.pushNotificationOnFlip
           : pushNotificationOnFlip // ignore: cast_nullable_to_non_nullable
               as bool,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [MeridianFlipSettings].
+extension MeridianFlipSettingsPatterns on MeridianFlipSettings {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_MeridianFlipSettings value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _MeridianFlipSettings() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_MeridianFlipSettings value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _MeridianFlipSettings():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_MeridianFlipSettings value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _MeridianFlipSettings() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            bool standaloneMonitoringEnabled,
+            MeridianTriggerMethod triggerMethod,
+            double minutesPastMeridian,
+            double minutesBeforeLimit,
+            double hourAngleThreshold,
+            double trackingLimitWaitMinutes,
+            bool pauseGuidingBeforeFlip,
+            bool recenterAfterFlip,
+            bool refocusAfterFlip,
+            double settleTimeSeconds,
+            bool resumeGuidingAfterFlip,
+            int maxRetries,
+            List<double> retryDelaysSeconds,
+            FlipFailureAction failureAction,
+            bool soundAlertOnFlip,
+            bool pushNotificationOnFlip)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _MeridianFlipSettings() when $default != null:
+        return $default(
+            _that.standaloneMonitoringEnabled,
+            _that.triggerMethod,
+            _that.minutesPastMeridian,
+            _that.minutesBeforeLimit,
+            _that.hourAngleThreshold,
+            _that.trackingLimitWaitMinutes,
+            _that.pauseGuidingBeforeFlip,
+            _that.recenterAfterFlip,
+            _that.refocusAfterFlip,
+            _that.settleTimeSeconds,
+            _that.resumeGuidingAfterFlip,
+            _that.maxRetries,
+            _that.retryDelaysSeconds,
+            _that.failureAction,
+            _that.soundAlertOnFlip,
+            _that.pushNotificationOnFlip);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            bool standaloneMonitoringEnabled,
+            MeridianTriggerMethod triggerMethod,
+            double minutesPastMeridian,
+            double minutesBeforeLimit,
+            double hourAngleThreshold,
+            double trackingLimitWaitMinutes,
+            bool pauseGuidingBeforeFlip,
+            bool recenterAfterFlip,
+            bool refocusAfterFlip,
+            double settleTimeSeconds,
+            bool resumeGuidingAfterFlip,
+            int maxRetries,
+            List<double> retryDelaysSeconds,
+            FlipFailureAction failureAction,
+            bool soundAlertOnFlip,
+            bool pushNotificationOnFlip)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _MeridianFlipSettings():
+        return $default(
+            _that.standaloneMonitoringEnabled,
+            _that.triggerMethod,
+            _that.minutesPastMeridian,
+            _that.minutesBeforeLimit,
+            _that.hourAngleThreshold,
+            _that.trackingLimitWaitMinutes,
+            _that.pauseGuidingBeforeFlip,
+            _that.recenterAfterFlip,
+            _that.refocusAfterFlip,
+            _that.settleTimeSeconds,
+            _that.resumeGuidingAfterFlip,
+            _that.maxRetries,
+            _that.retryDelaysSeconds,
+            _that.failureAction,
+            _that.soundAlertOnFlip,
+            _that.pushNotificationOnFlip);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            bool standaloneMonitoringEnabled,
+            MeridianTriggerMethod triggerMethod,
+            double minutesPastMeridian,
+            double minutesBeforeLimit,
+            double hourAngleThreshold,
+            double trackingLimitWaitMinutes,
+            bool pauseGuidingBeforeFlip,
+            bool recenterAfterFlip,
+            bool refocusAfterFlip,
+            double settleTimeSeconds,
+            bool resumeGuidingAfterFlip,
+            int maxRetries,
+            List<double> retryDelaysSeconds,
+            FlipFailureAction failureAction,
+            bool soundAlertOnFlip,
+            bool pushNotificationOnFlip)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _MeridianFlipSettings() when $default != null:
+        return $default(
+            _that.standaloneMonitoringEnabled,
+            _that.triggerMethod,
+            _that.minutesPastMeridian,
+            _that.minutesBeforeLimit,
+            _that.hourAngleThreshold,
+            _that.trackingLimitWaitMinutes,
+            _that.pauseGuidingBeforeFlip,
+            _that.recenterAfterFlip,
+            _that.refocusAfterFlip,
+            _that.settleTimeSeconds,
+            _that.resumeGuidingAfterFlip,
+            _that.maxRetries,
+            _that.retryDelaysSeconds,
+            _that.failureAction,
+            _that.soundAlertOnFlip,
+            _that.pushNotificationOnFlip);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$MeridianFlipSettingsImpl extends _MeridianFlipSettings {
-  const _$MeridianFlipSettingsImpl(
+class _MeridianFlipSettings extends MeridianFlipSettings {
+  const _MeridianFlipSettings(
       {this.standaloneMonitoringEnabled = false,
       this.triggerMethod = MeridianTriggerMethod.minutesPastMeridian,
       this.minutesPastMeridian = 5.0,
@@ -347,9 +542,8 @@ class _$MeridianFlipSettingsImpl extends _MeridianFlipSettings {
       this.pushNotificationOnFlip = true})
       : _retryDelaysSeconds = retryDelaysSeconds,
         super._();
-
-  factory _$MeridianFlipSettingsImpl.fromJson(Map<String, dynamic> json) =>
-      _$$MeridianFlipSettingsImplFromJson(json);
+  factory _MeridianFlipSettings.fromJson(Map<String, dynamic> json) =>
+      _$MeridianFlipSettingsFromJson(json);
 
 // === Mode Control ===
   /// Enable standalone monitoring when no sequence is running
@@ -441,16 +635,27 @@ class _$MeridianFlipSettingsImpl extends _MeridianFlipSettings {
   @JsonKey()
   final bool pushNotificationOnFlip;
 
+  /// Create a copy of MeridianFlipSettings
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'MeridianFlipSettings(standaloneMonitoringEnabled: $standaloneMonitoringEnabled, triggerMethod: $triggerMethod, minutesPastMeridian: $minutesPastMeridian, minutesBeforeLimit: $minutesBeforeLimit, hourAngleThreshold: $hourAngleThreshold, trackingLimitWaitMinutes: $trackingLimitWaitMinutes, pauseGuidingBeforeFlip: $pauseGuidingBeforeFlip, recenterAfterFlip: $recenterAfterFlip, refocusAfterFlip: $refocusAfterFlip, settleTimeSeconds: $settleTimeSeconds, resumeGuidingAfterFlip: $resumeGuidingAfterFlip, maxRetries: $maxRetries, retryDelaysSeconds: $retryDelaysSeconds, failureAction: $failureAction, soundAlertOnFlip: $soundAlertOnFlip, pushNotificationOnFlip: $pushNotificationOnFlip)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$MeridianFlipSettingsCopyWith<_MeridianFlipSettings> get copyWith =>
+      __$MeridianFlipSettingsCopyWithImpl<_MeridianFlipSettings>(
+          this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$MeridianFlipSettingsToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$MeridianFlipSettingsImpl &&
+            other is _MeridianFlipSettings &&
             (identical(other.standaloneMonitoringEnabled,
                     standaloneMonitoringEnabled) ||
                 other.standaloneMonitoringEnabled ==
@@ -488,7 +693,7 @@ class _$MeridianFlipSettingsImpl extends _MeridianFlipSettings {
                 other.pushNotificationOnFlip == pushNotificationOnFlip));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,
@@ -509,107 +714,136 @@ class _$MeridianFlipSettingsImpl extends _MeridianFlipSettings {
       soundAlertOnFlip,
       pushNotificationOnFlip);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$MeridianFlipSettingsImplCopyWith<_$MeridianFlipSettingsImpl>
-      get copyWith =>
-          __$$MeridianFlipSettingsImplCopyWithImpl<_$MeridianFlipSettingsImpl>(
-              this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$MeridianFlipSettingsImplToJson(
-      this,
-    );
+  String toString() {
+    return 'MeridianFlipSettings(standaloneMonitoringEnabled: $standaloneMonitoringEnabled, triggerMethod: $triggerMethod, minutesPastMeridian: $minutesPastMeridian, minutesBeforeLimit: $minutesBeforeLimit, hourAngleThreshold: $hourAngleThreshold, trackingLimitWaitMinutes: $trackingLimitWaitMinutes, pauseGuidingBeforeFlip: $pauseGuidingBeforeFlip, recenterAfterFlip: $recenterAfterFlip, refocusAfterFlip: $refocusAfterFlip, settleTimeSeconds: $settleTimeSeconds, resumeGuidingAfterFlip: $resumeGuidingAfterFlip, maxRetries: $maxRetries, retryDelaysSeconds: $retryDelaysSeconds, failureAction: $failureAction, soundAlertOnFlip: $soundAlertOnFlip, pushNotificationOnFlip: $pushNotificationOnFlip)';
   }
 }
 
-abstract class _MeridianFlipSettings extends MeridianFlipSettings {
-  const factory _MeridianFlipSettings(
-      {final bool standaloneMonitoringEnabled,
-      final MeridianTriggerMethod triggerMethod,
-      final double minutesPastMeridian,
-      final double minutesBeforeLimit,
-      final double hourAngleThreshold,
-      final double trackingLimitWaitMinutes,
-      final bool pauseGuidingBeforeFlip,
-      final bool recenterAfterFlip,
-      final bool refocusAfterFlip,
-      final double settleTimeSeconds,
-      final bool resumeGuidingAfterFlip,
-      final int maxRetries,
-      final List<double> retryDelaysSeconds,
-      final FlipFailureAction failureAction,
-      final bool soundAlertOnFlip,
-      final bool pushNotificationOnFlip}) = _$MeridianFlipSettingsImpl;
-  const _MeridianFlipSettings._() : super._();
-
-  factory _MeridianFlipSettings.fromJson(Map<String, dynamic> json) =
-      _$MeridianFlipSettingsImpl.fromJson;
-
-  @override // === Mode Control ===
-  /// Enable standalone monitoring when no sequence is running
-  bool get standaloneMonitoringEnabled;
-  @override // === Trigger Conditions ===
-  /// Which method to use for determining flip timing
-  MeridianTriggerMethod get triggerMethod;
+/// @nodoc
+abstract mixin class _$MeridianFlipSettingsCopyWith<$Res>
+    implements $MeridianFlipSettingsCopyWith<$Res> {
+  factory _$MeridianFlipSettingsCopyWith(_MeridianFlipSettings value,
+          $Res Function(_MeridianFlipSettings) _then) =
+      __$MeridianFlipSettingsCopyWithImpl;
   @override
-
-  /// Minutes past meridian to trigger flip (default: 5)
-  double get minutesPastMeridian;
-  @override
-
-  /// Minutes before mount limit to trigger flip (default: 10)
-  double get minutesBeforeLimit;
-  @override
-
-  /// Hour angle threshold in hours to trigger flip (default: 0.5 = 30 min)
-  double get hourAngleThreshold;
-  @override
-
-  /// Minutes to wait after tracking limit hit before flipping (0 = immediate).
-  /// Only used with onTrackingLimitHit trigger method.
-  double get trackingLimitWaitMinutes;
-  @override // === Flip Sequence Options ===
-  /// Pause guider before flip
-  bool get pauseGuidingBeforeFlip;
-  @override
-
-  /// Plate solve and re-center after flip
-  bool get recenterAfterFlip;
-  @override
-
-  /// Run autofocus after flip
-  bool get refocusAfterFlip;
-  @override
-
-  /// Settle time in seconds after flip completes
-  double get settleTimeSeconds;
-  @override
-
-  /// Resume guiding after flip (if was running)
-  bool get resumeGuidingAfterFlip;
-  @override // === Error Handling ===
-  /// Maximum retry attempts
-  int get maxRetries;
-  @override
-
-  /// Delay between retries in seconds
-  List<double> get retryDelaysSeconds;
-  @override
-
-  /// Action to take on permanent failure
-  FlipFailureAction get failureAction;
-  @override // === Notifications ===
-  /// Play sound alert when flip starts/completes/fails
-  bool get soundAlertOnFlip;
-  @override
-
-  /// Send push notification to mobile app
-  bool get pushNotificationOnFlip;
-  @override
-  @JsonKey(ignore: true)
-  _$$MeridianFlipSettingsImplCopyWith<_$MeridianFlipSettingsImpl>
-      get copyWith => throw _privateConstructorUsedError;
+  @useResult
+  $Res call(
+      {bool standaloneMonitoringEnabled,
+      MeridianTriggerMethod triggerMethod,
+      double minutesPastMeridian,
+      double minutesBeforeLimit,
+      double hourAngleThreshold,
+      double trackingLimitWaitMinutes,
+      bool pauseGuidingBeforeFlip,
+      bool recenterAfterFlip,
+      bool refocusAfterFlip,
+      double settleTimeSeconds,
+      bool resumeGuidingAfterFlip,
+      int maxRetries,
+      List<double> retryDelaysSeconds,
+      FlipFailureAction failureAction,
+      bool soundAlertOnFlip,
+      bool pushNotificationOnFlip});
 }
+
+/// @nodoc
+class __$MeridianFlipSettingsCopyWithImpl<$Res>
+    implements _$MeridianFlipSettingsCopyWith<$Res> {
+  __$MeridianFlipSettingsCopyWithImpl(this._self, this._then);
+
+  final _MeridianFlipSettings _self;
+  final $Res Function(_MeridianFlipSettings) _then;
+
+  /// Create a copy of MeridianFlipSettings
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? standaloneMonitoringEnabled = null,
+    Object? triggerMethod = null,
+    Object? minutesPastMeridian = null,
+    Object? minutesBeforeLimit = null,
+    Object? hourAngleThreshold = null,
+    Object? trackingLimitWaitMinutes = null,
+    Object? pauseGuidingBeforeFlip = null,
+    Object? recenterAfterFlip = null,
+    Object? refocusAfterFlip = null,
+    Object? settleTimeSeconds = null,
+    Object? resumeGuidingAfterFlip = null,
+    Object? maxRetries = null,
+    Object? retryDelaysSeconds = null,
+    Object? failureAction = null,
+    Object? soundAlertOnFlip = null,
+    Object? pushNotificationOnFlip = null,
+  }) {
+    return _then(_MeridianFlipSettings(
+      standaloneMonitoringEnabled: null == standaloneMonitoringEnabled
+          ? _self.standaloneMonitoringEnabled
+          : standaloneMonitoringEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      triggerMethod: null == triggerMethod
+          ? _self.triggerMethod
+          : triggerMethod // ignore: cast_nullable_to_non_nullable
+              as MeridianTriggerMethod,
+      minutesPastMeridian: null == minutesPastMeridian
+          ? _self.minutesPastMeridian
+          : minutesPastMeridian // ignore: cast_nullable_to_non_nullable
+              as double,
+      minutesBeforeLimit: null == minutesBeforeLimit
+          ? _self.minutesBeforeLimit
+          : minutesBeforeLimit // ignore: cast_nullable_to_non_nullable
+              as double,
+      hourAngleThreshold: null == hourAngleThreshold
+          ? _self.hourAngleThreshold
+          : hourAngleThreshold // ignore: cast_nullable_to_non_nullable
+              as double,
+      trackingLimitWaitMinutes: null == trackingLimitWaitMinutes
+          ? _self.trackingLimitWaitMinutes
+          : trackingLimitWaitMinutes // ignore: cast_nullable_to_non_nullable
+              as double,
+      pauseGuidingBeforeFlip: null == pauseGuidingBeforeFlip
+          ? _self.pauseGuidingBeforeFlip
+          : pauseGuidingBeforeFlip // ignore: cast_nullable_to_non_nullable
+              as bool,
+      recenterAfterFlip: null == recenterAfterFlip
+          ? _self.recenterAfterFlip
+          : recenterAfterFlip // ignore: cast_nullable_to_non_nullable
+              as bool,
+      refocusAfterFlip: null == refocusAfterFlip
+          ? _self.refocusAfterFlip
+          : refocusAfterFlip // ignore: cast_nullable_to_non_nullable
+              as bool,
+      settleTimeSeconds: null == settleTimeSeconds
+          ? _self.settleTimeSeconds
+          : settleTimeSeconds // ignore: cast_nullable_to_non_nullable
+              as double,
+      resumeGuidingAfterFlip: null == resumeGuidingAfterFlip
+          ? _self.resumeGuidingAfterFlip
+          : resumeGuidingAfterFlip // ignore: cast_nullable_to_non_nullable
+              as bool,
+      maxRetries: null == maxRetries
+          ? _self.maxRetries
+          : maxRetries // ignore: cast_nullable_to_non_nullable
+              as int,
+      retryDelaysSeconds: null == retryDelaysSeconds
+          ? _self._retryDelaysSeconds
+          : retryDelaysSeconds // ignore: cast_nullable_to_non_nullable
+              as List<double>,
+      failureAction: null == failureAction
+          ? _self.failureAction
+          : failureAction // ignore: cast_nullable_to_non_nullable
+              as FlipFailureAction,
+      soundAlertOnFlip: null == soundAlertOnFlip
+          ? _self.soundAlertOnFlip
+          : soundAlertOnFlip // ignore: cast_nullable_to_non_nullable
+              as bool,
+      pushNotificationOnFlip: null == pushNotificationOnFlip
+          ? _self.pushNotificationOnFlip
+          : pushNotificationOnFlip // ignore: cast_nullable_to_non_nullable
+              as bool,
+    ));
+  }
+}
+
+// dart format on

@@ -1,6 +1,7 @@
-# melos_managed_dependency_overrides: nightshade_plugins,nightshade_remote_protocol
-# melos_managed_dependency_overrides: nightshade_bridge,nightshade_core,nightshade_planetarium
+# melos_managed_dependency_overrides: nightshade_bridge,nightshade_core,nightshade_planetarium,nightshade_plugins,nightshade_remote_protocol,lucide_icons
 dependency_overrides:
+  lucide_icons:
+    path: ../../third_party/lucide_icons
   nightshade_bridge:
     path: ../nightshade_bridge
   nightshade_core:
@@ -8,6 +9,6 @@ dependency_overrides:
   nightshade_planetarium:
     path: ../nightshade_planetarium
   nightshade_plugins:
-    path: ..\\nightshade_plugins
+    path: ../nightshade_plugins
   nightshade_remote_protocol:
-    path: ..\\nightshade_remote_protocol
+    path: ../nightshade_remote_protocol

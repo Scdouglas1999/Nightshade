@@ -192,6 +192,108 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     );
   }
 
+  /// Create the v41 post-session integration tables — `integrated_masters`,
+  /// `integrated_master_frames`, and `flat_library` — plus their indexes.
+  ///
+  /// Called from both `onCreate` (fresh installs) and the `if (from < 41)`
+  /// `onUpgrade` branch. Every statement is `CREATE ... IF NOT EXISTS` so the
+  /// helper is idempotent and re-runnable. These are raw-DDL tables (the
+  /// dominant v27+ convention) accessed via `IntegratedMastersDao` /
+  /// `FlatLibraryDao`; see `tables/post_session_tables.dart` for the canonical
+  /// schema documentation. `ON DELETE` foreign keys mirror `stacked_results` /
+  /// `projects`; FK enforcement is already enabled in `beforeOpen`.
+  Future<void> _createPostSessionTables() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS integrated_masters('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'target_id INTEGER REFERENCES targets(id) ON DELETE SET NULL,'
+      'name TEXT NOT NULL,'
+      'master_fits_path TEXT,'
+      'preview_png_path TEXT,'
+      'sidecar_path TEXT,'
+      'rejection_map_path TEXT,'
+      "status TEXT NOT NULL DEFAULT 'finalized',"
+      "accumulation_mode TEXT NOT NULL DEFAULT 'batch',"
+      'channels INTEGER NOT NULL DEFAULT 1,'
+      'width INTEGER NOT NULL DEFAULT 0,'
+      'height INTEGER NOT NULL DEFAULT 0,'
+      'frame_count INTEGER NOT NULL DEFAULT 0,'
+      'total_integration_seconds REAL NOT NULL DEFAULT 0.0,'
+      'filter TEXT,'
+      "settings_json TEXT NOT NULL DEFAULT '{}',"
+      "stats_json TEXT NOT NULL DEFAULT '{}',"
+      'created_at INTEGER NOT NULL,'
+      'updated_at INTEGER NOT NULL)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_integrated_masters_target '
+      'ON integrated_masters (target_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_integrated_masters_status '
+      'ON integrated_masters (status)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_integrated_masters_created '
+      'ON integrated_masters (created_at)',
+    );
+
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS integrated_master_frames('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'master_id INTEGER NOT NULL '
+      'REFERENCES integrated_masters(id) ON DELETE CASCADE,'
+      'image_id INTEGER NOT NULL '
+      'REFERENCES captured_images(id) ON DELETE CASCADE,'
+      'weight REAL,'
+      'alignment_residual_px REAL,'
+      'accepted INTEGER NOT NULL DEFAULT 1,'
+      'rejection_reason TEXT,'
+      'folded_at INTEGER NOT NULL,'
+      'UNIQUE(master_id, image_id))',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_integrated_master_frames_master '
+      'ON integrated_master_frames (master_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_integrated_master_frames_image '
+      'ON integrated_master_frames (image_id)',
+    );
+
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS flat_library('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'file_path TEXT NOT NULL,'
+      'filter TEXT,'
+      'equipment_profile_id INTEGER '
+      'REFERENCES equipment_profiles(id) ON DELETE SET NULL,'
+      'optical_train_id TEXT,'
+      'temperature REAL,'
+      'gain INTEGER NOT NULL DEFAULT 0,'
+      'offset INTEGER NOT NULL DEFAULT 0,'
+      'bin_x INTEGER NOT NULL DEFAULT 1,'
+      'bin_y INTEGER NOT NULL DEFAULT 1,'
+      'width INTEGER,'
+      'height INTEGER,'
+      "flat_kind TEXT NOT NULL DEFAULT 'sky',"
+      'master_frame_count INTEGER NOT NULL DEFAULT 0,'
+      'created_at INTEGER NOT NULL)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_flat_library_filter '
+      'ON flat_library (filter)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_flat_library_profile '
+      'ON flat_library (equipment_profile_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_flat_library_match '
+      'ON flat_library (filter, gain, bin_x, bin_y)',
+    );
+  }
+
   Future<void> _createGuideRmsHistoryTable() async {
     await customStatement('''
       CREATE TABLE IF NOT EXISTS guide_rms_history (

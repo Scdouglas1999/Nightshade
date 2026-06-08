@@ -1,0 +1,24 @@
+name: lucide_icons
+description: >-
+  Vendored copy of lucide_icons 0.257.0, patched for Flutter 3.4x where
+  IconData became a final class (upstream LucideIconData extended IconData).
+  Each icon is now a plain const IconData using the bundled 'Lucide' font.
+  Pinned to 0.257.0 so the ~350 icon names already used across the app stay
+  identical (newer Lucide renamed many icons). See third_party/lucide_icons/LICENSE.
+version: 0.257.0
+homepage: https://lucide.dev
+publish_to: 'none'
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=1.17.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  fonts:
+    - family: Lucide
+      fonts:
+        - asset: assets/lucide.ttf

@@ -52,9 +52,9 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   // Every test size/orientation: no overflow + a reachable, working search box.
-  // (When a phone rotates to landscape its width crosses 600, so it correctly
-  // adopts the tablet sidebar+detail split rather than the phone list flow —
-  // the standard drives layout from width, not a fixed "is a phone" flag.)
+  // (Layout is driven by *device class* — shortest side < 600 — not the live
+  // width, so a phone rotated to landscape stays a phone and keeps the list ->
+  // detail flow even though its long edge crosses 600.)
   for (final (label, size) in [..._phonePortrait, ..._phoneLandscape]) {
     testWidgets('settings_$label: renders with no overflow and a reachable, '
         'working search box', (tester) async {
@@ -125,11 +125,15 @@ void main() {
     });
   }
 
-  // Phone LANDSCAPE (width >= 600) adopts the sidebar + detail SPLIT: the
-  // grouped sidebar and a detail pane are visible at once, no list->detail.
+  // Phone LANDSCAPE keeps the phone list -> full-screen detail flow. Layout is
+  // driven by *device class* (shortest side < 600), not the current width, so a
+  // rotated phone stays a phone: its long edge crossing 600 does NOT promote it
+  // to the tablet sidebar+detail split. The grouped list shows by default and
+  // tapping a category pushes the full-screen detail pane.
   for (final (label, size) in _phoneLandscape) {
-    testWidgets('settings_landscape_${label}_split: shows the sidebar + detail '
-        'split with the default pane already visible', (tester) async {
+    testWidgets(
+        'settings_landscape_${label}_detail: stays in the phone list -> '
+        'full-screen detail flow (no split)', (tester) async {
       await pumpAppScreen(
         tester,
         const SettingsScreen(),
@@ -138,14 +142,26 @@ void main() {
       );
 
       expect(tester.takeException(), isNull,
-          reason: 'The split layout must not overflow at $label.');
-      // Both the grouped sidebar (group headers) and the default detail pane
-      // render together in the split.
+          reason: 'The phone landscape layout must not overflow at $label.');
+      // The grouped list is shown by default; the detail pane is not a split.
       expect(find.text('GENERAL'), findsOneWidget,
-          reason: 'The sidebar must remain visible in the split at $label.');
+          reason: 'The grouped category list must render at $label.');
+      expect(find.byType(GeneralSettings), findsNothing,
+          reason: 'The phone flow starts on the list, not a detail pane, '
+              'at $label.');
+
+      // Tapping a category pushes its full-screen detail pane.
+      await tester.tap(find.text('General').first);
+      await tester.pumpAndSettle(const Duration(seconds: 1));
+
+      expect(tester.takeException(), isNull,
+          reason: 'Opening the detail pane must not overflow at $label.');
       expect(find.byType(GeneralSettings), findsOneWidget,
-          reason: 'The default General pane renders beside the sidebar at '
-              '$label.');
+          reason: 'Tapping a category must push its full-screen detail pane '
+              'at $label.');
+      expect(find.text('EQUIPMENT'), findsNothing,
+          reason: 'The detail pane is full-screen on phone; the grouped list '
+              'must not also be visible at $label.');
     });
   }
 }

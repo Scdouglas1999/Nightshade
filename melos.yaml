@@ -13,6 +13,11 @@ command:
   bootstrap:
     usePubspecOverrides: true
     runPubGetInParallel: true
+    # Vendored, Flutter-3.4x-patched lucide_icons (upstream 0.257.0 extends the
+    # now-final IconData class). Injected as a path override into every package
+    # that depends on lucide_icons. See third_party/lucide_icons/.
+    dependencyOverridePaths:
+      - third_party/lucide_icons
 
 scripts:
   # ==========================================================================

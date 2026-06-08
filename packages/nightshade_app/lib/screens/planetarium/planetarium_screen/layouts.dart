@@ -55,6 +55,7 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                       observedObjectIds: observedIds,
                       listedObjectIds: listedIds,
                       bortleClass: bortleClass,
+                      measurementMode: ref.watch(measurementModeProvider),
                       horizonAltitudes: horizonProfile.isFlat
                           ? null
                           : List<double>.generate(
@@ -86,6 +87,23 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                 },
               ),
             ),
+
+            // Multi-rig FOV framing presets — interactive (drag / rotate).
+            // Mounted only while the FOV layer is toggled on.
+            if (_showFOV)
+              Positioned.fill(
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final viewState = ref.watch(skyViewStateProvider);
+                    return MultiFovOverlay(
+                      centerRaHours: viewState.centerRA,
+                      centerDecDeg: viewState.centerDec,
+                      fieldOfViewDeg: viewState.fieldOfView,
+                      viewRotationDeg: viewState.rotation,
+                    );
+                  },
+                ),
+              ),
 
             Positioned(
               top: 0,
@@ -338,6 +356,8 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                               onObjectTapped: _handleObjectTapped,
                               observedObjectIds: observedIds,
                               bortleClass: bortleClass,
+                              measurementMode:
+                                  ref.watch(measurementModeProvider),
                               horizonAltitudes: horizonProfile.isFlat
                                   ? null
                                   : List<double>.generate(
@@ -369,6 +389,26 @@ extension _PlanetariumScreenLayouts on _PlanetariumScreenState {
                           },
                         ),
                       ),
+
+                      // Multi-rig FOV framing presets — interactive (drag to
+                      // reposition, rotate handle to set position angle). Only
+                      // mounted while the FOV layer is toggled on, so it never
+                      // intercepts gestures otherwise.
+                      if (_showFOV)
+                        Positioned.fill(
+                          child: Consumer(
+                            builder: (context, ref, _) {
+                              final viewState =
+                                  ref.watch(skyViewStateProvider);
+                              return MultiFovOverlay(
+                                centerRaHours: viewState.centerRA,
+                                centerDecDeg: viewState.centerDec,
+                                fieldOfViewDeg: viewState.fieldOfView,
+                                viewRotationDeg: viewState.rotation,
+                              );
+                            },
+                          ),
+                        ),
 
                       Positioned(
                         top: 0,

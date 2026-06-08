@@ -6,8 +6,8 @@ part of 'optical_config.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$OpticalConfigImpl _$$OpticalConfigImplFromJson(Map<String, dynamic> json) =>
-    _$OpticalConfigImpl(
+_OpticalConfig _$OpticalConfigFromJson(Map<String, dynamic> json) =>
+    _OpticalConfig(
       telescopeName: json['telescopeName'] as String?,
       focalLength: (json['focalLength'] as num?)?.toDouble(),
       aperture: (json['aperture'] as num?)?.toDouble(),
@@ -18,7 +18,7 @@ _$OpticalConfigImpl _$$OpticalConfigImplFromJson(Map<String, dynamic> json) =>
       pixelSize: (json['pixelSize'] as num?)?.toDouble(),
     );
 
-Map<String, dynamic> _$$OpticalConfigImplToJson(_$OpticalConfigImpl instance) =>
+Map<String, dynamic> _$OpticalConfigToJson(_OpticalConfig instance) =>
     <String, dynamic>{
       'telescopeName': instance.telescopeName,
       'focalLength': instance.focalLength,

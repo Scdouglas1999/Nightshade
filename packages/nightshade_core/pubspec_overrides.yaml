@@ -1,14 +1,12 @@
-# melos_managed_dependency_overrides: nightshade_plugins,nightshade_remote_protocol
-# melos_managed_dependency_overrides: nightshade_bridge,nightshade_planetarium
+# melos_managed_dependency_overrides: nightshade_bridge,nightshade_planetarium,nightshade_plugins,nightshade_remote_protocol,lucide_icons
 dependency_overrides:
-  # Workaround for build_runner "Cannot recurse at later or equal phase" bug
-  # See: https://github.com/dart-lang/build/issues/3822
-  build_resolvers: 2.4.2
+  lucide_icons:
+    path: ../../third_party/lucide_icons
   nightshade_bridge:
     path: ../nightshade_bridge
   nightshade_planetarium:
     path: ../nightshade_planetarium
   nightshade_plugins:
-    path: ..\\nightshade_plugins
+    path: ../nightshade_plugins
   nightshade_remote_protocol:
-    path: ..\\nightshade_remote_protocol
+    path: ../nightshade_remote_protocol

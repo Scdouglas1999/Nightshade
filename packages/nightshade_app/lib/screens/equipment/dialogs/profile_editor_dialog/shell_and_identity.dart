@@ -172,7 +172,9 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
               borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
               border: Border.all(color: colors.border),
             ),
-            child: CheckboxListTile(
+            child: Material(
+              type: MaterialType.transparency,
+              child: CheckboxListTile(
               value: _isDefault,
               onChanged: (v) => setState(() => _isDefault = v ?? false),
               title: Text(
@@ -193,6 +195,7 @@ extension _ProfileEditorShellAndIdentity on _ProfileEditorDialogState {
               checkColor: Theme.of(context).colorScheme.onPrimary,
               controlAffinity: ListTileControlAffinity.trailing,
               contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+            ),
             ),
           ),
         ],

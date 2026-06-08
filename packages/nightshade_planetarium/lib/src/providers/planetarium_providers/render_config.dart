@@ -25,6 +25,14 @@ final nightVisionModeProvider = StateProvider<bool>((ref) => false);
 /// default.
 final showFovRingsProvider = StateProvider<bool>((ref) => false);
 
+/// Whether the angular-measurement tool is armed.
+///
+/// When enabled, a click-drag across the sky measures the angular separation
+/// and position angle between the two endpoints instead of panning the view.
+/// Off by default. The [InteractiveSkyView] reads this flag to switch its drag
+/// handling and draw the measurement overlay.
+final measurementModeProvider = StateProvider<bool>((ref) => false);
+
 // ============================================================================
 // Sky Render Config Provider
 // ============================================================================
@@ -125,6 +133,23 @@ class SkyRenderConfigNotifier extends StateNotifier<SkyRenderConfig> {
 
   void toggleConstellationArt() {
     state = state.copyWith(showConstellationArt: !state.showConstellationArt);
+  }
+
+  void togglePlanningOverlays() {
+    state = state.copyWith(showPlanningOverlays: !state.showPlanningOverlays);
+  }
+
+  void toggleDsoLabels() {
+    state = state.copyWith(showDSOLabels: !state.showDSOLabels);
+  }
+
+  void toggleCardinalDirections() {
+    state =
+        state.copyWith(showCardinalDirections: !state.showCardinalDirections);
+  }
+
+  void toggleMeridian() {
+    state = state.copyWith(showMeridian: !state.showMeridian);
   }
 }
 
@@ -302,6 +327,9 @@ final dynamicMagnitudeLimitsProvider = Provider<(double, double)>((ref) {
   final location = ref.watch(observerLocationProvider);
   final time = ref.watch(_currentMinuteProvider);
   final fov = viewState.fieldOfView;
+  // When stars are hidden the sky has no star clutter to declutter against, so
+  // DSOs should be visible at any zoom rather than fading in as you zoom.
+  final showStars = ref.watch(skyRenderConfigProvider.select((c) => c.showStars));
 
   // Base limits from quality tier
   final baseStarLimit = quality.starMagnitudeLimit;
@@ -369,8 +397,12 @@ final dynamicMagnitudeLimitsProvider = Provider<(double, double)>((ref) {
   final starPenalty = skyBrightnessPenalty * 0.5;
   final dsoPenalty = skyBrightnessPenalty;
 
+  // Stars hidden -> use the maximum reveal factor for DSOs so they show at full
+  // depth at any zoom level (no need to zoom in to "pop" them in).
+  final dsoFovFactor = showStars ? fovFactor : 7.0;
+
   return (
     (baseStarLimit + fovFactor - starPenalty).clamp(2.0, 12.0),
-    (baseDsoLimit + fovFactor - dsoPenalty).clamp(4.0, 16.0),
+    (baseDsoLimit + dsoFovFactor - dsoPenalty).clamp(4.0, 16.0),
   );
 });

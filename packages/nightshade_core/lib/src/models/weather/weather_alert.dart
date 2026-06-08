@@ -20,7 +20,7 @@ enum AlertLevel {
 
 /// Weather alert for astrophotography safety
 @freezed
-class WeatherAlert with _$WeatherAlert {
+abstract class WeatherAlert with _$WeatherAlert {
   const factory WeatherAlert({
     /// Alert severity level
     required AlertLevel level,

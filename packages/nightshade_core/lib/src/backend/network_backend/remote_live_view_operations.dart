@@ -40,6 +40,19 @@ mixin _NetworkBackendRemoteLiveViewOperations on _NetworkBackendTransport {
       final uri = _wsUri('/ws/live-view', query);
       try {
         channel = IOWebSocketChannel.connect(uri);
+        // IOWebSocketChannel reports a failed connection on BOTH the stream
+        // (handled by the onError below, which routes to the controller) and
+        // on sink.done. Absorb the sink.done error so a connection failure —
+        // e.g. ECONNREFUSED, which fails immediately on Linux instead of
+        // hanging as it tends to on Windows — doesn't escape as an unhandled
+        // async error and tear down the zone.
+        unawaited(channel!.sink.done.catchError((Object _) {}));
+        // Wait for the socket to actually open before subscribing. `ready`
+        // throws on connection failure (e.g. ECONNREFUSED), so the error is
+        // caught by the try/catch below and surfaced via the controller
+        // instead of escaping as an unhandled async error — and it avoids
+        // sending `subscribe` into a socket that never connected.
+        await channel!.ready;
         // Send the initial subscribe immediately. The server replies
         // with `{type: ready, ...}` then starts pushing frames.
         channel!.sink.add(jsonEncode({

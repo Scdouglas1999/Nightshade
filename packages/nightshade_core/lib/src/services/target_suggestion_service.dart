@@ -102,7 +102,15 @@ class TargetSuggestionService {
       source: _source,
     );
 
-    // Create the scoring service
+    // Create the scoring service. When a custom horizon profile is set, feed
+    // it in as a per-azimuth altitude mask so "hours above minimum altitude"
+    // becomes "hours above the LOCAL skyline" — a target whose entire nightly
+    // track stays behind a hill/tree yields zero observable hours and a peak
+    // altitude that already reflects the obstruction.
+    final HorizonMask? horizonMask =
+        (horizonProfile != null && !horizonProfile.isFlat)
+            ? horizonProfile.altitudeAtAzimuth
+            : null;
     final scoringService = TargetScoringService(
       latitude: latitude,
       longitude: longitude,
@@ -110,6 +118,7 @@ class TargetSuggestionService {
       moonPosition: (moonRaDeg, moonDecDeg),
       moonIllumination: moonIllumination,
       twilight: nightWindow.twilight,
+      horizonMask: horizonMask,
     );
 
     // Compute FOV short axis in arcminutes if optical config is available
@@ -137,33 +146,23 @@ class TargetSuggestionService {
         minAltitude: config.minAltitude,
       );
 
-      // Skip targets whose peak altitude during the night is below minimum
-      final peakAlt = score.visibility.peakAltitude ?? score.visibility.currentAltitude;
-      if (peakAlt < config.minAltitude) {
+      // Skip targets that never clear the minimum altitude during the night.
+      // With [horizonMask] wired into the scorer above, the reported peak
+      // altitude is the highest point the target reaches WHILE clearing the
+      // local skyline (or, if it never clears it, the unobstructed peak with
+      // zero observable hours) — so this single check enforces both the flat
+      // minimum and the custom horizon profile.
+      final peakAlt =
+          score.visibility.peakAltitude ?? score.visibility.currentAltitude;
+      final hoursAboveHorizon = score.visibility.hoursAboveMinAlt ?? 0.0;
+      if (peakAlt < config.minAltitude || hoursAboveHorizon <= 0.0) {
         _logging.debug(
-          'Skipping ${target.name}: peak altitude ${peakAlt.toStringAsFixed(1)}° '
-          'below minimum ${config.minAltitude}° during the night',
+          'Skipping ${target.name}: peak altitude ${peakAlt.toStringAsFixed(1)}° / '
+          '${hoursAboveHorizon.toStringAsFixed(1)}h above the local horizon '
+          '(min ${config.minAltitude}°)',
           source: _source,
         );
         continue;
-      }
-
-      // Check custom horizon profile: compute the target's azimuth at peak
-      // and verify it clears the local horizon at that bearing.
-      if (horizonProfile != null && !horizonProfile.isFlat) {
-        final peakAz = score.visibility.peakAzimuth;
-        if (peakAz != null) {
-          final horizonAlt = horizonProfile.altitudeAtAzimuth(peakAz);
-          if (peakAlt < horizonAlt) {
-            _logging.debug(
-              'Skipping ${target.name}: peak altitude ${peakAlt.toStringAsFixed(1)}° '
-              'below custom horizon ${horizonAlt.toStringAsFixed(1)}° at azimuth '
-              '${peakAz.toStringAsFixed(0)}°',
-              source: _source,
-            );
-            continue;
-          }
-        }
       }
 
       // Skip targets below minimum score

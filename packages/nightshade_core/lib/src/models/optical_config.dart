@@ -7,7 +7,7 @@ part 'optical_config.g.dart';
 /// Optical configuration combining telescope and camera information
 /// for computing field of view and image scale.
 @freezed
-class OpticalConfig with _$OpticalConfig {
+abstract class OpticalConfig with _$OpticalConfig {
   const factory OpticalConfig({
     /// Name of the telescope/OTA
     String? telescopeName,

@@ -23,7 +23,7 @@ enum RadarProviderType {
 
 /// Weather monitoring and safety settings
 @freezed
-class WeatherSettings with _$WeatherSettings {
+abstract class WeatherSettings with _$WeatherSettings {
   const factory WeatherSettings({
     /// Distance threshold for alerts in kilometers
     @Default(30.0) double triggerDistanceKm,

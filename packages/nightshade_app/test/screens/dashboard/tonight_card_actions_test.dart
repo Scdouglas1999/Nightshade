@@ -53,6 +53,10 @@ void main() {
           name: 'Backyard rig',
           focalLength: 600,
           aperture: 80,
+          // A camera is required for Smart Night to resolve the sensor pixel
+          // pitch (no exposure-context override is supplied in this test), which
+          // in turn is required to compute exposure recommendations.
+          cameraName: 'ZWO ASI2600MM Pro',
           filterNames: ['L'],
           defaultGain: 101,
           defaultOffset: 20,

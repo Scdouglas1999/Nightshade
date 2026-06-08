@@ -6,9 +6,8 @@ part of 'target_suggestion.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$TargetSuggestionImpl _$$TargetSuggestionImplFromJson(
-        Map<String, dynamic> json) =>
-    _$TargetSuggestionImpl(
+_TargetSuggestion _$TargetSuggestionFromJson(Map<String, dynamic> json) =>
+    _TargetSuggestion(
       targetId: (json['targetId'] as num).toInt(),
       targetName: json['targetName'] as String,
       catalogId: json['catalogId'] as String?,
@@ -36,8 +35,7 @@ _$TargetSuggestionImpl _$$TargetSuggestionImplFromJson(
               const <String>[],
     );
 
-Map<String, dynamic> _$$TargetSuggestionImplToJson(
-        _$TargetSuggestionImpl instance) =>
+Map<String, dynamic> _$TargetSuggestionToJson(_TargetSuggestion instance) =>
     <String, dynamic>{
       'targetId': instance.targetId,
       'targetName': instance.targetName,
@@ -58,9 +56,9 @@ Map<String, dynamic> _$$TargetSuggestionImplToJson(
       'tags': instance.tags,
     };
 
-_$TargetSuggestionConfigImpl _$$TargetSuggestionConfigImplFromJson(
+_TargetSuggestionConfig _$TargetSuggestionConfigFromJson(
         Map<String, dynamic> json) =>
-    _$TargetSuggestionConfigImpl(
+    _TargetSuggestionConfig(
       minAltitude: (json['minAltitude'] as num?)?.toDouble() ?? 30.0,
       maxMoonDistance: (json['maxMoonDistance'] as num?)?.toDouble(),
       preferredObjectTypes: (json['preferredObjectTypes'] as List<dynamic>?)
@@ -74,8 +72,8 @@ _$TargetSuggestionConfigImpl _$$TargetSuggestionConfigImplFromJson(
               SuggestionSortMode.bestScore,
     );
 
-Map<String, dynamic> _$$TargetSuggestionConfigImplToJson(
-        _$TargetSuggestionConfigImpl instance) =>
+Map<String, dynamic> _$TargetSuggestionConfigToJson(
+        _TargetSuggestionConfig instance) =>
     <String, dynamic>{
       'minAltitude': instance.minAltitude,
       'maxMoonDistance': instance.maxMoonDistance,

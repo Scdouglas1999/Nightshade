@@ -157,10 +157,10 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                           child: GestureDetector(
                             behavior: HitTestBehavior.opaque,
                             onTap: () {
-                              // Navigate to parsed coordinates
+                              // Smoothly fly to the parsed coordinates.
                               ref
-                                  .read(skyViewStateProvider.notifier)
-                                  .setCenter(coord.ra, coord.dec);
+                                  .read(flyToRequestProvider.notifier)
+                                  .flyTo(coord);
                               _hideOverlay();
                               _focusNode.unfocus();
                             },
@@ -220,12 +220,21 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                     );
                   }
 
-                  // Show all results grouped by category, no hardcoded limit
-                  final stars = searchState.results.whereType<Star>().toList();
+                  // Show all results grouped by category, no hardcoded limit.
+                  // Solar-system bodies are wrapped as Star objects with
+                  // PLANET_/MINORBODY_ ids by the search resolver; split them
+                  // out so they get their own group instead of mixing with
+                  // catalog stars.
+                  final allStars =
+                      searchState.results.whereType<Star>().toList();
+                  final solarSystem =
+                      allStars.where(_isSolarSystemBody).toList();
+                  final stars =
+                      allStars.where((s) => !_isSolarSystemBody(s)).toList();
                   final dsos =
                       searchState.results.whereType<DeepSkyObject>().toList();
 
-                  if (stars.isEmpty && dsos.isEmpty) {
+                  if (stars.isEmpty && dsos.isEmpty && solarSystem.isEmpty) {
                     return Padding(
                       padding: const EdgeInsets.all(16.0),
                       child: Text(
@@ -236,7 +245,8 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                   }
 
                   // Show result count
-                  final totalCount = stars.length + dsos.length;
+                  final totalCount =
+                      stars.length + dsos.length + solarSystem.length;
 
                   return Column(
                     mainAxisSize: MainAxisSize.min,
@@ -290,6 +300,16 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                           shrinkWrap: true,
                           padding: EdgeInsets.zero,
                           children: [
+                            // Solar System section (planets, comets, asteroids)
+                            if (solarSystem.isNotEmpty) ...[
+                              SearchCategoryHeader(
+                                title: 'Solar System (${solarSystem.length})',
+                                icon: NightshadeIcons.sun,
+                                colors: widget.colors,
+                              ),
+                              ...solarSystem.map(
+                                  (body) => _buildSolarSystemResultTile(ref, body)),
+                            ],
                             // DSO section
                             if (dsos.isNotEmpty) ...[
                               SearchCategoryHeader(
@@ -371,7 +391,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
         behavior: HitTestBehavior.opaque,
         onTap: () {
           ref.read(selectedObjectProvider.notifier).selectObject(dso);
-          ref.read(skyViewStateProvider.notifier).lookAt(dso.coordinates);
+          ref.read(flyToRequestProvider.notifier).flyTo(dso.coordinates);
           widget.onSearch(dso.name);
           _hideOverlay();
           _focusNode.unfocus();
@@ -419,6 +439,63 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
     );
   }
 
+  /// True if [star] is a solar-system body wrapped by the search resolver
+  /// (planets and minor bodies use PLANET_/MINORBODY_ id prefixes).
+  static bool _isSolarSystemBody(Star star) =>
+      star.id.startsWith('PLANET_') || star.id.startsWith('MINORBODY_');
+
+  Widget _buildSolarSystemResultTile(WidgetRef ref, Star body) {
+    final isPlanet = body.id.startsWith('PLANET_');
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () {
+          ref.read(selectedObjectProvider.notifier).selectObject(body);
+          ref.read(flyToRequestProvider.notifier).flyTo(body.coordinates);
+          widget.onSearch(body.name);
+          _hideOverlay();
+          _focusNode.unfocus();
+        },
+        child: ListTile(
+          dense: true,
+          leading: Container(
+            width: 32,
+            height: 32,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: widget.colors.accent.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+            ),
+            child: Icon(
+              isPlanet ? NightshadeIcons.globe : NightshadeIcons.sparkle,
+              size: 16,
+              color: widget.colors.accent,
+            ),
+          ),
+          title: Text(
+            body.name,
+            style: TextStyle(color: widget.colors.textPrimary),
+          ),
+          subtitle: Text(
+            isPlanet ? 'Planet' : 'Comet / Asteroid',
+            style: TextStyle(
+                color: widget.colors.textMuted,
+                fontSize: NightshadeTypography.fontSize11),
+          ),
+          trailing: body.magnitude != null
+              ? Text(
+                  'mag ${body.magnitude!.toStringAsFixed(1)}',
+                  style: TextStyle(
+                      color: widget.colors.textMuted,
+                      fontSize: NightshadeTypography.fontSize11),
+                )
+              : null,
+        ),
+      ),
+    );
+  }
+
   Widget _buildStarResultTile(WidgetRef ref, Star star) {
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -426,7 +503,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
         behavior: HitTestBehavior.opaque,
         onTap: () {
           ref.read(selectedObjectProvider.notifier).selectObject(star);
-          ref.read(skyViewStateProvider.notifier).lookAt(star.coordinates);
+          ref.read(flyToRequestProvider.notifier).flyTo(star.coordinates);
           widget.onSearch(star.name);
           _hideOverlay();
           _focusNode.unfocus();
@@ -469,6 +546,34 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
         ),
       ),
     );
+  }
+
+  /// Enter/submit handler: fly to parsed coordinates if the query is a
+  /// coordinate, otherwise resolve the best-matching object across all catalogs
+  /// (planets/comets/asteroids included) and fly to + select it.
+  Future<void> _flyToBestMatch(String value) async {
+    if (value.trim().isEmpty) return;
+    widget.onSearch(value);
+
+    final coord = _parseCoordinates(value);
+    if (coord != null) {
+      ref.read(flyToRequestProvider.notifier).flyTo(coord);
+      _hideOverlay();
+      _focusNode.unfocus();
+      return;
+    }
+
+    final best =
+        await ref.read(objectSearchProvider.notifier).resolveBest(value);
+    if (!mounted || best == null) {
+      _hideOverlay();
+      return;
+    }
+
+    ref.read(selectedObjectProvider.notifier).selectObject(best);
+    ref.read(flyToRequestProvider.notifier).flyTo(best.coordinates);
+    _hideOverlay();
+    _focusNode.unfocus();
   }
 
   void _hideOverlay() {
@@ -539,8 +644,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                           horizontal: 14, vertical: 10),
                     ),
                     onSubmitted: (value) {
-                      widget.onSearch(value);
-                      _hideOverlay();
+                      _flyToBestMatch(value);
                     },
                   ),
                 ),

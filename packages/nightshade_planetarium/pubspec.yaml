@@ -4,7 +4,7 @@ version: 1.0.0
 publish_to: 'none'
 
 environment:
-  sdk: ">=3.0.0 <4.0.0"
+  sdk: ">=3.8.0 <4.0.0"
   flutter: ">=3.0.0"
 
 dependencies:
@@ -22,6 +22,10 @@ dependencies:
 
 dev_dependencies:
   flutter_test:
+    sdk: flutter
+  # Real on-display FrameTiming capture for the planetarium benchmark
+  # (integration_test/frame_timing_test.dart). Ships with the Flutter SDK.
+  integration_test:
     sdk: flutter
   # Pinned exact version across all 10 workspace packages to prevent
   # mixed-version drift. Upgraded from 3.0.2 to ^5.0.0 by CQ-W5-LINTS-UPGRADE

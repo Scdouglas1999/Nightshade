@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_app/screens/equipment/widgets/backend_selector_chips.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -49,7 +50,7 @@ void main() {
     );
 
     expect(find.text('ASCOM COM'), findsOneWidget);
-    expect(find.byIcon(Icons.block), findsOneWidget);
+    expect(find.byIcon(LucideIcons.ban), findsOneWidget);
 
     await tester.tap(find.text('ASCOM COM'));
     await tester.pump();

@@ -68,7 +68,7 @@ enum TransientAlertState {
 
 /// Astronomical transient alert for time-sensitive observations
 @freezed
-class TransientAlert with _$TransientAlert {
+abstract class TransientAlert with _$TransientAlert {
   const factory TransientAlert({
     /// Unique identifier for this alert
     required String id,
@@ -122,7 +122,7 @@ class TransientAlert with _$TransientAlert {
 
 /// Settings for transient alert monitoring and notifications
 @freezed
-class TransientAlertSettings with _$TransientAlertSettings {
+abstract class TransientAlertSettings with _$TransientAlertSettings {
   const factory TransientAlertSettings({
     /// Which alert sources to monitor
     /// Note: TNS requires an API key to be configured (see tnsApiKey)

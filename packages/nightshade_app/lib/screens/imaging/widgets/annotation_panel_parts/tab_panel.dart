@@ -634,8 +634,14 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
           onChanged: (value) => setState(() => _searchQuery = value),
         ),
 
-        // Filters section
-        ExpansionTile(
+        // Filters section.
+        // Wrap in a transparent Material so the ExpansionTile's internal
+        // ListTile paints its background/ink on this Material rather than the
+        // surrounding DecoratedBox (Flutter 3.44 asserts when a ListTile's
+        // nearest ancestor with a background color is a DecoratedBox).
+        Material(
+          type: MaterialType.transparency,
+          child: ExpansionTile(
           initiallyExpanded: _filtersExpanded,
           onExpansionChanged: (expanded) =>
               setState(() => _filtersExpanded = expanded),
@@ -793,6 +799,7 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
             ),
             const SizedBox(height: 8),
           ],
+          ),
         ),
 
         Divider(height: 1, color: widget.colors.border),

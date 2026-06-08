@@ -7,6 +7,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../session_review/auto_integration_service.dart';
 import '../../utils/sequence_mutator_helper.dart';
 import '../../widgets/animated_tab_bar_view.dart';
 import '../../widgets/contextual_tour_prompt.dart';
@@ -138,6 +139,11 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
         // report. The prompt itself is opt-out — "Don't ask again"
         // sets `notes.prompt_after_run = false`.
         _maybeShowNotesAutoPrompt(runId);
+        // "Wake up to a finished image": when the opt-in auto-integrate
+        // setting is enabled, kick the post-session integration in the
+        // background. Fire-and-forget — the service never throws, and the
+        // produced master lands in the Session Review Masters tab.
+        _maybeAutoIntegrate(sessionId);
       });
     });
 
@@ -206,6 +212,24 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
         prefilledBody: body,
         prefilledTitle: 'Run on ${DateTime.now().toLocal()}',
       ),
+    );
+  }
+
+  /// Opt-in post-session auto-integration ("wake up to a finished image").
+  ///
+  /// Runs the batch integration / multi-night accumulation for the completed
+  /// session in the background when the setting is enabled, then toasts the
+  /// result. The service is exception-safe so a failed auto-run is reported,
+  /// never thrown.
+  Future<void> _maybeAutoIntegrate(int sessionId) async {
+    final result = await ref
+        .read(autoIntegrationServiceProvider)
+        .maybeRunForSession(sessionId);
+    if (!result.ran || !mounted) return;
+    NightshadeToastHelper.show(
+      context: context,
+      message: result.message,
+      severity: NightshadeAlertSeverity.success,
     );
   }
 

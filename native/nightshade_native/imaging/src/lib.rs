@@ -14,17 +14,23 @@
 
 pub mod buffer_pool;
 pub mod calibration;
+pub mod calibration_masters; // NEW: Master-flat build + cosmetic (hot/cold) correction
 pub mod defect_map;
 
 mod camera;
 mod debayer;
 mod fits;
+pub mod frame_weighting; // NEW: Per-sub quality weighting for batch integration
+pub mod integration; // NEW: Advanced weighted batch integration + pixel rejection
+pub mod master_accumulation; // NEW: Multi-night accumulating master frame
 mod naming;
+pub mod normalization; // NEW: Light-frame normalization to a reference (batch integration)
 mod phd2;
 mod platesolve;
 mod processing; // NEW: Tiled image processing
 mod raw; // NEW: RAW file support
 mod reader; // NEW: Memory-mapped readers
+pub mod registration; // NEW: High-quality star-based registration
 pub mod stacking;
 mod stats;
 mod stretch;
@@ -32,15 +38,21 @@ mod xisf;
 
 pub use buffer_pool::*;
 pub use calibration::*;
+pub use calibration_masters::*; // NEW: Export master-flat / cosmetic-correction types
 pub use camera::*;
 pub use debayer::*;
 pub use fits::*;
+pub use frame_weighting::*; // NEW: Export frame-weighting types
+pub use integration::*; // NEW: Export batch-integration types
+pub use master_accumulation::*; // NEW: Export accumulating-master types
 pub use naming::*;
+pub use normalization::*; // NEW: Export normalization types
 pub use phd2::*;
 pub use platesolve::*;
 pub use processing::*; // NEW: Export processing types
 pub use raw::*; // NEW: Export RAW types
 pub use reader::*; // NEW: Export reader types
+pub use registration::*; // NEW: Export registration types
 pub use stats::*;
 pub use stretch::*;
 pub use xisf::*;

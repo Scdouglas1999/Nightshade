@@ -6,8 +6,8 @@ part of 'transient_alert.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$TransientAlertImpl _$$TransientAlertImplFromJson(Map<String, dynamic> json) =>
-    _$TransientAlertImpl(
+_TransientAlert _$TransientAlertFromJson(Map<String, dynamic> json) =>
+    _TransientAlert(
       id: json['id'] as String,
       name: json['name'] as String,
       type: $enumDecode(_$TransientTypeEnumMap, json['type']),
@@ -26,8 +26,7 @@ _$TransientAlertImpl _$$TransientAlertImplFromJson(Map<String, dynamic> json) =>
           TransientAlertState.newAlert,
     );
 
-Map<String, dynamic> _$$TransientAlertImplToJson(
-        _$TransientAlertImpl instance) =>
+Map<String, dynamic> _$TransientAlertToJson(_TransientAlert instance) =>
     <String, dynamic>{
       'id': instance.id,
       'name': instance.name,
@@ -73,9 +72,9 @@ const _$TransientAlertStateEnumMap = {
   TransientAlertState.dismissed: 'dismissed',
 };
 
-_$TransientAlertSettingsImpl _$$TransientAlertSettingsImplFromJson(
+_TransientAlertSettings _$TransientAlertSettingsFromJson(
         Map<String, dynamic> json) =>
-    _$TransientAlertSettingsImpl(
+    _TransientAlertSettings(
       enabledSources: (json['enabledSources'] as List<dynamic>?)
               ?.map((e) => $enumDecode(_$TransientSourceEnumMap, e))
               .toSet() ??
@@ -107,8 +106,8 @@ _$TransientAlertSettingsImpl _$$TransientAlertSettingsImplFromJson(
       tnsApiKey: json['tnsApiKey'] as String?,
     );
 
-Map<String, dynamic> _$$TransientAlertSettingsImplToJson(
-        _$TransientAlertSettingsImpl instance) =>
+Map<String, dynamic> _$TransientAlertSettingsToJson(
+        _TransientAlertSettings instance) =>
     <String, dynamic>{
       'enabledSources': instance.enabledSources
           .map((e) => _$TransientSourceEnumMap[e]!)

@@ -51,6 +51,15 @@ class _SessionDetailDialog extends ConsumerWidget {
                       ],
                     ),
                   ),
+                  // Open the Session Review / Morning Report (cull + integrate).
+                  IconButton(
+                    icon: const Icon(LucideIcons.sparkles, size: 18),
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      context.go('/session-review?session=${session.id}');
+                    },
+                    tooltip: 'Review & Integrate',
+                  ),
                   // View the rich Feature-A session report.
                   IconButton(
                     icon: const Icon(LucideIcons.fileBarChart, size: 18),

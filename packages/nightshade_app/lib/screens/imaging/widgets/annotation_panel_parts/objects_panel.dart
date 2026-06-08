@@ -559,7 +559,13 @@ class _AnnotationObjectsPanelState
     AnnotationSettings settings,
     Map<ObjectType, int> typeCounts,
   ) {
-    return ExpansionTile(
+    // Wrap in a transparent Material so the ExpansionTile's internal ListTile
+    // paints its background/ink on this Material rather than the surrounding
+    // DecoratedBox (Flutter 3.44 asserts when a ListTile's nearest ancestor
+    // with a background color is a DecoratedBox instead of a Material).
+    return Material(
+      type: MaterialType.transparency,
+      child: ExpansionTile(
       initiallyExpanded: _filtersExpanded,
       onExpansionChanged: (expanded) =>
           setState(() => _filtersExpanded = expanded),
@@ -698,6 +704,7 @@ class _AnnotationObjectsPanelState
         ),
         const SizedBox(height: 8),
       ],
+      ),
     );
   }
 

@@ -6,8 +6,8 @@ part of 'weather_alert.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$WeatherAlertImpl _$$WeatherAlertImplFromJson(Map<String, dynamic> json) =>
-    _$WeatherAlertImpl(
+_WeatherAlert _$WeatherAlertFromJson(Map<String, dynamic> json) =>
+    _WeatherAlert(
       level: $enumDecode(_$AlertLevelEnumMap, json['level']),
       message: json['message'] as String,
       eta: json['eta'] == null ? null : DateTime.parse(json['eta'] as String),
@@ -16,7 +16,7 @@ _$WeatherAlertImpl _$$WeatherAlertImplFromJson(Map<String, dynamic> json) =>
       generatedAt: DateTime.parse(json['generatedAt'] as String),
     );
 
-Map<String, dynamic> _$$WeatherAlertImplToJson(_$WeatherAlertImpl instance) =>
+Map<String, dynamic> _$WeatherAlertToJson(_WeatherAlert instance) =>
     <String, dynamic>{
       'level': _$AlertLevelEnumMap[instance.level]!,
       'message': instance.message,

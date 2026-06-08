@@ -1,0 +1,11 @@
+{
+  "p50Ms": 0.659,
+  "p95Ms": 1.091,
+  "p99Ms": 1.573,
+  "avgFps": 1373.364,
+  "rssMb": 177.156,
+  "objectsDrawn": 14900,
+  "frames": 180,
+  "scene": "Seeded synthetic worst-case stress scene (seed 0x5eed5301).",
+  "note": "PRE-FEATURE BASELINE (planetarium v1). Captured from a headless CPU paint-pipeline run of test/benchmark/paint_benchmark_test.dart against fixtures/stress_scene.json on the planetarium-atlas-and-perf branch before the atlas/perf feature work. Committed (unlike results/latest.json) so later optimization passes can diff against the v1 starting point. CPU paint-bound numbers (no GPU/vsync); avgFps = 1000/meanMs ceiling, not on-display FPS. balanced quality; 1280x800."
+}

@@ -4,16 +4,15 @@ version: 1.0.0
 publish_to: 'none'
 
 environment:
-  sdk: ">=3.0.0 <4.0.0"
+  sdk: ">=3.8.0 <4.0.0"
   flutter: ">=3.10.0"
 
 dependencies:
   flutter:
     sdk: flutter
   flutter_riverpod: ^2.5.1
-  riverpod_annotation: ^2.3.3
-  freezed_annotation: ^2.4.1
-  json_annotation: ^4.8.1
+  freezed_annotation: ^3.0.0
+  json_annotation: ^4.9.0
   equatable: ^2.0.5
   uuid: ^4.3.3
   http: ^1.1.2
@@ -27,14 +26,14 @@ dependencies:
   image: ^4.1.7
 
   # Database
-  drift: ^2.15.0
+  drift: ^2.30.0
   sqlite3_flutter_libs: ^0.5.18
   # Why direct dep: corruption-recovery pre-check (integrity_check.dart) opens
   # the on-disk file synchronously before drift's LazyDatabase resolves so that
   # a corrupt DB file can be rotated to a forensic backup and recreated before
   # the migrator ever sees it. Drift already pulls sqlite3 transitively; we
   # promote it to direct so the import is explicit and pub-bound.
-  sqlite3: ^2.4.0
+  sqlite3: ^3.0.0
   path_provider: ^2.1.2
   path: ^1.8.3
   # Why direct dep: DiagnosticDumpService bundles logs/profile/sequence/system
@@ -96,11 +95,10 @@ dev_dependencies:
   # Pinned across all 10 workspace packages to prevent mixed-version drift.
   # Upgraded from 3.0.2 to ^5.0.0 by CQ-W5-LINTS-UPGRADE (audit-dart §10 #3).
   flutter_lints: ^5.0.0
-  build_runner: ^2.4.8
-  freezed: ^2.4.6
-  json_serializable: ^6.7.1
-  drift_dev: ^2.15.0
-  riverpod_generator: ^2.3.9
+  build_runner: ^2.4.15
+  freezed: ^3.2.0
+  json_serializable: ^6.9.0
+  drift_dev: ^2.33.0
   flutter_test:
     sdk: flutter
   mocktail: ^1.0.0
@@ -113,8 +111,3 @@ flutter:
   # Loaded at runtime via [SampleSequenceService] from rootBundle.
   assets:
     - assets/sample_sequences/
-
-# Workaround for build_runner "Cannot recurse at later or equal phase" bug
-# See: https://github.com/dart-lang/build/issues/3822
-dependency_overrides:
-  build_resolvers: 2.4.2

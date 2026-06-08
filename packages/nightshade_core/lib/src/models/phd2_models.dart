@@ -50,7 +50,7 @@ extension Phd2GuidingStateExtension on Phd2GuidingState {
 
 /// Star image data from PHD2's get_star_image API
 @freezed
-class Phd2StarImage with _$Phd2StarImage {
+abstract class Phd2StarImage with _$Phd2StarImage {
   const factory Phd2StarImage({
     /// Frame number
     required int frame,
@@ -88,7 +88,7 @@ class Phd2StarImage with _$Phd2StarImage {
 
 /// PHD2 Brain algorithm parameter
 @freezed
-class Phd2AlgoParam with _$Phd2AlgoParam {
+abstract class Phd2AlgoParam with _$Phd2AlgoParam {
   const factory Phd2AlgoParam({
     /// Parameter name (e.g., "Aggressiveness", "Hysteresis")
     required String name,
@@ -103,7 +103,7 @@ class Phd2AlgoParam with _$Phd2AlgoParam {
 
 /// Collection of PHD2 Brain parameters for both axes
 @freezed
-class Phd2BrainParams with _$Phd2BrainParams {
+abstract class Phd2BrainParams with _$Phd2BrainParams {
   const factory Phd2BrainParams({
     /// RA axis parameter names
     required List<String> raParamNames,
@@ -132,7 +132,7 @@ class Phd2BrainParams with _$Phd2BrainParams {
 
 /// Guide error point for target display history
 @freezed
-class GuideErrorPoint with _$GuideErrorPoint {
+abstract class GuideErrorPoint with _$GuideErrorPoint {
   const factory GuideErrorPoint({
     /// RA error in arcseconds
     required double raError,
@@ -150,7 +150,7 @@ class GuideErrorPoint with _$GuideErrorPoint {
 
 /// PHD2 guide statistics snapshot
 @freezed
-class Phd2GuideStats with _$Phd2GuideStats {
+abstract class Phd2GuideStats with _$Phd2GuideStats {
   const factory Phd2GuideStats({
     /// RMS error in RA (arcseconds)
     @Default(0.0) double rmsRa,
@@ -195,7 +195,7 @@ class Phd2GuideStats with _$Phd2GuideStats {
 
 /// PHD2 calibration data
 @freezed
-class Phd2CalibrationData with _$Phd2CalibrationData {
+abstract class Phd2CalibrationData with _$Phd2CalibrationData {
   const factory Phd2CalibrationData({
     /// Whether calibration is complete
     @Default(false) bool isCalibrated,

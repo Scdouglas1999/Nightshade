@@ -4,7 +4,7 @@ part 'equipment_profile.freezed.dart';
 part 'equipment_profile.g.dart';
 
 @freezed
-class EquipmentProfile with _$EquipmentProfile {
+abstract class EquipmentProfile with _$EquipmentProfile {
   const factory EquipmentProfile({
     required String id,
     required String name,

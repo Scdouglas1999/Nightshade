@@ -6,8 +6,7 @@ part of 'cloud_motion.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$CloudMotionImpl _$$CloudMotionImplFromJson(Map<String, dynamic> json) =>
-    _$CloudMotionImpl(
+_CloudMotion _$CloudMotionFromJson(Map<String, dynamic> json) => _CloudMotion(
       speedKmh: (json['speedKmh'] as num).toDouble(),
       directionDegrees: (json['directionDegrees'] as num).toDouble(),
       etaToLocation: json['etaToLocation'] == null
@@ -17,7 +16,7 @@ _$CloudMotionImpl _$$CloudMotionImplFromJson(Map<String, dynamic> json) =>
       calculatedAt: DateTime.parse(json['calculatedAt'] as String),
     );
 
-Map<String, dynamic> _$$CloudMotionImplToJson(_$CloudMotionImpl instance) =>
+Map<String, dynamic> _$CloudMotionToJson(_CloudMotion instance) =>
     <String, dynamic>{
       'speedKmh': instance.speedKmh,
       'directionDegrees': instance.directionDegrees,

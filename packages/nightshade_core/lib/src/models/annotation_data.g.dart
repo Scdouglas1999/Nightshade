@@ -6,9 +6,8 @@ part of 'annotation_data.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$ImageAnnotationImpl _$$ImageAnnotationImplFromJson(
-        Map<String, dynamic> json) =>
-    _$ImageAnnotationImpl(
+_ImageAnnotation _$ImageAnnotationFromJson(Map<String, dynamic> json) =>
+    _ImageAnnotation(
       imagePath: json['imagePath'] as String,
       timestamp: DateTime.parse(json['timestamp'] as String),
       plateSolve:
@@ -20,8 +19,7 @@ _$ImageAnnotationImpl _$$ImageAnnotationImplFromJson(
       visible: json['visible'] as bool? ?? true,
     );
 
-Map<String, dynamic> _$$ImageAnnotationImplToJson(
-        _$ImageAnnotationImpl instance) =>
+Map<String, dynamic> _$ImageAnnotationToJson(_ImageAnnotation instance) =>
     <String, dynamic>{
       'imagePath': instance.imagePath,
       'timestamp': instance.timestamp.toIso8601String(),
@@ -30,8 +28,8 @@ Map<String, dynamic> _$$ImageAnnotationImplToJson(
       'visible': instance.visible,
     };
 
-_$PlateSolveDataImpl _$$PlateSolveDataImplFromJson(Map<String, dynamic> json) =>
-    _$PlateSolveDataImpl(
+_PlateSolveData _$PlateSolveDataFromJson(Map<String, dynamic> json) =>
+    _PlateSolveData(
       ra: (json['ra'] as num).toDouble(),
       dec: (json['dec'] as num).toDouble(),
       pixelScale: (json['pixelScale'] as num).toDouble(),
@@ -42,8 +40,7 @@ _$PlateSolveDataImpl _$$PlateSolveDataImplFromJson(Map<String, dynamic> json) =>
       imageHeight: (json['imageHeight'] as num).toInt(),
     );
 
-Map<String, dynamic> _$$PlateSolveDataImplToJson(
-        _$PlateSolveDataImpl instance) =>
+Map<String, dynamic> _$PlateSolveDataToJson(_PlateSolveData instance) =>
     <String, dynamic>{
       'ra': instance.ra,
       'dec': instance.dec,
@@ -55,9 +52,9 @@ Map<String, dynamic> _$$PlateSolveDataImplToJson(
       'imageHeight': instance.imageHeight,
     };
 
-_$CelestialObjectAnnotationImpl _$$CelestialObjectAnnotationImplFromJson(
+_CelestialObjectAnnotation _$CelestialObjectAnnotationFromJson(
         Map<String, dynamic> json) =>
-    _$CelestialObjectAnnotationImpl(
+    _CelestialObjectAnnotation(
       id: json['id'] as String,
       name: json['name'] as String,
       type: $enumDecode(_$ObjectTypeEnumMap, json['type']),
@@ -75,8 +72,8 @@ _$CelestialObjectAnnotationImpl _$$CelestialObjectAnnotationImplFromJson(
       visible: json['visible'] as bool? ?? true,
     );
 
-Map<String, dynamic> _$$CelestialObjectAnnotationImplToJson(
-        _$CelestialObjectAnnotationImpl instance) =>
+Map<String, dynamic> _$CelestialObjectAnnotationToJson(
+        _CelestialObjectAnnotation instance) =>
     <String, dynamic>{
       'id': instance.id,
       'name': instance.name,
@@ -104,8 +101,7 @@ const _$ObjectTypeEnumMap = {
   ObjectType.unknown: 'unknown',
 };
 
-_$ObjectDataImpl _$$ObjectDataImplFromJson(Map<String, dynamic> json) =>
-    _$ObjectDataImpl(
+_ObjectData _$ObjectDataFromJson(Map<String, dynamic> json) => _ObjectData(
       description: json['description'] as String?,
       objectClass: json['objectClass'] as String?,
       spectralType:
@@ -134,7 +130,7 @@ _$ObjectDataImpl _$$ObjectDataImplFromJson(Map<String, dynamic> json) =>
       dataSource: json['dataSource'] as String?,
     );
 
-Map<String, dynamic> _$$ObjectDataImplToJson(_$ObjectDataImpl instance) =>
+Map<String, dynamic> _$ObjectDataToJson(_ObjectData instance) =>
     <String, dynamic>{
       'description': instance.description,
       'objectClass': instance.objectClass,
@@ -168,8 +164,8 @@ const _$SpectralClassEnumMap = {
   SpectralClass.unknown: 'unknown',
 };
 
-_$ExoplanetDataImpl _$$ExoplanetDataImplFromJson(Map<String, dynamic> json) =>
-    _$ExoplanetDataImpl(
+_ExoplanetData _$ExoplanetDataFromJson(Map<String, dynamic> json) =>
+    _ExoplanetData(
       name: json['name'] as String,
       mass: (json['mass'] as num?)?.toDouble(),
       radius: (json['radius'] as num?)?.toDouble(),
@@ -181,7 +177,7 @@ _$ExoplanetDataImpl _$$ExoplanetDataImplFromJson(Map<String, dynamic> json) =>
       equilibriumTemp: (json['equilibriumTemp'] as num?)?.toDouble(),
     );
 
-Map<String, dynamic> _$$ExoplanetDataImplToJson(_$ExoplanetDataImpl instance) =>
+Map<String, dynamic> _$ExoplanetDataToJson(_ExoplanetData instance) =>
     <String, dynamic>{
       'name': instance.name,
       'mass': instance.mass,

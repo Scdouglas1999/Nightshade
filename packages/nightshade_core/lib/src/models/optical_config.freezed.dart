@@ -1,5 +1,5 @@
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
@@ -9,130 +9,85 @@ part of 'optical_config.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// dart format off
 T _$identity<T>(T value) => value;
-
-final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
-
-OpticalConfig _$OpticalConfigFromJson(Map<String, dynamic> json) {
-  return _OpticalConfig.fromJson(json);
-}
 
 /// @nodoc
 mixin _$OpticalConfig {
   /// Name of the telescope/OTA
-  String? get telescopeName => throw _privateConstructorUsedError;
+  String? get telescopeName;
 
   /// Focal length in millimeters
-  double? get focalLength => throw _privateConstructorUsedError;
+  double? get focalLength;
 
   /// Aperture in millimeters
-  double? get aperture => throw _privateConstructorUsedError;
+  double? get aperture;
 
   /// Focal ratio (f/number), computed from focalLength/aperture if not set
-  double? get focalRatio => throw _privateConstructorUsedError;
+  double? get focalRatio;
 
   /// Camera name
-  String? get cameraName => throw _privateConstructorUsedError;
+  String? get cameraName;
 
   /// Sensor width in pixels
-  int? get sensorWidth => throw _privateConstructorUsedError;
+  int? get sensorWidth;
 
   /// Sensor height in pixels
-  int? get sensorHeight => throw _privateConstructorUsedError;
+  int? get sensorHeight;
 
   /// Pixel size in microns
-  double? get pixelSize => throw _privateConstructorUsedError;
+  double? get pixelSize;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $OpticalConfigCopyWith<OpticalConfig> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $OpticalConfigCopyWith<$Res> {
-  factory $OpticalConfigCopyWith(
-          OpticalConfig value, $Res Function(OpticalConfig) then) =
-      _$OpticalConfigCopyWithImpl<$Res, OpticalConfig>;
-  @useResult
-  $Res call(
-      {String? telescopeName,
-      double? focalLength,
-      double? aperture,
-      double? focalRatio,
-      String? cameraName,
-      int? sensorWidth,
-      int? sensorHeight,
-      double? pixelSize});
-}
-
-/// @nodoc
-class _$OpticalConfigCopyWithImpl<$Res, $Val extends OpticalConfig>
-    implements $OpticalConfigCopyWith<$Res> {
-  _$OpticalConfigCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of OpticalConfig
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $OpticalConfigCopyWith<OpticalConfig> get copyWith =>
+      _$OpticalConfigCopyWithImpl<OpticalConfig>(
+          this as OpticalConfig, _$identity);
+
+  /// Serializes this OpticalConfig to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? telescopeName = freezed,
-    Object? focalLength = freezed,
-    Object? aperture = freezed,
-    Object? focalRatio = freezed,
-    Object? cameraName = freezed,
-    Object? sensorWidth = freezed,
-    Object? sensorHeight = freezed,
-    Object? pixelSize = freezed,
-  }) {
-    return _then(_value.copyWith(
-      telescopeName: freezed == telescopeName
-          ? _value.telescopeName
-          : telescopeName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      focalLength: freezed == focalLength
-          ? _value.focalLength
-          : focalLength // ignore: cast_nullable_to_non_nullable
-              as double?,
-      aperture: freezed == aperture
-          ? _value.aperture
-          : aperture // ignore: cast_nullable_to_non_nullable
-              as double?,
-      focalRatio: freezed == focalRatio
-          ? _value.focalRatio
-          : focalRatio // ignore: cast_nullable_to_non_nullable
-              as double?,
-      cameraName: freezed == cameraName
-          ? _value.cameraName
-          : cameraName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      sensorWidth: freezed == sensorWidth
-          ? _value.sensorWidth
-          : sensorWidth // ignore: cast_nullable_to_non_nullable
-              as int?,
-      sensorHeight: freezed == sensorHeight
-          ? _value.sensorHeight
-          : sensorHeight // ignore: cast_nullable_to_non_nullable
-              as int?,
-      pixelSize: freezed == pixelSize
-          ? _value.pixelSize
-          : pixelSize // ignore: cast_nullable_to_non_nullable
-              as double?,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is OpticalConfig &&
+            (identical(other.telescopeName, telescopeName) ||
+                other.telescopeName == telescopeName) &&
+            (identical(other.focalLength, focalLength) ||
+                other.focalLength == focalLength) &&
+            (identical(other.aperture, aperture) ||
+                other.aperture == aperture) &&
+            (identical(other.focalRatio, focalRatio) ||
+                other.focalRatio == focalRatio) &&
+            (identical(other.cameraName, cameraName) ||
+                other.cameraName == cameraName) &&
+            (identical(other.sensorWidth, sensorWidth) ||
+                other.sensorWidth == sensorWidth) &&
+            (identical(other.sensorHeight, sensorHeight) ||
+                other.sensorHeight == sensorHeight) &&
+            (identical(other.pixelSize, pixelSize) ||
+                other.pixelSize == pixelSize));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, telescopeName, focalLength,
+      aperture, focalRatio, cameraName, sensorWidth, sensorHeight, pixelSize);
+
+  @override
+  String toString() {
+    return 'OpticalConfig(telescopeName: $telescopeName, focalLength: $focalLength, aperture: $aperture, focalRatio: $focalRatio, cameraName: $cameraName, sensorWidth: $sensorWidth, sensorHeight: $sensorHeight, pixelSize: $pixelSize)';
   }
 }
 
 /// @nodoc
-abstract class _$$OpticalConfigImplCopyWith<$Res>
-    implements $OpticalConfigCopyWith<$Res> {
-  factory _$$OpticalConfigImplCopyWith(
-          _$OpticalConfigImpl value, $Res Function(_$OpticalConfigImpl) then) =
-      __$$OpticalConfigImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $OpticalConfigCopyWith<$Res> {
+  factory $OpticalConfigCopyWith(
+          OpticalConfig value, $Res Function(OpticalConfig) _then) =
+      _$OpticalConfigCopyWithImpl;
   @useResult
   $Res call(
       {String? telescopeName,
@@ -146,13 +101,15 @@ abstract class _$$OpticalConfigImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$OpticalConfigImplCopyWithImpl<$Res>
-    extends _$OpticalConfigCopyWithImpl<$Res, _$OpticalConfigImpl>
-    implements _$$OpticalConfigImplCopyWith<$Res> {
-  __$$OpticalConfigImplCopyWithImpl(
-      _$OpticalConfigImpl _value, $Res Function(_$OpticalConfigImpl) _then)
-      : super(_value, _then);
+class _$OpticalConfigCopyWithImpl<$Res>
+    implements $OpticalConfigCopyWith<$Res> {
+  _$OpticalConfigCopyWithImpl(this._self, this._then);
 
+  final OpticalConfig _self;
+  final $Res Function(OpticalConfig) _then;
+
+  /// Create a copy of OpticalConfig
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -165,47 +122,255 @@ class __$$OpticalConfigImplCopyWithImpl<$Res>
     Object? sensorHeight = freezed,
     Object? pixelSize = freezed,
   }) {
-    return _then(_$OpticalConfigImpl(
+    return _then(_self.copyWith(
       telescopeName: freezed == telescopeName
-          ? _value.telescopeName
+          ? _self.telescopeName
           : telescopeName // ignore: cast_nullable_to_non_nullable
               as String?,
       focalLength: freezed == focalLength
-          ? _value.focalLength
+          ? _self.focalLength
           : focalLength // ignore: cast_nullable_to_non_nullable
               as double?,
       aperture: freezed == aperture
-          ? _value.aperture
+          ? _self.aperture
           : aperture // ignore: cast_nullable_to_non_nullable
               as double?,
       focalRatio: freezed == focalRatio
-          ? _value.focalRatio
+          ? _self.focalRatio
           : focalRatio // ignore: cast_nullable_to_non_nullable
               as double?,
       cameraName: freezed == cameraName
-          ? _value.cameraName
+          ? _self.cameraName
           : cameraName // ignore: cast_nullable_to_non_nullable
               as String?,
       sensorWidth: freezed == sensorWidth
-          ? _value.sensorWidth
+          ? _self.sensorWidth
           : sensorWidth // ignore: cast_nullable_to_non_nullable
               as int?,
       sensorHeight: freezed == sensorHeight
-          ? _value.sensorHeight
+          ? _self.sensorHeight
           : sensorHeight // ignore: cast_nullable_to_non_nullable
               as int?,
       pixelSize: freezed == pixelSize
-          ? _value.pixelSize
+          ? _self.pixelSize
           : pixelSize // ignore: cast_nullable_to_non_nullable
               as double?,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [OpticalConfig].
+extension OpticalConfigPatterns on OpticalConfig {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_OpticalConfig value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _OpticalConfig() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_OpticalConfig value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _OpticalConfig():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_OpticalConfig value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _OpticalConfig() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            String? telescopeName,
+            double? focalLength,
+            double? aperture,
+            double? focalRatio,
+            String? cameraName,
+            int? sensorWidth,
+            int? sensorHeight,
+            double? pixelSize)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _OpticalConfig() when $default != null:
+        return $default(
+            _that.telescopeName,
+            _that.focalLength,
+            _that.aperture,
+            _that.focalRatio,
+            _that.cameraName,
+            _that.sensorWidth,
+            _that.sensorHeight,
+            _that.pixelSize);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            String? telescopeName,
+            double? focalLength,
+            double? aperture,
+            double? focalRatio,
+            String? cameraName,
+            int? sensorWidth,
+            int? sensorHeight,
+            double? pixelSize)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _OpticalConfig():
+        return $default(
+            _that.telescopeName,
+            _that.focalLength,
+            _that.aperture,
+            _that.focalRatio,
+            _that.cameraName,
+            _that.sensorWidth,
+            _that.sensorHeight,
+            _that.pixelSize);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            String? telescopeName,
+            double? focalLength,
+            double? aperture,
+            double? focalRatio,
+            String? cameraName,
+            int? sensorWidth,
+            int? sensorHeight,
+            double? pixelSize)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _OpticalConfig() when $default != null:
+        return $default(
+            _that.telescopeName,
+            _that.focalLength,
+            _that.aperture,
+            _that.focalRatio,
+            _that.cameraName,
+            _that.sensorWidth,
+            _that.sensorHeight,
+            _that.pixelSize);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$OpticalConfigImpl extends _OpticalConfig {
-  const _$OpticalConfigImpl(
+class _OpticalConfig extends OpticalConfig {
+  const _OpticalConfig(
       {this.telescopeName,
       this.focalLength,
       this.aperture,
@@ -215,9 +380,8 @@ class _$OpticalConfigImpl extends _OpticalConfig {
       this.sensorHeight,
       this.pixelSize})
       : super._();
-
-  factory _$OpticalConfigImpl.fromJson(Map<String, dynamic> json) =>
-      _$$OpticalConfigImplFromJson(json);
+  factory _OpticalConfig.fromJson(Map<String, dynamic> json) =>
+      _$OpticalConfigFromJson(json);
 
   /// Name of the telescope/OTA
   @override
@@ -251,16 +415,26 @@ class _$OpticalConfigImpl extends _OpticalConfig {
   @override
   final double? pixelSize;
 
+  /// Create a copy of OpticalConfig
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'OpticalConfig(telescopeName: $telescopeName, focalLength: $focalLength, aperture: $aperture, focalRatio: $focalRatio, cameraName: $cameraName, sensorWidth: $sensorWidth, sensorHeight: $sensorHeight, pixelSize: $pixelSize)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$OpticalConfigCopyWith<_OpticalConfig> get copyWith =>
+      __$OpticalConfigCopyWithImpl<_OpticalConfig>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$OpticalConfigToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$OpticalConfigImpl &&
+            other is _OpticalConfig &&
             (identical(other.telescopeName, telescopeName) ||
                 other.telescopeName == telescopeName) &&
             (identical(other.focalLength, focalLength) ||
@@ -279,74 +453,93 @@ class _$OpticalConfigImpl extends _OpticalConfig {
                 other.pixelSize == pixelSize));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(runtimeType, telescopeName, focalLength,
       aperture, focalRatio, cameraName, sensorWidth, sensorHeight, pixelSize);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$OpticalConfigImplCopyWith<_$OpticalConfigImpl> get copyWith =>
-      __$$OpticalConfigImplCopyWithImpl<_$OpticalConfigImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$OpticalConfigImplToJson(
-      this,
-    );
+  String toString() {
+    return 'OpticalConfig(telescopeName: $telescopeName, focalLength: $focalLength, aperture: $aperture, focalRatio: $focalRatio, cameraName: $cameraName, sensorWidth: $sensorWidth, sensorHeight: $sensorHeight, pixelSize: $pixelSize)';
   }
 }
 
-abstract class _OpticalConfig extends OpticalConfig {
-  const factory _OpticalConfig(
-      {final String? telescopeName,
-      final double? focalLength,
-      final double? aperture,
-      final double? focalRatio,
-      final String? cameraName,
-      final int? sensorWidth,
-      final int? sensorHeight,
-      final double? pixelSize}) = _$OpticalConfigImpl;
-  const _OpticalConfig._() : super._();
-
-  factory _OpticalConfig.fromJson(Map<String, dynamic> json) =
-      _$OpticalConfigImpl.fromJson;
-
+/// @nodoc
+abstract mixin class _$OpticalConfigCopyWith<$Res>
+    implements $OpticalConfigCopyWith<$Res> {
+  factory _$OpticalConfigCopyWith(
+          _OpticalConfig value, $Res Function(_OpticalConfig) _then) =
+      __$OpticalConfigCopyWithImpl;
   @override
-
-  /// Name of the telescope/OTA
-  String? get telescopeName;
-  @override
-
-  /// Focal length in millimeters
-  double? get focalLength;
-  @override
-
-  /// Aperture in millimeters
-  double? get aperture;
-  @override
-
-  /// Focal ratio (f/number), computed from focalLength/aperture if not set
-  double? get focalRatio;
-  @override
-
-  /// Camera name
-  String? get cameraName;
-  @override
-
-  /// Sensor width in pixels
-  int? get sensorWidth;
-  @override
-
-  /// Sensor height in pixels
-  int? get sensorHeight;
-  @override
-
-  /// Pixel size in microns
-  double? get pixelSize;
-  @override
-  @JsonKey(ignore: true)
-  _$$OpticalConfigImplCopyWith<_$OpticalConfigImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  @useResult
+  $Res call(
+      {String? telescopeName,
+      double? focalLength,
+      double? aperture,
+      double? focalRatio,
+      String? cameraName,
+      int? sensorWidth,
+      int? sensorHeight,
+      double? pixelSize});
 }
+
+/// @nodoc
+class __$OpticalConfigCopyWithImpl<$Res>
+    implements _$OpticalConfigCopyWith<$Res> {
+  __$OpticalConfigCopyWithImpl(this._self, this._then);
+
+  final _OpticalConfig _self;
+  final $Res Function(_OpticalConfig) _then;
+
+  /// Create a copy of OpticalConfig
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? telescopeName = freezed,
+    Object? focalLength = freezed,
+    Object? aperture = freezed,
+    Object? focalRatio = freezed,
+    Object? cameraName = freezed,
+    Object? sensorWidth = freezed,
+    Object? sensorHeight = freezed,
+    Object? pixelSize = freezed,
+  }) {
+    return _then(_OpticalConfig(
+      telescopeName: freezed == telescopeName
+          ? _self.telescopeName
+          : telescopeName // ignore: cast_nullable_to_non_nullable
+              as String?,
+      focalLength: freezed == focalLength
+          ? _self.focalLength
+          : focalLength // ignore: cast_nullable_to_non_nullable
+              as double?,
+      aperture: freezed == aperture
+          ? _self.aperture
+          : aperture // ignore: cast_nullable_to_non_nullable
+              as double?,
+      focalRatio: freezed == focalRatio
+          ? _self.focalRatio
+          : focalRatio // ignore: cast_nullable_to_non_nullable
+              as double?,
+      cameraName: freezed == cameraName
+          ? _self.cameraName
+          : cameraName // ignore: cast_nullable_to_non_nullable
+              as String?,
+      sensorWidth: freezed == sensorWidth
+          ? _self.sensorWidth
+          : sensorWidth // ignore: cast_nullable_to_non_nullable
+              as int?,
+      sensorHeight: freezed == sensorHeight
+          ? _self.sensorHeight
+          : sensorHeight // ignore: cast_nullable_to_non_nullable
+              as int?,
+      pixelSize: freezed == pixelSize
+          ? _self.pixelSize
+          : pixelSize // ignore: cast_nullable_to_non_nullable
+              as double?,
+    ));
+  }
+}
+
+// dart format on

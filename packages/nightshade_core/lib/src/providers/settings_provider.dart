@@ -746,6 +746,75 @@ class HorizonProfile {
 
   /// Whether this profile is all zeros (flat horizon)
   bool get isFlat => _altitudes.values.every((v) => v == 0.0);
+
+  /// Build a profile from arbitrary (azimuth, altitude) samples by binning
+  /// them onto the eight compass directions.
+  ///
+  /// Each compass sector spans 45° centred on its azimuth (e.g. N covers
+  /// 337.5°–22.5°). Within a sector the HIGHEST sampled altitude wins, so an
+  /// imported skyline never under-reports an obstruction. Sectors with no
+  /// samples default to 0° (open sky).
+  factory HorizonProfile.fromSamples(
+      List<({double azimuth, double altitude})> samples) {
+    final altitudes = <String, double>{
+      for (final dir in horizonDirections) dir: 0.0,
+    };
+    for (final s in samples) {
+      var az = s.azimuth % 360.0;
+      if (az < 0) az += 360.0;
+      // Round to the nearest of the 8 directions (45° sectors, N straddles 0°).
+      final index = (((az + 22.5) % 360.0) / 45.0).floor() % 8;
+      final dir = horizonDirections[index];
+      final alt = s.altitude.clamp(0.0, 89.0);
+      if (alt > altitudes[dir]!) altitudes[dir] = alt;
+    }
+    return HorizonProfile(altitudes);
+  }
+
+  /// Parse a horizon dump (CSV or whitespace-separated "azimuth altitude"
+  /// pairs, one per line) into a profile.
+  ///
+  /// Accepts the common Stellarium-style `.hor` format and plain CSV:
+  ///   * comma OR whitespace separates the azimuth and altitude on each line;
+  ///   * blank lines and comment lines (starting with `#`, `//`, or `;`) are
+  ///     ignored;
+  ///   * each data line must contain at least two numeric fields.
+  ///
+  /// Throws [FormatException] on a malformed line or if no samples are found.
+  factory HorizonProfile.parseHorizonText(String text) {
+    final samples = <({double azimuth, double altitude})>[];
+    final lines = text.split(RegExp(r'[\r\n]+'));
+    for (var i = 0; i < lines.length; i++) {
+      final trimmed = lines[i].trim();
+      if (trimmed.isEmpty) continue;
+      if (trimmed.startsWith('#') ||
+          trimmed.startsWith('//') ||
+          trimmed.startsWith(';')) {
+        continue;
+      }
+      final parts = trimmed
+          .split(RegExp(r'[\s,]+'))
+          .where((p) => p.isNotEmpty)
+          .toList();
+      if (parts.length < 2) {
+        throw FormatException(
+            'Horizon import line ${i + 1}: expected "azimuth altitude", '
+            'got "$trimmed"');
+      }
+      final az = double.tryParse(parts[0]);
+      final alt = double.tryParse(parts[1]);
+      if (az == null || alt == null) {
+        throw FormatException(
+            'Horizon import line ${i + 1}: non-numeric value in "$trimmed"');
+      }
+      samples.add((azimuth: az, altitude: alt));
+    }
+    if (samples.isEmpty) {
+      throw const FormatException(
+          'Horizon import contained no usable azimuth/altitude pairs');
+    }
+    return HorizonProfile.fromSamples(samples);
+  }
 }
 
 /// Focused provider for Bortle class.

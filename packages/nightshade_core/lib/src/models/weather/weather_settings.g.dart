@@ -6,9 +6,8 @@ part of 'weather_settings.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$WeatherSettingsImpl _$$WeatherSettingsImplFromJson(
-        Map<String, dynamic> json) =>
-    _$WeatherSettingsImpl(
+_WeatherSettings _$WeatherSettingsFromJson(Map<String, dynamic> json) =>
+    _WeatherSettings(
       triggerDistanceKm:
           (json['triggerDistanceKm'] as num?)?.toDouble() ?? 30.0,
       cloudDensityThreshold:
@@ -29,8 +28,7 @@ _$WeatherSettingsImpl _$$WeatherSettingsImplFromJson(
           (json['refreshIntervalSeconds'] as num?)?.toInt() ?? 300,
     );
 
-Map<String, dynamic> _$$WeatherSettingsImplToJson(
-        _$WeatherSettingsImpl instance) =>
+Map<String, dynamic> _$WeatherSettingsToJson(_WeatherSettings instance) =>
     <String, dynamic>{
       'triggerDistanceKm': instance.triggerDistanceKm,
       'cloudDensityThreshold': instance.cloudDensityThreshold,

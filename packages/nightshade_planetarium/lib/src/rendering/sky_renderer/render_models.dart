@@ -59,6 +59,13 @@ class SkyRenderConfig {
   final bool showVariableStars;
   final bool showMinorPlanets;
   final bool showConstellationArt;
+
+  /// Whether to draw the selected target's planning overlays directly on the
+  /// sky: its altitude track for tonight, the meridian-flip / transit marker,
+  /// and the twilight (dusk/dawn) indicator. These are target-specific aids for
+  /// session planning, drawn on the animated overlay layer. Off by default.
+  final bool showPlanningOverlays;
+
   final Color groundColorDark;
   final Color groundColorLight;
   final Color horizonGlowColor;
@@ -97,6 +104,7 @@ class SkyRenderConfig {
     this.showVariableStars = false,
     this.showMinorPlanets = false,
     this.showConstellationArt = false,
+    this.showPlanningOverlays = false,
     this.groundColorDark = const Color(0xFF0A0805),
     this.groundColorLight = const Color(0xFF1A1510),
     this.horizonGlowColor = const Color(0xFF2A2015),
@@ -136,6 +144,7 @@ class SkyRenderConfig {
     bool? showVariableStars,
     bool? showMinorPlanets,
     bool? showConstellationArt,
+    bool? showPlanningOverlays,
     Color? groundColorDark,
     Color? groundColorLight,
     Color? horizonGlowColor,
@@ -178,6 +187,7 @@ class SkyRenderConfig {
       showVariableStars: showVariableStars ?? this.showVariableStars,
       showMinorPlanets: showMinorPlanets ?? this.showMinorPlanets,
       showConstellationArt: showConstellationArt ?? this.showConstellationArt,
+      showPlanningOverlays: showPlanningOverlays ?? this.showPlanningOverlays,
       groundColorDark: groundColorDark ?? this.groundColorDark,
       groundColorLight: groundColorLight ?? this.groundColorLight,
       horizonGlowColor: horizonGlowColor ?? this.horizonGlowColor,
@@ -203,7 +213,28 @@ enum SkyProjection {
   azimuthalEquidistant,
 }
 
-/// View state for sky rendering
+/// The celestial frame the sky view is centered on and panned in.
+///
+/// * [equatorial] — the default. The view is centered on an RA/Dec point and
+///   "up" on screen tracks the celestial pole, so the sky appears as it does on
+///   a star atlas (the orientation the committed goldens were captured in).
+/// * [horizontal] — the "tonight from my site" frame. The view is centered on
+///   an alt/az point (zenith by default) with the local horizon at the bottom
+///   and altitude increasing upward, exactly what an observer sees standing at
+///   the eyepiece. Objects rise on the east side and set on the west; the
+///   equatorial grid curves while the alt/az grid runs straight.
+enum SkyViewMode {
+  equatorial,
+  horizontal,
+}
+
+/// View state for sky rendering.
+///
+/// Two centers are carried so a mode switch is non-destructive: [centerRA] /
+/// [centerDec] anchor the [SkyViewMode.equatorial] frame, while [centerAz] /
+/// [centerAltitude] anchor the [SkyViewMode.horizontal] frame. Only the pair
+/// matching [viewMode] is read by the projection; the other is preserved so
+/// toggling back restores the previous pose.
 class SkyViewState {
   final double centerRA; // hours
   final double centerDec; // degrees
@@ -211,12 +242,28 @@ class SkyViewState {
   final double rotation; // degrees
   final SkyProjection projection;
 
+  /// Which celestial frame the view is centered on. Equatorial by default so
+  /// the default pose and the committed render goldens are unchanged.
+  final SkyViewMode viewMode;
+
+  /// Azimuth of the view center in degrees (0 = North, 90 = East). Read only in
+  /// [SkyViewMode.horizontal].
+  final double centerAz;
+
+  /// Altitude of the view center in degrees (90 = zenith, 0 = horizon). Read
+  /// only in [SkyViewMode.horizontal]. Defaults to the zenith so the horizontal
+  /// frame opens looking straight up.
+  final double centerAltitude;
+
   const SkyViewState({
     this.centerRA = 0,
     this.centerDec = 0,
     this.fieldOfView = 90,
     this.rotation = 0,
     this.projection = SkyProjection.stereographic,
+    this.viewMode = SkyViewMode.equatorial,
+    this.centerAz = 0,
+    this.centerAltitude = 90,
   });
 
   SkyViewState copyWith({
@@ -225,6 +272,9 @@ class SkyViewState {
     double? fieldOfView,
     double? rotation,
     SkyProjection? projection,
+    SkyViewMode? viewMode,
+    double? centerAz,
+    double? centerAltitude,
   }) {
     return SkyViewState(
       centerRA: centerRA ?? this.centerRA,
@@ -232,8 +282,37 @@ class SkyViewState {
       fieldOfView: fieldOfView ?? this.fieldOfView,
       rotation: rotation ?? this.rotation,
       projection: projection ?? this.projection,
+      viewMode: viewMode ?? this.viewMode,
+      centerAz: centerAz ?? this.centerAz,
+      centerAltitude: centerAltitude ?? this.centerAltitude,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SkyViewState &&
+          runtimeType == other.runtimeType &&
+          centerRA == other.centerRA &&
+          centerDec == other.centerDec &&
+          fieldOfView == other.fieldOfView &&
+          rotation == other.rotation &&
+          projection == other.projection &&
+          viewMode == other.viewMode &&
+          centerAz == other.centerAz &&
+          centerAltitude == other.centerAltitude;
+
+  @override
+  int get hashCode => Object.hash(
+        centerRA,
+        centerDec,
+        fieldOfView,
+        rotation,
+        projection,
+        viewMode,
+        centerAz,
+        centerAltitude,
+      );
 }
 
 /// Precomputed atmospheric extinction lookup table.

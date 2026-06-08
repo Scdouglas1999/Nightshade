@@ -1,0 +1,10 @@
+# Benchmark run output is a fresh artifact each run, not source. The harness
+# (fixtures/, goldens/, src/, tools/, README) IS committed; results are not.
+results/*
+# Exceptions: the pinned reference points ARE committed so optimization passes
+# can diff against them. baseline_v1 = pre-feature v1 starting point;
+# post_feature = the frozen feature-complete reference; best = the current
+# champion the loop must beat. Only latest.json stays a throwaway per-run artifact.
+!results/baseline_v1.json
+!results/post_feature.json
+!results/best.json
