@@ -239,7 +239,7 @@ const DEFAULT_APERTURE_RADIUS: usize = 3;
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 #[flutter_rust_bridge::frb(ignore)]
-struct DetectionArgs {
+struct PhotometryDetectionArgs {
     /// Detection σ above background (default 5.0).
     detection_sigma: f64,
     /// Minimum connected-component area in px (default 9).
@@ -268,7 +268,7 @@ struct DetectStarsPhotometryArgs {
     /// [`DEFAULT_APERTURE_RADIUS`].
     aperture: Option<usize>,
     /// Optional star-detection sensitivity overrides.
-    detection: DetectionArgs,
+    detection: PhotometryDetectionArgs,
 }
 
 /// One detected star with its per-channel aperture photometry. The detection
@@ -552,7 +552,7 @@ fn color_calibrate_impl(args: ColorCalibrateArgs) -> Result<ColorCalibrateResult
 /// Apply non-zero star-detection overrides onto a base [`StarDetectionConfig`],
 /// leaving each unset (zero) knob at its production default — identical to
 /// `post_session::apply_detection_overrides`.
-fn apply_detection_overrides(cfg: &mut StarDetectionConfig, d: &DetectionArgs) {
+fn apply_detection_overrides(cfg: &mut StarDetectionConfig, d: &PhotometryDetectionArgs) {
     if d.detection_sigma > 0.0 {
         cfg.detection_sigma = d.detection_sigma;
     }

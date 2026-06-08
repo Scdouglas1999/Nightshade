@@ -7656,16 +7656,16 @@ class RustLibWire implements BaseWire {
     ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName) lookup,
   ) : _lookup = lookup;
 
-  void store_dart_post_cobject(int ptr) {
+  void store_dart_post_cobject(DartPostCObjectFnType ptr) {
     return _store_dart_post_cobject(ptr);
   }
 
   late final _store_dart_post_cobjectPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int)>>(
+      _lookup<ffi.NativeFunction<ffi.Void Function(DartPostCObjectFnType)>>(
         'store_dart_post_cobject',
       );
   late final _store_dart_post_cobject = _store_dart_post_cobjectPtr
-      .asFunction<void Function(int)>();
+      .asFunction<void Function(DartPostCObjectFnType)>();
 
   void wire__crate__api__finishing_analyze__api_analyze_night(
     int port_,
@@ -9854,7 +9854,7 @@ class RustLibWire implements BaseWire {
   void wire__crate__api__imaging__api_defect_map_apply(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> camera_id,
-    ffi.Pointer<bool> apply_during_capture,
+    bool apply_during_capture,
   ) {
     return _wire__crate__api__imaging__api_defect_map_apply(
       port_,
@@ -9869,7 +9869,7 @@ class RustLibWire implements BaseWire {
           ffi.Void Function(
             ffi.Int64,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
-            ffi.Pointer<bool>,
+            ffi.Bool,
           )
         >
       >(
@@ -9878,11 +9878,7 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__imaging__api_defect_map_apply =
       _wire__crate__api__imaging__api_defect_map_applyPtr
           .asFunction<
-            void Function(
-              int,
-              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
-              ffi.Pointer<bool>,
-            )
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, bool)
           >();
 
   void wire__crate__api__imaging__api_defect_map_build(
@@ -10528,7 +10524,7 @@ class RustLibWire implements BaseWire {
   void wire__crate__api__devices__dome__api_dome_set_slaved(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
-    ffi.Pointer<bool> slaved,
+    bool slaved,
   ) {
     return _wire__crate__api__devices__dome__api_dome_set_slaved(
       port_,
@@ -10543,7 +10539,7 @@ class RustLibWire implements BaseWire {
           ffi.Void Function(
             ffi.Int64,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
-            ffi.Pointer<bool>,
+            ffi.Bool,
           )
         >
       >(
@@ -10552,11 +10548,7 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__devices__dome__api_dome_set_slaved =
       _wire__crate__api__devices__dome__api_dome_set_slavedPtr
           .asFunction<
-            void Function(
-              int,
-              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
-              ffi.Pointer<bool>,
-            )
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, bool)
           >();
 
   void wire__crate__api__devices__dome__api_dome_slew_to_azimuth(
@@ -12210,7 +12202,7 @@ class RustLibWire implements BaseWire {
     ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
     double x,
     double y,
-    ffi.Pointer<bool> exact,
+    bool exact,
   ) {
     return _wire__crate__api__phd2__api_guider_set_lock_position(
       port_,
@@ -12229,7 +12221,7 @@ class RustLibWire implements BaseWire {
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             ffi.Double,
             ffi.Double,
-            ffi.Pointer<bool>,
+            ffi.Bool,
           )
         >
       >(
@@ -12243,7 +12235,7 @@ class RustLibWire implements BaseWire {
               ffi.Pointer<wire_cst_list_prim_u_8_strict>,
               double,
               double,
-              ffi.Pointer<bool>,
+              bool,
             )
           >();
 
@@ -13233,7 +13225,7 @@ class RustLibWire implements BaseWire {
     int port_,
     double x,
     double y,
-    ffi.Pointer<bool> exact,
+    bool exact,
   ) {
     return _wire__crate__api__phd2__api_phd2_set_lock_position(
       port_,
@@ -13246,34 +13238,26 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__phd2__api_phd2_set_lock_positionPtr =
       _lookup<
         ffi.NativeFunction<
-          ffi.Void Function(
-            ffi.Int64,
-            ffi.Double,
-            ffi.Double,
-            ffi.Pointer<bool>,
-          )
+          ffi.Void Function(ffi.Int64, ffi.Double, ffi.Double, ffi.Bool)
         >
       >(
         'frbgen_nightshade_bridge_wire__crate__api__phd2__api_phd2_set_lock_position',
       );
   late final _wire__crate__api__phd2__api_phd2_set_lock_position =
       _wire__crate__api__phd2__api_phd2_set_lock_positionPtr
-          .asFunction<void Function(int, double, double, ffi.Pointer<bool>)>();
+          .asFunction<void Function(int, double, double, bool)>();
 
-  void wire__crate__api__phd2__api_phd2_set_paused(
-    int port_,
-    ffi.Pointer<bool> paused,
-  ) {
+  void wire__crate__api__phd2__api_phd2_set_paused(int port_, bool paused) {
     return _wire__crate__api__phd2__api_phd2_set_paused(port_, paused);
   }
 
   late final _wire__crate__api__phd2__api_phd2_set_pausedPtr =
-      _lookup<
-        ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Pointer<bool>)>
-      >('frbgen_nightshade_bridge_wire__crate__api__phd2__api_phd2_set_paused');
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Bool)>>(
+        'frbgen_nightshade_bridge_wire__crate__api__phd2__api_phd2_set_paused',
+      );
   late final _wire__crate__api__phd2__api_phd2_set_paused =
       _wire__crate__api__phd2__api_phd2_set_pausedPtr
-          .asFunction<void Function(int, ffi.Pointer<bool>)>();
+          .asFunction<void Function(int, bool)>();
 
   void wire__crate__api__phd2__api_phd2_start_guiding(
     int port_,
@@ -14199,10 +14183,10 @@ class RustLibWire implements BaseWire {
     int width,
     int height,
     double sensor_temperature_celsius,
-    ffi.Pointer<bool> enabled,
+    bool enabled,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> method,
     int kernel_diameter,
-    ffi.Pointer<bool> save_original,
+    bool save_original,
   ) {
     return _wire__crate__api__imaging__api_sequencer_apply_defect_map(
       port_,
@@ -14226,10 +14210,10 @@ class RustLibWire implements BaseWire {
             ffi.Uint32,
             ffi.Uint32,
             ffi.Double,
-            ffi.Pointer<bool>,
+            ffi.Bool,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             ffi.Uint8,
-            ffi.Pointer<bool>,
+            ffi.Bool,
           )
         >
       >(
@@ -14244,10 +14228,10 @@ class RustLibWire implements BaseWire {
               int,
               int,
               double,
-              ffi.Pointer<bool>,
+              bool,
               ffi.Pointer<wire_cst_list_prim_u_8_strict>,
               int,
-              ffi.Pointer<bool>,
+              bool,
             )
           >();
 
@@ -14479,7 +14463,7 @@ class RustLibWire implements BaseWire {
   void wire__crate__api__sequencer__api_sequencer_plugin_node_finished(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id,
-    ffi.Pointer<bool> success,
+    bool success,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> message,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> structured_detail_json,
   ) {
@@ -14498,7 +14482,7 @@ class RustLibWire implements BaseWire {
           ffi.Void Function(
             ffi.Int64,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
-            ffi.Pointer<bool>,
+            ffi.Bool,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
           )
@@ -14512,7 +14496,7 @@ class RustLibWire implements BaseWire {
             void Function(
               int,
               ffi.Pointer<wire_cst_list_prim_u_8_strict>,
-              ffi.Pointer<bool>,
+              bool,
               ffi.Pointer<wire_cst_list_prim_u_8_strict>,
               ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             )
@@ -14643,7 +14627,7 @@ class RustLibWire implements BaseWire {
 
   void wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabled(
     int port_,
-    ffi.Pointer<bool> enabled,
+    bool enabled,
   ) {
     return _wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabled(
       port_,
@@ -14652,14 +14636,12 @@ class RustLibWire implements BaseWire {
   }
 
   late final _wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabledPtr =
-      _lookup<
-        ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Pointer<bool>)>
-      >(
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Bool)>>(
         'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabled',
       );
   late final _wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabled =
       _wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabledPtr
-          .asFunction<void Function(int, ffi.Pointer<bool>)>();
+          .asFunction<void Function(int, bool)>();
 
   void wire__crate__api__sequencer__api_sequencer_set_devices(
     int port_,
@@ -14790,7 +14772,7 @@ class RustLibWire implements BaseWire {
 
   void wire__crate__api__sequencer__api_sequencer_set_simulation_mode(
     int port_,
-    ffi.Pointer<bool> enabled,
+    bool enabled,
   ) {
     return _wire__crate__api__sequencer__api_sequencer_set_simulation_mode(
       port_,
@@ -14799,14 +14781,12 @@ class RustLibWire implements BaseWire {
   }
 
   late final _wire__crate__api__sequencer__api_sequencer_set_simulation_modePtr =
-      _lookup<
-        ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Pointer<bool>)>
-      >(
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Bool)>>(
         'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_simulation_mode',
       );
   late final _wire__crate__api__sequencer__api_sequencer_set_simulation_mode =
       _wire__crate__api__sequencer__api_sequencer_set_simulation_modePtr
-          .asFunction<void Function(int, ffi.Pointer<bool>)>();
+          .asFunction<void Function(int, bool)>();
 
   void wire__crate__api__sequencer__api_sequencer_skip(int port_) {
     return _wire__crate__api__sequencer__api_sequencer_skip(port_);
@@ -15020,7 +15000,7 @@ class RustLibWire implements BaseWire {
   void
   wire__crate__api__sequencer__api_sequencer_update_default_adaptive_exposure(
     int port_,
-    ffi.Pointer<bool> enabled,
+    bool enabled,
     double target_snr,
     double reference_sky_brightness_mag,
     double min_exposure_secs,
@@ -15053,7 +15033,7 @@ class RustLibWire implements BaseWire {
         ffi.NativeFunction<
           ffi.Void Function(
             ffi.Int64,
-            ffi.Pointer<bool>,
+            ffi.Bool,
             ffi.Double,
             ffi.Double,
             ffi.Double,
@@ -15074,7 +15054,7 @@ class RustLibWire implements BaseWire {
           .asFunction<
             void Function(
               int,
-              ffi.Pointer<bool>,
+              bool,
               double,
               double,
               double,
@@ -15095,7 +15075,7 @@ class RustLibWire implements BaseWire {
     ffi.Pointer<ffi.Double> eccentricity_threshold,
     ffi.Pointer<ffi.Uint32> star_count_min,
     int max_consecutive_rejects,
-    ffi.Pointer<bool> enabled,
+    bool enabled,
   ) {
     return _wire__crate__api__sequencer__api_sequencer_update_default_quality_check(
       port_,
@@ -15118,7 +15098,7 @@ class RustLibWire implements BaseWire {
             ffi.Pointer<ffi.Double>,
             ffi.Pointer<ffi.Uint32>,
             ffi.Uint32,
-            ffi.Pointer<bool>,
+            ffi.Bool,
           )
         >
       >(
@@ -15134,7 +15114,7 @@ class RustLibWire implements BaseWire {
               ffi.Pointer<ffi.Double>,
               ffi.Pointer<ffi.Uint32>,
               int,
-              ffi.Pointer<bool>,
+              bool,
             )
           >();
 
@@ -15144,7 +15124,7 @@ class RustLibWire implements BaseWire {
     double settle_pixels,
     double settle_time,
     double settle_timeout,
-    ffi.Pointer<bool> ra_only,
+    bool ra_only,
   ) {
     return _wire__crate__api__sequencer__api_sequencer_update_dither_config(
       port_,
@@ -15165,7 +15145,7 @@ class RustLibWire implements BaseWire {
             ffi.Double,
             ffi.Double,
             ffi.Double,
-            ffi.Pointer<bool>,
+            ffi.Bool,
           )
         >
       >(
@@ -15174,14 +15154,7 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__sequencer__api_sequencer_update_dither_config =
       _wire__crate__api__sequencer__api_sequencer_update_dither_configPtr
           .asFunction<
-            void Function(
-              int,
-              double,
-              double,
-              double,
-              double,
-              ffi.Pointer<bool>,
-            )
+            void Function(int, double, double, double, double, bool)
           >();
 
   void wire__crate__api__sequencer__api_sequencer_update_filter_offsets(
@@ -15404,7 +15377,7 @@ class RustLibWire implements BaseWire {
 
   void wire__crate__api__sequencer__api_sequencer_update_weather_verdict(
     int port_,
-    ffi.Pointer<bool> unsafe_override,
+    ffi.Pointer<ffi.Bool> unsafe_override,
   ) {
     return _wire__crate__api__sequencer__api_sequencer_update_weather_verdict(
       port_,
@@ -15414,13 +15387,13 @@ class RustLibWire implements BaseWire {
 
   late final _wire__crate__api__sequencer__api_sequencer_update_weather_verdictPtr =
       _lookup<
-        ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Pointer<bool>)>
+        ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Pointer<ffi.Bool>)>
       >(
         'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_weather_verdict',
       );
   late final _wire__crate__api__sequencer__api_sequencer_update_weather_verdict =
       _wire__crate__api__sequencer__api_sequencer_update_weather_verdictPtr
-          .asFunction<void Function(int, ffi.Pointer<bool>)>();
+          .asFunction<void Function(int, ffi.Pointer<ffi.Bool>)>();
 
   void wire__crate__api__devices__camera__api_set_camera_binning(
     int port_,
@@ -15579,23 +15552,19 @@ class RustLibWire implements BaseWire {
           >();
 
   WireSyncRust2DartDco
-  wire__crate__api__diagnostics__api_set_qhy_discovery_enabled(
-    ffi.Pointer<bool> enabled,
-  ) {
+  wire__crate__api__diagnostics__api_set_qhy_discovery_enabled(bool enabled) {
     return _wire__crate__api__diagnostics__api_set_qhy_discovery_enabled(
       enabled,
     );
   }
 
   late final _wire__crate__api__diagnostics__api_set_qhy_discovery_enabledPtr =
-      _lookup<
-        ffi.NativeFunction<WireSyncRust2DartDco Function(ffi.Pointer<bool>)>
-      >(
+      _lookup<ffi.NativeFunction<WireSyncRust2DartDco Function(ffi.Bool)>>(
         'frbgen_nightshade_bridge_wire__crate__api__diagnostics__api_set_qhy_discovery_enabled',
       );
   late final _wire__crate__api__diagnostics__api_set_qhy_discovery_enabled =
       _wire__crate__api__diagnostics__api_set_qhy_discovery_enabledPtr
-          .asFunction<WireSyncRust2DartDco Function(ffi.Pointer<bool>)>();
+          .asFunction<WireSyncRust2DartDco Function(bool)>();
 
   void wire__crate__api__imaging__api_stacking_add_frame(
     int port_,
@@ -15815,7 +15784,7 @@ class RustLibWire implements BaseWire {
     double exposure_time,
     double solve_timeout,
     int binning,
-    ffi.Pointer<bool> is_north,
+    bool is_north,
     double acceptance_threshold_arcsec,
     double iteration_cadence_secs,
     ffi.Pointer<ffi.Int32> gain,
@@ -15842,7 +15811,7 @@ class RustLibWire implements BaseWire {
             ffi.Double,
             ffi.Double,
             ffi.Int32,
-            ffi.Pointer<bool>,
+            ffi.Bool,
             ffi.Double,
             ffi.Double,
             ffi.Pointer<ffi.Int32>,
@@ -15860,7 +15829,7 @@ class RustLibWire implements BaseWire {
               double,
               double,
               int,
-              ffi.Pointer<bool>,
+              bool,
               double,
               double,
               ffi.Pointer<ffi.Int32>,
@@ -15911,7 +15880,7 @@ class RustLibWire implements BaseWire {
     ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
     int interval_secs,
     int failure_threshold,
-    ffi.Pointer<bool> auto_reconnect,
+    bool auto_reconnect,
     int max_reconnect_attempts,
   ) {
     return _wire__crate__api__heartbeat__api_start_device_heartbeat_with_config(
@@ -15932,7 +15901,7 @@ class RustLibWire implements BaseWire {
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             ffi.Uint64,
             ffi.Uint32,
-            ffi.Pointer<bool>,
+            ffi.Bool,
             ffi.Uint32,
           )
         >
@@ -15947,7 +15916,7 @@ class RustLibWire implements BaseWire {
               ffi.Pointer<wire_cst_list_prim_u_8_strict>,
               int,
               int,
-              ffi.Pointer<bool>,
+              bool,
               int,
             )
           >();
@@ -15957,13 +15926,13 @@ class RustLibWire implements BaseWire {
     double exposure_time,
     double step_size,
     int binning,
-    ffi.Pointer<bool> is_north,
-    ffi.Pointer<bool> manual_rotation,
-    ffi.Pointer<bool> rotate_east,
+    bool is_north,
+    bool manual_rotation,
+    bool rotate_east,
     ffi.Pointer<ffi.Int32> gain,
     ffi.Pointer<ffi.Int32> offset,
     ffi.Pointer<ffi.Double> solve_timeout,
-    ffi.Pointer<bool> start_from_current,
+    ffi.Pointer<ffi.Bool> start_from_current,
     ffi.Pointer<ffi.Double> auto_complete_threshold,
   ) {
     return _wire__crate__api__polar_alignment__api_start_polar_alignment(
@@ -15990,13 +15959,13 @@ class RustLibWire implements BaseWire {
             ffi.Double,
             ffi.Double,
             ffi.Int32,
-            ffi.Pointer<bool>,
-            ffi.Pointer<bool>,
-            ffi.Pointer<bool>,
+            ffi.Bool,
+            ffi.Bool,
+            ffi.Bool,
             ffi.Pointer<ffi.Int32>,
             ffi.Pointer<ffi.Int32>,
             ffi.Pointer<ffi.Double>,
-            ffi.Pointer<bool>,
+            ffi.Pointer<ffi.Bool>,
             ffi.Pointer<ffi.Double>,
           )
         >
@@ -16011,13 +15980,13 @@ class RustLibWire implements BaseWire {
               double,
               double,
               int,
-              ffi.Pointer<bool>,
-              ffi.Pointer<bool>,
-              ffi.Pointer<bool>,
+              bool,
+              bool,
+              bool,
               ffi.Pointer<ffi.Int32>,
               ffi.Pointer<ffi.Int32>,
               ffi.Pointer<ffi.Double>,
-              ffi.Pointer<bool>,
+              ffi.Pointer<ffi.Bool>,
               ffi.Pointer<ffi.Double>,
             )
           >();
@@ -16340,7 +16309,7 @@ class RustLibWire implements BaseWire {
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
     int switch_id,
-    ffi.Pointer<bool> state,
+    bool state,
   ) {
     return _wire__crate__api__devices__switch__api_switch_set_state(
       port_,
@@ -16357,7 +16326,7 @@ class RustLibWire implements BaseWire {
             ffi.Int64,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             ffi.Int32,
-            ffi.Pointer<bool>,
+            ffi.Bool,
           )
         >
       >(
@@ -16370,7 +16339,7 @@ class RustLibWire implements BaseWire {
               int,
               ffi.Pointer<wire_cst_list_prim_u_8_strict>,
               int,
-              ffi.Pointer<bool>,
+              bool,
             )
           >();
 
@@ -18077,16 +18046,16 @@ class RustLibWire implements BaseWire {
       _cst_new_box_autoadd_autofocus_config_apiPtr
           .asFunction<ffi.Pointer<wire_cst_autofocus_config_api> Function()>();
 
-  ffi.Pointer<bool> cst_new_box_autoadd_bool(ffi.Pointer<bool> value) {
+  ffi.Pointer<ffi.Bool> cst_new_box_autoadd_bool(bool value) {
     return _cst_new_box_autoadd_bool(value);
   }
 
   late final _cst_new_box_autoadd_boolPtr =
-      _lookup<
-        ffi.NativeFunction<ffi.Pointer<bool> Function(ffi.Pointer<bool>)>
-      >('frbgen_nightshade_bridge_cst_new_box_autoadd_bool');
+      _lookup<ffi.NativeFunction<ffi.Pointer<ffi.Bool> Function(ffi.Bool)>>(
+        'frbgen_nightshade_bridge_cst_new_box_autoadd_bool',
+      );
   late final _cst_new_box_autoadd_bool = _cst_new_box_autoadd_boolPtr
-      .asFunction<ffi.Pointer<bool> Function(ffi.Pointer<bool>)>();
+      .asFunction<ffi.Pointer<ffi.Bool> Function(bool)>();
 
   ffi.Pointer<ffi.Int32> cst_new_box_autoadd_calibrator_state(int value) {
     return _cst_new_box_autoadd_calibrator_state(value);
@@ -19193,6 +19162,15 @@ class RustLibWire implements BaseWire {
       _dummy_method_to_enforce_bundlingPtr.asFunction<int Function()>();
 }
 
+typedef DartPostCObjectFnType =
+    ffi.Pointer<ffi.NativeFunction<DartPostCObjectFnTypeFunction>>;
+typedef DartPostCObjectFnTypeFunction =
+    ffi.Bool Function(DartPort port_id, ffi.Pointer<ffi.Void> message);
+typedef DartDartPostCObjectFnTypeFunction =
+    bool Function(DartDartPort port_id, ffi.Pointer<ffi.Void> message);
+typedef DartPort = ffi.Int64;
+typedef DartDartPort = int;
+
 final class wire_cst_list_prim_u_8_strict extends ffi.Struct {
   external ffi.Pointer<ffi.Uint8> ptr;
 
@@ -19307,6 +19285,7 @@ final class wire_cst_indi_autofocus_config_api extends ffi.Struct {
   @ffi.Int32()
   external int backlash_compensation;
 
+  @ffi.Bool()
   external bool use_temperature_prediction;
 
   external ffi.Pointer<ffi.Double> max_star_count_change;
@@ -19323,8 +19302,6 @@ final class wire_cst_indi_autofocus_config_api extends ffi.Struct {
   @ffi.Uint64()
   external int settling_time_ms;
 }
-
-typedef bool = ffi.NativeFunction<ffi.Int Function(ffi.Pointer<ffi.Int>)>;
 
 final class wire_cst_fits_write_header extends ffi.Struct {
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> object_name;
@@ -19436,6 +19413,7 @@ final class wire_cst_node_definition_api extends ffi.Struct {
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_type;
 
+  @ffi.Bool()
   external bool enabled;
 
   external ffi.Pointer<wire_cst_list_String> children;
@@ -19477,7 +19455,7 @@ final class wire_cst_list_record_string_i_32 extends ffi.Struct {
 }
 
 final class wire_cst_list_bool extends ffi.Struct {
-  external ffi.Pointer<bool> ptr;
+  external ffi.Pointer<ffi.Bool> ptr;
 
   @ffi.Int32()
   external int len;
@@ -19525,10 +19503,13 @@ final class wire_cst_recovery_config_update extends ffi.Struct {
   @ffi.Double()
   external double max_duration_secs;
 
+  @ffi.Bool()
   external bool stop_tracking_during_recovery;
 
+  @ffi.Bool()
   external bool abort_on_meridian;
 
+  @ffi.Bool()
   external bool audible_alert_when_entered;
 }
 
@@ -19544,6 +19525,7 @@ final class wire_cst_observer_location extends ffi.Struct {
 }
 
 final class wire_cst_api_live_stacking_config extends ffi.Struct {
+  @ffi.Bool()
   external bool sigma_clip_enabled;
 
   @ffi.Double()
@@ -19594,6 +19576,7 @@ final class wire_cst_app_settings extends ffi.Struct {
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> language;
 
+  @ffi.Bool()
   external bool auto_connect;
 }
 
@@ -19721,8 +19704,10 @@ final class wire_cst_api_defect_map_status extends ffi.Struct {
   @ffi.Int64()
   external int last_rebuilt_unix_seconds;
 
+  @ffi.Bool()
   external bool apply_during_capture;
 
+  @ffi.Bool()
   external bool stored_on_disk;
 }
 
@@ -19736,14 +19721,19 @@ final class wire_cst_camera_capabilities extends ffi.Struct {
   @ffi.Uint32()
   external int bit_depth;
 
+  @ffi.Bool()
   external bool has_shutter;
 
+  @ffi.Bool()
   external bool can_set_ccd_temperature;
 
+  @ffi.Bool()
   external bool can_set_cooler;
 
+  @ffi.Bool()
   external bool can_get_cooler_power;
 
+  @ffi.Bool()
   external bool can_bin;
 
   @ffi.Int32()
@@ -19752,36 +19742,44 @@ final class wire_cst_camera_capabilities extends ffi.Struct {
   @ffi.Int32()
   external int max_bin_y;
 
+  @ffi.Bool()
   external bool can_asymmetric_bin;
 
+  @ffi.Bool()
   external bool can_set_gain;
 
   external ffi.Pointer<ffi.Int32> gain_min;
 
   external ffi.Pointer<ffi.Int32> gain_max;
 
+  @ffi.Bool()
   external bool can_set_offset;
 
   external ffi.Pointer<ffi.Int32> offset_min;
 
   external ffi.Pointer<ffi.Int32> offset_max;
 
+  @ffi.Bool()
   external bool can_abort_exposure;
 
+  @ffi.Bool()
   external bool can_stop_exposure;
 
+  @ffi.Bool()
   external bool can_subframe;
 
   external ffi.Pointer<ffi.Double> pixel_size_x;
 
   external ffi.Pointer<ffi.Double> pixel_size_y;
 
+  @ffi.Bool()
   external bool is_color;
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> bayer_pattern;
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> sensor_type;
 
+  @ffi.Bool()
   external bool has_fast_readout;
 
   external ffi.Pointer<wire_cst_list_String> readout_modes;
@@ -19796,7 +19794,7 @@ final class wire_cst_camera_capabilities extends ffi.Struct {
 
   external ffi.Pointer<ffi.Double> cooler_power;
 
-  external ffi.Pointer<bool> cooler_on;
+  external ffi.Pointer<ffi.Bool> cooler_on;
 
   external ffi.Pointer<ffi.Double> cooler_min_temp_c;
 
@@ -19814,6 +19812,7 @@ final class wire_cst_checkpoint_info_api extends ffi.Struct {
   @ffi.Double()
   external double completed_integration_secs;
 
+  @ffi.Bool()
   external bool can_resume;
 
   @ffi.Int64()
@@ -19824,8 +19823,10 @@ final class wire_cst_cover_calibrator_capabilities extends ffi.Struct {
   @ffi.Int32()
   external int max_brightness;
 
+  @ffi.Bool()
   external bool cover_present;
 
+  @ffi.Bool()
   external bool calibrator_present;
 
   external ffi.Pointer<ffi.Int32> cover_state;
@@ -19836,30 +19837,41 @@ final class wire_cst_cover_calibrator_capabilities extends ffi.Struct {
 }
 
 final class wire_cst_dome_capabilities extends ffi.Struct {
+  @ffi.Bool()
   external bool can_set_azimuth;
 
+  @ffi.Bool()
   external bool can_park;
 
+  @ffi.Bool()
   external bool can_find_home;
 
+  @ffi.Bool()
   external bool can_set_shutter;
 
+  @ffi.Bool()
   external bool can_sync_azimuth;
 
   external ffi.Pointer<ffi.Double> azimuth;
 
+  @ffi.Bool()
   external bool slewing;
 
+  @ffi.Bool()
   external bool at_home;
 
+  @ffi.Bool()
   external bool at_park;
 
   external ffi.Pointer<ffi.Int32> shutter_status;
 
+  @ffi.Bool()
   external bool can_slave;
 
+  @ffi.Bool()
   external bool slaved;
 
+  @ffi.Bool()
   external bool can_abort;
 }
 
@@ -20088,10 +20100,13 @@ final class wire_cst_filter_wheel_capabilities extends ffi.Struct {
 
   external ffi.Pointer<wire_cst_list_prim_i_32_strict> focus_offsets;
 
+  @ffi.Bool()
   external bool is_moving;
 
+  @ffi.Bool()
   external bool can_set_filter_names;
 
+  @ffi.Bool()
   external bool can_set_focus_offsets;
 }
 
@@ -20104,23 +20119,29 @@ final class wire_cst_focuser_capabilities extends ffi.Struct {
 
   external ffi.Pointer<ffi.Double> step_size;
 
+  @ffi.Bool()
   external bool absolute;
 
+  @ffi.Bool()
   external bool temp_comp_available;
 
+  @ffi.Bool()
   external bool temp_comp;
 
   external ffi.Pointer<ffi.Double> temperature;
 
+  @ffi.Bool()
   external bool is_moving;
 
   external ffi.Pointer<ffi.Int32> position;
 
+  @ffi.Bool()
   external bool can_halt;
 
+  @ffi.Bool()
   external bool can_reverse;
 
-  external ffi.Pointer<bool> reverse;
+  external ffi.Pointer<ffi.Bool> reverse;
 }
 
 final class wire_cst_GuidingEvent_Settled extends ffi.Struct {
@@ -20277,6 +20298,7 @@ final class wire_cst_ImagingEvent_TemperatureChanged extends ffi.Struct {
 }
 
 final class wire_cst_ImagingEvent_ExposureComplete extends ffi.Struct {
+  @ffi.Bool()
   external bool success;
 }
 
@@ -20326,6 +20348,7 @@ final class wire_cst_live_stacking_broadcast_snapshot extends ffi.Struct {
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> stack_method;
 
+  @ffi.Bool()
   external bool broadcast_enabled;
 
   @ffi.Uint16()
@@ -20358,46 +20381,63 @@ final class wire_cst_list_tracking_rate extends ffi.Struct {
 }
 
 final class wire_cst_mount_capabilities extends ffi.Struct {
+  @ffi.Bool()
   external bool can_slew;
 
+  @ffi.Bool()
   external bool can_slew_async;
 
+  @ffi.Bool()
   external bool can_sync;
 
+  @ffi.Bool()
   external bool can_park;
 
+  @ffi.Bool()
   external bool can_unpark;
 
+  @ffi.Bool()
   external bool can_set_park;
 
+  @ffi.Bool()
   external bool can_pulse_guide;
 
+  @ffi.Bool()
   external bool can_get_side_of_pier;
 
+  @ffi.Bool()
   external bool can_set_side_of_pier;
 
+  @ffi.Bool()
   external bool can_set_tracking;
 
+  @ffi.Bool()
   external bool can_set_tracking_rate;
 
   external ffi.Pointer<wire_cst_list_tracking_rate> supported_tracking_rates;
 
+  @ffi.Bool()
   external bool is_equatorial;
 
+  @ffi.Bool()
   external bool supports_alt_az;
 
+  @ffi.Bool()
   external bool can_get_pointing_state;
 
+  @ffi.Bool()
   external bool can_find_home;
 
-  external ffi.Pointer<bool> tracking;
+  external ffi.Pointer<ffi.Bool> tracking;
 
   external ffi.Pointer<ffi.Int32> tracking_rate;
 
+  @ffi.Bool()
   external bool can_abort_slew;
 
   external ffi.Pointer<ffi.Double> max_slew_rate;
 
+  @ffi.Bool()
   external bool can_move_axis;
 
   @ffi.Uint32()
@@ -20460,22 +20500,28 @@ final class wire_cst_polar_alignment_status extends ffi.Struct {
 }
 
 final class wire_cst_rotator_capabilities extends ffi.Struct {
+  @ffi.Bool()
   external bool can_reverse;
 
+  @ffi.Bool()
   external bool reverse;
 
   external ffi.Pointer<ffi.Double> step_size;
 
+  @ffi.Bool()
   external bool is_moving;
 
   external ffi.Pointer<ffi.Double> mechanical_position;
 
   external ffi.Pointer<ffi.Double> position;
 
+  @ffi.Bool()
   external bool can_move_absolute;
 
+  @ffi.Bool()
   external bool can_halt;
 
+  @ffi.Bool()
   external bool can_sync;
 
   external ffi.Pointer<ffi.Double> min_angle_deg;
@@ -20511,6 +20557,7 @@ final class wire_cst_safety_event extends ffi.Struct {
 }
 
 final class wire_cst_safety_monitor_capabilities extends ffi.Struct {
+  @ffi.Bool()
   external bool is_safe;
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> safety_description;
@@ -20688,6 +20735,7 @@ final class wire_cst_scheduler_score_entry extends ffi.Struct {
   @ffi.Double()
   external double total_score;
 
+  @ffi.Bool()
   external bool runnable;
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> reason;
@@ -20729,6 +20777,7 @@ final class wire_cst_SequencerEvent_IntegrationBudget extends ffi.Struct {
   @ffi.Double()
   external double fraction;
 
+  @ffi.Bool()
   external bool budget_met;
 }
 
@@ -20851,6 +20900,7 @@ final class wire_cst_SequencerEvent_RecoveryGaveUp extends ffi.Struct {
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> last_error;
 
+  @ffi.Bool()
   external bool aborted_by_user;
 }
 
@@ -20959,6 +21009,7 @@ final class wire_cst_switch_info extends ffi.Struct {
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> description;
 
+  @ffi.Bool()
   external bool is_boolean;
 
   @ffi.Double()
@@ -20970,6 +21021,7 @@ final class wire_cst_switch_info extends ffi.Struct {
   @ffi.Double()
   external double step;
 
+  @ffi.Bool()
   external bool can_write;
 
   @ffi.Double()
@@ -21035,30 +21087,43 @@ final class wire_cst_system_event extends ffi.Struct {
 }
 
 final class wire_cst_weather_capabilities extends ffi.Struct {
+  @ffi.Bool()
   external bool has_cloud_cover;
 
+  @ffi.Bool()
   external bool has_dew_point;
 
+  @ffi.Bool()
   external bool has_humidity;
 
+  @ffi.Bool()
   external bool has_pressure;
 
+  @ffi.Bool()
   external bool has_rain_rate;
 
+  @ffi.Bool()
   external bool has_sky_brightness;
 
+  @ffi.Bool()
   external bool has_sky_quality;
 
+  @ffi.Bool()
   external bool has_sky_temperature;
 
+  @ffi.Bool()
   external bool has_seeing;
 
+  @ffi.Bool()
   external bool has_temperature;
 
+  @ffi.Bool()
   external bool has_wind_direction;
 
+  @ffi.Bool()
   external bool has_wind_gust;
 
+  @ffi.Bool()
   external bool has_wind_speed;
 
   external ffi.Pointer<ffi.Double> average_period;
@@ -21419,6 +21484,7 @@ final class wire_cst_autofocus_result_api extends ffi.Struct {
   @ffi.Double()
   external double curve_fit_quality;
 
+  @ffi.Bool()
   external bool backlash_applied;
 }
 
@@ -21461,6 +21527,7 @@ final class wire_cst_camera_recommended_settings extends ffi.Struct {
 }
 
 final class wire_cst_camera_status extends ffi.Struct {
+  @ffi.Bool()
   external bool connected;
 
   @ffi.Int32()
@@ -21472,6 +21539,7 @@ final class wire_cst_camera_status extends ffi.Struct {
 
   external ffi.Pointer<ffi.Double> target_temp;
 
+  @ffi.Bool()
   external bool cooler_on;
 
   @ffi.Int32()
@@ -21501,10 +21569,13 @@ final class wire_cst_camera_status extends ffi.Struct {
   @ffi.Uint32()
   external int max_adu;
 
+  @ffi.Bool()
   external bool can_cool;
 
+  @ffi.Bool()
   external bool can_set_gain;
 
+  @ffi.Bool()
   external bool can_set_offset;
 }
 
@@ -21550,10 +21621,12 @@ final class wire_cst_captured_image_result extends ffi.Struct {
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> timestamp;
 
+  @ffi.Bool()
   external bool is_color;
 }
 
 final class wire_cst_cover_calibrator_status extends ffi.Struct {
+  @ffi.Bool()
   external bool connected;
 
   @ffi.Int32()
@@ -21663,6 +21736,7 @@ final class wire_cst_device_heartbeat_info extends ffi.Struct {
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> device_type;
 
+  @ffi.Bool()
   external bool heartbeat_active;
 
   external ffi.Pointer<ffi.Int64> last_successful_comm_ms;
@@ -21676,6 +21750,7 @@ final class wire_cst_device_heartbeat_info extends ffi.Struct {
   @ffi.Uint32()
   external int failure_threshold;
 
+  @ffi.Bool()
   external bool auto_reconnect;
 
   @ffi.Uint32()
@@ -21683,6 +21758,7 @@ final class wire_cst_device_heartbeat_info extends ffi.Struct {
 }
 
 final class wire_cst_dome_status extends ffi.Struct {
+  @ffi.Bool()
   external bool connected;
 
   @ffi.Double()
@@ -21693,20 +21769,28 @@ final class wire_cst_dome_status extends ffi.Struct {
   @ffi.Int32()
   external int shutter_status;
 
+  @ffi.Bool()
   external bool slewing;
 
+  @ffi.Bool()
   external bool at_home;
 
+  @ffi.Bool()
   external bool at_park;
 
+  @ffi.Bool()
   external bool can_set_altitude;
 
+  @ffi.Bool()
   external bool can_set_azimuth;
 
+  @ffi.Bool()
   external bool can_set_shutter;
 
+  @ffi.Bool()
   external bool can_slave;
 
+  @ffi.Bool()
   external bool is_slaved;
 }
 
@@ -21774,11 +21858,13 @@ final class wire_cst_event_payload extends ffi.Struct {
 }
 
 final class wire_cst_filter_wheel_status extends ffi.Struct {
+  @ffi.Bool()
   external bool connected;
 
   @ffi.Int32()
   external int position;
 
+  @ffi.Bool()
   external bool moving;
 
   @ffi.Int32()
@@ -21846,11 +21932,13 @@ final class wire_cst_fits_read_result extends ffi.Struct {
 }
 
 final class wire_cst_focuser_status extends ffi.Struct {
+  @ffi.Bool()
   external bool connected;
 
   @ffi.Int32()
   external int position;
 
+  @ffi.Bool()
   external bool moving;
 
   external ffi.Pointer<ffi.Double> temperature;
@@ -21861,8 +21949,10 @@ final class wire_cst_focuser_status extends ffi.Struct {
   @ffi.Double()
   external double step_size;
 
+  @ffi.Bool()
   external bool is_absolute;
 
+  @ffi.Bool()
   external bool has_temperature;
 }
 
@@ -21882,23 +21972,29 @@ final class wire_cst_indi_autofocus_result_api extends ffi.Struct {
 
   external ffi.Pointer<ffi.Double> temperature_celsius;
 
+  @ffi.Bool()
   external bool backlash_applied;
 
+  @ffi.Bool()
   external bool success;
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> error_message;
 }
 
 final class wire_cst_mount_status extends ffi.Struct {
+  @ffi.Bool()
   external bool connected;
 
+  @ffi.Bool()
   external bool tracking;
 
+  @ffi.Bool()
   external bool slewing;
 
+  @ffi.Bool()
   external bool parked;
 
-  external ffi.Pointer<bool> at_home;
+  external ffi.Pointer<ffi.Bool> at_home;
 
   external ffi.Pointer<ffi.Int32> side_of_pier;
 
@@ -21916,14 +22012,19 @@ final class wire_cst_mount_status extends ffi.Struct {
 
   external ffi.Pointer<ffi.Int32> tracking_rate;
 
+  @ffi.Bool()
   external bool can_park;
 
+  @ffi.Bool()
   external bool can_slew;
 
+  @ffi.Bool()
   external bool can_sync;
 
+  @ffi.Bool()
   external bool can_pulse_guide;
 
+  @ffi.Bool()
   external bool can_set_tracking_rate;
 
   external ffi.Pointer<wire_cst_list_record_string_field_availability>
@@ -22224,6 +22325,7 @@ final class wire_cst_nightshade_event extends ffi.Struct {
 }
 
 final class wire_cst_phd_2_calibration_data extends ffi.Struct {
+  @ffi.Bool()
   external bool is_calibrated;
 
   external ffi.Pointer<ffi.Double> ra_angle;
@@ -22255,6 +22357,7 @@ final class wire_cst_phd_2_star_image extends ffi.Struct {
 }
 
 final class wire_cst_phd_2_status extends ffi.Struct {
+  @ffi.Bool()
   external bool connected;
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> state;
@@ -22279,6 +22382,7 @@ final class wire_cst_phd_2_status extends ffi.Struct {
 }
 
 final class wire_cst_plate_solve_result extends ffi.Struct {
+  @ffi.Bool()
   external bool success;
 
   @ffi.Double()
@@ -22326,8 +22430,10 @@ final class wire_cst_plate_solver_info extends ffi.Struct {
 }
 
 final class wire_cst_qhy_discovery_status extends ffi.Struct {
+  @ffi.Bool()
   external bool sdk_available;
 
+  @ffi.Bool()
   external bool discovery_enabled;
 
   @ffi.Uint64()
@@ -22413,6 +22519,7 @@ final class wire_cst_record_i_64_bool extends ffi.Struct {
   @ffi.Int64()
   external int field0;
 
+  @ffi.Bool()
   external bool field1;
 }
 
@@ -22426,22 +22533,27 @@ final class wire_cst_record_u_64_u_64_u_32_bool extends ffi.Struct {
   @ffi.Uint32()
   external int field2;
 
+  @ffi.Bool()
   external bool field3;
 }
 
 final class wire_cst_rotator_status extends ffi.Struct {
+  @ffi.Bool()
   external bool connected;
 
   @ffi.Double()
   external double position;
 
+  @ffi.Bool()
   external bool moving;
 
   @ffi.Double()
   external double mechanical_position;
 
+  @ffi.Bool()
   external bool is_moving;
 
+  @ffi.Bool()
   external bool can_reverse;
 }
 
@@ -22474,6 +22586,7 @@ final class wire_cst_sequencer_state extends ffi.Struct {
 }
 
 final class wire_cst_session_state extends ffi.Struct {
+  @ffi.Bool()
   external bool is_active;
 
   external ffi.Pointer<ffi.Int64> start_time;
@@ -22495,10 +22608,13 @@ final class wire_cst_session_state extends ffi.Struct {
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> current_filter;
 
+  @ffi.Bool()
   external bool is_guiding;
 
+  @ffi.Bool()
   external bool is_capturing;
 
+  @ffi.Bool()
   external bool is_dithering;
 }
 

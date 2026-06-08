@@ -48,7 +48,13 @@ fi
 if [[ $SKIP_FRB -eq 0 ]]; then
   step "Regenerating Flutter Rust Bridge bindings..."
   if command -v flutter_rust_bridge_codegen >/dev/null 2>&1; then
-    ( cd "$NATIVE_DIR" && flutter_rust_bridge_codegen generate )
+    # ffigen/libclang must find the C stdlib headers (stdbool.h etc.) or it
+    # mis-generates FFI typedefs (e.g. `typedef bool = ffi.NativeFunction<...>`)
+    # that PASS `flutter analyze` yet break the Dart VM kernel FFI transform at
+    # runtime. Point CPATH at clang's own resource headers (mirrors dev.ps1's
+    # CPATH on Windows). Derived from clang so it survives toolchain bumps.
+    _clang_res="$(clang -print-resource-dir 2>/dev/null)"
+    ( cd "$NATIVE_DIR" && CPATH="${_clang_res:+$_clang_res/include:}/usr/include${CPATH:+:$CPATH}" flutter_rust_bridge_codegen generate )
     ok "FRB bindings regenerated"
   else
     echo "  flutter_rust_bridge_codegen not found; install with:" >&2

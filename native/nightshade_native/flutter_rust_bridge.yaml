@@ -9,12 +9,15 @@ duplicated_c_output:
   - ../../packages/nightshade_bridge/macos/bridge_generated.h
   - ../../packages/nightshade_bridge/linux/bridge_generated.h
 
-# LLVM path for ffigen. On Linux/macOS clang headers are discovered
-# automatically so no override is needed. On Windows, scripts/dev.ps1 sets
-# CPATH to the LLVM/MSVC/Windows-SDK include dirs (fixes stdbool.h not found);
-# if running codegen on Windows outside that script, re-add:
-#   llvm_path:
-#     - 'C:\Program Files\LLVM'
+# LLVM path for ffigen. IMPORTANT: run codegen via scripts/dev.sh (Linux) or
+# scripts/dev.ps1 (Windows), which set CPATH so libclang finds the C stdlib
+# headers (stdbool.h). Running bare `flutter_rust_bridge_codegen generate`
+# WITHOUT that CPATH mis-generates FFI typedefs (e.g. `typedef bool = ...`) that
+# pass `flutter analyze` but break the Dart VM kernel transform at runtime.
+#   - Linux:   CPATH="$(clang -print-resource-dir)/include:/usr/include"
+#   - Windows: CPATH to LLVM/MSVC/Windows-SDK include dirs (see dev.ps1); or:
+#       llvm_path:
+#         - 'C:\Program Files\LLVM'
 
 # Enable features
 full_dep: true
