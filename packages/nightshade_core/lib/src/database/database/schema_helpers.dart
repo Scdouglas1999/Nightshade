@@ -395,6 +395,42 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     }
   }
 
+  /// Create the v43 `campaigns` table — the durable NINA-style multi-night
+  /// `(target, filter, accepted, desired, last_date)` counter — plus its
+  /// lookup index.
+  ///
+  /// Called from both `onCreate` (fresh installs) and the `if (from < 43)`
+  /// `onUpgrade` branch. Every statement is `CREATE ... IF NOT EXISTS` so the
+  /// helper is idempotent and re-runnable. This is a raw-DDL table (the dominant
+  /// v27+ convention) accessed via `CampaignsDao`. The `ON DELETE CASCADE`
+  /// foreign key mirrors `integration_goals`; FK enforcement is already enabled
+  /// in `beforeOpen` (`PRAGMA foreign_keys = ON`), so deleting a target tears
+  /// down its campaign rows automatically.
+  ///
+  /// `UNIQUE(target_id, filter)` makes the `(target, filter)` pair the campaign
+  /// identity. The table is ADDITIVE and orthogonal to `integration_goals`: it
+  /// never feeds the live `SchedulerEngine` goals-complete reject (which stays a
+  /// read-only derivation), it is a denormalized bookkeeping counter the
+  /// campaign UI can later show.
+  Future<void> _createCampaignsTable() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS campaigns('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,'
+      'filter TEXT NOT NULL,'
+      'accepted_count INTEGER NOT NULL DEFAULT 0,'
+      'desired_count INTEGER NOT NULL DEFAULT 0,'
+      'last_date INTEGER,'
+      'created_at INTEGER NOT NULL,'
+      'updated_at INTEGER NOT NULL,'
+      'UNIQUE(target_id, filter))',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_campaigns_target '
+      'ON campaigns (target_id)',
+    );
+  }
+
   Future<void> _createGuideRmsHistoryTable() async {
     await customStatement('''
       CREATE TABLE IF NOT EXISTS guide_rms_history (

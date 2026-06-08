@@ -249,6 +249,7 @@ extension _SequenceFileEncoder on SequenceFileService {
           'brightnessTierPreferences': node.brightnessTierPreferences.toJson(),
           'maxConditionsScoreAgeSecs': node.maxConditionsScoreAgeSecs,
           'minMoonSeparationDeg': node.minMoonSeparationDeg,
+          'horizonProfile': _encodeHorizonProfile(node.horizonProfile),
         },
       // Wave 7 Agent 2: LiveStacking — broadcast / EAA node config.
       LiveStackingNode() => <String, dynamic>{
@@ -318,4 +319,34 @@ extension _SequenceFileEncoder on SequenceFileService {
     base.addAll(extras);
     return base;
   }
+}
+
+/// Persist a [TargetSchedulerNode]'s azimuth horizon mask as
+/// `{id?, name, samples:[{az,alt}]}`. `null` profile encodes to `null`.
+Map<String, dynamic>? _encodeHorizonProfile(
+    sched_horizon.HorizonProfile? profile) {
+  if (profile == null) return null;
+  return {
+    if (profile.id != null) 'id': profile.id,
+    'name': profile.name,
+    'samples': profile.samples.map((s) => s.toJson()).toList(),
+  };
+}
+
+/// Inverse of [_encodeHorizonProfile]. Tolerates a missing/empty samples
+/// list (returns `null` — back to a flat altitude floor) so legacy saved
+/// sequences without the field round-trip unchanged.
+sched_horizon.HorizonProfile? _decodeHorizonProfile(Object? raw) {
+  if (raw is! Map) return null;
+  final map = raw.cast<String, dynamic>();
+  final samplesRaw = map['samples'] as List<dynamic>? ?? const [];
+  if (samplesRaw.isEmpty) return null;
+  return sched_horizon.HorizonProfile(
+    id: (map['id'] as num?)?.toInt(),
+    name: map['name'] as String? ?? 'Site horizon',
+    samples: samplesRaw
+        .map((e) => sched_horizon.HorizonSample.fromJson(
+            (e as Map).cast<String, dynamic>()))
+        .toList(),
+  );
 }

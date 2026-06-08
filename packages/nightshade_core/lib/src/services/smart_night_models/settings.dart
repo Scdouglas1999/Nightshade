@@ -97,6 +97,16 @@ class SmartNightSettings {
   final bool useSchedulerForMultiTarget;
   final int schedulerTargetThreshold;
 
+  /// Whether the emitted in-sequence [TargetSchedulerNode] should opt into
+  /// adaptive sky-conditions target swapping. When true the node carries a
+  /// `swapOnConditionsBelow` floor (80% — the brief default), so the
+  /// already-built in-sequence swap engine re-orders the candidate pick when
+  /// the live conditions score drops. Defaults to `true` so the Smart-Night
+  /// preset is self-driving out of the box; the value is purely an
+  /// in-sequence-node config and never touches the live autopilot's W1–W5
+  /// decision math.
+  final bool adaptiveTargetSwap;
+
   /// Minimum altitude (deg) below which a target is considered "not usable".
   /// Drives the per-target start/end altitude triggers and the schedule
   /// window math.
@@ -154,6 +164,12 @@ class SmartNightSettings {
   /// uses and the typical master-dark sample size for modern CMOS.
   final int darkFramesPerRequirement;
 
+  /// Conditions-score floor (0..100) handed to the in-sequence
+  /// [TargetSchedulerNode] when [adaptiveTargetSwap] is enabled. Below this
+  /// the node's adaptive-swap engine re-ranks the candidate pick. 80 follows
+  /// the Phase-B brief.
+  static const double adaptiveSwapConditionsFloor = 80.0;
+
   const SmartNightSettings({
     this.maxSessionHours = 12.0,
     this.afCadence = SmartNightAfCadence.everyNFrames,
@@ -175,6 +191,7 @@ class SmartNightSettings {
     this.flatCountPerFilter = 20,
     this.useSchedulerForMultiTarget = true,
     this.schedulerTargetThreshold = 3,
+    this.adaptiveTargetSwap = true,
     this.minAltitudeDeg = 30.0,
     this.subExposureCeilingSecs = 300.0,
     this.subExposureFloorSecs = 30.0,
@@ -200,6 +217,7 @@ class SmartNightSettings {
     int? flatCountPerFilter,
     bool? useSchedulerForMultiTarget,
     int? schedulerTargetThreshold,
+    bool? adaptiveTargetSwap,
     double? minAltitudeDeg,
     double? subExposureCeilingSecs,
     double? subExposureFloorSecs,
@@ -228,6 +246,7 @@ class SmartNightSettings {
           useSchedulerForMultiTarget ?? this.useSchedulerForMultiTarget,
       schedulerTargetThreshold:
           schedulerTargetThreshold ?? this.schedulerTargetThreshold,
+      adaptiveTargetSwap: adaptiveTargetSwap ?? this.adaptiveTargetSwap,
       minAltitudeDeg: minAltitudeDeg ?? this.minAltitudeDeg,
       subExposureCeilingSecs:
           subExposureCeilingSecs ?? this.subExposureCeilingSecs,
@@ -259,6 +278,7 @@ class SmartNightSettings {
         'flatCountPerFilter': flatCountPerFilter,
         'useSchedulerForMultiTarget': useSchedulerForMultiTarget,
         'schedulerTargetThreshold': schedulerTargetThreshold,
+        'adaptiveTargetSwap': adaptiveTargetSwap,
         'minAltitudeDeg': minAltitudeDeg,
         'subExposureCeilingSecs': subExposureCeilingSecs,
         'subExposureFloorSecs': subExposureFloorSecs,
@@ -292,6 +312,7 @@ class SmartNightSettings {
       useSchedulerForMultiTarget:
           json['useSchedulerForMultiTarget'] as bool? ?? true,
       schedulerTargetThreshold: _jsonInt(json['schedulerTargetThreshold'], 3),
+      adaptiveTargetSwap: json['adaptiveTargetSwap'] as bool? ?? true,
       minAltitudeDeg: _jsonDouble(json['minAltitudeDeg'], 30.0),
       subExposureCeilingSecs:
           _jsonDouble(json['subExposureCeilingSecs'], 300.0),

@@ -494,6 +494,9 @@ extension _SequenceFileDecoder on SequenceFileService {
           minMoonSeparationDeg:
               (json['minMoonSeparationDeg'] as num?)?.toDouble() ??
                   (json['min_moon_separation_deg'] as num?)?.toDouble(),
+          horizonProfile: _decodeHorizonProfile(
+            json['horizonProfile'] ?? json['horizon_profile'],
+          ),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,

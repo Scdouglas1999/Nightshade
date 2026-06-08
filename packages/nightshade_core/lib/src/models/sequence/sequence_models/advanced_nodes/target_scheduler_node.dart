@@ -57,6 +57,15 @@ class TargetSchedulerNode extends SequenceNode {
   /// soft moon-distance score weight.
   final double? minMoonSeparationDeg;
 
+  /// Optional azimuth-dependent site-horizon mask. When set, the in-sequence
+  /// scheduler treats any target below `horizonProfile.minAltitudeAt(az)` as
+  /// unrunnable — the same per-azimuth horizon mask the live autopilot
+  /// consults via the `customHorizon` target constraint. Serialized to the
+  /// Rust `horizon_profile` config as the samples-only shape
+  /// (`{"samples":[{"az":..,"alt":..}]}`); `null` (default) leaves the node
+  /// on a flat altitude floor.
+  final HorizonProfile? horizonProfile;
+
   TargetSchedulerNode({
     super.id,
     super.name = 'Scheduler',
@@ -83,6 +92,7 @@ class TargetSchedulerNode extends SequenceNode {
     this.brightnessTierPreferences = const BrightnessTierPreferences(),
     this.maxConditionsScoreAgeSecs = 300,
     this.minMoonSeparationDeg,
+    this.horizonProfile,
   });
 
   /// Stable nodeType identifier. Must match the Rust `NodeType` discriminant
@@ -168,6 +178,9 @@ class TargetSchedulerNode extends SequenceNode {
     // Keep-or-replace like swapOnConditionsBelow; clearing to null (disable the
     // gate) is rebuild-explicit at the editor.
     double? minMoonSeparationDeg,
+    // Keep-or-replace; clearing the mask (back to a flat floor) is
+    // rebuild-explicit at the editor.
+    HorizonProfile? horizonProfile,
   }) {
     return TargetSchedulerNode(
       id: id ?? this.id,
@@ -196,6 +209,7 @@ class TargetSchedulerNode extends SequenceNode {
       maxConditionsScoreAgeSecs:
           maxConditionsScoreAgeSecs ?? this.maxConditionsScoreAgeSecs,
       minMoonSeparationDeg: minMoonSeparationDeg ?? this.minMoonSeparationDeg,
+      horizonProfile: horizonProfile ?? this.horizonProfile,
     );
   }
 
@@ -215,6 +229,7 @@ class TargetSchedulerNode extends SequenceNode {
         brightnessTierPreferences,
         maxConditionsScoreAgeSecs,
         minMoonSeparationDeg,
+        horizonProfile,
       ];
 }
 

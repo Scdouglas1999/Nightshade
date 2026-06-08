@@ -526,6 +526,9 @@ extension _SequenceRepositoryNodeDecoder on SequenceRepository {
           minMoonSeparationDeg:
               (props['minMoonSeparationDeg'] as num?)?.toDouble() ??
                   (props['min_moon_separation_deg'] as num?)?.toDouble(),
+          horizonProfile: _schedulerHorizonFromJson(
+            props['horizonProfile'] ?? props['horizon_profile'],
+          ),
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,

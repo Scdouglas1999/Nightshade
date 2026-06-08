@@ -1575,6 +1575,199 @@ void main() {
     });
   });
 
+  // Phase B (scheduler-activation): the emitted in-sequence TargetSchedulerNode
+  // must carry the adaptive-swap threshold (default ON) and the operator's
+  // site horizon mask. These are config values on the in-sequence node and
+  // never touch the live SchedulerEngine's W1–W5 decision math.
+  group('SmartNightService TargetScheduler presets (Phase B)', () {
+    late SmartNightService service;
+    late EquipmentProfileModel monoProfile;
+
+    setUp(() {
+      service = SmartNightService(
+        suggestionService: TargetSuggestionService(
+          loggingService: _MockLoggingService(),
+        ),
+        logging: _MockLoggingService(),
+      );
+      monoProfile = const EquipmentProfileModel(
+        id: 1,
+        name: 'ASI2600MM + RedCat 71',
+        focalLength: 350,
+        aperture: 71,
+        focalRatio: 4.9,
+        cameraName: 'ZWO ASI2600MM Pro',
+        telescopeName: 'WO RedCat 71',
+        mountName: 'ZWO AM5',
+        defaultGain: 100,
+        defaultOffset: 50,
+        filterNames: ['L', 'R', 'G', 'B', 'Ha', 'OIII', 'SII'],
+      );
+    });
+
+    TargetSuggestion suggestion({required int id, required String name}) {
+      return TargetSuggestion(
+        targetId: id,
+        targetName: name,
+        raHours: 10.0,
+        decDegrees: 40.0,
+        totalScore: 75.0,
+        objectType: 'Galaxy',
+        reasoning: 'High altitude, far from moon',
+        visibility: TargetVisibilityInfo(
+          currentAltitude: 50,
+          currentAzimuth: 180,
+          airmass: 1.4,
+          peakAltitude: 65.0,
+          riseTime: DateTime(2026, 5, 17, 22),
+          setTime: DateTime(2026, 5, 18, 5),
+          peakAltitudeTime: DateTime(2026, 5, 18, 1),
+          moonDistance: 90,
+          hoursAboveMinAlt: 6,
+          transitTime: DateTime(2026, 5, 18, 1),
+        ),
+      );
+    }
+
+    SmartNightContext contextWith({HorizonProfile? horizon}) {
+      return SmartNightContext(
+        windowStart: DateTime(2026, 5, 17, 22),
+        windowEnd: DateTime(2026, 5, 18, 5),
+        bortleClass: 4,
+        rainOrCloudProbability: null,
+        horizonProfile: horizon,
+      );
+    }
+
+    List<TargetSuggestion> threeTargets() => [
+          suggestion(id: 1, name: 'M31'),
+          suggestion(id: 2, name: 'M81'),
+          suggestion(id: 3, name: 'M51'),
+        ];
+
+    test('preset default ON: emitted node carries swap threshold 80', () {
+      final plan = service.build(
+        profile: monoProfile,
+        latitudeDeg: 41.0,
+        longitudeDeg: -73.0,
+        context: contextWith(),
+        selectedSuggestions: threeTargets(),
+        strategy: SmartNightStrategy.autoLrgb,
+        // Default settings: adaptiveTargetSwap is true out of the box.
+        settings: const SmartNightSettings(defaultIntegrationBudgetHours: 1.5),
+      );
+
+      final scheduler =
+          plan.sequence.nodes.values.whereType<TargetSchedulerNode>().single;
+      expect(
+        scheduler.swapOnConditionsBelow,
+        SmartNightSettings.adaptiveSwapConditionsFloor,
+      );
+      expect(scheduler.swapOnConditionsBelow, 80.0);
+      // Recompute cadence is the self-driving default (5), not boundary-only.
+      expect(scheduler.recomputeEveryNExposures, 5);
+    });
+
+    test('adaptiveTargetSwap=false leaves swap disabled (null)', () {
+      final plan = service.build(
+        profile: monoProfile,
+        latitudeDeg: 41.0,
+        longitudeDeg: -73.0,
+        context: contextWith(),
+        selectedSuggestions: threeTargets(),
+        strategy: SmartNightStrategy.autoLrgb,
+        settings: const SmartNightSettings(
+          defaultIntegrationBudgetHours: 1.5,
+          adaptiveTargetSwap: false,
+        ),
+      );
+
+      final scheduler =
+          plan.sequence.nodes.values.whereType<TargetSchedulerNode>().single;
+      expect(scheduler.swapOnConditionsBelow, isNull);
+    });
+
+    test('emitted node carries the operator site horizon mask', () {
+      const horizon = HorizonProfile(
+        name: 'Backyard fence',
+        samples: [
+          HorizonSample(0.0, 20.0),
+          HorizonSample(90.0, 35.0),
+          HorizonSample(180.0, 15.0),
+          HorizonSample(270.0, 30.0),
+        ],
+      );
+
+      final plan = service.build(
+        profile: monoProfile,
+        latitudeDeg: 41.0,
+        longitudeDeg: -73.0,
+        context: contextWith(horizon: horizon),
+        selectedSuggestions: threeTargets(),
+        strategy: SmartNightStrategy.autoLrgb,
+        settings: const SmartNightSettings(defaultIntegrationBudgetHours: 1.5),
+      );
+
+      final scheduler =
+          plan.sequence.nodes.values.whereType<TargetSchedulerNode>().single;
+      expect(scheduler.horizonProfile, isNotNull);
+      expect(scheduler.horizonProfile!.samples, hasLength(4));
+      // The mask interpolates per-azimuth exactly like the live autopilot's
+      // HorizonProfile.minAltitudeAt — spot-check a sample and a midpoint.
+      expect(scheduler.horizonProfile!.minAltitudeAt(90.0), closeTo(35.0, 1e-9));
+      expect(
+        scheduler.horizonProfile!.minAltitudeAt(45.0),
+        closeTo(27.5, 1e-9),
+      );
+    });
+
+    test('no horizon in context leaves the node on a flat floor (null mask)',
+        () {
+      final plan = service.build(
+        profile: monoProfile,
+        latitudeDeg: 41.0,
+        longitudeDeg: -73.0,
+        context: contextWith(),
+        selectedSuggestions: threeTargets(),
+        strategy: SmartNightStrategy.autoLrgb,
+        settings: const SmartNightSettings(defaultIntegrationBudgetHours: 1.5),
+      );
+
+      final scheduler =
+          plan.sequence.nodes.values.whereType<TargetSchedulerNode>().single;
+      expect(scheduler.horizonProfile, isNull);
+    });
+
+    test('SmartNightPlan JSON round-trips the swap preset + horizon mask', () {
+      const horizon = HorizonProfile(
+        name: 'Backyard fence',
+        samples: [
+          HorizonSample(0.0, 20.0),
+          HorizonSample(180.0, 15.0),
+        ],
+      );
+      final plan = service.build(
+        profile: monoProfile,
+        latitudeDeg: 41.0,
+        longitudeDeg: -73.0,
+        context: contextWith(horizon: horizon),
+        selectedSuggestions: threeTargets(),
+        strategy: SmartNightStrategy.autoLrgb,
+        settings: const SmartNightSettings(defaultIntegrationBudgetHours: 1.5),
+      );
+
+      final restored = SmartNightPlan.fromJson(plan.toJson());
+      final scheduler =
+          restored.sequence.nodes.values.whereType<TargetSchedulerNode>().single;
+      expect(scheduler.swapOnConditionsBelow, 80.0);
+      expect(scheduler.horizonProfile, isNotNull);
+      expect(scheduler.horizonProfile!.samples, hasLength(2));
+      expect(scheduler.horizonProfile!.name, 'Backyard fence');
+      // The context's horizon profile also survives the round-trip.
+      expect(restored.context.horizonProfile?.samples, hasLength(2));
+    });
+  });
+
   group('inferSmartNightStrategy', () {
     TargetSuggestion minimalSuggestion({
       required int id,

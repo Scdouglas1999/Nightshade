@@ -23,6 +23,7 @@ import '../thumbnail_sidecar_provider.dart';
 import '../backend_provider.dart';
 import '../database_provider.dart'
     show guideRmsHistoryDaoProvider, imagesDaoProvider;
+import '../../database/daos/campaigns_dao.dart' show campaignsDaoProvider;
 import '../disk_space_provider.dart';
 import '../equipment_provider.dart';
 // Wave 5 Agent 2 â€” sky-brightness poll reads the tracker via this

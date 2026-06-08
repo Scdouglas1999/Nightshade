@@ -13,6 +13,7 @@ import '../providers/database_provider.dart';
 import '../models/sequence/sequence_models.dart';
 import '../models/imaging/imaging_models.dart';
 import 'logging_service.dart';
+import 'scheduler/horizon_profile.dart';
 import 'sequence_repository.dart';
 
 part 'backup_service/sequence_codec.dart';
@@ -932,6 +933,33 @@ BrightnessTierPreferences _parseBrightnessTierPreferences(Object? value) {
     return BrightnessTierPreferences.fromJson(value.cast<String, dynamic>());
   }
   return const BrightnessTierPreferences();
+}
+
+/// Persist a [TargetSchedulerNode]'s azimuth horizon mask as
+/// `{id?, name, samples:[{az,alt}]}`. `null` profile encodes to `null`.
+Map<String, dynamic>? _backupHorizonToJson(HorizonProfile? profile) {
+  if (profile == null) return null;
+  return {
+    if (profile.id != null) 'id': profile.id,
+    'name': profile.name,
+    'samples': profile.samples.map((s) => s.toJson()).toList(),
+  };
+}
+
+/// Inverse of [_backupHorizonToJson]. Tolerates a missing/empty samples list
+/// (returns `null` — flat altitude floor) so legacy backups restore.
+HorizonProfile? _backupHorizonFromJson(Object? raw) {
+  if (raw is! Map) return null;
+  final map = raw.cast<String, dynamic>();
+  final samplesRaw = map['samples'] as List<dynamic>? ?? const [];
+  if (samplesRaw.isEmpty) return null;
+  return HorizonProfile(
+    id: (map['id'] as num?)?.toInt(),
+    name: map['name'] as String? ?? 'Site horizon',
+    samples: samplesRaw
+        .map((e) => HorizonSample.fromJson((e as Map).cast<String, dynamic>()))
+        .toList(),
+  );
 }
 
 /// Raised by [BackupService._validateBackupPayload] when a backup file is

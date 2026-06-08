@@ -259,6 +259,19 @@ extension _SmartNightSequenceEmitter on SmartNightService {
         childIds: targetHeaders.map((h) => h.id).toList(),
         parentId: rootId,
         orderIndex: childOrder.length,
+        // Opt the in-sequence scheduler into adaptive sky-conditions swapping
+        // when the preset is on. This is a config value on the in-sequence
+        // node — the already-built swap engine consults it; it never touches
+        // the live autopilot's W1–W5 decision math. recomputeEveryNExposures
+        // already defaults to 5 (ON) on the node ctor.
+        swapOnConditionsBelow: settings.adaptiveTargetSwap
+            ? SmartNightSettings.adaptiveSwapConditionsFloor
+            : null,
+        // Carry the operator's site horizon into the behavior-tree scheduler
+        // so it respects the same azimuth horizon mask the live autopilot
+        // already uses (an additive hard-reject layer — only ever makes a
+        // candidate less runnable, never more).
+        horizonProfile: context.horizonProfile,
       );
       // Re-parent the headers to the scheduler.
       for (var i = 0; i < targetHeaders.length; i++) {

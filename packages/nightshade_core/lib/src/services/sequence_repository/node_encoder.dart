@@ -198,6 +198,7 @@ extension _SequenceRepositoryNodeEncoder on SequenceRepository {
           'brightnessTierPreferences': node.brightnessTierPreferences.toJson(),
           'maxConditionsScoreAgeSecs': node.maxConditionsScoreAgeSecs,
           'minMoonSeparationDeg': node.minMoonSeparationDeg,
+          'horizonProfile': _schedulerHorizonToJson(node.horizonProfile),
         },
       // Wave 3 Agent 2: SmartExposure — plans are serialised as a list of
       // FilterPlan JSON maps. We re-use FilterPlan.toJson() (which mirrors

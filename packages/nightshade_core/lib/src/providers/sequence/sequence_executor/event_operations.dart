@@ -579,6 +579,32 @@ extension _SequenceExecutorEventOperations on SequenceExecutor {
           logger: _logger,
           sidecarService: sidecarService,
         );
+        // Phase B (v43) — ADDITIVE durable-campaign bookkeeping. When an
+        // accepted light frame attributes to a catalog target and a filter,
+        // credit one accepted frame to the durable NINA-style `campaigns`
+        // counter and stamp its last-capture date. This is a denormalized
+        // companion to the live `integration_goals` derivation the scheduler
+        // reads — it never feeds the engine's goals-complete reject and never
+        // touches frame attribution; rejected frames (`isAccepted == false`)
+        // are skipped so the counter only advances on acceptance.
+        if (isAccepted &&
+            attribution.targetId != null &&
+            filter != null &&
+            filter.isNotEmpty) {
+          try {
+            await _ref.read(campaignsDaoProvider).recordAccepted(
+                  targetId: attribution.targetId!,
+                  filter: filter,
+                  capturedAt: DateTime.now(),
+                );
+          } catch (e) {
+            _logger.warning(
+              'Phase B: failed to credit campaign for target '
+              '${attribution.targetId} filter $filter: $e',
+              source: 'SequenceExecutor',
+            );
+          }
+        }
       } catch (e) {
         _logger.warning(
           'Wave 6 Thumbnails: failed to register sequence frame for '

@@ -60,6 +60,14 @@ class SmartNightContext {
   /// the user should enable the per-target adaptive exposure config.
   final bool adaptiveExposuresRecommended;
 
+  /// The operator's default site-horizon profile (azimuth-dependent
+  /// minimum altitude). When present the auto-builder carries it into the
+  /// emitted in-sequence [TargetSchedulerNode] so the behavior-tree
+  /// scheduler respects the same azimuth horizon mask the live autopilot
+  /// already consults via the `customHorizon` target constraint. `null`
+  /// leaves the in-sequence node on a flat altitude floor.
+  final HorizonProfile? horizonProfile;
+
   const SmartNightContext({
     required this.windowStart,
     required this.windowEnd,
@@ -72,6 +80,7 @@ class SmartNightContext {
     this.missingDarkLibraryNotes = const [],
     this.missingDarkRequirements = const [],
     this.adaptiveExposuresRecommended = false,
+    this.horizonProfile,
   });
 
   SmartNightContext copyWith({
@@ -86,6 +95,7 @@ class SmartNightContext {
     List<String>? missingDarkLibraryNotes,
     List<DarkFrameRequirement>? missingDarkRequirements,
     bool? adaptiveExposuresRecommended,
+    HorizonProfile? horizonProfile,
   }) {
     return SmartNightContext(
       windowStart: windowStart ?? this.windowStart,
@@ -105,6 +115,7 @@ class SmartNightContext {
           missingDarkRequirements ?? this.missingDarkRequirements,
       adaptiveExposuresRecommended:
           adaptiveExposuresRecommended ?? this.adaptiveExposuresRecommended,
+      horizonProfile: horizonProfile ?? this.horizonProfile,
     );
   }
 
@@ -121,6 +132,13 @@ class SmartNightContext {
         'missingDarkRequirements':
             missingDarkRequirements.map(_darkRequirementToJson).toList(),
         'adaptiveExposuresRecommended': adaptiveExposuresRecommended,
+        if (horizonProfile != null)
+          'horizonProfile': {
+            if (horizonProfile!.id != null) 'id': horizonProfile!.id,
+            'name': horizonProfile!.name,
+            'samples':
+                horizonProfile!.samples.map((s) => s.toJson()).toList(),
+          },
       };
 
   factory SmartNightContext.fromJson(Map<String, dynamic> json) {
@@ -141,8 +159,23 @@ class SmartNightContext {
       ),
       adaptiveExposuresRecommended:
           json['adaptiveExposuresRecommended'] as bool? ?? false,
+      horizonProfile: _horizonProfileFromJson(json['horizonProfile']),
     );
   }
+}
+
+HorizonProfile? _horizonProfileFromJson(Object? raw) {
+  if (raw is! Map) return null;
+  final map = raw.cast<String, dynamic>();
+  final samplesRaw = map['samples'] as List<dynamic>? ?? const [];
+  if (samplesRaw.isEmpty) return null;
+  return HorizonProfile(
+    id: (map['id'] as num?)?.toInt(),
+    name: map['name'] as String? ?? 'Site horizon',
+    samples: samplesRaw
+        .map((e) => HorizonSample.fromJson((e as Map).cast<String, dynamic>()))
+        .toList(),
+  );
 }
 
 /// Container for the wizard's "preview" step: the [Sequence] that will be

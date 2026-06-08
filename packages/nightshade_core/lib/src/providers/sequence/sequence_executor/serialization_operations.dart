@@ -603,6 +603,15 @@ extension _SequenceExecutorSerializationOperations on SequenceExecutor {
           'swap_hysteresis_secs': n.swapHysteresisSecs,
           'brightness_tier_preferences': n.brightnessTierPreferences.toJson(),
           'max_conditions_score_age_secs': n.maxConditionsScoreAgeSecs,
+          // Azimuth-dependent site-horizon mask. The Rust `horizon_profile`
+          // config takes the samples-only shape; null => no mask (flat floor).
+          'horizon_profile': n.horizonProfile == null
+              ? null
+              : {
+                  'samples': n.horizonProfile!.samples
+                      .map((s) => s.toJson())
+                      .toList(),
+                },
         };
       // Wave 7 Science: SciencePhotometry â€” cadence-enforced photometric capture.
       case SciencePhotometryNode n:

@@ -12,6 +12,7 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         await _createPostSessionTables();
         await _createNightReportsTable();
         await _ensureIntegratedMastersV42Columns();
+        await _createCampaignsTable();
         await _createCustomIndexes();
         await _ensureDefaultSettings();
       },
@@ -55,6 +56,7 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         await _upgradeSchemaV32ToV40(m, from);
         await _upgradeSchemaV41(m, from);
         await _upgradeSchemaV42(m, from);
+        await _upgradeSchemaV43(m, from);
 
         await _ensureDefaultSettings();
         await _createCustomIndexes();

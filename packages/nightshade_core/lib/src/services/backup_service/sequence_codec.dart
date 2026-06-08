@@ -70,6 +70,7 @@ extension _BackupSequenceCodec on BackupService {
         'swapHysteresisSecs': node.swapHysteresisSecs,
         'brightnessTierPreferences': node.brightnessTierPreferences.toJson(),
         'maxConditionsScoreAgeSecs': node.maxConditionsScoreAgeSecs,
+        'horizonProfile': _backupHorizonToJson(node.horizonProfile),
       });
     } else if (node is SmartExposureNode) {
       base.addAll({
@@ -324,6 +325,9 @@ extension _BackupSequenceCodec on BackupService {
                 (json['maxConditionsScoreAgeSecs'] as num?)?.toInt() ??
                     (json['max_conditions_score_age_secs'] as num?)?.toInt() ??
                     300,
+            horizonProfile: _backupHorizonFromJson(
+              json['horizonProfile'] ?? json['horizon_profile'],
+            ),
             parentId: json['parentId'] as String?,
             childIds:
                 (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],

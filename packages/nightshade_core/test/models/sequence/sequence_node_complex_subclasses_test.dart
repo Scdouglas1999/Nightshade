@@ -900,6 +900,31 @@ void main() {
       );
       expect(n.copyWith(), equals(n));
     });
+
+    // Phase B (scheduler-activation): the azimuth horizon mask carried into
+    // the in-sequence scheduler from the operator's site profile.
+    test('horizon_profile_copyWith_keeps_or_replaces_and_participates_in_props',
+        () {
+      const horizon = HorizonProfile(
+        name: 'Site',
+        samples: [HorizonSample(0.0, 20.0), HorizonSample(180.0, 30.0)],
+      );
+      final n = TargetSchedulerNode(horizonProfile: horizon);
+      // copyWith with no arg keeps; null keeps; non-null replaces.
+      expect(n.copyWith().horizonProfile, equals(horizon));
+      expect(n.copyWith(horizonProfile: null).horizonProfile, equals(horizon));
+      const other = HorizonProfile(
+        name: 'Other',
+        samples: [HorizonSample(0.0, 10.0)],
+      );
+      expect(n.copyWith(horizonProfile: other).horizonProfile, equals(other));
+      // Equatable: the horizon participates so two nodes differing only by
+      // their mask are not equal.
+      expect(TargetSchedulerNode(id: 'x'),
+          isNot(equals(TargetSchedulerNode(id: 'x', horizonProfile: horizon))));
+      // Default is null (flat floor).
+      expect(TargetSchedulerNode().horizonProfile, isNull);
+    });
   });
 
   // ============================================================

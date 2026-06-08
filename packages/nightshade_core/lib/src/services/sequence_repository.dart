@@ -12,6 +12,7 @@ import '../models/sequence/sequence_models.dart';
 import '../providers/backend_provider.dart';
 import '../providers/database_provider.dart';
 import '../utils/json_validation.dart';
+import 'scheduler/horizon_profile.dart';
 import 'sequence_file_service.dart';
 
 part 'sequence_repository/node_decoder.dart';
@@ -714,6 +715,33 @@ BrightnessTierPreferences _parseBrightnessTierPreferences(Object? value) {
     return BrightnessTierPreferences.fromJson(value.cast<String, dynamic>());
   }
   return const BrightnessTierPreferences();
+}
+
+/// Persist a [TargetSchedulerNode]'s azimuth horizon mask as
+/// `{id?, name, samples:[{az,alt}]}`. `null` profile encodes to `null`.
+Map<String, dynamic>? _schedulerHorizonToJson(HorizonProfile? profile) {
+  if (profile == null) return null;
+  return {
+    if (profile.id != null) 'id': profile.id,
+    'name': profile.name,
+    'samples': profile.samples.map((s) => s.toJson()).toList(),
+  };
+}
+
+/// Inverse of [_schedulerHorizonToJson]. Tolerates a missing/empty samples
+/// list (returns `null` — flat altitude floor) so legacy saved nodes load.
+HorizonProfile? _schedulerHorizonFromJson(Object? raw) {
+  if (raw is! Map) return null;
+  final map = raw.cast<String, dynamic>();
+  final samplesRaw = map['samples'] as List<dynamic>? ?? const [];
+  if (samplesRaw.isEmpty) return null;
+  return HorizonProfile(
+    id: (map['id'] as num?)?.toInt(),
+    name: map['name'] as String? ?? 'Site horizon',
+    samples: samplesRaw
+        .map((e) => HorizonSample.fromJson((e as Map).cast<String, dynamic>()))
+        .toList(),
+  );
 }
 
 /// Provider for the sequence repository

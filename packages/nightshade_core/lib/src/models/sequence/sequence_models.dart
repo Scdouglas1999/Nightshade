@@ -24,6 +24,7 @@ import '../meridian_flip_settings.dart'
 export '../meridian_flip_settings.dart'
     show MeridianTriggerMethod, FlipFailureAction;
 import '../../backend/nightshade_backend.dart' show DeviceType;
+import '../../services/scheduler/horizon_profile.dart' show HorizonProfile;
 import '_json_converters.dart';
 import 'instruction_progress_detail.dart';
 import 'sequence_tree_index.dart';

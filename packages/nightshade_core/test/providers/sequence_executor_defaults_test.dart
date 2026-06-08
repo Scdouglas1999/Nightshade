@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/database/database.dart' hide Sequence;
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/providers/database_provider.dart';
+import 'package:nightshade_core/src/services/scheduler/horizon_profile.dart'
+    as sched;
 import 'package:nightshade_core/src/providers/sequence/sequence_executor.dart';
 import 'package:nightshade_core/src/providers/sequence/sequencer_defaults.dart';
 import 'package:nightshade_core/src/providers/settings_provider.dart';
@@ -279,6 +281,69 @@ void main() {
       final exposureNode = nodes.firstWhere((n) => n['id'] == 'exp1');
       final cfg = exposureNode['node_type'] as Map<String, dynamic>;
       expect(cfg['dither_every'], 4);
+    });
+
+    // Phase B (scheduler-activation): the in-sequence TargetScheduler config
+    // emitted to the Rust executor must carry the adaptive-swap threshold and
+    // the azimuth horizon mask (samples-only shape) so the already-built Rust
+    // swap engine + horizon runnable-gate engage.
+    test('TargetScheduler config emits swap threshold + horizon mask',
+        () async {
+      final scheduler = TargetSchedulerNode(
+        id: 'sched',
+        name: 'Scheduler',
+        childIds: const ['th'],
+        swapOnConditionsBelow: 80.0,
+        horizonProfile: const sched.HorizonProfile(
+          name: 'Site',
+          samples: [
+            sched.HorizonSample(0.0, 20.0),
+            sched.HorizonSample(180.0, 35.0),
+          ],
+        ),
+      );
+      final th = TargetHeaderNode(
+        id: 'th',
+        name: 'M31',
+        targetName: 'M31',
+        raHours: 0,
+        decDegrees: 0,
+        parentId: 'sched',
+      );
+      final sequence = Sequence.create(
+        id: 'seq',
+        name: 'sched-test',
+        rootNodeId: 'sched',
+        nodes: {'sched': scheduler, 'th': th},
+      );
+
+      final container = _container(
+        autoFocusOnFilterChange: false,
+        autoFocusEveryMinutes: 0,
+        ditherEnabled: false,
+        ditherEveryFrames: 0,
+      );
+      await container.read(appSettingsProvider.future);
+      container.read(sequencerDefaultsProvider);
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      final executor = container.read(sequenceExecutorProvider);
+
+      final json = executor.sequenceToJsonForTest(sequence);
+      final decoded = jsonDecode(json) as Map<String, dynamic>;
+      final nodes = (decoded['nodes'] as List).cast<Map<String, dynamic>>();
+      final schedNode = nodes.firstWhere((n) => n['id'] == 'sched');
+      final cfg = schedNode['node_type'] as Map<String, dynamic>;
+
+      expect(cfg['type'], 'TargetScheduler');
+      expect(cfg['swap_on_conditions_below'], 80.0);
+      // recompute cadence already defaults to 5 (self-driving, ON).
+      expect(cfg['recompute_every_n_exposures'], 5);
+      // The horizon is serialised as the Rust samples-only shape.
+      final horizon = cfg['horizon_profile'] as Map<String, dynamic>;
+      final samples = (horizon['samples'] as List).cast<Map<String, dynamic>>();
+      expect(samples, hasLength(2));
+      expect(samples.first['az'], 0.0);
+      expect(samples.first['alt'], 20.0);
     });
   });
 }

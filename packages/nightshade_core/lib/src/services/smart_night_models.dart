@@ -5,6 +5,7 @@ import '../models/scheduler/integration_goal.dart';
 import '../models/sequence/sequence_models.dart';
 import '../providers/profiles_provider.dart' show EquipmentProfileModel;
 import 'dark_library_coverage_service.dart';
+import 'scheduler/horizon_profile.dart';
 import 'sequence_file_service.dart';
 import 'smart_night/exposure_calculator.dart';
 

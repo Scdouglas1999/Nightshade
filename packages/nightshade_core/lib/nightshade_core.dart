@@ -129,6 +129,8 @@ export 'src/models/plate_solver.dart';
 export 'src/models/readiness/readiness_models.dart';
 export 'src/models/session_report.dart';
 export 'src/models/campaign_rollup.dart';
+// Durable multi-night campaign record (Phase B, v43).
+export 'src/models/campaign.dart';
 
 // Scheduler (W6-SCHED: RoboTarget-class dynamic scheduler)
 export 'src/models/scheduler/integration_goal.dart';
@@ -501,6 +503,8 @@ export 'src/database/daos/integrated_masters_dao.dart';
 export 'src/database/daos/flat_library_dao.dart';
 // Smart Morning Report (v42): Night Doctor report persistence.
 export 'src/database/daos/night_reports_dao.dart';
+// Durable multi-night campaign counter (Phase B, v43).
+export 'src/database/daos/campaigns_dao.dart';
 export 'src/services/project_tracking_service.dart';
 export 'src/services/calibration/defect_map_service.dart';
 export 'src/services/disk_space_service.dart';
