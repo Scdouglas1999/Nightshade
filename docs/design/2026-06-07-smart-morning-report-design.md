@@ -2,7 +2,7 @@
 
 - **Date:** 2026-06-07
 - **Branch:** `feature/smart-integration-morning-report`
-- **Status:** 📐 **DESIGN ONLY** — no code written yet. This is the contract + resumption point for an overnight-scale build.
+- **Status:** ✅ **SHIPPED end-to-end** (built 2026-06-08, on `feature/smart-integration-morning-report`, not pushed). All five pillars + the broad algorithm track + the layered narrative/workbench UI landed and are gate-green. See **§10** for the as-built record, the re-run verification table, and the honest gap list. §0–§9 are preserved as the original design contract.
 - **Builds on:** `docs/design/2026-06-07-post-session-integration-design.md` (the shipped batch-integration pipeline). That doc delivered a PixInsight-class *engine*; this doc turns the engine into a *smart, opinionated finishing room* by fusing it with everything else Nightshade already knows about the night.
 - **North star:** when the imager wakes up, the master isn't just *built* — the app has **understood the night**, **proven the master is as good as it can be**, **calibrated and annotated it using its own catalogs**, and **told the imager what to do next** — all in a UI that feels like a morning briefing, not a settings dialog.
 
@@ -146,7 +146,7 @@ Independent of the smart pillars; each is a native module behind an off-by-defau
 
 Reuse-first component plan:
 - Hero/master viewer + overlays — extend `stack_result/widgets/astro_image_viewer.dart` with rejection/coverage/annotation overlay toggles.
-- Per-sub field quality — reuse `diagnostics/psf_field_map.dart`, `residual_vector.dart` at per-sub granularity.
+- Per-sub field quality — reuse `diagnostics/psf_field_map.dart` (the shared `PsfFieldMapView` painter extracted from the diagnostics part-file) at per-sub granularity. Astrometric residual vectors (`residual_vector.dart`) remain on the Diagnostics surface for now; the workbench renders the PSF field map per sub.
 - Sub gallery + cull + blink — extend the existing `session_review/sub_gallery_panel` (already has blink mode + bulk reject); add lasso/multi-select and the improvement-curve-linked cull.
 - Curve + growth charts — new widgets using the Analytics charting approach.
 - Night-Doctor cards — new `night_report_panel` with severity-styled `NightshadeCard`s.
@@ -235,10 +235,56 @@ Phases F0–F8 deliver the *smart* product (the differentiators + UX). F9–F11 
 
 **New Dart core** (`nightshade_core/lib/src/`): `services/night_analysis_service.dart`, `services/color_calibration_service.dart`, `services/annotation_service.dart`, `models/night_report.dart`, `models/integration_curve.dart`; `database/tables/night_reports.dart` + DAO; v42 migration; `integration_settings.dart` extensions (decon/star-reduction/drizzle/palette knobs). **Reused:** `wcs_overlay.dart`, planetarium catalogs, `post_session_seam.dart`, `master_accumulation_service.dart`, scheduler integration goals, `push_notification_service.dart`.
 
-**New/edited app UI** (`nightshade_app/lib/screens/session_review/`): narrative + workbench shell, `night_report_panel`, improvement-curve + growth-curve widgets, `narrowband_mixer_panel`, A/B + re-integrate, overlay toggles in `astro_image_viewer.dart`, extend `sub_gallery_panel` (lasso/curve-linked cull), bind progress stream. **Reused:** `psf_field_map.dart`, `residual_vector.dart`, `frame_detail_dialog.dart`, auto-stretch path.
+**New/edited app UI** (`nightshade_app/lib/screens/session_review/`): narrative + workbench shell, `night_report_panel`, improvement-curve + growth-curve widgets, `narrowband_mixer_panel`, A/B + re-integrate, overlay toggles in `astro_image_viewer.dart`, extend `sub_gallery_panel` (lasso/curve-linked cull), bind progress stream. **Reused:** `psf_field_map.dart` (via the extracted public `PsfFieldMapView` painter, embedded per-sub in the workbench), `frame_detail_dialog.dart`, auto-stretch path. (`residual_vector.dart` stays on Diagnostics.)
 
 ---
 
 ## 9. Summary
 
 This turns a competent batch integrator into something no finishing tool can match, because no finishing tool *owns the night*. The master gets built, **proven optimal**, **diagnosed**, **calibrated and labelled from the app's own sky catalogs**, **grown across nights**, and **fed back into tonight's plan** — and it's all presented as a morning briefing you actually want to read, with a power cockpit one tap away. The smart pillars (F0–F8) are the moat; the algorithm-depth track (F9–F11) is the muscle that removes any reason to leave the app.
+
+---
+
+## 10. What shipped & honest as-built assessment (2026-06-08)
+
+Built overnight via orchestrated multi-agent workflows (author → integrate+gate → adversarial review → fix per tier), every tier independently gated and committed. 12 commits on `feature/smart-integration-morning-report`, not pushed.
+
+### 10.1 As-built inventory
+
+**Native algorithms** (`imaging/src/`, 7 new modules, rayon-parallel, synthetic-data unit-tested):
+- `optimizer.rs` — marginal-SNR integration curve + optimal-subset recommendation (analytic background-limited weighted-mean SNR(n), never-harm floor).
+- `background_extraction.rs` — DBE/ABE star-masked polynomial gradient model with iterative *residual* rejection (preserves real nebulosity).
+- `color_calibration.rs` — SPCC-style per-channel white balance from matched catalog stars (robust log-flux vs B-V fit) + apply.
+- `drizzle.rs` — Fruchter–Hook variable-pixel reconstruction + Bayer (CFA) drizzle.
+- `deconvolution.rs` — star-estimated PSF (empirical/Moffat/Gaussian) + regularized Richardson–Lucy preview with star protection.
+- `star_reduction.rs` — mask-confined morphological / screened-residual preview.
+- `channel_combine.rs` — narrowband palette mixing (SHO/HOO/custom).
+
+**FFI** (`bridge/src/api/`): three new `finishing_*.rs` modules exposing 8 JSON functions (`api_analyze_night`, `api_detect_stars_photometry`, `api_color_calibrate`, `api_extract_background`, `api_deconvolve_preview`, `api_reduce_stars_preview`, `api_drizzle_integrate`, `api_combine_channels`), all `#[frb(ignore)]`-DTO so future knobs never re-trigger regen. `NightshadeEvent::IntegrationProgress` emitted across the integration phases. `PerFrameRecord` gained per-sub snr/fwhm/eccentricity (no regen — JSON DTO). The latent `INPUTMEAN`/`OUTPTMEAN` 9-char keyword bug is fixed.
+
+**Dart core** (`nightshade_core`): result/report models; `PostSessionSeam` + 8 methods + a progress `Stream`; **DB schema v42** (raw-DDL: `night_reports` table + DAO; additive `integrated_masters` smart columns; per-sub snr/fwhm/ecc on `integrated_master_frames`); `IntegrationSettings` finishing knobs; `NightAnalysisService` (the Night Doctor: focus-drift / cloud-transparency / guiding-correlation / dew-collapse / moon-gradient detectors, each fail-soft, with score + headline); `ColorCalibrationService`; `MasterAnnotationService`; `SmartProjectService` (growth / best-night / re-reference advisory / target-SNR deficit → `IntegrationGoalService`, scheduler scoring untouched); `PostSessionIntegrationService` now persists per-sub metrics, computes the improvement curve, and runs gated fail-soft finishing passes.
+
+**App** (`nightshade_app`): the layered Session Review — `NarrativeView` (hero annotated master + overlays, Night-Doctor verdict + finding cards, improvement curve, growth curve, calibrate/background actions) and `WorkbenchView` (sub-cull rail with blink/lasso/cull-to-recommended, per-sub PSF field map, master overlays, narrowband mixer, A/B compare) over one `SessionReviewController`; live progress bar bound to the IntegrationProgress stream; `auto_integration_service` fires the Night Doctor + a "master ready" push on run-completion.
+
+### 10.2 Verification (gates re-run 2026-06-08)
+
+| Gate | Result |
+|---|---|
+| `cargo test -p nightshade_imaging` | **409 pass / 0 fail** |
+| `cargo clippy -p nightshade_imaging --all-features -- -D warnings` | **clean** |
+| `cargo test -p nightshade_bridge --lib` | **230 pass / 0 fail** (incl. 18 finishing round-trips) |
+| `cargo build -p nightshade_bridge` (+ FRB regen) | **clean** (Linux regen now correct — see §10.3) |
+| `flutter analyze` nightshade_core / nightshade_app | **0 errors** |
+| nightshade_core full suite | **3267 pass** (all morning-report tests green; 12 pre-existing failures unrelated — see §10.4) |
+| nightshade_app session_review + golden | **39 pass**; 9 golden review PNGs in `docs/design/goldens/morning-report-*.png` (visually inspected + iterated) |
+
+### 10.3 Notable infrastructure catch — Linux FRB regen
+
+The first regen with a bare `flutter_rust_bridge_codegen generate` mis-generated `typedef bool = ffi.NativeFunction<...>` (the `stdbool.h`-not-found ffigen bug): it **passed `flutter analyze` but broke the Dart VM kernel FFI transform** — i.e. it would have broken the running app, and blocked every bridge-importing test from compiling. Fixed by running regen with `CPATH` at clang's resource headers, and made durable in `scripts/dev.sh` (symmetric with `dev.ps1`'s Windows CPATH). Lesson: analyze-clean ≠ runtime-clean for generated FFI; always run a bridge-importing test after a regen.
+
+### 10.4 Honest gaps & follow-ups
+
+- **All native tests are synthetic-frame.** On-sky validation of registration RMS, real trail/plane rejection, color-calibration accuracy, gradient extraction under a real moon, and drizzle/decon aesthetics is still the highest-value next step. Tuning constants (Night-Doctor thresholds, weight exponents, drizzle pixfrac, decon regularization) are defensible defaults, exposed as knobs, flagged for real-data tuning — not faked as final.
+- **Annotation WCS source.** `MasterAnnotationService` is fully wired, but no per-master solved WCS is persisted yet, so `_resolveMasterWcs` returns null today and the annotation layer fail-softs to empty. One-line activation once a per-master WCS (from the master's plate solve) is stored on the `integrated_masters` row. (The annotation *rendering* + catalog query are done and golden-tested with a synthetic WCS.)
+- **Pre-existing, unrelated test failures (NOT introduced here).** 12 `imaging_service_test` failures in the live-capture → `ScienceProcessingService` path fail on this Linux dev box; verified pre-existing (this branch never modifies `imaging_service.dart` / `science_processing_service.dart`). Out of scope for this feature; flagged for a separate Linux-port pass.
+- **Deconvolution / star-reduction ship as non-destructive previews** (taste-sensitive), never auto-applied. **Drizzle / Bayer-drizzle / narrowband combine** are exposed but off-by-default / preset-gated, pending on-sky tuning of their auto-detectors.
