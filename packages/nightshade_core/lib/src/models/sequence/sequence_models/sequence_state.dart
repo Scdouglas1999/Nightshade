@@ -49,7 +49,7 @@ part of '../sequence_models.dart';
 /// (deserialization, database load, file import) that already have the
 /// authoritative values.
 @freezed
-class Sequence with _$Sequence {
+abstract class Sequence with _$Sequence {
   const Sequence._();
 
   /// Raw freezed-generated constructor. Every field is explicit — no
@@ -437,7 +437,7 @@ class Sequence with _$Sequence {
 /// freezed; the rewritten `updateProgress` continues to work because it
 /// constructs a fresh `SequenceProgress` rather than calling `copyWith`.
 @freezed
-class SequenceProgress with _$SequenceProgress {
+abstract class SequenceProgress with _$SequenceProgress {
   const SequenceProgress._();
 
   const factory SequenceProgress({

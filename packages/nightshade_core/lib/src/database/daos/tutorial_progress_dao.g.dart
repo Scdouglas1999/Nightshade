@@ -6,4 +6,13 @@ part of 'tutorial_progress_dao.dart';
 mixin _$TutorialProgressDaoMixin on DatabaseAccessor<NightshadeDatabase> {
   $TutorialProgressTable get tutorialProgress =>
       attachedDatabase.tutorialProgress;
+  TutorialProgressDaoManager get managers => TutorialProgressDaoManager(this);
+}
+
+class TutorialProgressDaoManager {
+  final _$TutorialProgressDaoMixin _db;
+  TutorialProgressDaoManager(this._db);
+  $$TutorialProgressTableTableManager get tutorialProgress =>
+      $$TutorialProgressTableTableManager(
+          _db.attachedDatabase, _db.tutorialProgress);
 }

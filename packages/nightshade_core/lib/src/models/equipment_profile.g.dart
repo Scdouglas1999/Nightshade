@@ -6,9 +6,8 @@ part of 'equipment_profile.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$EquipmentProfileImpl _$$EquipmentProfileImplFromJson(
-        Map<String, dynamic> json) =>
-    _$EquipmentProfileImpl(
+_EquipmentProfile _$EquipmentProfileFromJson(Map<String, dynamic> json) =>
+    _EquipmentProfile(
       id: json['id'] as String,
       name: json['name'] as String,
       description: json['description'] as String?,
@@ -61,8 +60,7 @@ _$EquipmentProfileImpl _$$EquipmentProfileImplFromJson(
       pixelSize: (json['pixelSize'] as num?)?.toDouble(),
     );
 
-Map<String, dynamic> _$$EquipmentProfileImplToJson(
-        _$EquipmentProfileImpl instance) =>
+Map<String, dynamic> _$EquipmentProfileToJson(_EquipmentProfile instance) =>
     <String, dynamic>{
       'id': instance.id,
       'name': instance.name,

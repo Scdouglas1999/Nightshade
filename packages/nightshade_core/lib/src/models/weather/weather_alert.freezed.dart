@@ -1,5 +1,5 @@
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
@@ -9,112 +9,72 @@ part of 'weather_alert.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// dart format off
 T _$identity<T>(T value) => value;
-
-final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
-
-WeatherAlert _$WeatherAlertFromJson(Map<String, dynamic> json) {
-  return _WeatherAlert.fromJson(json);
-}
 
 /// @nodoc
 mixin _$WeatherAlert {
   /// Alert severity level
-  AlertLevel get level => throw _privateConstructorUsedError;
+  AlertLevel get level;
 
   /// Human-readable alert text
-  String get message => throw _privateConstructorUsedError;
+  String get message;
 
   /// When clouds expected (null if clear/watch)
-  DateTime? get eta => throw _privateConstructorUsedError;
+  DateTime? get eta;
 
   /// Cloud density percentage (0-100)
-  double get cloudDensityPercent => throw _privateConstructorUsedError;
+  double get cloudDensityPercent;
 
   /// Distance to threatening clouds in kilometers
-  double get distanceKm => throw _privateConstructorUsedError;
+  double get distanceKm;
 
   /// When this alert was generated
-  DateTime get generatedAt => throw _privateConstructorUsedError;
+  DateTime get generatedAt;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $WeatherAlertCopyWith<WeatherAlert> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $WeatherAlertCopyWith<$Res> {
-  factory $WeatherAlertCopyWith(
-          WeatherAlert value, $Res Function(WeatherAlert) then) =
-      _$WeatherAlertCopyWithImpl<$Res, WeatherAlert>;
-  @useResult
-  $Res call(
-      {AlertLevel level,
-      String message,
-      DateTime? eta,
-      double cloudDensityPercent,
-      double distanceKm,
-      DateTime generatedAt});
-}
-
-/// @nodoc
-class _$WeatherAlertCopyWithImpl<$Res, $Val extends WeatherAlert>
-    implements $WeatherAlertCopyWith<$Res> {
-  _$WeatherAlertCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of WeatherAlert
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $WeatherAlertCopyWith<WeatherAlert> get copyWith =>
+      _$WeatherAlertCopyWithImpl<WeatherAlert>(
+          this as WeatherAlert, _$identity);
+
+  /// Serializes this WeatherAlert to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? level = null,
-    Object? message = null,
-    Object? eta = freezed,
-    Object? cloudDensityPercent = null,
-    Object? distanceKm = null,
-    Object? generatedAt = null,
-  }) {
-    return _then(_value.copyWith(
-      level: null == level
-          ? _value.level
-          : level // ignore: cast_nullable_to_non_nullable
-              as AlertLevel,
-      message: null == message
-          ? _value.message
-          : message // ignore: cast_nullable_to_non_nullable
-              as String,
-      eta: freezed == eta
-          ? _value.eta
-          : eta // ignore: cast_nullable_to_non_nullable
-              as DateTime?,
-      cloudDensityPercent: null == cloudDensityPercent
-          ? _value.cloudDensityPercent
-          : cloudDensityPercent // ignore: cast_nullable_to_non_nullable
-              as double,
-      distanceKm: null == distanceKm
-          ? _value.distanceKm
-          : distanceKm // ignore: cast_nullable_to_non_nullable
-              as double,
-      generatedAt: null == generatedAt
-          ? _value.generatedAt
-          : generatedAt // ignore: cast_nullable_to_non_nullable
-              as DateTime,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is WeatherAlert &&
+            (identical(other.level, level) || other.level == level) &&
+            (identical(other.message, message) || other.message == message) &&
+            (identical(other.eta, eta) || other.eta == eta) &&
+            (identical(other.cloudDensityPercent, cloudDensityPercent) ||
+                other.cloudDensityPercent == cloudDensityPercent) &&
+            (identical(other.distanceKm, distanceKm) ||
+                other.distanceKm == distanceKm) &&
+            (identical(other.generatedAt, generatedAt) ||
+                other.generatedAt == generatedAt));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, level, message, eta,
+      cloudDensityPercent, distanceKm, generatedAt);
+
+  @override
+  String toString() {
+    return 'WeatherAlert(level: $level, message: $message, eta: $eta, cloudDensityPercent: $cloudDensityPercent, distanceKm: $distanceKm, generatedAt: $generatedAt)';
   }
 }
 
 /// @nodoc
-abstract class _$$WeatherAlertImplCopyWith<$Res>
-    implements $WeatherAlertCopyWith<$Res> {
-  factory _$$WeatherAlertImplCopyWith(
-          _$WeatherAlertImpl value, $Res Function(_$WeatherAlertImpl) then) =
-      __$$WeatherAlertImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $WeatherAlertCopyWith<$Res> {
+  factory $WeatherAlertCopyWith(
+          WeatherAlert value, $Res Function(WeatherAlert) _then) =
+      _$WeatherAlertCopyWithImpl;
   @useResult
   $Res call(
       {AlertLevel level,
@@ -126,13 +86,14 @@ abstract class _$$WeatherAlertImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$WeatherAlertImplCopyWithImpl<$Res>
-    extends _$WeatherAlertCopyWithImpl<$Res, _$WeatherAlertImpl>
-    implements _$$WeatherAlertImplCopyWith<$Res> {
-  __$$WeatherAlertImplCopyWithImpl(
-      _$WeatherAlertImpl _value, $Res Function(_$WeatherAlertImpl) _then)
-      : super(_value, _then);
+class _$WeatherAlertCopyWithImpl<$Res> implements $WeatherAlertCopyWith<$Res> {
+  _$WeatherAlertCopyWithImpl(this._self, this._then);
 
+  final WeatherAlert _self;
+  final $Res Function(WeatherAlert) _then;
+
+  /// Create a copy of WeatherAlert
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -143,48 +104,223 @@ class __$$WeatherAlertImplCopyWithImpl<$Res>
     Object? distanceKm = null,
     Object? generatedAt = null,
   }) {
-    return _then(_$WeatherAlertImpl(
+    return _then(_self.copyWith(
       level: null == level
-          ? _value.level
+          ? _self.level
           : level // ignore: cast_nullable_to_non_nullable
               as AlertLevel,
       message: null == message
-          ? _value.message
+          ? _self.message
           : message // ignore: cast_nullable_to_non_nullable
               as String,
       eta: freezed == eta
-          ? _value.eta
+          ? _self.eta
           : eta // ignore: cast_nullable_to_non_nullable
               as DateTime?,
       cloudDensityPercent: null == cloudDensityPercent
-          ? _value.cloudDensityPercent
+          ? _self.cloudDensityPercent
           : cloudDensityPercent // ignore: cast_nullable_to_non_nullable
               as double,
       distanceKm: null == distanceKm
-          ? _value.distanceKm
+          ? _self.distanceKm
           : distanceKm // ignore: cast_nullable_to_non_nullable
               as double,
       generatedAt: null == generatedAt
-          ? _value.generatedAt
+          ? _self.generatedAt
           : generatedAt // ignore: cast_nullable_to_non_nullable
               as DateTime,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [WeatherAlert].
+extension WeatherAlertPatterns on WeatherAlert {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_WeatherAlert value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _WeatherAlert() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_WeatherAlert value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _WeatherAlert():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_WeatherAlert value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _WeatherAlert() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            AlertLevel level,
+            String message,
+            DateTime? eta,
+            double cloudDensityPercent,
+            double distanceKm,
+            DateTime generatedAt)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _WeatherAlert() when $default != null:
+        return $default(_that.level, _that.message, _that.eta,
+            _that.cloudDensityPercent, _that.distanceKm, _that.generatedAt);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(AlertLevel level, String message, DateTime? eta,
+            double cloudDensityPercent, double distanceKm, DateTime generatedAt)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _WeatherAlert():
+        return $default(_that.level, _that.message, _that.eta,
+            _that.cloudDensityPercent, _that.distanceKm, _that.generatedAt);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            AlertLevel level,
+            String message,
+            DateTime? eta,
+            double cloudDensityPercent,
+            double distanceKm,
+            DateTime generatedAt)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _WeatherAlert() when $default != null:
+        return $default(_that.level, _that.message, _that.eta,
+            _that.cloudDensityPercent, _that.distanceKm, _that.generatedAt);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$WeatherAlertImpl implements _WeatherAlert {
-  const _$WeatherAlertImpl(
+class _WeatherAlert implements WeatherAlert {
+  const _WeatherAlert(
       {required this.level,
       required this.message,
       this.eta,
       required this.cloudDensityPercent,
       required this.distanceKm,
       required this.generatedAt});
-
-  factory _$WeatherAlertImpl.fromJson(Map<String, dynamic> json) =>
-      _$$WeatherAlertImplFromJson(json);
+  factory _WeatherAlert.fromJson(Map<String, dynamic> json) =>
+      _$WeatherAlertFromJson(json);
 
   /// Alert severity level
   @override
@@ -210,16 +346,26 @@ class _$WeatherAlertImpl implements _WeatherAlert {
   @override
   final DateTime generatedAt;
 
+  /// Create a copy of WeatherAlert
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'WeatherAlert(level: $level, message: $message, eta: $eta, cloudDensityPercent: $cloudDensityPercent, distanceKm: $distanceKm, generatedAt: $generatedAt)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$WeatherAlertCopyWith<_WeatherAlert> get copyWith =>
+      __$WeatherAlertCopyWithImpl<_WeatherAlert>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$WeatherAlertToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$WeatherAlertImpl &&
+            other is _WeatherAlert &&
             (identical(other.level, level) || other.level == level) &&
             (identical(other.message, message) || other.message == message) &&
             (identical(other.eta, eta) || other.eta == eta) &&
@@ -231,63 +377,81 @@ class _$WeatherAlertImpl implements _WeatherAlert {
                 other.generatedAt == generatedAt));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(runtimeType, level, message, eta,
       cloudDensityPercent, distanceKm, generatedAt);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$WeatherAlertImplCopyWith<_$WeatherAlertImpl> get copyWith =>
-      __$$WeatherAlertImplCopyWithImpl<_$WeatherAlertImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$WeatherAlertImplToJson(
-      this,
-    );
+  String toString() {
+    return 'WeatherAlert(level: $level, message: $message, eta: $eta, cloudDensityPercent: $cloudDensityPercent, distanceKm: $distanceKm, generatedAt: $generatedAt)';
   }
 }
 
-abstract class _WeatherAlert implements WeatherAlert {
-  const factory _WeatherAlert(
-      {required final AlertLevel level,
-      required final String message,
-      final DateTime? eta,
-      required final double cloudDensityPercent,
-      required final double distanceKm,
-      required final DateTime generatedAt}) = _$WeatherAlertImpl;
-
-  factory _WeatherAlert.fromJson(Map<String, dynamic> json) =
-      _$WeatherAlertImpl.fromJson;
-
+/// @nodoc
+abstract mixin class _$WeatherAlertCopyWith<$Res>
+    implements $WeatherAlertCopyWith<$Res> {
+  factory _$WeatherAlertCopyWith(
+          _WeatherAlert value, $Res Function(_WeatherAlert) _then) =
+      __$WeatherAlertCopyWithImpl;
   @override
-
-  /// Alert severity level
-  AlertLevel get level;
-  @override
-
-  /// Human-readable alert text
-  String get message;
-  @override
-
-  /// When clouds expected (null if clear/watch)
-  DateTime? get eta;
-  @override
-
-  /// Cloud density percentage (0-100)
-  double get cloudDensityPercent;
-  @override
-
-  /// Distance to threatening clouds in kilometers
-  double get distanceKm;
-  @override
-
-  /// When this alert was generated
-  DateTime get generatedAt;
-  @override
-  @JsonKey(ignore: true)
-  _$$WeatherAlertImplCopyWith<_$WeatherAlertImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  @useResult
+  $Res call(
+      {AlertLevel level,
+      String message,
+      DateTime? eta,
+      double cloudDensityPercent,
+      double distanceKm,
+      DateTime generatedAt});
 }
+
+/// @nodoc
+class __$WeatherAlertCopyWithImpl<$Res>
+    implements _$WeatherAlertCopyWith<$Res> {
+  __$WeatherAlertCopyWithImpl(this._self, this._then);
+
+  final _WeatherAlert _self;
+  final $Res Function(_WeatherAlert) _then;
+
+  /// Create a copy of WeatherAlert
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? level = null,
+    Object? message = null,
+    Object? eta = freezed,
+    Object? cloudDensityPercent = null,
+    Object? distanceKm = null,
+    Object? generatedAt = null,
+  }) {
+    return _then(_WeatherAlert(
+      level: null == level
+          ? _self.level
+          : level // ignore: cast_nullable_to_non_nullable
+              as AlertLevel,
+      message: null == message
+          ? _self.message
+          : message // ignore: cast_nullable_to_non_nullable
+              as String,
+      eta: freezed == eta
+          ? _self.eta
+          : eta // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      cloudDensityPercent: null == cloudDensityPercent
+          ? _self.cloudDensityPercent
+          : cloudDensityPercent // ignore: cast_nullable_to_non_nullable
+              as double,
+      distanceKm: null == distanceKm
+          ? _self.distanceKm
+          : distanceKm // ignore: cast_nullable_to_non_nullable
+              as double,
+      generatedAt: null == generatedAt
+          ? _self.generatedAt
+          : generatedAt // ignore: cast_nullable_to_non_nullable
+              as DateTime,
+    ));
+  }
+}
+
+// dart format on

@@ -79,7 +79,7 @@ extension FlipFailureActionExtension on FlipFailureAction {
 
 /// Settings for auto meridian flip behavior
 @freezed
-class MeridianFlipSettings with _$MeridianFlipSettings {
+abstract class MeridianFlipSettings with _$MeridianFlipSettings {
   const MeridianFlipSettings._();
 
   const factory MeridianFlipSettings({

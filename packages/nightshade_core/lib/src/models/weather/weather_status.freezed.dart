@@ -1,5 +1,5 @@
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
@@ -9,52 +9,92 @@ part of 'weather_status.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// dart format off
 T _$identity<T>(T value) => value;
-
-final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
-
-WeatherStatus _$WeatherStatusFromJson(Map<String, dynamic> json) {
-  return _WeatherStatus.fromJson(json);
-}
 
 /// @nodoc
 mixin _$WeatherStatus {
   /// Current alert level
-  AlertLevel get currentLevel => throw _privateConstructorUsedError;
+  AlertLevel get currentLevel;
 
   /// Active alert (null if no alert)
-  WeatherAlert? get activeAlert => throw _privateConstructorUsedError;
+  WeatherAlert? get activeAlert;
 
   /// Cloud motion analysis
-  CloudMotion? get motion => throw _privateConstructorUsedError;
+  CloudMotion? get motion;
 
   /// Radar frames for animation
-  List<RadarFrame> get radarFrames => throw _privateConstructorUsedError;
+  List<RadarFrame> get radarFrames;
 
   /// Current frame index in animation
-  int get currentFrameIndex => throw _privateConstructorUsedError;
+  int get currentFrameIndex;
 
   /// When this status was last updated
-  DateTime get lastUpdate => throw _privateConstructorUsedError;
+  DateTime get lastUpdate;
 
   /// Whether data is currently loading
-  bool get isLoading => throw _privateConstructorUsedError;
+  bool get isLoading;
 
   /// Error message if update failed
-  String? get errorMessage => throw _privateConstructorUsedError;
+  String? get errorMessage;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
+  /// Create a copy of WeatherStatus
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
   $WeatherStatusCopyWith<WeatherStatus> get copyWith =>
-      throw _privateConstructorUsedError;
+      _$WeatherStatusCopyWithImpl<WeatherStatus>(
+          this as WeatherStatus, _$identity);
+
+  /// Serializes this WeatherStatus to a JSON map.
+  Map<String, dynamic> toJson();
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is WeatherStatus &&
+            (identical(other.currentLevel, currentLevel) ||
+                other.currentLevel == currentLevel) &&
+            (identical(other.activeAlert, activeAlert) ||
+                other.activeAlert == activeAlert) &&
+            (identical(other.motion, motion) || other.motion == motion) &&
+            const DeepCollectionEquality()
+                .equals(other.radarFrames, radarFrames) &&
+            (identical(other.currentFrameIndex, currentFrameIndex) ||
+                other.currentFrameIndex == currentFrameIndex) &&
+            (identical(other.lastUpdate, lastUpdate) ||
+                other.lastUpdate == lastUpdate) &&
+            (identical(other.isLoading, isLoading) ||
+                other.isLoading == isLoading) &&
+            (identical(other.errorMessage, errorMessage) ||
+                other.errorMessage == errorMessage));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      currentLevel,
+      activeAlert,
+      motion,
+      const DeepCollectionEquality().hash(radarFrames),
+      currentFrameIndex,
+      lastUpdate,
+      isLoading,
+      errorMessage);
+
+  @override
+  String toString() {
+    return 'WeatherStatus(currentLevel: $currentLevel, activeAlert: $activeAlert, motion: $motion, radarFrames: $radarFrames, currentFrameIndex: $currentFrameIndex, lastUpdate: $lastUpdate, isLoading: $isLoading, errorMessage: $errorMessage)';
+  }
 }
 
 /// @nodoc
-abstract class $WeatherStatusCopyWith<$Res> {
+abstract mixin class $WeatherStatusCopyWith<$Res> {
   factory $WeatherStatusCopyWith(
-          WeatherStatus value, $Res Function(WeatherStatus) then) =
-      _$WeatherStatusCopyWithImpl<$Res, WeatherStatus>;
+          WeatherStatus value, $Res Function(WeatherStatus) _then) =
+      _$WeatherStatusCopyWithImpl;
   @useResult
   $Res call(
       {AlertLevel currentLevel,
@@ -71,15 +111,15 @@ abstract class $WeatherStatusCopyWith<$Res> {
 }
 
 /// @nodoc
-class _$WeatherStatusCopyWithImpl<$Res, $Val extends WeatherStatus>
+class _$WeatherStatusCopyWithImpl<$Res>
     implements $WeatherStatusCopyWith<$Res> {
-  _$WeatherStatusCopyWithImpl(this._value, this._then);
+  _$WeatherStatusCopyWithImpl(this._self, this._then);
 
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
+  final WeatherStatus _self;
+  final $Res Function(WeatherStatus) _then;
 
+  /// Create a copy of WeatherStatus
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -92,152 +132,283 @@ class _$WeatherStatusCopyWithImpl<$Res, $Val extends WeatherStatus>
     Object? isLoading = null,
     Object? errorMessage = freezed,
   }) {
-    return _then(_value.copyWith(
+    return _then(_self.copyWith(
       currentLevel: null == currentLevel
-          ? _value.currentLevel
+          ? _self.currentLevel
           : currentLevel // ignore: cast_nullable_to_non_nullable
               as AlertLevel,
       activeAlert: freezed == activeAlert
-          ? _value.activeAlert
+          ? _self.activeAlert
           : activeAlert // ignore: cast_nullable_to_non_nullable
               as WeatherAlert?,
       motion: freezed == motion
-          ? _value.motion
+          ? _self.motion
           : motion // ignore: cast_nullable_to_non_nullable
               as CloudMotion?,
       radarFrames: null == radarFrames
-          ? _value.radarFrames
+          ? _self.radarFrames
           : radarFrames // ignore: cast_nullable_to_non_nullable
               as List<RadarFrame>,
       currentFrameIndex: null == currentFrameIndex
-          ? _value.currentFrameIndex
+          ? _self.currentFrameIndex
           : currentFrameIndex // ignore: cast_nullable_to_non_nullable
               as int,
       lastUpdate: null == lastUpdate
-          ? _value.lastUpdate
+          ? _self.lastUpdate
           : lastUpdate // ignore: cast_nullable_to_non_nullable
               as DateTime,
       isLoading: null == isLoading
-          ? _value.isLoading
+          ? _self.isLoading
           : isLoading // ignore: cast_nullable_to_non_nullable
               as bool,
       errorMessage: freezed == errorMessage
-          ? _value.errorMessage
-          : errorMessage // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
-  }
-
-  @override
-  @pragma('vm:prefer-inline')
-  $WeatherAlertCopyWith<$Res>? get activeAlert {
-    if (_value.activeAlert == null) {
-      return null;
-    }
-
-    return $WeatherAlertCopyWith<$Res>(_value.activeAlert!, (value) {
-      return _then(_value.copyWith(activeAlert: value) as $Val);
-    });
-  }
-
-  @override
-  @pragma('vm:prefer-inline')
-  $CloudMotionCopyWith<$Res>? get motion {
-    if (_value.motion == null) {
-      return null;
-    }
-
-    return $CloudMotionCopyWith<$Res>(_value.motion!, (value) {
-      return _then(_value.copyWith(motion: value) as $Val);
-    });
-  }
-}
-
-/// @nodoc
-abstract class _$$WeatherStatusImplCopyWith<$Res>
-    implements $WeatherStatusCopyWith<$Res> {
-  factory _$$WeatherStatusImplCopyWith(
-          _$WeatherStatusImpl value, $Res Function(_$WeatherStatusImpl) then) =
-      __$$WeatherStatusImplCopyWithImpl<$Res>;
-  @override
-  @useResult
-  $Res call(
-      {AlertLevel currentLevel,
-      WeatherAlert? activeAlert,
-      CloudMotion? motion,
-      List<RadarFrame> radarFrames,
-      int currentFrameIndex,
-      DateTime lastUpdate,
-      bool isLoading,
-      String? errorMessage});
-
-  @override
-  $WeatherAlertCopyWith<$Res>? get activeAlert;
-  @override
-  $CloudMotionCopyWith<$Res>? get motion;
-}
-
-/// @nodoc
-class __$$WeatherStatusImplCopyWithImpl<$Res>
-    extends _$WeatherStatusCopyWithImpl<$Res, _$WeatherStatusImpl>
-    implements _$$WeatherStatusImplCopyWith<$Res> {
-  __$$WeatherStatusImplCopyWithImpl(
-      _$WeatherStatusImpl _value, $Res Function(_$WeatherStatusImpl) _then)
-      : super(_value, _then);
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? currentLevel = null,
-    Object? activeAlert = freezed,
-    Object? motion = freezed,
-    Object? radarFrames = null,
-    Object? currentFrameIndex = null,
-    Object? lastUpdate = null,
-    Object? isLoading = null,
-    Object? errorMessage = freezed,
-  }) {
-    return _then(_$WeatherStatusImpl(
-      currentLevel: null == currentLevel
-          ? _value.currentLevel
-          : currentLevel // ignore: cast_nullable_to_non_nullable
-              as AlertLevel,
-      activeAlert: freezed == activeAlert
-          ? _value.activeAlert
-          : activeAlert // ignore: cast_nullable_to_non_nullable
-              as WeatherAlert?,
-      motion: freezed == motion
-          ? _value.motion
-          : motion // ignore: cast_nullable_to_non_nullable
-              as CloudMotion?,
-      radarFrames: null == radarFrames
-          ? _value._radarFrames
-          : radarFrames // ignore: cast_nullable_to_non_nullable
-              as List<RadarFrame>,
-      currentFrameIndex: null == currentFrameIndex
-          ? _value.currentFrameIndex
-          : currentFrameIndex // ignore: cast_nullable_to_non_nullable
-              as int,
-      lastUpdate: null == lastUpdate
-          ? _value.lastUpdate
-          : lastUpdate // ignore: cast_nullable_to_non_nullable
-              as DateTime,
-      isLoading: null == isLoading
-          ? _value.isLoading
-          : isLoading // ignore: cast_nullable_to_non_nullable
-              as bool,
-      errorMessage: freezed == errorMessage
-          ? _value.errorMessage
+          ? _self.errorMessage
           : errorMessage // ignore: cast_nullable_to_non_nullable
               as String?,
     ));
+  }
+
+  /// Create a copy of WeatherStatus
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $WeatherAlertCopyWith<$Res>? get activeAlert {
+    if (_self.activeAlert == null) {
+      return null;
+    }
+
+    return $WeatherAlertCopyWith<$Res>(_self.activeAlert!, (value) {
+      return _then(_self.copyWith(activeAlert: value));
+    });
+  }
+
+  /// Create a copy of WeatherStatus
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $CloudMotionCopyWith<$Res>? get motion {
+    if (_self.motion == null) {
+      return null;
+    }
+
+    return $CloudMotionCopyWith<$Res>(_self.motion!, (value) {
+      return _then(_self.copyWith(motion: value));
+    });
+  }
+}
+
+/// Adds pattern-matching-related methods to [WeatherStatus].
+extension WeatherStatusPatterns on WeatherStatus {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_WeatherStatus value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _WeatherStatus() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_WeatherStatus value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _WeatherStatus():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_WeatherStatus value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _WeatherStatus() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            AlertLevel currentLevel,
+            WeatherAlert? activeAlert,
+            CloudMotion? motion,
+            List<RadarFrame> radarFrames,
+            int currentFrameIndex,
+            DateTime lastUpdate,
+            bool isLoading,
+            String? errorMessage)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _WeatherStatus() when $default != null:
+        return $default(
+            _that.currentLevel,
+            _that.activeAlert,
+            _that.motion,
+            _that.radarFrames,
+            _that.currentFrameIndex,
+            _that.lastUpdate,
+            _that.isLoading,
+            _that.errorMessage);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            AlertLevel currentLevel,
+            WeatherAlert? activeAlert,
+            CloudMotion? motion,
+            List<RadarFrame> radarFrames,
+            int currentFrameIndex,
+            DateTime lastUpdate,
+            bool isLoading,
+            String? errorMessage)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _WeatherStatus():
+        return $default(
+            _that.currentLevel,
+            _that.activeAlert,
+            _that.motion,
+            _that.radarFrames,
+            _that.currentFrameIndex,
+            _that.lastUpdate,
+            _that.isLoading,
+            _that.errorMessage);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            AlertLevel currentLevel,
+            WeatherAlert? activeAlert,
+            CloudMotion? motion,
+            List<RadarFrame> radarFrames,
+            int currentFrameIndex,
+            DateTime lastUpdate,
+            bool isLoading,
+            String? errorMessage)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _WeatherStatus() when $default != null:
+        return $default(
+            _that.currentLevel,
+            _that.activeAlert,
+            _that.motion,
+            _that.radarFrames,
+            _that.currentFrameIndex,
+            _that.lastUpdate,
+            _that.isLoading,
+            _that.errorMessage);
+      case _:
+        return null;
+    }
   }
 }
 
 /// @nodoc
 @JsonSerializable()
-class _$WeatherStatusImpl implements _WeatherStatus {
-  const _$WeatherStatusImpl(
+class _WeatherStatus implements WeatherStatus {
+  const _WeatherStatus(
       {this.currentLevel = AlertLevel.clear,
       this.activeAlert,
       this.motion,
@@ -247,9 +418,8 @@ class _$WeatherStatusImpl implements _WeatherStatus {
       this.isLoading = false,
       this.errorMessage})
       : _radarFrames = radarFrames;
-
-  factory _$WeatherStatusImpl.fromJson(Map<String, dynamic> json) =>
-      _$$WeatherStatusImplFromJson(json);
+  factory _WeatherStatus.fromJson(Map<String, dynamic> json) =>
+      _$WeatherStatusFromJson(json);
 
   /// Current alert level
   @override
@@ -294,16 +464,26 @@ class _$WeatherStatusImpl implements _WeatherStatus {
   @override
   final String? errorMessage;
 
+  /// Create a copy of WeatherStatus
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'WeatherStatus(currentLevel: $currentLevel, activeAlert: $activeAlert, motion: $motion, radarFrames: $radarFrames, currentFrameIndex: $currentFrameIndex, lastUpdate: $lastUpdate, isLoading: $isLoading, errorMessage: $errorMessage)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$WeatherStatusCopyWith<_WeatherStatus> get copyWith =>
+      __$WeatherStatusCopyWithImpl<_WeatherStatus>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$WeatherStatusToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$WeatherStatusImpl &&
+            other is _WeatherStatus &&
             (identical(other.currentLevel, currentLevel) ||
                 other.currentLevel == currentLevel) &&
             (identical(other.activeAlert, activeAlert) ||
@@ -321,7 +501,7 @@ class _$WeatherStatusImpl implements _WeatherStatus {
                 other.errorMessage == errorMessage));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,
@@ -334,68 +514,121 @@ class _$WeatherStatusImpl implements _WeatherStatus {
       isLoading,
       errorMessage);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$WeatherStatusImplCopyWith<_$WeatherStatusImpl> get copyWith =>
-      __$$WeatherStatusImplCopyWithImpl<_$WeatherStatusImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$WeatherStatusImplToJson(
-      this,
-    );
+  String toString() {
+    return 'WeatherStatus(currentLevel: $currentLevel, activeAlert: $activeAlert, motion: $motion, radarFrames: $radarFrames, currentFrameIndex: $currentFrameIndex, lastUpdate: $lastUpdate, isLoading: $isLoading, errorMessage: $errorMessage)';
   }
 }
 
-abstract class _WeatherStatus implements WeatherStatus {
-  const factory _WeatherStatus(
-      {final AlertLevel currentLevel,
-      final WeatherAlert? activeAlert,
-      final CloudMotion? motion,
-      final List<RadarFrame> radarFrames,
-      final int currentFrameIndex,
-      required final DateTime lastUpdate,
-      final bool isLoading,
-      final String? errorMessage}) = _$WeatherStatusImpl;
-
-  factory _WeatherStatus.fromJson(Map<String, dynamic> json) =
-      _$WeatherStatusImpl.fromJson;
+/// @nodoc
+abstract mixin class _$WeatherStatusCopyWith<$Res>
+    implements $WeatherStatusCopyWith<$Res> {
+  factory _$WeatherStatusCopyWith(
+          _WeatherStatus value, $Res Function(_WeatherStatus) _then) =
+      __$WeatherStatusCopyWithImpl;
+  @override
+  @useResult
+  $Res call(
+      {AlertLevel currentLevel,
+      WeatherAlert? activeAlert,
+      CloudMotion? motion,
+      List<RadarFrame> radarFrames,
+      int currentFrameIndex,
+      DateTime lastUpdate,
+      bool isLoading,
+      String? errorMessage});
 
   @override
-
-  /// Current alert level
-  AlertLevel get currentLevel;
+  $WeatherAlertCopyWith<$Res>? get activeAlert;
   @override
-
-  /// Active alert (null if no alert)
-  WeatherAlert? get activeAlert;
-  @override
-
-  /// Cloud motion analysis
-  CloudMotion? get motion;
-  @override
-
-  /// Radar frames for animation
-  List<RadarFrame> get radarFrames;
-  @override
-
-  /// Current frame index in animation
-  int get currentFrameIndex;
-  @override
-
-  /// When this status was last updated
-  DateTime get lastUpdate;
-  @override
-
-  /// Whether data is currently loading
-  bool get isLoading;
-  @override
-
-  /// Error message if update failed
-  String? get errorMessage;
-  @override
-  @JsonKey(ignore: true)
-  _$$WeatherStatusImplCopyWith<_$WeatherStatusImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  $CloudMotionCopyWith<$Res>? get motion;
 }
+
+/// @nodoc
+class __$WeatherStatusCopyWithImpl<$Res>
+    implements _$WeatherStatusCopyWith<$Res> {
+  __$WeatherStatusCopyWithImpl(this._self, this._then);
+
+  final _WeatherStatus _self;
+  final $Res Function(_WeatherStatus) _then;
+
+  /// Create a copy of WeatherStatus
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? currentLevel = null,
+    Object? activeAlert = freezed,
+    Object? motion = freezed,
+    Object? radarFrames = null,
+    Object? currentFrameIndex = null,
+    Object? lastUpdate = null,
+    Object? isLoading = null,
+    Object? errorMessage = freezed,
+  }) {
+    return _then(_WeatherStatus(
+      currentLevel: null == currentLevel
+          ? _self.currentLevel
+          : currentLevel // ignore: cast_nullable_to_non_nullable
+              as AlertLevel,
+      activeAlert: freezed == activeAlert
+          ? _self.activeAlert
+          : activeAlert // ignore: cast_nullable_to_non_nullable
+              as WeatherAlert?,
+      motion: freezed == motion
+          ? _self.motion
+          : motion // ignore: cast_nullable_to_non_nullable
+              as CloudMotion?,
+      radarFrames: null == radarFrames
+          ? _self._radarFrames
+          : radarFrames // ignore: cast_nullable_to_non_nullable
+              as List<RadarFrame>,
+      currentFrameIndex: null == currentFrameIndex
+          ? _self.currentFrameIndex
+          : currentFrameIndex // ignore: cast_nullable_to_non_nullable
+              as int,
+      lastUpdate: null == lastUpdate
+          ? _self.lastUpdate
+          : lastUpdate // ignore: cast_nullable_to_non_nullable
+              as DateTime,
+      isLoading: null == isLoading
+          ? _self.isLoading
+          : isLoading // ignore: cast_nullable_to_non_nullable
+              as bool,
+      errorMessage: freezed == errorMessage
+          ? _self.errorMessage
+          : errorMessage // ignore: cast_nullable_to_non_nullable
+              as String?,
+    ));
+  }
+
+  /// Create a copy of WeatherStatus
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $WeatherAlertCopyWith<$Res>? get activeAlert {
+    if (_self.activeAlert == null) {
+      return null;
+    }
+
+    return $WeatherAlertCopyWith<$Res>(_self.activeAlert!, (value) {
+      return _then(_self.copyWith(activeAlert: value));
+    });
+  }
+
+  /// Create a copy of WeatherStatus
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $CloudMotionCopyWith<$Res>? get motion {
+    if (_self.motion == null) {
+      return null;
+    }
+
+    return $CloudMotionCopyWith<$Res>(_self.motion!, (value) {
+      return _then(_self.copyWith(motion: value));
+    });
+  }
+}
+
+// dart format on

@@ -9,7 +9,7 @@ part of '../sequence_models.dart';
 /// are routed to the Wave 3 Image Grading reject folder and their
 /// `photometry_measurements` row is marked outlier.
 @Freezed(fromJson: true, toJson: true)
-class PhotometryQualityGates with _$PhotometryQualityGates {
+abstract class PhotometryQualityGates with _$PhotometryQualityGates {
   @JsonSerializable(fieldRename: FieldRename.snake)
   const factory PhotometryQualityGates({
     /// Minimum target SNR. AAVSO research-grade default is 50.
@@ -282,7 +282,7 @@ class SciencePhotometryNode extends SequenceNode {
 /// (or both). When both are null the recovery action falls back to
 /// `PauseAndWaitForClear` rather than silently no-oping.
 @Freezed(fromJson: true, toJson: true)
-class TransparencyBackupPlan with _$TransparencyBackupPlan {
+abstract class TransparencyBackupPlan with _$TransparencyBackupPlan {
   const TransparencyBackupPlan._();
 
   @JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)

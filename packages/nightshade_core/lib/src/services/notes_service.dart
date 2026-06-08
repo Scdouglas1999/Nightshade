@@ -269,7 +269,7 @@ class NotesService {
     final clauses = <String>[];
     final variables = <Variable>[];
     if (query != null && query.isNotEmpty) {
-      clauses.add('(LOWER(body) LIKE ? OR LOWER(COALESCE(title, "")) LIKE ?)');
+      clauses.add("(LOWER(body) LIKE ? OR LOWER(COALESCE(title, '')) LIKE ?)");
       final like = '%${query.toLowerCase()}%';
       variables.add(Variable.withString(like));
       variables.add(Variable.withString(like));

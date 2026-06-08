@@ -6,9 +6,8 @@ part of 'auto_stretch_settings.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$AutoStretchSettingsImpl _$$AutoStretchSettingsImplFromJson(
-        Map<String, dynamic> json) =>
-    _$AutoStretchSettingsImpl(
+_AutoStretchSettings _$AutoStretchSettingsFromJson(Map<String, dynamic> json) =>
+    _AutoStretchSettings(
       enabled: json['enabled'] as bool? ?? false,
       method: $enumDecodeNullable(_$AutoStretchMethodEnumMap, json['method']) ??
           AutoStretchMethod.stf,
@@ -19,8 +18,8 @@ _$AutoStretchSettingsImpl _$$AutoStretchSettingsImplFromJson(
       gammaValue: (json['gammaValue'] as num?)?.toDouble() ?? 2.2,
     );
 
-Map<String, dynamic> _$$AutoStretchSettingsImplToJson(
-        _$AutoStretchSettingsImpl instance) =>
+Map<String, dynamic> _$AutoStretchSettingsToJson(
+        _AutoStretchSettings instance) =>
     <String, dynamic>{
       'enabled': instance.enabled,
       'method': _$AutoStretchMethodEnumMap[instance.method]!,

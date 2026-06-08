@@ -230,7 +230,7 @@ class TargetSchedulerNode extends SequenceNode {
 /// many subs, sub-length, gain/offset/binning, and a per-plan dither
 /// cadence override.
 @Freezed(fromJson: true, toJson: true)
-class FilterPlan with _$FilterPlan {
+abstract class FilterPlan with _$FilterPlan {
   const FilterPlan._();
 
   @JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)

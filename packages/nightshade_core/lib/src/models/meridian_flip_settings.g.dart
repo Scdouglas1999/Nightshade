@@ -6,9 +6,9 @@ part of 'meridian_flip_settings.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$MeridianFlipSettingsImpl _$$MeridianFlipSettingsImplFromJson(
+_MeridianFlipSettings _$MeridianFlipSettingsFromJson(
         Map<String, dynamic> json) =>
-    _$MeridianFlipSettingsImpl(
+    _MeridianFlipSettings(
       standaloneMonitoringEnabled:
           json['standaloneMonitoringEnabled'] as bool? ?? false,
       triggerMethod: $enumDecodeNullable(
@@ -40,8 +40,8 @@ _$MeridianFlipSettingsImpl _$$MeridianFlipSettingsImplFromJson(
       pushNotificationOnFlip: json['pushNotificationOnFlip'] as bool? ?? true,
     );
 
-Map<String, dynamic> _$$MeridianFlipSettingsImplToJson(
-        _$MeridianFlipSettingsImpl instance) =>
+Map<String, dynamic> _$MeridianFlipSettingsToJson(
+        _MeridianFlipSettings instance) =>
     <String, dynamic>{
       'standaloneMonitoringEnabled': instance.standaloneMonitoringEnabled,
       'triggerMethod': _$MeridianTriggerMethodEnumMap[instance.triggerMethod]!,

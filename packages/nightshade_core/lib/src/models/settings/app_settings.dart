@@ -17,7 +17,7 @@ enum SafetyFailMode {
 }
 
 @freezed
-class ObserverLocation with _$ObserverLocation {
+abstract class ObserverLocation with _$ObserverLocation {
   const factory ObserverLocation({
     required double latitude,
     required double longitude,
@@ -29,7 +29,7 @@ class ObserverLocation with _$ObserverLocation {
 }
 
 @freezed
-class AppSettings with _$AppSettings {
+abstract class AppSettings with _$AppSettings {
   const factory AppSettings({
     ObserverLocation? location,
     @Default('dark') String theme,

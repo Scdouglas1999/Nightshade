@@ -367,35 +367,43 @@ class _RejectedCandidatesSectionState
         dividerColor: Colors.transparent,
         splashColor: Colors.transparent,
       ),
-      child: ExpansionTile(
-        key: const ValueKey('rejected-candidates-section'),
-        tilePadding: EdgeInsets.zero,
-        childrenPadding: EdgeInsets.zero,
-        initiallyExpanded: _sectionExpanded,
-        onExpansionChanged: (v) => setState(() => _sectionExpanded = v),
-        leading: Icon(LucideIcons.listX,
-            size: NightshadeTokens.iconSm, color: colors.textSecondary),
-        title: Text(
-          'Other candidates considered (${rejected.length})',
-          style: NightshadeTypography.labelStrong.copyWith(
-            color: colors.textPrimary,
-          ),
-        ),
-        children: [
-          for (final r in rejected)
-            _RejectedRow(
-              rejection: r,
-              colors: colors,
-              expanded: _rowExpanded.contains(r.targetId),
-              onToggle: () => setState(() {
-                if (_rowExpanded.contains(r.targetId)) {
-                  _rowExpanded.remove(r.targetId);
-                } else {
-                  _rowExpanded.add(r.targetId);
-                }
-              }),
+      // ExpansionTile's header is a ListTile; the surrounding NightshadeCard
+      // is a DecoratedBox with a background color, which (Flutter 3.44) trips
+      // the "ListTile ink/background may be invisible" assertion. A transparent
+      // Material gives the ListTile a Material ancestor to paint on without
+      // changing the visuals.
+      child: Material(
+        type: MaterialType.transparency,
+        child: ExpansionTile(
+          key: const ValueKey('rejected-candidates-section'),
+          tilePadding: EdgeInsets.zero,
+          childrenPadding: EdgeInsets.zero,
+          initiallyExpanded: _sectionExpanded,
+          onExpansionChanged: (v) => setState(() => _sectionExpanded = v),
+          leading: Icon(LucideIcons.listX,
+              size: NightshadeTokens.iconSm, color: colors.textSecondary),
+          title: Text(
+            'Other candidates considered (${rejected.length})',
+            style: NightshadeTypography.labelStrong.copyWith(
+              color: colors.textPrimary,
             ),
-        ],
+          ),
+          children: [
+            for (final r in rejected)
+              _RejectedRow(
+                rejection: r,
+                colors: colors,
+                expanded: _rowExpanded.contains(r.targetId),
+                onToggle: () => setState(() {
+                  if (_rowExpanded.contains(r.targetId)) {
+                    _rowExpanded.remove(r.targetId);
+                  } else {
+                    _rowExpanded.add(r.targetId);
+                  }
+                }),
+              ),
+          ],
+        ),
       ),
     );
   }

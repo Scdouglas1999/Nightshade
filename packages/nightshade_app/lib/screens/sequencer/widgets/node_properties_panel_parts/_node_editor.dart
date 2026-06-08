@@ -57,7 +57,14 @@ class _NodeEditor extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return SingleChildScrollView(
+    // The properties panel's outer surface is a DecoratedBox with a background
+    // color. Some editors render ListTile/SwitchListTile, which (Flutter 3.44)
+    // assert when their nearest Material ancestor is hidden behind such a
+    // DecoratedBox. A transparent Material gives every ListTile descendant a
+    // Material to paint on without altering the visuals.
+    return Material(
+      type: MaterialType.transparency,
+      child: SingleChildScrollView(
       controller: scrollController,
       padding: EdgeInsets.all(isMobile ? 20 : 16),
       child: Column(
@@ -125,6 +132,7 @@ class _NodeEditor extends ConsumerWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

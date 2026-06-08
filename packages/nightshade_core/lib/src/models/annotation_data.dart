@@ -29,7 +29,7 @@ enum SpectralClass {
 }
 
 @freezed
-class ImageAnnotation with _$ImageAnnotation {
+abstract class ImageAnnotation with _$ImageAnnotation {
   const factory ImageAnnotation({
     required String imagePath,
     required DateTime timestamp,
@@ -43,7 +43,7 @@ class ImageAnnotation with _$ImageAnnotation {
 }
 
 @freezed
-class PlateSolveData with _$PlateSolveData {
+abstract class PlateSolveData with _$PlateSolveData {
   const factory PlateSolveData({
     required double ra,
     required double dec,
@@ -60,7 +60,7 @@ class PlateSolveData with _$PlateSolveData {
 }
 
 @freezed
-class CelestialObjectAnnotation with _$CelestialObjectAnnotation {
+abstract class CelestialObjectAnnotation with _$CelestialObjectAnnotation {
   const factory CelestialObjectAnnotation({
     required String id,
     required String name,
@@ -82,7 +82,7 @@ class CelestialObjectAnnotation with _$CelestialObjectAnnotation {
 }
 
 @freezed
-class ObjectData with _$ObjectData {
+abstract class ObjectData with _$ObjectData {
   const factory ObjectData({
     // Basic info
     String? description,
@@ -121,7 +121,7 @@ class ObjectData with _$ObjectData {
 }
 
 @freezed
-class ExoplanetData with _$ExoplanetData {
+abstract class ExoplanetData with _$ExoplanetData {
   const factory ExoplanetData({
     required String name,
     double? mass, // Jupiter masses

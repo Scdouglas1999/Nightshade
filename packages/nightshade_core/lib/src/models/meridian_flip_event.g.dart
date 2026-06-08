@@ -6,17 +6,17 @@ part of 'meridian_flip_event.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$MeridianFlipStartingImpl _$$MeridianFlipStartingImplFromJson(
+MeridianFlipStarting _$MeridianFlipStartingFromJson(
         Map<String, dynamic> json) =>
-    _$MeridianFlipStartingImpl(
+    MeridianFlipStarting(
       targetName: json['targetName'] as String,
       fromPierSide: $enumDecode(_$PierSideEnumMap, json['fromPierSide']),
       hourAngle: (json['hourAngle'] as num).toDouble(),
       $type: json['runtimeType'] as String?,
     );
 
-Map<String, dynamic> _$$MeridianFlipStartingImplToJson(
-        _$MeridianFlipStartingImpl instance) =>
+Map<String, dynamic> _$MeridianFlipStartingToJson(
+        MeridianFlipStarting instance) =>
     <String, dynamic>{
       'targetName': instance.targetName,
       'fromPierSide': _$PierSideEnumMap[instance.fromPierSide]!,
@@ -30,17 +30,17 @@ const _$PierSideEnumMap = {
   PierSide.unknown: 'unknown',
 };
 
-_$MeridianFlipStepStartedImpl _$$MeridianFlipStepStartedImplFromJson(
+MeridianFlipStepStarted _$MeridianFlipStepStartedFromJson(
         Map<String, dynamic> json) =>
-    _$MeridianFlipStepStartedImpl(
+    MeridianFlipStepStarted(
       step: $enumDecode(_$FlipStepEnumMap, json['step']),
       stepIndex: (json['stepIndex'] as num).toInt(),
       totalSteps: (json['totalSteps'] as num).toInt(),
       $type: json['runtimeType'] as String?,
     );
 
-Map<String, dynamic> _$$MeridianFlipStepStartedImplToJson(
-        _$MeridianFlipStepStartedImpl instance) =>
+Map<String, dynamic> _$MeridianFlipStepStartedToJson(
+        MeridianFlipStepStarted instance) =>
     <String, dynamic>{
       'step': _$FlipStepEnumMap[instance.step]!,
       'stepIndex': instance.stepIndex,
@@ -60,63 +60,63 @@ const _$FlipStepEnumMap = {
   FlipStep.settling: 'settling',
 };
 
-_$MeridianFlipStepCompletedImpl _$$MeridianFlipStepCompletedImplFromJson(
+MeridianFlipStepCompleted _$MeridianFlipStepCompletedFromJson(
         Map<String, dynamic> json) =>
-    _$MeridianFlipStepCompletedImpl(
+    MeridianFlipStepCompleted(
       step: $enumDecode(_$FlipStepEnumMap, json['step']),
       durationSecs: (json['durationSecs'] as num?)?.toDouble(),
       $type: json['runtimeType'] as String?,
     );
 
-Map<String, dynamic> _$$MeridianFlipStepCompletedImplToJson(
-        _$MeridianFlipStepCompletedImpl instance) =>
+Map<String, dynamic> _$MeridianFlipStepCompletedToJson(
+        MeridianFlipStepCompleted instance) =>
     <String, dynamic>{
       'step': _$FlipStepEnumMap[instance.step]!,
       'durationSecs': instance.durationSecs,
       'runtimeType': instance.$type,
     };
 
-_$MeridianFlipStepFailedImpl _$$MeridianFlipStepFailedImplFromJson(
+MeridianFlipStepFailed _$MeridianFlipStepFailedFromJson(
         Map<String, dynamic> json) =>
-    _$MeridianFlipStepFailedImpl(
+    MeridianFlipStepFailed(
       step: $enumDecode(_$FlipStepEnumMap, json['step']),
       error: json['error'] as String,
       $type: json['runtimeType'] as String?,
     );
 
-Map<String, dynamic> _$$MeridianFlipStepFailedImplToJson(
-        _$MeridianFlipStepFailedImpl instance) =>
+Map<String, dynamic> _$MeridianFlipStepFailedToJson(
+        MeridianFlipStepFailed instance) =>
     <String, dynamic>{
       'step': _$FlipStepEnumMap[instance.step]!,
       'error': instance.error,
       'runtimeType': instance.$type,
     };
 
-_$MeridianFlipProgressImpl _$$MeridianFlipProgressImplFromJson(
+MeridianFlipProgress _$MeridianFlipProgressFromJson(
         Map<String, dynamic> json) =>
-    _$MeridianFlipProgressImpl(
+    MeridianFlipProgress(
       percent: (json['percent'] as num).toInt(),
       $type: json['runtimeType'] as String?,
     );
 
-Map<String, dynamic> _$$MeridianFlipProgressImplToJson(
-        _$MeridianFlipProgressImpl instance) =>
+Map<String, dynamic> _$MeridianFlipProgressToJson(
+        MeridianFlipProgress instance) =>
     <String, dynamic>{
       'percent': instance.percent,
       'runtimeType': instance.$type,
     };
 
-_$MeridianFlipRetryScheduledImpl _$$MeridianFlipRetryScheduledImplFromJson(
+MeridianFlipRetryScheduled _$MeridianFlipRetryScheduledFromJson(
         Map<String, dynamic> json) =>
-    _$MeridianFlipRetryScheduledImpl(
+    MeridianFlipRetryScheduled(
       attempt: (json['attempt'] as num).toInt(),
       maxAttempts: (json['maxAttempts'] as num).toInt(),
       delaySecs: (json['delaySecs'] as num).toDouble(),
       $type: json['runtimeType'] as String?,
     );
 
-Map<String, dynamic> _$$MeridianFlipRetryScheduledImplToJson(
-        _$MeridianFlipRetryScheduledImpl instance) =>
+Map<String, dynamic> _$MeridianFlipRetryScheduledToJson(
+        MeridianFlipRetryScheduled instance) =>
     <String, dynamic>{
       'attempt': instance.attempt,
       'maxAttempts': instance.maxAttempts,
@@ -124,47 +124,44 @@ Map<String, dynamic> _$$MeridianFlipRetryScheduledImplToJson(
       'runtimeType': instance.$type,
     };
 
-_$MeridianFlipCompletedImpl _$$MeridianFlipCompletedImplFromJson(
+MeridianFlipCompleted _$MeridianFlipCompletedFromJson(
         Map<String, dynamic> json) =>
-    _$MeridianFlipCompletedImpl(
+    MeridianFlipCompleted(
       newPierSide: $enumDecode(_$PierSideEnumMap, json['newPierSide']),
       durationSecs: (json['durationSecs'] as num).toDouble(),
       $type: json['runtimeType'] as String?,
     );
 
-Map<String, dynamic> _$$MeridianFlipCompletedImplToJson(
-        _$MeridianFlipCompletedImpl instance) =>
+Map<String, dynamic> _$MeridianFlipCompletedToJson(
+        MeridianFlipCompleted instance) =>
     <String, dynamic>{
       'newPierSide': _$PierSideEnumMap[instance.newPierSide]!,
       'durationSecs': instance.durationSecs,
       'runtimeType': instance.$type,
     };
 
-_$MeridianFlipFailedImpl _$$MeridianFlipFailedImplFromJson(
-        Map<String, dynamic> json) =>
-    _$MeridianFlipFailedImpl(
+MeridianFlipFailed _$MeridianFlipFailedFromJson(Map<String, dynamic> json) =>
+    MeridianFlipFailed(
       error: json['error'] as String,
       actionTaken: json['actionTaken'] as String,
       $type: json['runtimeType'] as String?,
     );
 
-Map<String, dynamic> _$$MeridianFlipFailedImplToJson(
-        _$MeridianFlipFailedImpl instance) =>
+Map<String, dynamic> _$MeridianFlipFailedToJson(MeridianFlipFailed instance) =>
     <String, dynamic>{
       'error': instance.error,
       'actionTaken': instance.actionTaken,
       'runtimeType': instance.$type,
     };
 
-_$MeridianFlipAbortedImpl _$$MeridianFlipAbortedImplFromJson(
-        Map<String, dynamic> json) =>
-    _$MeridianFlipAbortedImpl(
+MeridianFlipAborted _$MeridianFlipAbortedFromJson(Map<String, dynamic> json) =>
+    MeridianFlipAborted(
       reason: json['reason'] as String,
       $type: json['runtimeType'] as String?,
     );
 
-Map<String, dynamic> _$$MeridianFlipAbortedImplToJson(
-        _$MeridianFlipAbortedImpl instance) =>
+Map<String, dynamic> _$MeridianFlipAbortedToJson(
+        MeridianFlipAborted instance) =>
     <String, dynamic>{
       'reason': instance.reason,
       'runtimeType': instance.$type,

@@ -4,14 +4,14 @@ version: 1.0.0
 publish_to: 'none'
 
 environment:
-  sdk: ">=3.3.0 <4.0.0"
+  sdk: ">=3.8.0 <4.0.0"
   flutter: ">=3.0.0"
 
 dependencies:
   flutter:
     sdk: flutter
   flutter_rust_bridge: ^2.11.1
-  freezed_annotation: ^2.4.1
+  freezed_annotation: ^3.0.0
   ffi: ^2.1.0
   http: ^1.1.0
   path_provider: ^2.1.2
@@ -30,5 +30,5 @@ dev_dependencies:
   # against the new ruleset is tracked as a follow-on per CQ-W5-LINTS-UPGRADE.
   flutter_lints: ^5.0.0
   ffigen: ^11.0.0
-  build_runner: ^2.4.8
-  freezed: ^2.4.7
+  build_runner: ^2.4.15
+  freezed: ^3.2.0

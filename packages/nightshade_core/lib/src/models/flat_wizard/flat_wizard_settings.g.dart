@@ -6,9 +6,9 @@ part of 'flat_wizard_settings.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$FlatWizardGlobalSettingsImpl _$$FlatWizardGlobalSettingsImplFromJson(
+_FlatWizardGlobalSettings _$FlatWizardGlobalSettingsFromJson(
         Map<String, dynamic> json) =>
-    _$FlatWizardGlobalSettingsImpl(
+    _FlatWizardGlobalSettings(
       histogramTarget: (json['histogramTarget'] as num?)?.toDouble() ?? 50.0,
       tolerancePercent: (json['tolerancePercent'] as num?)?.toDouble() ?? 10.0,
       minExposure: (json['minExposure'] as num?)?.toDouble() ?? 0.001,
@@ -24,8 +24,8 @@ _$FlatWizardGlobalSettingsImpl _$$FlatWizardGlobalSettingsImplFromJson(
       maxIterations: (json['maxIterations'] as num?)?.toInt() ?? 8,
     );
 
-Map<String, dynamic> _$$FlatWizardGlobalSettingsImplToJson(
-        _$FlatWizardGlobalSettingsImpl instance) =>
+Map<String, dynamic> _$FlatWizardGlobalSettingsToJson(
+        _FlatWizardGlobalSettings instance) =>
     <String, dynamic>{
       'histogramTarget': instance.histogramTarget,
       'tolerancePercent': instance.tolerancePercent,
@@ -41,9 +41,8 @@ Map<String, dynamic> _$$FlatWizardGlobalSettingsImplToJson(
       'maxIterations': instance.maxIterations,
     };
 
-_$FlatFilterSettingsImpl _$$FlatFilterSettingsImplFromJson(
-        Map<String, dynamic> json) =>
-    _$FlatFilterSettingsImpl(
+_FlatFilterSettings _$FlatFilterSettingsFromJson(Map<String, dynamic> json) =>
+    _FlatFilterSettings(
       filterName: json['filterName'] as String,
       filterPosition: (json['filterPosition'] as num).toInt(),
       enabled: json['enabled'] as bool? ?? true,
@@ -62,8 +61,7 @@ _$FlatFilterSettingsImpl _$$FlatFilterSettingsImplFromJson(
           FilterCalibrationStatus.pending,
     );
 
-Map<String, dynamic> _$$FlatFilterSettingsImplToJson(
-        _$FlatFilterSettingsImpl instance) =>
+Map<String, dynamic> _$FlatFilterSettingsToJson(_FlatFilterSettings instance) =>
     <String, dynamic>{
       'filterName': instance.filterName,
       'filterPosition': instance.filterPosition,
@@ -90,17 +88,15 @@ const _$FilterCalibrationStatusEnumMap = {
   FilterCalibrationStatus.skipped: 'skipped',
 };
 
-_$FlatFilterPresetImpl _$$FlatFilterPresetImplFromJson(
-        Map<String, dynamic> json) =>
-    _$FlatFilterPresetImpl(
+_FlatFilterPreset _$FlatFilterPresetFromJson(Map<String, dynamic> json) =>
+    _FlatFilterPreset(
       name: json['name'] as String,
       filterNames: (json['filterNames'] as List<dynamic>)
           .map((e) => e as String)
           .toList(),
     );
 
-Map<String, dynamic> _$$FlatFilterPresetImplToJson(
-        _$FlatFilterPresetImpl instance) =>
+Map<String, dynamic> _$FlatFilterPresetToJson(_FlatFilterPreset instance) =>
     <String, dynamic>{
       'name': instance.name,
       'filterNames': instance.filterNames,

@@ -1,5 +1,5 @@
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
@@ -9,114 +9,71 @@ part of 'phd2_models.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// dart format off
 T _$identity<T>(T value) => value;
-
-final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
-
-Phd2StarImage _$Phd2StarImageFromJson(Map<String, dynamic> json) {
-  return _Phd2StarImage.fromJson(json);
-}
 
 /// @nodoc
 mixin _$Phd2StarImage {
   /// Frame number
-  int get frame => throw _privateConstructorUsedError;
+  int get frame;
 
   /// Image width in pixels
-  int get width => throw _privateConstructorUsedError;
+  int get width;
 
   /// Image height in pixels
-  int get height => throw _privateConstructorUsedError;
+  int get height;
 
   /// Star centroid X position within the subframe
-  double get starX => throw _privateConstructorUsedError;
+  double get starX;
 
   /// Star centroid Y position within the subframe
-  double get starY => throw _privateConstructorUsedError;
+  double get starY;
 
   /// Raw pixel data (16-bit grayscale, row-major order)
   /// Note: This is stored as Uint8List but represents 16-bit values
   @Uint8ListConverter()
-  Uint8List get pixels => throw _privateConstructorUsedError;
+  Uint8List get pixels;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $Phd2StarImageCopyWith<Phd2StarImage> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $Phd2StarImageCopyWith<$Res> {
-  factory $Phd2StarImageCopyWith(
-          Phd2StarImage value, $Res Function(Phd2StarImage) then) =
-      _$Phd2StarImageCopyWithImpl<$Res, Phd2StarImage>;
-  @useResult
-  $Res call(
-      {int frame,
-      int width,
-      int height,
-      double starX,
-      double starY,
-      @Uint8ListConverter() Uint8List pixels});
-}
-
-/// @nodoc
-class _$Phd2StarImageCopyWithImpl<$Res, $Val extends Phd2StarImage>
-    implements $Phd2StarImageCopyWith<$Res> {
-  _$Phd2StarImageCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of Phd2StarImage
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $Phd2StarImageCopyWith<Phd2StarImage> get copyWith =>
+      _$Phd2StarImageCopyWithImpl<Phd2StarImage>(
+          this as Phd2StarImage, _$identity);
+
+  /// Serializes this Phd2StarImage to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? frame = null,
-    Object? width = null,
-    Object? height = null,
-    Object? starX = null,
-    Object? starY = null,
-    Object? pixels = null,
-  }) {
-    return _then(_value.copyWith(
-      frame: null == frame
-          ? _value.frame
-          : frame // ignore: cast_nullable_to_non_nullable
-              as int,
-      width: null == width
-          ? _value.width
-          : width // ignore: cast_nullable_to_non_nullable
-              as int,
-      height: null == height
-          ? _value.height
-          : height // ignore: cast_nullable_to_non_nullable
-              as int,
-      starX: null == starX
-          ? _value.starX
-          : starX // ignore: cast_nullable_to_non_nullable
-              as double,
-      starY: null == starY
-          ? _value.starY
-          : starY // ignore: cast_nullable_to_non_nullable
-              as double,
-      pixels: null == pixels
-          ? _value.pixels
-          : pixels // ignore: cast_nullable_to_non_nullable
-              as Uint8List,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is Phd2StarImage &&
+            (identical(other.frame, frame) || other.frame == frame) &&
+            (identical(other.width, width) || other.width == width) &&
+            (identical(other.height, height) || other.height == height) &&
+            (identical(other.starX, starX) || other.starX == starX) &&
+            (identical(other.starY, starY) || other.starY == starY) &&
+            const DeepCollectionEquality().equals(other.pixels, pixels));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, frame, width, height, starX,
+      starY, const DeepCollectionEquality().hash(pixels));
+
+  @override
+  String toString() {
+    return 'Phd2StarImage(frame: $frame, width: $width, height: $height, starX: $starX, starY: $starY, pixels: $pixels)';
   }
 }
 
 /// @nodoc
-abstract class _$$Phd2StarImageImplCopyWith<$Res>
-    implements $Phd2StarImageCopyWith<$Res> {
-  factory _$$Phd2StarImageImplCopyWith(
-          _$Phd2StarImageImpl value, $Res Function(_$Phd2StarImageImpl) then) =
-      __$$Phd2StarImageImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $Phd2StarImageCopyWith<$Res> {
+  factory $Phd2StarImageCopyWith(
+          Phd2StarImage value, $Res Function(Phd2StarImage) _then) =
+      _$Phd2StarImageCopyWithImpl;
   @useResult
   $Res call(
       {int frame,
@@ -128,13 +85,15 @@ abstract class _$$Phd2StarImageImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$Phd2StarImageImplCopyWithImpl<$Res>
-    extends _$Phd2StarImageCopyWithImpl<$Res, _$Phd2StarImageImpl>
-    implements _$$Phd2StarImageImplCopyWith<$Res> {
-  __$$Phd2StarImageImplCopyWithImpl(
-      _$Phd2StarImageImpl _value, $Res Function(_$Phd2StarImageImpl) _then)
-      : super(_value, _then);
+class _$Phd2StarImageCopyWithImpl<$Res>
+    implements $Phd2StarImageCopyWith<$Res> {
+  _$Phd2StarImageCopyWithImpl(this._self, this._then);
 
+  final Phd2StarImage _self;
+  final $Res Function(Phd2StarImage) _then;
+
+  /// Create a copy of Phd2StarImage
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -145,48 +104,213 @@ class __$$Phd2StarImageImplCopyWithImpl<$Res>
     Object? starY = null,
     Object? pixels = null,
   }) {
-    return _then(_$Phd2StarImageImpl(
+    return _then(_self.copyWith(
       frame: null == frame
-          ? _value.frame
+          ? _self.frame
           : frame // ignore: cast_nullable_to_non_nullable
               as int,
       width: null == width
-          ? _value.width
+          ? _self.width
           : width // ignore: cast_nullable_to_non_nullable
               as int,
       height: null == height
-          ? _value.height
+          ? _self.height
           : height // ignore: cast_nullable_to_non_nullable
               as int,
       starX: null == starX
-          ? _value.starX
+          ? _self.starX
           : starX // ignore: cast_nullable_to_non_nullable
               as double,
       starY: null == starY
-          ? _value.starY
+          ? _self.starY
           : starY // ignore: cast_nullable_to_non_nullable
               as double,
       pixels: null == pixels
-          ? _value.pixels
+          ? _self.pixels
           : pixels // ignore: cast_nullable_to_non_nullable
               as Uint8List,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [Phd2StarImage].
+extension Phd2StarImagePatterns on Phd2StarImage {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_Phd2StarImage value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2StarImage() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_Phd2StarImage value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2StarImage():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_Phd2StarImage value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2StarImage() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(int frame, int width, int height, double starX,
+            double starY, @Uint8ListConverter() Uint8List pixels)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2StarImage() when $default != null:
+        return $default(_that.frame, _that.width, _that.height, _that.starX,
+            _that.starY, _that.pixels);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(int frame, int width, int height, double starX,
+            double starY, @Uint8ListConverter() Uint8List pixels)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2StarImage():
+        return $default(_that.frame, _that.width, _that.height, _that.starX,
+            _that.starY, _that.pixels);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(int frame, int width, int height, double starX,
+            double starY, @Uint8ListConverter() Uint8List pixels)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2StarImage() when $default != null:
+        return $default(_that.frame, _that.width, _that.height, _that.starX,
+            _that.starY, _that.pixels);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$Phd2StarImageImpl implements _Phd2StarImage {
-  const _$Phd2StarImageImpl(
+class _Phd2StarImage implements Phd2StarImage {
+  const _Phd2StarImage(
       {required this.frame,
       required this.width,
       required this.height,
       required this.starX,
       required this.starY,
       @Uint8ListConverter() required this.pixels});
-
-  factory _$Phd2StarImageImpl.fromJson(Map<String, dynamic> json) =>
-      _$$Phd2StarImageImplFromJson(json);
+  factory _Phd2StarImage.fromJson(Map<String, dynamic> json) =>
+      _$Phd2StarImageFromJson(json);
 
   /// Frame number
   @override
@@ -214,16 +338,26 @@ class _$Phd2StarImageImpl implements _Phd2StarImage {
   @Uint8ListConverter()
   final Uint8List pixels;
 
+  /// Create a copy of Phd2StarImage
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'Phd2StarImage(frame: $frame, width: $width, height: $height, starX: $starX, starY: $starY, pixels: $pixels)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$Phd2StarImageCopyWith<_Phd2StarImage> get copyWith =>
+      __$Phd2StarImageCopyWithImpl<_Phd2StarImage>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$Phd2StarImageToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$Phd2StarImageImpl &&
+            other is _Phd2StarImage &&
             (identical(other.frame, frame) || other.frame == frame) &&
             (identical(other.width, width) || other.width == width) &&
             (identical(other.height, height) || other.height == height) &&
@@ -232,171 +366,322 @@ class _$Phd2StarImageImpl implements _Phd2StarImage {
             const DeepCollectionEquality().equals(other.pixels, pixels));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(runtimeType, frame, width, height, starX,
       starY, const DeepCollectionEquality().hash(pixels));
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$Phd2StarImageImplCopyWith<_$Phd2StarImageImpl> get copyWith =>
-      __$$Phd2StarImageImplCopyWithImpl<_$Phd2StarImageImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$Phd2StarImageImplToJson(
-      this,
-    );
+  String toString() {
+    return 'Phd2StarImage(frame: $frame, width: $width, height: $height, starX: $starX, starY: $starY, pixels: $pixels)';
   }
 }
 
-abstract class _Phd2StarImage implements Phd2StarImage {
-  const factory _Phd2StarImage(
-          {required final int frame,
-          required final int width,
-          required final int height,
-          required final double starX,
-          required final double starY,
-          @Uint8ListConverter() required final Uint8List pixels}) =
-      _$Phd2StarImageImpl;
-
-  factory _Phd2StarImage.fromJson(Map<String, dynamic> json) =
-      _$Phd2StarImageImpl.fromJson;
-
+/// @nodoc
+abstract mixin class _$Phd2StarImageCopyWith<$Res>
+    implements $Phd2StarImageCopyWith<$Res> {
+  factory _$Phd2StarImageCopyWith(
+          _Phd2StarImage value, $Res Function(_Phd2StarImage) _then) =
+      __$Phd2StarImageCopyWithImpl;
   @override
-
-  /// Frame number
-  int get frame;
-  @override
-
-  /// Image width in pixels
-  int get width;
-  @override
-
-  /// Image height in pixels
-  int get height;
-  @override
-
-  /// Star centroid X position within the subframe
-  double get starX;
-  @override
-
-  /// Star centroid Y position within the subframe
-  double get starY;
-  @override
-
-  /// Raw pixel data (16-bit grayscale, row-major order)
-  /// Note: This is stored as Uint8List but represents 16-bit values
-  @Uint8ListConverter()
-  Uint8List get pixels;
-  @override
-  @JsonKey(ignore: true)
-  _$$Phd2StarImageImplCopyWith<_$Phd2StarImageImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  @useResult
+  $Res call(
+      {int frame,
+      int width,
+      int height,
+      double starX,
+      double starY,
+      @Uint8ListConverter() Uint8List pixels});
 }
 
-Phd2AlgoParam _$Phd2AlgoParamFromJson(Map<String, dynamic> json) {
-  return _Phd2AlgoParam.fromJson(json);
+/// @nodoc
+class __$Phd2StarImageCopyWithImpl<$Res>
+    implements _$Phd2StarImageCopyWith<$Res> {
+  __$Phd2StarImageCopyWithImpl(this._self, this._then);
+
+  final _Phd2StarImage _self;
+  final $Res Function(_Phd2StarImage) _then;
+
+  /// Create a copy of Phd2StarImage
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? frame = null,
+    Object? width = null,
+    Object? height = null,
+    Object? starX = null,
+    Object? starY = null,
+    Object? pixels = null,
+  }) {
+    return _then(_Phd2StarImage(
+      frame: null == frame
+          ? _self.frame
+          : frame // ignore: cast_nullable_to_non_nullable
+              as int,
+      width: null == width
+          ? _self.width
+          : width // ignore: cast_nullable_to_non_nullable
+              as int,
+      height: null == height
+          ? _self.height
+          : height // ignore: cast_nullable_to_non_nullable
+              as int,
+      starX: null == starX
+          ? _self.starX
+          : starX // ignore: cast_nullable_to_non_nullable
+              as double,
+      starY: null == starY
+          ? _self.starY
+          : starY // ignore: cast_nullable_to_non_nullable
+              as double,
+      pixels: null == pixels
+          ? _self.pixels
+          : pixels // ignore: cast_nullable_to_non_nullable
+              as Uint8List,
+    ));
+  }
 }
 
 /// @nodoc
 mixin _$Phd2AlgoParam {
   /// Parameter name (e.g., "Aggressiveness", "Hysteresis")
-  String get name => throw _privateConstructorUsedError;
+  String get name;
 
   /// Parameter value
-  double get value => throw _privateConstructorUsedError;
+  double get value;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $Phd2AlgoParamCopyWith<Phd2AlgoParam> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $Phd2AlgoParamCopyWith<$Res> {
-  factory $Phd2AlgoParamCopyWith(
-          Phd2AlgoParam value, $Res Function(Phd2AlgoParam) then) =
-      _$Phd2AlgoParamCopyWithImpl<$Res, Phd2AlgoParam>;
-  @useResult
-  $Res call({String name, double value});
-}
-
-/// @nodoc
-class _$Phd2AlgoParamCopyWithImpl<$Res, $Val extends Phd2AlgoParam>
-    implements $Phd2AlgoParamCopyWith<$Res> {
-  _$Phd2AlgoParamCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of Phd2AlgoParam
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $Phd2AlgoParamCopyWith<Phd2AlgoParam> get copyWith =>
+      _$Phd2AlgoParamCopyWithImpl<Phd2AlgoParam>(
+          this as Phd2AlgoParam, _$identity);
+
+  /// Serializes this Phd2AlgoParam to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? name = null,
-    Object? value = null,
-  }) {
-    return _then(_value.copyWith(
-      name: null == name
-          ? _value.name
-          : name // ignore: cast_nullable_to_non_nullable
-              as String,
-      value: null == value
-          ? _value.value
-          : value // ignore: cast_nullable_to_non_nullable
-              as double,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is Phd2AlgoParam &&
+            (identical(other.name, name) || other.name == name) &&
+            (identical(other.value, value) || other.value == value));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, name, value);
+
+  @override
+  String toString() {
+    return 'Phd2AlgoParam(name: $name, value: $value)';
   }
 }
 
 /// @nodoc
-abstract class _$$Phd2AlgoParamImplCopyWith<$Res>
-    implements $Phd2AlgoParamCopyWith<$Res> {
-  factory _$$Phd2AlgoParamImplCopyWith(
-          _$Phd2AlgoParamImpl value, $Res Function(_$Phd2AlgoParamImpl) then) =
-      __$$Phd2AlgoParamImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $Phd2AlgoParamCopyWith<$Res> {
+  factory $Phd2AlgoParamCopyWith(
+          Phd2AlgoParam value, $Res Function(Phd2AlgoParam) _then) =
+      _$Phd2AlgoParamCopyWithImpl;
   @useResult
   $Res call({String name, double value});
 }
 
 /// @nodoc
-class __$$Phd2AlgoParamImplCopyWithImpl<$Res>
-    extends _$Phd2AlgoParamCopyWithImpl<$Res, _$Phd2AlgoParamImpl>
-    implements _$$Phd2AlgoParamImplCopyWith<$Res> {
-  __$$Phd2AlgoParamImplCopyWithImpl(
-      _$Phd2AlgoParamImpl _value, $Res Function(_$Phd2AlgoParamImpl) _then)
-      : super(_value, _then);
+class _$Phd2AlgoParamCopyWithImpl<$Res>
+    implements $Phd2AlgoParamCopyWith<$Res> {
+  _$Phd2AlgoParamCopyWithImpl(this._self, this._then);
 
+  final Phd2AlgoParam _self;
+  final $Res Function(Phd2AlgoParam) _then;
+
+  /// Create a copy of Phd2AlgoParam
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
     Object? name = null,
     Object? value = null,
   }) {
-    return _then(_$Phd2AlgoParamImpl(
+    return _then(_self.copyWith(
       name: null == name
-          ? _value.name
+          ? _self.name
           : name // ignore: cast_nullable_to_non_nullable
               as String,
       value: null == value
-          ? _value.value
+          ? _self.value
           : value // ignore: cast_nullable_to_non_nullable
               as double,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [Phd2AlgoParam].
+extension Phd2AlgoParamPatterns on Phd2AlgoParam {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_Phd2AlgoParam value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2AlgoParam() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_Phd2AlgoParam value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2AlgoParam():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_Phd2AlgoParam value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2AlgoParam() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(String name, double value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2AlgoParam() when $default != null:
+        return $default(_that.name, _that.value);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(String name, double value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2AlgoParam():
+        return $default(_that.name, _that.value);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(String name, double value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2AlgoParam() when $default != null:
+        return $default(_that.name, _that.value);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$Phd2AlgoParamImpl implements _Phd2AlgoParam {
-  const _$Phd2AlgoParamImpl({required this.name, required this.value});
-
-  factory _$Phd2AlgoParamImpl.fromJson(Map<String, dynamic> json) =>
-      _$$Phd2AlgoParamImplFromJson(json);
+class _Phd2AlgoParam implements Phd2AlgoParam {
+  const _Phd2AlgoParam({required this.name, required this.value});
+  factory _Phd2AlgoParam.fromJson(Map<String, dynamic> json) =>
+      _$Phd2AlgoParamFromJson(json);
 
   /// Parameter name (e.g., "Aggressiveness", "Hysteresis")
   @override
@@ -406,143 +691,138 @@ class _$Phd2AlgoParamImpl implements _Phd2AlgoParam {
   @override
   final double value;
 
+  /// Create a copy of Phd2AlgoParam
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'Phd2AlgoParam(name: $name, value: $value)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$Phd2AlgoParamCopyWith<_Phd2AlgoParam> get copyWith =>
+      __$Phd2AlgoParamCopyWithImpl<_Phd2AlgoParam>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$Phd2AlgoParamToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$Phd2AlgoParamImpl &&
+            other is _Phd2AlgoParam &&
             (identical(other.name, name) || other.name == name) &&
             (identical(other.value, value) || other.value == value));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(runtimeType, name, value);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$Phd2AlgoParamImplCopyWith<_$Phd2AlgoParamImpl> get copyWith =>
-      __$$Phd2AlgoParamImplCopyWithImpl<_$Phd2AlgoParamImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$Phd2AlgoParamImplToJson(
-      this,
-    );
+  String toString() {
+    return 'Phd2AlgoParam(name: $name, value: $value)';
   }
 }
 
-abstract class _Phd2AlgoParam implements Phd2AlgoParam {
-  const factory _Phd2AlgoParam(
-      {required final String name,
-      required final double value}) = _$Phd2AlgoParamImpl;
-
-  factory _Phd2AlgoParam.fromJson(Map<String, dynamic> json) =
-      _$Phd2AlgoParamImpl.fromJson;
-
+/// @nodoc
+abstract mixin class _$Phd2AlgoParamCopyWith<$Res>
+    implements $Phd2AlgoParamCopyWith<$Res> {
+  factory _$Phd2AlgoParamCopyWith(
+          _Phd2AlgoParam value, $Res Function(_Phd2AlgoParam) _then) =
+      __$Phd2AlgoParamCopyWithImpl;
   @override
-
-  /// Parameter name (e.g., "Aggressiveness", "Hysteresis")
-  String get name;
-  @override
-
-  /// Parameter value
-  double get value;
-  @override
-  @JsonKey(ignore: true)
-  _$$Phd2AlgoParamImplCopyWith<_$Phd2AlgoParamImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  @useResult
+  $Res call({String name, double value});
 }
 
-Phd2BrainParams _$Phd2BrainParamsFromJson(Map<String, dynamic> json) {
-  return _Phd2BrainParams.fromJson(json);
+/// @nodoc
+class __$Phd2AlgoParamCopyWithImpl<$Res>
+    implements _$Phd2AlgoParamCopyWith<$Res> {
+  __$Phd2AlgoParamCopyWithImpl(this._self, this._then);
+
+  final _Phd2AlgoParam _self;
+  final $Res Function(_Phd2AlgoParam) _then;
+
+  /// Create a copy of Phd2AlgoParam
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? name = null,
+    Object? value = null,
+  }) {
+    return _then(_Phd2AlgoParam(
+      name: null == name
+          ? _self.name
+          : name // ignore: cast_nullable_to_non_nullable
+              as String,
+      value: null == value
+          ? _self.value
+          : value // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
 }
 
 /// @nodoc
 mixin _$Phd2BrainParams {
   /// RA axis parameter names
-  List<String> get raParamNames => throw _privateConstructorUsedError;
+  List<String> get raParamNames;
 
   /// Dec axis parameter names
-  List<String> get decParamNames => throw _privateConstructorUsedError;
+  List<String> get decParamNames;
 
   /// RA axis parameters (name -> value)
-  Map<String, double> get raParams => throw _privateConstructorUsedError;
+  Map<String, double> get raParams;
 
   /// Dec axis parameters (name -> value)
-  Map<String, double> get decParams => throw _privateConstructorUsedError;
+  Map<String, double> get decParams;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $Phd2BrainParamsCopyWith<Phd2BrainParams> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $Phd2BrainParamsCopyWith<$Res> {
-  factory $Phd2BrainParamsCopyWith(
-          Phd2BrainParams value, $Res Function(Phd2BrainParams) then) =
-      _$Phd2BrainParamsCopyWithImpl<$Res, Phd2BrainParams>;
-  @useResult
-  $Res call(
-      {List<String> raParamNames,
-      List<String> decParamNames,
-      Map<String, double> raParams,
-      Map<String, double> decParams});
-}
-
-/// @nodoc
-class _$Phd2BrainParamsCopyWithImpl<$Res, $Val extends Phd2BrainParams>
-    implements $Phd2BrainParamsCopyWith<$Res> {
-  _$Phd2BrainParamsCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of Phd2BrainParams
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $Phd2BrainParamsCopyWith<Phd2BrainParams> get copyWith =>
+      _$Phd2BrainParamsCopyWithImpl<Phd2BrainParams>(
+          this as Phd2BrainParams, _$identity);
+
+  /// Serializes this Phd2BrainParams to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? raParamNames = null,
-    Object? decParamNames = null,
-    Object? raParams = null,
-    Object? decParams = null,
-  }) {
-    return _then(_value.copyWith(
-      raParamNames: null == raParamNames
-          ? _value.raParamNames
-          : raParamNames // ignore: cast_nullable_to_non_nullable
-              as List<String>,
-      decParamNames: null == decParamNames
-          ? _value.decParamNames
-          : decParamNames // ignore: cast_nullable_to_non_nullable
-              as List<String>,
-      raParams: null == raParams
-          ? _value.raParams
-          : raParams // ignore: cast_nullable_to_non_nullable
-              as Map<String, double>,
-      decParams: null == decParams
-          ? _value.decParams
-          : decParams // ignore: cast_nullable_to_non_nullable
-              as Map<String, double>,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is Phd2BrainParams &&
+            const DeepCollectionEquality()
+                .equals(other.raParamNames, raParamNames) &&
+            const DeepCollectionEquality()
+                .equals(other.decParamNames, decParamNames) &&
+            const DeepCollectionEquality().equals(other.raParams, raParams) &&
+            const DeepCollectionEquality().equals(other.decParams, decParams));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      const DeepCollectionEquality().hash(raParamNames),
+      const DeepCollectionEquality().hash(decParamNames),
+      const DeepCollectionEquality().hash(raParams),
+      const DeepCollectionEquality().hash(decParams));
+
+  @override
+  String toString() {
+    return 'Phd2BrainParams(raParamNames: $raParamNames, decParamNames: $decParamNames, raParams: $raParams, decParams: $decParams)';
   }
 }
 
 /// @nodoc
-abstract class _$$Phd2BrainParamsImplCopyWith<$Res>
-    implements $Phd2BrainParamsCopyWith<$Res> {
-  factory _$$Phd2BrainParamsImplCopyWith(_$Phd2BrainParamsImpl value,
-          $Res Function(_$Phd2BrainParamsImpl) then) =
-      __$$Phd2BrainParamsImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $Phd2BrainParamsCopyWith<$Res> {
+  factory $Phd2BrainParamsCopyWith(
+          Phd2BrainParams value, $Res Function(Phd2BrainParams) _then) =
+      _$Phd2BrainParamsCopyWithImpl;
   @useResult
   $Res call(
       {List<String> raParamNames,
@@ -552,13 +832,15 @@ abstract class _$$Phd2BrainParamsImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$Phd2BrainParamsImplCopyWithImpl<$Res>
-    extends _$Phd2BrainParamsCopyWithImpl<$Res, _$Phd2BrainParamsImpl>
-    implements _$$Phd2BrainParamsImplCopyWith<$Res> {
-  __$$Phd2BrainParamsImplCopyWithImpl(
-      _$Phd2BrainParamsImpl _value, $Res Function(_$Phd2BrainParamsImpl) _then)
-      : super(_value, _then);
+class _$Phd2BrainParamsCopyWithImpl<$Res>
+    implements $Phd2BrainParamsCopyWith<$Res> {
+  _$Phd2BrainParamsCopyWithImpl(this._self, this._then);
 
+  final Phd2BrainParams _self;
+  final $Res Function(Phd2BrainParams) _then;
+
+  /// Create a copy of Phd2BrainParams
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -567,31 +849,197 @@ class __$$Phd2BrainParamsImplCopyWithImpl<$Res>
     Object? raParams = null,
     Object? decParams = null,
   }) {
-    return _then(_$Phd2BrainParamsImpl(
+    return _then(_self.copyWith(
       raParamNames: null == raParamNames
-          ? _value._raParamNames
+          ? _self.raParamNames
           : raParamNames // ignore: cast_nullable_to_non_nullable
               as List<String>,
       decParamNames: null == decParamNames
-          ? _value._decParamNames
+          ? _self.decParamNames
           : decParamNames // ignore: cast_nullable_to_non_nullable
               as List<String>,
       raParams: null == raParams
-          ? _value._raParams
+          ? _self.raParams
           : raParams // ignore: cast_nullable_to_non_nullable
               as Map<String, double>,
       decParams: null == decParams
-          ? _value._decParams
+          ? _self.decParams
           : decParams // ignore: cast_nullable_to_non_nullable
               as Map<String, double>,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [Phd2BrainParams].
+extension Phd2BrainParamsPatterns on Phd2BrainParams {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_Phd2BrainParams value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2BrainParams() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_Phd2BrainParams value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2BrainParams():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_Phd2BrainParams value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2BrainParams() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(List<String> raParamNames, List<String> decParamNames,
+            Map<String, double> raParams, Map<String, double> decParams)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2BrainParams() when $default != null:
+        return $default(_that.raParamNames, _that.decParamNames, _that.raParams,
+            _that.decParams);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(List<String> raParamNames, List<String> decParamNames,
+            Map<String, double> raParams, Map<String, double> decParams)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2BrainParams():
+        return $default(_that.raParamNames, _that.decParamNames, _that.raParams,
+            _that.decParams);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(List<String> raParamNames, List<String> decParamNames,
+            Map<String, double> raParams, Map<String, double> decParams)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2BrainParams() when $default != null:
+        return $default(_that.raParamNames, _that.decParamNames, _that.raParams,
+            _that.decParams);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$Phd2BrainParamsImpl implements _Phd2BrainParams {
-  const _$Phd2BrainParamsImpl(
+class _Phd2BrainParams implements Phd2BrainParams {
+  const _Phd2BrainParams(
       {required final List<String> raParamNames,
       required final List<String> decParamNames,
       required final Map<String, double> raParams,
@@ -600,9 +1048,8 @@ class _$Phd2BrainParamsImpl implements _Phd2BrainParams {
         _decParamNames = decParamNames,
         _raParams = raParams,
         _decParams = decParams;
-
-  factory _$Phd2BrainParamsImpl.fromJson(Map<String, dynamic> json) =>
-      _$$Phd2BrainParamsImplFromJson(json);
+  factory _Phd2BrainParams.fromJson(Map<String, dynamic> json) =>
+      _$Phd2BrainParamsFromJson(json);
 
   /// RA axis parameter names
   final List<String> _raParamNames;
@@ -648,16 +1095,26 @@ class _$Phd2BrainParamsImpl implements _Phd2BrainParams {
     return EqualUnmodifiableMapView(_decParams);
   }
 
+  /// Create a copy of Phd2BrainParams
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'Phd2BrainParams(raParamNames: $raParamNames, decParamNames: $decParamNames, raParams: $raParams, decParams: $decParams)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$Phd2BrainParamsCopyWith<_Phd2BrainParams> get copyWith =>
+      __$Phd2BrainParamsCopyWithImpl<_Phd2BrainParams>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$Phd2BrainParamsToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$Phd2BrainParamsImpl &&
+            other is _Phd2BrainParams &&
             const DeepCollectionEquality()
                 .equals(other._raParamNames, _raParamNames) &&
             const DeepCollectionEquality()
@@ -667,7 +1124,7 @@ class _$Phd2BrainParamsImpl implements _Phd2BrainParams {
                 .equals(other._decParams, _decParams));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,
@@ -676,136 +1133,129 @@ class _$Phd2BrainParamsImpl implements _Phd2BrainParams {
       const DeepCollectionEquality().hash(_raParams),
       const DeepCollectionEquality().hash(_decParams));
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$Phd2BrainParamsImplCopyWith<_$Phd2BrainParamsImpl> get copyWith =>
-      __$$Phd2BrainParamsImplCopyWithImpl<_$Phd2BrainParamsImpl>(
-          this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$Phd2BrainParamsImplToJson(
-      this,
-    );
+  String toString() {
+    return 'Phd2BrainParams(raParamNames: $raParamNames, decParamNames: $decParamNames, raParams: $raParams, decParams: $decParams)';
   }
 }
 
-abstract class _Phd2BrainParams implements Phd2BrainParams {
-  const factory _Phd2BrainParams(
-      {required final List<String> raParamNames,
-      required final List<String> decParamNames,
-      required final Map<String, double> raParams,
-      required final Map<String, double> decParams}) = _$Phd2BrainParamsImpl;
-
-  factory _Phd2BrainParams.fromJson(Map<String, dynamic> json) =
-      _$Phd2BrainParamsImpl.fromJson;
-
+/// @nodoc
+abstract mixin class _$Phd2BrainParamsCopyWith<$Res>
+    implements $Phd2BrainParamsCopyWith<$Res> {
+  factory _$Phd2BrainParamsCopyWith(
+          _Phd2BrainParams value, $Res Function(_Phd2BrainParams) _then) =
+      __$Phd2BrainParamsCopyWithImpl;
   @override
-
-  /// RA axis parameter names
-  List<String> get raParamNames;
-  @override
-
-  /// Dec axis parameter names
-  List<String> get decParamNames;
-  @override
-
-  /// RA axis parameters (name -> value)
-  Map<String, double> get raParams;
-  @override
-
-  /// Dec axis parameters (name -> value)
-  Map<String, double> get decParams;
-  @override
-  @JsonKey(ignore: true)
-  _$$Phd2BrainParamsImplCopyWith<_$Phd2BrainParamsImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  @useResult
+  $Res call(
+      {List<String> raParamNames,
+      List<String> decParamNames,
+      Map<String, double> raParams,
+      Map<String, double> decParams});
 }
 
-GuideErrorPoint _$GuideErrorPointFromJson(Map<String, dynamic> json) {
-  return _GuideErrorPoint.fromJson(json);
+/// @nodoc
+class __$Phd2BrainParamsCopyWithImpl<$Res>
+    implements _$Phd2BrainParamsCopyWith<$Res> {
+  __$Phd2BrainParamsCopyWithImpl(this._self, this._then);
+
+  final _Phd2BrainParams _self;
+  final $Res Function(_Phd2BrainParams) _then;
+
+  /// Create a copy of Phd2BrainParams
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? raParamNames = null,
+    Object? decParamNames = null,
+    Object? raParams = null,
+    Object? decParams = null,
+  }) {
+    return _then(_Phd2BrainParams(
+      raParamNames: null == raParamNames
+          ? _self._raParamNames
+          : raParamNames // ignore: cast_nullable_to_non_nullable
+              as List<String>,
+      decParamNames: null == decParamNames
+          ? _self._decParamNames
+          : decParamNames // ignore: cast_nullable_to_non_nullable
+              as List<String>,
+      raParams: null == raParams
+          ? _self._raParams
+          : raParams // ignore: cast_nullable_to_non_nullable
+              as Map<String, double>,
+      decParams: null == decParams
+          ? _self._decParams
+          : decParams // ignore: cast_nullable_to_non_nullable
+              as Map<String, double>,
+    ));
+  }
 }
 
 /// @nodoc
 mixin _$GuideErrorPoint {
   /// RA error in arcseconds
-  double get raError => throw _privateConstructorUsedError;
+  double get raError;
 
   /// Dec error in arcseconds
-  double get decError => throw _privateConstructorUsedError;
+  double get decError;
 
   /// Timestamp when this error was recorded
-  DateTime get timestamp => throw _privateConstructorUsedError;
+  DateTime get timestamp;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $GuideErrorPointCopyWith<GuideErrorPoint> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $GuideErrorPointCopyWith<$Res> {
-  factory $GuideErrorPointCopyWith(
-          GuideErrorPoint value, $Res Function(GuideErrorPoint) then) =
-      _$GuideErrorPointCopyWithImpl<$Res, GuideErrorPoint>;
-  @useResult
-  $Res call({double raError, double decError, DateTime timestamp});
-}
-
-/// @nodoc
-class _$GuideErrorPointCopyWithImpl<$Res, $Val extends GuideErrorPoint>
-    implements $GuideErrorPointCopyWith<$Res> {
-  _$GuideErrorPointCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of GuideErrorPoint
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $GuideErrorPointCopyWith<GuideErrorPoint> get copyWith =>
+      _$GuideErrorPointCopyWithImpl<GuideErrorPoint>(
+          this as GuideErrorPoint, _$identity);
+
+  /// Serializes this GuideErrorPoint to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? raError = null,
-    Object? decError = null,
-    Object? timestamp = null,
-  }) {
-    return _then(_value.copyWith(
-      raError: null == raError
-          ? _value.raError
-          : raError // ignore: cast_nullable_to_non_nullable
-              as double,
-      decError: null == decError
-          ? _value.decError
-          : decError // ignore: cast_nullable_to_non_nullable
-              as double,
-      timestamp: null == timestamp
-          ? _value.timestamp
-          : timestamp // ignore: cast_nullable_to_non_nullable
-              as DateTime,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is GuideErrorPoint &&
+            (identical(other.raError, raError) || other.raError == raError) &&
+            (identical(other.decError, decError) ||
+                other.decError == decError) &&
+            (identical(other.timestamp, timestamp) ||
+                other.timestamp == timestamp));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, raError, decError, timestamp);
+
+  @override
+  String toString() {
+    return 'GuideErrorPoint(raError: $raError, decError: $decError, timestamp: $timestamp)';
   }
 }
 
 /// @nodoc
-abstract class _$$GuideErrorPointImplCopyWith<$Res>
-    implements $GuideErrorPointCopyWith<$Res> {
-  factory _$$GuideErrorPointImplCopyWith(_$GuideErrorPointImpl value,
-          $Res Function(_$GuideErrorPointImpl) then) =
-      __$$GuideErrorPointImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $GuideErrorPointCopyWith<$Res> {
+  factory $GuideErrorPointCopyWith(
+          GuideErrorPoint value, $Res Function(GuideErrorPoint) _then) =
+      _$GuideErrorPointCopyWithImpl;
   @useResult
   $Res call({double raError, double decError, DateTime timestamp});
 }
 
 /// @nodoc
-class __$$GuideErrorPointImplCopyWithImpl<$Res>
-    extends _$GuideErrorPointCopyWithImpl<$Res, _$GuideErrorPointImpl>
-    implements _$$GuideErrorPointImplCopyWith<$Res> {
-  __$$GuideErrorPointImplCopyWithImpl(
-      _$GuideErrorPointImpl _value, $Res Function(_$GuideErrorPointImpl) _then)
-      : super(_value, _then);
+class _$GuideErrorPointCopyWithImpl<$Res>
+    implements $GuideErrorPointCopyWith<$Res> {
+  _$GuideErrorPointCopyWithImpl(this._self, this._then);
 
+  final GuideErrorPoint _self;
+  final $Res Function(GuideErrorPoint) _then;
+
+  /// Create a copy of GuideErrorPoint
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -813,31 +1263,190 @@ class __$$GuideErrorPointImplCopyWithImpl<$Res>
     Object? decError = null,
     Object? timestamp = null,
   }) {
-    return _then(_$GuideErrorPointImpl(
+    return _then(_self.copyWith(
       raError: null == raError
-          ? _value.raError
+          ? _self.raError
           : raError // ignore: cast_nullable_to_non_nullable
               as double,
       decError: null == decError
-          ? _value.decError
+          ? _self.decError
           : decError // ignore: cast_nullable_to_non_nullable
               as double,
       timestamp: null == timestamp
-          ? _value.timestamp
+          ? _self.timestamp
           : timestamp // ignore: cast_nullable_to_non_nullable
               as DateTime,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [GuideErrorPoint].
+extension GuideErrorPointPatterns on GuideErrorPoint {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_GuideErrorPoint value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _GuideErrorPoint() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_GuideErrorPoint value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _GuideErrorPoint():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_GuideErrorPoint value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _GuideErrorPoint() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(double raError, double decError, DateTime timestamp)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _GuideErrorPoint() when $default != null:
+        return $default(_that.raError, _that.decError, _that.timestamp);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(double raError, double decError, DateTime timestamp)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _GuideErrorPoint():
+        return $default(_that.raError, _that.decError, _that.timestamp);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(double raError, double decError, DateTime timestamp)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _GuideErrorPoint() when $default != null:
+        return $default(_that.raError, _that.decError, _that.timestamp);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$GuideErrorPointImpl implements _GuideErrorPoint {
-  const _$GuideErrorPointImpl(
+class _GuideErrorPoint implements GuideErrorPoint {
+  const _GuideErrorPoint(
       {required this.raError, required this.decError, required this.timestamp});
-
-  factory _$GuideErrorPointImpl.fromJson(Map<String, dynamic> json) =>
-      _$$GuideErrorPointImplFromJson(json);
+  factory _GuideErrorPoint.fromJson(Map<String, dynamic> json) =>
+      _$GuideErrorPointFromJson(json);
 
   /// RA error in arcseconds
   @override
@@ -851,16 +1460,26 @@ class _$GuideErrorPointImpl implements _GuideErrorPoint {
   @override
   final DateTime timestamp;
 
+  /// Create a copy of GuideErrorPoint
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'GuideErrorPoint(raError: $raError, decError: $decError, timestamp: $timestamp)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$GuideErrorPointCopyWith<_GuideErrorPoint> get copyWith =>
+      __$GuideErrorPointCopyWithImpl<_GuideErrorPoint>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$GuideErrorPointToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$GuideErrorPointImpl &&
+            other is _GuideErrorPoint &&
             (identical(other.raError, raError) || other.raError == raError) &&
             (identical(other.decError, decError) ||
                 other.decError == decError) &&
@@ -868,207 +1487,149 @@ class _$GuideErrorPointImpl implements _GuideErrorPoint {
                 other.timestamp == timestamp));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(runtimeType, raError, decError, timestamp);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$GuideErrorPointImplCopyWith<_$GuideErrorPointImpl> get copyWith =>
-      __$$GuideErrorPointImplCopyWithImpl<_$GuideErrorPointImpl>(
-          this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$GuideErrorPointImplToJson(
-      this,
-    );
+  String toString() {
+    return 'GuideErrorPoint(raError: $raError, decError: $decError, timestamp: $timestamp)';
   }
 }
 
-abstract class _GuideErrorPoint implements GuideErrorPoint {
-  const factory _GuideErrorPoint(
-      {required final double raError,
-      required final double decError,
-      required final DateTime timestamp}) = _$GuideErrorPointImpl;
-
-  factory _GuideErrorPoint.fromJson(Map<String, dynamic> json) =
-      _$GuideErrorPointImpl.fromJson;
-
+/// @nodoc
+abstract mixin class _$GuideErrorPointCopyWith<$Res>
+    implements $GuideErrorPointCopyWith<$Res> {
+  factory _$GuideErrorPointCopyWith(
+          _GuideErrorPoint value, $Res Function(_GuideErrorPoint) _then) =
+      __$GuideErrorPointCopyWithImpl;
   @override
-
-  /// RA error in arcseconds
-  double get raError;
-  @override
-
-  /// Dec error in arcseconds
-  double get decError;
-  @override
-
-  /// Timestamp when this error was recorded
-  DateTime get timestamp;
-  @override
-  @JsonKey(ignore: true)
-  _$$GuideErrorPointImplCopyWith<_$GuideErrorPointImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  @useResult
+  $Res call({double raError, double decError, DateTime timestamp});
 }
 
-Phd2GuideStats _$Phd2GuideStatsFromJson(Map<String, dynamic> json) {
-  return _Phd2GuideStats.fromJson(json);
+/// @nodoc
+class __$GuideErrorPointCopyWithImpl<$Res>
+    implements _$GuideErrorPointCopyWith<$Res> {
+  __$GuideErrorPointCopyWithImpl(this._self, this._then);
+
+  final _GuideErrorPoint _self;
+  final $Res Function(_GuideErrorPoint) _then;
+
+  /// Create a copy of GuideErrorPoint
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? raError = null,
+    Object? decError = null,
+    Object? timestamp = null,
+  }) {
+    return _then(_GuideErrorPoint(
+      raError: null == raError
+          ? _self.raError
+          : raError // ignore: cast_nullable_to_non_nullable
+              as double,
+      decError: null == decError
+          ? _self.decError
+          : decError // ignore: cast_nullable_to_non_nullable
+              as double,
+      timestamp: null == timestamp
+          ? _self.timestamp
+          : timestamp // ignore: cast_nullable_to_non_nullable
+              as DateTime,
+    ));
+  }
 }
 
 /// @nodoc
 mixin _$Phd2GuideStats {
   /// RMS error in RA (arcseconds)
-  double get rmsRa => throw _privateConstructorUsedError;
+  double get rmsRa;
 
   /// RMS error in Dec (arcseconds)
-  double get rmsDec => throw _privateConstructorUsedError;
+  double get rmsDec;
 
   /// Total RMS error (arcseconds)
-  double get rmsTotal => throw _privateConstructorUsedError;
+  double get rmsTotal;
 
   /// Peak RA error (arcseconds)
-  double get peakRa => throw _privateConstructorUsedError;
+  double get peakRa;
 
   /// Peak Dec error (arcseconds)
-  double get peakDec => throw _privateConstructorUsedError;
+  double get peakDec;
 
   /// SNR of guide star
-  double get snr => throw _privateConstructorUsedError;
+  double get snr;
 
   /// Star mass (brightness)
-  double get starMass => throw _privateConstructorUsedError;
+  double get starMass;
 
   /// HFD (Half Flux Diameter)
-  double get hfd => throw _privateConstructorUsedError;
+  double get hfd;
 
   /// Guide star X position
-  double get starX => throw _privateConstructorUsedError;
+  double get starX;
 
   /// Guide star Y position
-  double get starY => throw _privateConstructorUsedError;
+  double get starY;
 
   /// Pixel scale (arcsec/pixel)
-  double get pixelScale => throw _privateConstructorUsedError;
+  double get pixelScale;
 
   /// Number of guide frames
-  int get frameCount => throw _privateConstructorUsedError;
+  int get frameCount;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $Phd2GuideStatsCopyWith<Phd2GuideStats> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $Phd2GuideStatsCopyWith<$Res> {
-  factory $Phd2GuideStatsCopyWith(
-          Phd2GuideStats value, $Res Function(Phd2GuideStats) then) =
-      _$Phd2GuideStatsCopyWithImpl<$Res, Phd2GuideStats>;
-  @useResult
-  $Res call(
-      {double rmsRa,
-      double rmsDec,
-      double rmsTotal,
-      double peakRa,
-      double peakDec,
-      double snr,
-      double starMass,
-      double hfd,
-      double starX,
-      double starY,
-      double pixelScale,
-      int frameCount});
-}
-
-/// @nodoc
-class _$Phd2GuideStatsCopyWithImpl<$Res, $Val extends Phd2GuideStats>
-    implements $Phd2GuideStatsCopyWith<$Res> {
-  _$Phd2GuideStatsCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of Phd2GuideStats
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $Phd2GuideStatsCopyWith<Phd2GuideStats> get copyWith =>
+      _$Phd2GuideStatsCopyWithImpl<Phd2GuideStats>(
+          this as Phd2GuideStats, _$identity);
+
+  /// Serializes this Phd2GuideStats to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? rmsRa = null,
-    Object? rmsDec = null,
-    Object? rmsTotal = null,
-    Object? peakRa = null,
-    Object? peakDec = null,
-    Object? snr = null,
-    Object? starMass = null,
-    Object? hfd = null,
-    Object? starX = null,
-    Object? starY = null,
-    Object? pixelScale = null,
-    Object? frameCount = null,
-  }) {
-    return _then(_value.copyWith(
-      rmsRa: null == rmsRa
-          ? _value.rmsRa
-          : rmsRa // ignore: cast_nullable_to_non_nullable
-              as double,
-      rmsDec: null == rmsDec
-          ? _value.rmsDec
-          : rmsDec // ignore: cast_nullable_to_non_nullable
-              as double,
-      rmsTotal: null == rmsTotal
-          ? _value.rmsTotal
-          : rmsTotal // ignore: cast_nullable_to_non_nullable
-              as double,
-      peakRa: null == peakRa
-          ? _value.peakRa
-          : peakRa // ignore: cast_nullable_to_non_nullable
-              as double,
-      peakDec: null == peakDec
-          ? _value.peakDec
-          : peakDec // ignore: cast_nullable_to_non_nullable
-              as double,
-      snr: null == snr
-          ? _value.snr
-          : snr // ignore: cast_nullable_to_non_nullable
-              as double,
-      starMass: null == starMass
-          ? _value.starMass
-          : starMass // ignore: cast_nullable_to_non_nullable
-              as double,
-      hfd: null == hfd
-          ? _value.hfd
-          : hfd // ignore: cast_nullable_to_non_nullable
-              as double,
-      starX: null == starX
-          ? _value.starX
-          : starX // ignore: cast_nullable_to_non_nullable
-              as double,
-      starY: null == starY
-          ? _value.starY
-          : starY // ignore: cast_nullable_to_non_nullable
-              as double,
-      pixelScale: null == pixelScale
-          ? _value.pixelScale
-          : pixelScale // ignore: cast_nullable_to_non_nullable
-              as double,
-      frameCount: null == frameCount
-          ? _value.frameCount
-          : frameCount // ignore: cast_nullable_to_non_nullable
-              as int,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is Phd2GuideStats &&
+            (identical(other.rmsRa, rmsRa) || other.rmsRa == rmsRa) &&
+            (identical(other.rmsDec, rmsDec) || other.rmsDec == rmsDec) &&
+            (identical(other.rmsTotal, rmsTotal) ||
+                other.rmsTotal == rmsTotal) &&
+            (identical(other.peakRa, peakRa) || other.peakRa == peakRa) &&
+            (identical(other.peakDec, peakDec) || other.peakDec == peakDec) &&
+            (identical(other.snr, snr) || other.snr == snr) &&
+            (identical(other.starMass, starMass) ||
+                other.starMass == starMass) &&
+            (identical(other.hfd, hfd) || other.hfd == hfd) &&
+            (identical(other.starX, starX) || other.starX == starX) &&
+            (identical(other.starY, starY) || other.starY == starY) &&
+            (identical(other.pixelScale, pixelScale) ||
+                other.pixelScale == pixelScale) &&
+            (identical(other.frameCount, frameCount) ||
+                other.frameCount == frameCount));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, rmsRa, rmsDec, rmsTotal, peakRa,
+      peakDec, snr, starMass, hfd, starX, starY, pixelScale, frameCount);
+
+  @override
+  String toString() {
+    return 'Phd2GuideStats(rmsRa: $rmsRa, rmsDec: $rmsDec, rmsTotal: $rmsTotal, peakRa: $peakRa, peakDec: $peakDec, snr: $snr, starMass: $starMass, hfd: $hfd, starX: $starX, starY: $starY, pixelScale: $pixelScale, frameCount: $frameCount)';
   }
 }
 
 /// @nodoc
-abstract class _$$Phd2GuideStatsImplCopyWith<$Res>
-    implements $Phd2GuideStatsCopyWith<$Res> {
-  factory _$$Phd2GuideStatsImplCopyWith(_$Phd2GuideStatsImpl value,
-          $Res Function(_$Phd2GuideStatsImpl) then) =
-      __$$Phd2GuideStatsImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $Phd2GuideStatsCopyWith<$Res> {
+  factory $Phd2GuideStatsCopyWith(
+          Phd2GuideStats value, $Res Function(Phd2GuideStats) _then) =
+      _$Phd2GuideStatsCopyWithImpl;
   @useResult
   $Res call(
       {double rmsRa,
@@ -1086,13 +1647,15 @@ abstract class _$$Phd2GuideStatsImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$Phd2GuideStatsImplCopyWithImpl<$Res>
-    extends _$Phd2GuideStatsCopyWithImpl<$Res, _$Phd2GuideStatsImpl>
-    implements _$$Phd2GuideStatsImplCopyWith<$Res> {
-  __$$Phd2GuideStatsImplCopyWithImpl(
-      _$Phd2GuideStatsImpl _value, $Res Function(_$Phd2GuideStatsImpl) _then)
-      : super(_value, _then);
+class _$Phd2GuideStatsCopyWithImpl<$Res>
+    implements $Phd2GuideStatsCopyWith<$Res> {
+  _$Phd2GuideStatsCopyWithImpl(this._self, this._then);
 
+  final Phd2GuideStats _self;
+  final $Res Function(Phd2GuideStats) _then;
+
+  /// Create a copy of Phd2GuideStats
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -1109,63 +1672,295 @@ class __$$Phd2GuideStatsImplCopyWithImpl<$Res>
     Object? pixelScale = null,
     Object? frameCount = null,
   }) {
-    return _then(_$Phd2GuideStatsImpl(
+    return _then(_self.copyWith(
       rmsRa: null == rmsRa
-          ? _value.rmsRa
+          ? _self.rmsRa
           : rmsRa // ignore: cast_nullable_to_non_nullable
               as double,
       rmsDec: null == rmsDec
-          ? _value.rmsDec
+          ? _self.rmsDec
           : rmsDec // ignore: cast_nullable_to_non_nullable
               as double,
       rmsTotal: null == rmsTotal
-          ? _value.rmsTotal
+          ? _self.rmsTotal
           : rmsTotal // ignore: cast_nullable_to_non_nullable
               as double,
       peakRa: null == peakRa
-          ? _value.peakRa
+          ? _self.peakRa
           : peakRa // ignore: cast_nullable_to_non_nullable
               as double,
       peakDec: null == peakDec
-          ? _value.peakDec
+          ? _self.peakDec
           : peakDec // ignore: cast_nullable_to_non_nullable
               as double,
       snr: null == snr
-          ? _value.snr
+          ? _self.snr
           : snr // ignore: cast_nullable_to_non_nullable
               as double,
       starMass: null == starMass
-          ? _value.starMass
+          ? _self.starMass
           : starMass // ignore: cast_nullable_to_non_nullable
               as double,
       hfd: null == hfd
-          ? _value.hfd
+          ? _self.hfd
           : hfd // ignore: cast_nullable_to_non_nullable
               as double,
       starX: null == starX
-          ? _value.starX
+          ? _self.starX
           : starX // ignore: cast_nullable_to_non_nullable
               as double,
       starY: null == starY
-          ? _value.starY
+          ? _self.starY
           : starY // ignore: cast_nullable_to_non_nullable
               as double,
       pixelScale: null == pixelScale
-          ? _value.pixelScale
+          ? _self.pixelScale
           : pixelScale // ignore: cast_nullable_to_non_nullable
               as double,
       frameCount: null == frameCount
-          ? _value.frameCount
+          ? _self.frameCount
           : frameCount // ignore: cast_nullable_to_non_nullable
               as int,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [Phd2GuideStats].
+extension Phd2GuideStatsPatterns on Phd2GuideStats {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_Phd2GuideStats value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2GuideStats() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_Phd2GuideStats value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2GuideStats():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_Phd2GuideStats value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2GuideStats() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            double rmsRa,
+            double rmsDec,
+            double rmsTotal,
+            double peakRa,
+            double peakDec,
+            double snr,
+            double starMass,
+            double hfd,
+            double starX,
+            double starY,
+            double pixelScale,
+            int frameCount)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2GuideStats() when $default != null:
+        return $default(
+            _that.rmsRa,
+            _that.rmsDec,
+            _that.rmsTotal,
+            _that.peakRa,
+            _that.peakDec,
+            _that.snr,
+            _that.starMass,
+            _that.hfd,
+            _that.starX,
+            _that.starY,
+            _that.pixelScale,
+            _that.frameCount);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            double rmsRa,
+            double rmsDec,
+            double rmsTotal,
+            double peakRa,
+            double peakDec,
+            double snr,
+            double starMass,
+            double hfd,
+            double starX,
+            double starY,
+            double pixelScale,
+            int frameCount)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2GuideStats():
+        return $default(
+            _that.rmsRa,
+            _that.rmsDec,
+            _that.rmsTotal,
+            _that.peakRa,
+            _that.peakDec,
+            _that.snr,
+            _that.starMass,
+            _that.hfd,
+            _that.starX,
+            _that.starY,
+            _that.pixelScale,
+            _that.frameCount);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            double rmsRa,
+            double rmsDec,
+            double rmsTotal,
+            double peakRa,
+            double peakDec,
+            double snr,
+            double starMass,
+            double hfd,
+            double starX,
+            double starY,
+            double pixelScale,
+            int frameCount)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2GuideStats() when $default != null:
+        return $default(
+            _that.rmsRa,
+            _that.rmsDec,
+            _that.rmsTotal,
+            _that.peakRa,
+            _that.peakDec,
+            _that.snr,
+            _that.starMass,
+            _that.hfd,
+            _that.starX,
+            _that.starY,
+            _that.pixelScale,
+            _that.frameCount);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$Phd2GuideStatsImpl implements _Phd2GuideStats {
-  const _$Phd2GuideStatsImpl(
+class _Phd2GuideStats implements Phd2GuideStats {
+  const _Phd2GuideStats(
       {this.rmsRa = 0.0,
       this.rmsDec = 0.0,
       this.rmsTotal = 0.0,
@@ -1178,9 +1973,8 @@ class _$Phd2GuideStatsImpl implements _Phd2GuideStats {
       this.starY = 0.0,
       this.pixelScale = 0.0,
       this.frameCount = 0});
-
-  factory _$Phd2GuideStatsImpl.fromJson(Map<String, dynamic> json) =>
-      _$$Phd2GuideStatsImplFromJson(json);
+  factory _Phd2GuideStats.fromJson(Map<String, dynamic> json) =>
+      _$Phd2GuideStatsFromJson(json);
 
   /// RMS error in RA (arcseconds)
   @override
@@ -1242,16 +2036,26 @@ class _$Phd2GuideStatsImpl implements _Phd2GuideStats {
   @JsonKey()
   final int frameCount;
 
+  /// Create a copy of Phd2GuideStats
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'Phd2GuideStats(rmsRa: $rmsRa, rmsDec: $rmsDec, rmsTotal: $rmsTotal, peakRa: $peakRa, peakDec: $peakDec, snr: $snr, starMass: $starMass, hfd: $hfd, starX: $starX, starY: $starY, pixelScale: $pixelScale, frameCount: $frameCount)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$Phd2GuideStatsCopyWith<_Phd2GuideStats> get copyWith =>
+      __$Phd2GuideStatsCopyWithImpl<_Phd2GuideStats>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$Phd2GuideStatsToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$Phd2GuideStatsImpl &&
+            other is _Phd2GuideStats &&
             (identical(other.rmsRa, rmsRa) || other.rmsRa == rmsRa) &&
             (identical(other.rmsDec, rmsDec) || other.rmsDec == rmsDec) &&
             (identical(other.rmsTotal, rmsTotal) ||
@@ -1270,199 +2074,183 @@ class _$Phd2GuideStatsImpl implements _Phd2GuideStats {
                 other.frameCount == frameCount));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(runtimeType, rmsRa, rmsDec, rmsTotal, peakRa,
       peakDec, snr, starMass, hfd, starX, starY, pixelScale, frameCount);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$Phd2GuideStatsImplCopyWith<_$Phd2GuideStatsImpl> get copyWith =>
-      __$$Phd2GuideStatsImplCopyWithImpl<_$Phd2GuideStatsImpl>(
-          this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$Phd2GuideStatsImplToJson(
-      this,
-    );
+  String toString() {
+    return 'Phd2GuideStats(rmsRa: $rmsRa, rmsDec: $rmsDec, rmsTotal: $rmsTotal, peakRa: $peakRa, peakDec: $peakDec, snr: $snr, starMass: $starMass, hfd: $hfd, starX: $starX, starY: $starY, pixelScale: $pixelScale, frameCount: $frameCount)';
   }
 }
 
-abstract class _Phd2GuideStats implements Phd2GuideStats {
-  const factory _Phd2GuideStats(
-      {final double rmsRa,
-      final double rmsDec,
-      final double rmsTotal,
-      final double peakRa,
-      final double peakDec,
-      final double snr,
-      final double starMass,
-      final double hfd,
-      final double starX,
-      final double starY,
-      final double pixelScale,
-      final int frameCount}) = _$Phd2GuideStatsImpl;
-
-  factory _Phd2GuideStats.fromJson(Map<String, dynamic> json) =
-      _$Phd2GuideStatsImpl.fromJson;
-
+/// @nodoc
+abstract mixin class _$Phd2GuideStatsCopyWith<$Res>
+    implements $Phd2GuideStatsCopyWith<$Res> {
+  factory _$Phd2GuideStatsCopyWith(
+          _Phd2GuideStats value, $Res Function(_Phd2GuideStats) _then) =
+      __$Phd2GuideStatsCopyWithImpl;
   @override
-
-  /// RMS error in RA (arcseconds)
-  double get rmsRa;
-  @override
-
-  /// RMS error in Dec (arcseconds)
-  double get rmsDec;
-  @override
-
-  /// Total RMS error (arcseconds)
-  double get rmsTotal;
-  @override
-
-  /// Peak RA error (arcseconds)
-  double get peakRa;
-  @override
-
-  /// Peak Dec error (arcseconds)
-  double get peakDec;
-  @override
-
-  /// SNR of guide star
-  double get snr;
-  @override
-
-  /// Star mass (brightness)
-  double get starMass;
-  @override
-
-  /// HFD (Half Flux Diameter)
-  double get hfd;
-  @override
-
-  /// Guide star X position
-  double get starX;
-  @override
-
-  /// Guide star Y position
-  double get starY;
-  @override
-
-  /// Pixel scale (arcsec/pixel)
-  double get pixelScale;
-  @override
-
-  /// Number of guide frames
-  int get frameCount;
-  @override
-  @JsonKey(ignore: true)
-  _$$Phd2GuideStatsImplCopyWith<_$Phd2GuideStatsImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  @useResult
+  $Res call(
+      {double rmsRa,
+      double rmsDec,
+      double rmsTotal,
+      double peakRa,
+      double peakDec,
+      double snr,
+      double starMass,
+      double hfd,
+      double starX,
+      double starY,
+      double pixelScale,
+      int frameCount});
 }
 
-Phd2CalibrationData _$Phd2CalibrationDataFromJson(Map<String, dynamic> json) {
-  return _Phd2CalibrationData.fromJson(json);
+/// @nodoc
+class __$Phd2GuideStatsCopyWithImpl<$Res>
+    implements _$Phd2GuideStatsCopyWith<$Res> {
+  __$Phd2GuideStatsCopyWithImpl(this._self, this._then);
+
+  final _Phd2GuideStats _self;
+  final $Res Function(_Phd2GuideStats) _then;
+
+  /// Create a copy of Phd2GuideStats
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? rmsRa = null,
+    Object? rmsDec = null,
+    Object? rmsTotal = null,
+    Object? peakRa = null,
+    Object? peakDec = null,
+    Object? snr = null,
+    Object? starMass = null,
+    Object? hfd = null,
+    Object? starX = null,
+    Object? starY = null,
+    Object? pixelScale = null,
+    Object? frameCount = null,
+  }) {
+    return _then(_Phd2GuideStats(
+      rmsRa: null == rmsRa
+          ? _self.rmsRa
+          : rmsRa // ignore: cast_nullable_to_non_nullable
+              as double,
+      rmsDec: null == rmsDec
+          ? _self.rmsDec
+          : rmsDec // ignore: cast_nullable_to_non_nullable
+              as double,
+      rmsTotal: null == rmsTotal
+          ? _self.rmsTotal
+          : rmsTotal // ignore: cast_nullable_to_non_nullable
+              as double,
+      peakRa: null == peakRa
+          ? _self.peakRa
+          : peakRa // ignore: cast_nullable_to_non_nullable
+              as double,
+      peakDec: null == peakDec
+          ? _self.peakDec
+          : peakDec // ignore: cast_nullable_to_non_nullable
+              as double,
+      snr: null == snr
+          ? _self.snr
+          : snr // ignore: cast_nullable_to_non_nullable
+              as double,
+      starMass: null == starMass
+          ? _self.starMass
+          : starMass // ignore: cast_nullable_to_non_nullable
+              as double,
+      hfd: null == hfd
+          ? _self.hfd
+          : hfd // ignore: cast_nullable_to_non_nullable
+              as double,
+      starX: null == starX
+          ? _self.starX
+          : starX // ignore: cast_nullable_to_non_nullable
+              as double,
+      starY: null == starY
+          ? _self.starY
+          : starY // ignore: cast_nullable_to_non_nullable
+              as double,
+      pixelScale: null == pixelScale
+          ? _self.pixelScale
+          : pixelScale // ignore: cast_nullable_to_non_nullable
+              as double,
+      frameCount: null == frameCount
+          ? _self.frameCount
+          : frameCount // ignore: cast_nullable_to_non_nullable
+              as int,
+    ));
+  }
 }
 
 /// @nodoc
 mixin _$Phd2CalibrationData {
   /// Whether calibration is complete
-  bool get isCalibrated => throw _privateConstructorUsedError;
+  bool get isCalibrated;
 
   /// Calibration timestamp
-  DateTime? get calibratedAt => throw _privateConstructorUsedError;
+  DateTime? get calibratedAt;
 
   /// RA calibration rate (pixels/ms)
-  double? get raRate => throw _privateConstructorUsedError;
+  double? get raRate;
 
   /// Dec calibration rate (pixels/ms)
-  double? get decRate => throw _privateConstructorUsedError;
+  double? get decRate;
 
   /// Camera rotation angle (degrees)
-  double? get rotationAngle => throw _privateConstructorUsedError;
+  double? get rotationAngle;
 
   /// Dec guide mode ("Auto", "North", "South", "Off")
-  String? get decGuideMode => throw _privateConstructorUsedError;
+  String? get decGuideMode;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $Phd2CalibrationDataCopyWith<Phd2CalibrationData> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $Phd2CalibrationDataCopyWith<$Res> {
-  factory $Phd2CalibrationDataCopyWith(
-          Phd2CalibrationData value, $Res Function(Phd2CalibrationData) then) =
-      _$Phd2CalibrationDataCopyWithImpl<$Res, Phd2CalibrationData>;
-  @useResult
-  $Res call(
-      {bool isCalibrated,
-      DateTime? calibratedAt,
-      double? raRate,
-      double? decRate,
-      double? rotationAngle,
-      String? decGuideMode});
-}
-
-/// @nodoc
-class _$Phd2CalibrationDataCopyWithImpl<$Res, $Val extends Phd2CalibrationData>
-    implements $Phd2CalibrationDataCopyWith<$Res> {
-  _$Phd2CalibrationDataCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of Phd2CalibrationData
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $Phd2CalibrationDataCopyWith<Phd2CalibrationData> get copyWith =>
+      _$Phd2CalibrationDataCopyWithImpl<Phd2CalibrationData>(
+          this as Phd2CalibrationData, _$identity);
+
+  /// Serializes this Phd2CalibrationData to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? isCalibrated = null,
-    Object? calibratedAt = freezed,
-    Object? raRate = freezed,
-    Object? decRate = freezed,
-    Object? rotationAngle = freezed,
-    Object? decGuideMode = freezed,
-  }) {
-    return _then(_value.copyWith(
-      isCalibrated: null == isCalibrated
-          ? _value.isCalibrated
-          : isCalibrated // ignore: cast_nullable_to_non_nullable
-              as bool,
-      calibratedAt: freezed == calibratedAt
-          ? _value.calibratedAt
-          : calibratedAt // ignore: cast_nullable_to_non_nullable
-              as DateTime?,
-      raRate: freezed == raRate
-          ? _value.raRate
-          : raRate // ignore: cast_nullable_to_non_nullable
-              as double?,
-      decRate: freezed == decRate
-          ? _value.decRate
-          : decRate // ignore: cast_nullable_to_non_nullable
-              as double?,
-      rotationAngle: freezed == rotationAngle
-          ? _value.rotationAngle
-          : rotationAngle // ignore: cast_nullable_to_non_nullable
-              as double?,
-      decGuideMode: freezed == decGuideMode
-          ? _value.decGuideMode
-          : decGuideMode // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is Phd2CalibrationData &&
+            (identical(other.isCalibrated, isCalibrated) ||
+                other.isCalibrated == isCalibrated) &&
+            (identical(other.calibratedAt, calibratedAt) ||
+                other.calibratedAt == calibratedAt) &&
+            (identical(other.raRate, raRate) || other.raRate == raRate) &&
+            (identical(other.decRate, decRate) || other.decRate == decRate) &&
+            (identical(other.rotationAngle, rotationAngle) ||
+                other.rotationAngle == rotationAngle) &&
+            (identical(other.decGuideMode, decGuideMode) ||
+                other.decGuideMode == decGuideMode));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, isCalibrated, calibratedAt,
+      raRate, decRate, rotationAngle, decGuideMode);
+
+  @override
+  String toString() {
+    return 'Phd2CalibrationData(isCalibrated: $isCalibrated, calibratedAt: $calibratedAt, raRate: $raRate, decRate: $decRate, rotationAngle: $rotationAngle, decGuideMode: $decGuideMode)';
   }
 }
 
 /// @nodoc
-abstract class _$$Phd2CalibrationDataImplCopyWith<$Res>
-    implements $Phd2CalibrationDataCopyWith<$Res> {
-  factory _$$Phd2CalibrationDataImplCopyWith(_$Phd2CalibrationDataImpl value,
-          $Res Function(_$Phd2CalibrationDataImpl) then) =
-      __$$Phd2CalibrationDataImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $Phd2CalibrationDataCopyWith<$Res> {
+  factory $Phd2CalibrationDataCopyWith(
+          Phd2CalibrationData value, $Res Function(Phd2CalibrationData) _then) =
+      _$Phd2CalibrationDataCopyWithImpl;
   @useResult
   $Res call(
       {bool isCalibrated,
@@ -1474,13 +2262,15 @@ abstract class _$$Phd2CalibrationDataImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$Phd2CalibrationDataImplCopyWithImpl<$Res>
-    extends _$Phd2CalibrationDataCopyWithImpl<$Res, _$Phd2CalibrationDataImpl>
-    implements _$$Phd2CalibrationDataImplCopyWith<$Res> {
-  __$$Phd2CalibrationDataImplCopyWithImpl(_$Phd2CalibrationDataImpl _value,
-      $Res Function(_$Phd2CalibrationDataImpl) _then)
-      : super(_value, _then);
+class _$Phd2CalibrationDataCopyWithImpl<$Res>
+    implements $Phd2CalibrationDataCopyWith<$Res> {
+  _$Phd2CalibrationDataCopyWithImpl(this._self, this._then);
 
+  final Phd2CalibrationData _self;
+  final $Res Function(Phd2CalibrationData) _then;
+
+  /// Create a copy of Phd2CalibrationData
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -1491,48 +2281,213 @@ class __$$Phd2CalibrationDataImplCopyWithImpl<$Res>
     Object? rotationAngle = freezed,
     Object? decGuideMode = freezed,
   }) {
-    return _then(_$Phd2CalibrationDataImpl(
+    return _then(_self.copyWith(
       isCalibrated: null == isCalibrated
-          ? _value.isCalibrated
+          ? _self.isCalibrated
           : isCalibrated // ignore: cast_nullable_to_non_nullable
               as bool,
       calibratedAt: freezed == calibratedAt
-          ? _value.calibratedAt
+          ? _self.calibratedAt
           : calibratedAt // ignore: cast_nullable_to_non_nullable
               as DateTime?,
       raRate: freezed == raRate
-          ? _value.raRate
+          ? _self.raRate
           : raRate // ignore: cast_nullable_to_non_nullable
               as double?,
       decRate: freezed == decRate
-          ? _value.decRate
+          ? _self.decRate
           : decRate // ignore: cast_nullable_to_non_nullable
               as double?,
       rotationAngle: freezed == rotationAngle
-          ? _value.rotationAngle
+          ? _self.rotationAngle
           : rotationAngle // ignore: cast_nullable_to_non_nullable
               as double?,
       decGuideMode: freezed == decGuideMode
-          ? _value.decGuideMode
+          ? _self.decGuideMode
           : decGuideMode // ignore: cast_nullable_to_non_nullable
               as String?,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [Phd2CalibrationData].
+extension Phd2CalibrationDataPatterns on Phd2CalibrationData {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_Phd2CalibrationData value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2CalibrationData() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_Phd2CalibrationData value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2CalibrationData():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_Phd2CalibrationData value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2CalibrationData() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(bool isCalibrated, DateTime? calibratedAt, double? raRate,
+            double? decRate, double? rotationAngle, String? decGuideMode)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2CalibrationData() when $default != null:
+        return $default(_that.isCalibrated, _that.calibratedAt, _that.raRate,
+            _that.decRate, _that.rotationAngle, _that.decGuideMode);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(bool isCalibrated, DateTime? calibratedAt, double? raRate,
+            double? decRate, double? rotationAngle, String? decGuideMode)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2CalibrationData():
+        return $default(_that.isCalibrated, _that.calibratedAt, _that.raRate,
+            _that.decRate, _that.rotationAngle, _that.decGuideMode);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(bool isCalibrated, DateTime? calibratedAt, double? raRate,
+            double? decRate, double? rotationAngle, String? decGuideMode)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Phd2CalibrationData() when $default != null:
+        return $default(_that.isCalibrated, _that.calibratedAt, _that.raRate,
+            _that.decRate, _that.rotationAngle, _that.decGuideMode);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 @JsonSerializable()
-class _$Phd2CalibrationDataImpl implements _Phd2CalibrationData {
-  const _$Phd2CalibrationDataImpl(
+class _Phd2CalibrationData implements Phd2CalibrationData {
+  const _Phd2CalibrationData(
       {this.isCalibrated = false,
       this.calibratedAt,
       this.raRate,
       this.decRate,
       this.rotationAngle,
       this.decGuideMode});
-
-  factory _$Phd2CalibrationDataImpl.fromJson(Map<String, dynamic> json) =>
-      _$$Phd2CalibrationDataImplFromJson(json);
+  factory _Phd2CalibrationData.fromJson(Map<String, dynamic> json) =>
+      _$Phd2CalibrationDataFromJson(json);
 
   /// Whether calibration is complete
   @override
@@ -1559,16 +2514,27 @@ class _$Phd2CalibrationDataImpl implements _Phd2CalibrationData {
   @override
   final String? decGuideMode;
 
+  /// Create a copy of Phd2CalibrationData
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'Phd2CalibrationData(isCalibrated: $isCalibrated, calibratedAt: $calibratedAt, raRate: $raRate, decRate: $decRate, rotationAngle: $rotationAngle, decGuideMode: $decGuideMode)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$Phd2CalibrationDataCopyWith<_Phd2CalibrationData> get copyWith =>
+      __$Phd2CalibrationDataCopyWithImpl<_Phd2CalibrationData>(
+          this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$Phd2CalibrationDataToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$Phd2CalibrationDataImpl &&
+            other is _Phd2CalibrationData &&
             (identical(other.isCalibrated, isCalibrated) ||
                 other.isCalibrated == isCalibrated) &&
             (identical(other.calibratedAt, calibratedAt) ||
@@ -1581,64 +2547,81 @@ class _$Phd2CalibrationDataImpl implements _Phd2CalibrationData {
                 other.decGuideMode == decGuideMode));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(runtimeType, isCalibrated, calibratedAt,
       raRate, decRate, rotationAngle, decGuideMode);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$Phd2CalibrationDataImplCopyWith<_$Phd2CalibrationDataImpl> get copyWith =>
-      __$$Phd2CalibrationDataImplCopyWithImpl<_$Phd2CalibrationDataImpl>(
-          this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$Phd2CalibrationDataImplToJson(
-      this,
-    );
+  String toString() {
+    return 'Phd2CalibrationData(isCalibrated: $isCalibrated, calibratedAt: $calibratedAt, raRate: $raRate, decRate: $decRate, rotationAngle: $rotationAngle, decGuideMode: $decGuideMode)';
   }
 }
 
-abstract class _Phd2CalibrationData implements Phd2CalibrationData {
-  const factory _Phd2CalibrationData(
-      {final bool isCalibrated,
-      final DateTime? calibratedAt,
-      final double? raRate,
-      final double? decRate,
-      final double? rotationAngle,
-      final String? decGuideMode}) = _$Phd2CalibrationDataImpl;
-
-  factory _Phd2CalibrationData.fromJson(Map<String, dynamic> json) =
-      _$Phd2CalibrationDataImpl.fromJson;
-
+/// @nodoc
+abstract mixin class _$Phd2CalibrationDataCopyWith<$Res>
+    implements $Phd2CalibrationDataCopyWith<$Res> {
+  factory _$Phd2CalibrationDataCopyWith(_Phd2CalibrationData value,
+          $Res Function(_Phd2CalibrationData) _then) =
+      __$Phd2CalibrationDataCopyWithImpl;
   @override
-
-  /// Whether calibration is complete
-  bool get isCalibrated;
-  @override
-
-  /// Calibration timestamp
-  DateTime? get calibratedAt;
-  @override
-
-  /// RA calibration rate (pixels/ms)
-  double? get raRate;
-  @override
-
-  /// Dec calibration rate (pixels/ms)
-  double? get decRate;
-  @override
-
-  /// Camera rotation angle (degrees)
-  double? get rotationAngle;
-  @override
-
-  /// Dec guide mode ("Auto", "North", "South", "Off")
-  String? get decGuideMode;
-  @override
-  @JsonKey(ignore: true)
-  _$$Phd2CalibrationDataImplCopyWith<_$Phd2CalibrationDataImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  @useResult
+  $Res call(
+      {bool isCalibrated,
+      DateTime? calibratedAt,
+      double? raRate,
+      double? decRate,
+      double? rotationAngle,
+      String? decGuideMode});
 }
+
+/// @nodoc
+class __$Phd2CalibrationDataCopyWithImpl<$Res>
+    implements _$Phd2CalibrationDataCopyWith<$Res> {
+  __$Phd2CalibrationDataCopyWithImpl(this._self, this._then);
+
+  final _Phd2CalibrationData _self;
+  final $Res Function(_Phd2CalibrationData) _then;
+
+  /// Create a copy of Phd2CalibrationData
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? isCalibrated = null,
+    Object? calibratedAt = freezed,
+    Object? raRate = freezed,
+    Object? decRate = freezed,
+    Object? rotationAngle = freezed,
+    Object? decGuideMode = freezed,
+  }) {
+    return _then(_Phd2CalibrationData(
+      isCalibrated: null == isCalibrated
+          ? _self.isCalibrated
+          : isCalibrated // ignore: cast_nullable_to_non_nullable
+              as bool,
+      calibratedAt: freezed == calibratedAt
+          ? _self.calibratedAt
+          : calibratedAt // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      raRate: freezed == raRate
+          ? _self.raRate
+          : raRate // ignore: cast_nullable_to_non_nullable
+              as double?,
+      decRate: freezed == decRate
+          ? _self.decRate
+          : decRate // ignore: cast_nullable_to_non_nullable
+              as double?,
+      rotationAngle: freezed == rotationAngle
+          ? _self.rotationAngle
+          : rotationAngle // ignore: cast_nullable_to_non_nullable
+              as double?,
+      decGuideMode: freezed == decGuideMode
+          ? _self.decGuideMode
+          : decGuideMode // ignore: cast_nullable_to_non_nullable
+              as String?,
+    ));
+  }
+}
+
+// dart format on

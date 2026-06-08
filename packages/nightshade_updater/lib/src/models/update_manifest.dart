@@ -5,7 +5,7 @@ part 'update_manifest.g.dart';
 
 /// Information about a single file in the update package
 @freezed
-class UpdateFileInfo with _$UpdateFileInfo {
+abstract class UpdateFileInfo with _$UpdateFileInfo {
   const factory UpdateFileInfo({
     required String path,
     required int size,
@@ -18,7 +18,7 @@ class UpdateFileInfo with _$UpdateFileInfo {
 
 /// Manifest for an update package
 @freezed
-class UpdateManifest with _$UpdateManifest {
+abstract class UpdateManifest with _$UpdateManifest {
   const UpdateManifest._();
 
   const factory UpdateManifest({
@@ -99,7 +99,7 @@ class UpdateManifest with _$UpdateManifest {
 
 /// Version info returned from update server
 @freezed
-class VersionInfo with _$VersionInfo {
+abstract class VersionInfo with _$VersionInfo {
   const factory VersionInfo({
     /// Latest stable version
     required String latestVersion,
@@ -123,7 +123,7 @@ class VersionInfo with _$VersionInfo {
 
 /// Channel information (stable, beta, etc.)
 @freezed
-class ChannelInfo with _$ChannelInfo {
+abstract class ChannelInfo with _$ChannelInfo {
   const factory ChannelInfo({
     required String version,
     required String manifestUrl,

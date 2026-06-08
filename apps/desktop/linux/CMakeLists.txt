@@ -42,6 +42,17 @@ endif()
 function(APPLY_STANDARD_SETTINGS TARGET)
   target_compile_features(${TARGET} PUBLIC cxx_std_14)
   target_compile_options(${TARGET} PRIVATE -Wall -Werror)
+  # Newer clang (e.g. clang 22 on Arch/CachyOS) flags pre-existing deprecated
+  # syntax in some third-party plugin headers (e.g. flutter_secure_storage_linux's
+  # vendored json.hpp uses `operator"" _json`) as an error under -Werror. These
+  # come from upstream plugins, not our code, and would otherwise break the build
+  # on bleeding-edge toolchains. Demote just these diagnostics back to warnings.
+  # Appended AFTER -Werror so the per-warning exemption wins.
+  if(CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    target_compile_options(${TARGET} PRIVATE
+      -Wno-error=deprecated-literal-operator
+      -Wno-error=deprecated-declarations)
+  endif()
   target_compile_options(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:-O3>")
   target_compile_definitions(${TARGET} PRIVATE "$<$<NOT:$<CONFIG:Debug>>:NDEBUG>")
 endfunction()

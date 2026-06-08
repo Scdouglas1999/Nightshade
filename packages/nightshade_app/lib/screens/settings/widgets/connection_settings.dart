@@ -521,19 +521,28 @@ class _DriverDetails extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final unsupportedReason =
-        driver.isAvailableOn(platform) ? null : driver.reasonFor(platform);
-    final detailText = unsupportedReason ?? driver.reasonFor(platform);
+        driver.isAvailableOn(platform) ? null : driver.unsupportedReason;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          detailText,
+          driver.notes,
           style: TextStyle(
             fontSize: isMobile ? NightshadeTypography.fontSize11 : NightshadeTypography.fontSize12,
             color: colors.textSecondary,
           ),
         ),
+        if (unsupportedReason != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            unsupportedReason,
+            style: TextStyle(
+              fontSize: isMobile ? NightshadeTypography.fontSize11 : NightshadeTypography.fontSize12,
+              color: colors.warning,
+            ),
+          ),
+        ],
         const SizedBox(height: 4),
         Text(
           driver.deviceCoverage,

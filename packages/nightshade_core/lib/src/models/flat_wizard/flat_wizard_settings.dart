@@ -5,7 +5,7 @@ part 'flat_wizard_settings.g.dart';
 
 /// Global settings for flat wizard
 @freezed
-class FlatWizardGlobalSettings with _$FlatWizardGlobalSettings {
+abstract class FlatWizardGlobalSettings with _$FlatWizardGlobalSettings {
   const factory FlatWizardGlobalSettings({
     /// Target histogram percentage (0-100), default 50%
     @Default(50.0) double histogramTarget,
@@ -58,7 +58,7 @@ class FlatWizardGlobalSettings with _$FlatWizardGlobalSettings {
 
 /// Per-filter settings override
 @freezed
-class FlatFilterSettings with _$FlatFilterSettings {
+abstract class FlatFilterSettings with _$FlatFilterSettings {
   const factory FlatFilterSettings({
     required String filterName,
 
@@ -115,7 +115,7 @@ enum FilterCalibrationStatus {
 
 /// Filter preset for quick selection
 @freezed
-class FlatFilterPreset with _$FlatFilterPreset {
+abstract class FlatFilterPreset with _$FlatFilterPreset {
   const factory FlatFilterPreset({
     required String name,
     required List<String> filterNames,

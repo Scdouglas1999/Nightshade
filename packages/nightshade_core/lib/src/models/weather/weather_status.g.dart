@@ -6,8 +6,8 @@ part of 'weather_status.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$WeatherStatusImpl _$$WeatherStatusImplFromJson(Map<String, dynamic> json) =>
-    _$WeatherStatusImpl(
+_WeatherStatus _$WeatherStatusFromJson(Map<String, dynamic> json) =>
+    _WeatherStatus(
       currentLevel:
           $enumDecodeNullable(_$AlertLevelEnumMap, json['currentLevel']) ??
               AlertLevel.clear,
@@ -27,7 +27,7 @@ _$WeatherStatusImpl _$$WeatherStatusImplFromJson(Map<String, dynamic> json) =>
       errorMessage: json['errorMessage'] as String?,
     );
 
-Map<String, dynamic> _$$WeatherStatusImplToJson(_$WeatherStatusImpl instance) =>
+Map<String, dynamic> _$WeatherStatusToJson(_WeatherStatus instance) =>
     <String, dynamic>{
       'currentLevel': _$AlertLevelEnumMap[instance.currentLevel]!,
       'activeAlert': instance.activeAlert,

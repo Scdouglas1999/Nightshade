@@ -125,7 +125,7 @@ class TargetVisibilityInfoConverter
 
 /// A suggested target with scoring and analysis information
 @freezed
-class TargetSuggestion with _$TargetSuggestion {
+abstract class TargetSuggestion with _$TargetSuggestion {
   const factory TargetSuggestion({
     /// Database target ID
     required int targetId,
@@ -186,7 +186,7 @@ class TargetSuggestion with _$TargetSuggestion {
 
 /// Configuration for target suggestion generation
 @freezed
-class TargetSuggestionConfig with _$TargetSuggestionConfig {
+abstract class TargetSuggestionConfig with _$TargetSuggestionConfig {
   const factory TargetSuggestionConfig({
     /// Minimum altitude in degrees for targets to be considered
     @Default(30.0) double minAltitude,

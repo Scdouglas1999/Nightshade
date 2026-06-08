@@ -49,7 +49,7 @@ enum BrightnessTier {
 /// Wave 8 — per-tier conditions-score floor preferences. Mirrors the
 /// Rust `BrightnessTierPreferences` struct.
 @Freezed(fromJson: true, toJson: true)
-class BrightnessTierPreferences with _$BrightnessTierPreferences {
+abstract class BrightnessTierPreferences with _$BrightnessTierPreferences {
   const BrightnessTierPreferences._();
 
   @JsonSerializable(fieldRename: FieldRename.snake)
@@ -79,7 +79,7 @@ class BrightnessTierPreferences with _$BrightnessTierPreferences {
 /// Wave 8 — per-axis weights applied when composing the live
 /// ConditionsScore. Mirrors the Rust `ConditionsScoreWeights` struct.
 @Freezed(fromJson: true, toJson: true)
-class ConditionsScoreWeights with _$ConditionsScoreWeights {
+abstract class ConditionsScoreWeights with _$ConditionsScoreWeights {
   const ConditionsScoreWeights._();
 
   @JsonSerializable(fieldRename: FieldRename.snake)
@@ -103,7 +103,7 @@ class ConditionsScoreWeights with _$ConditionsScoreWeights {
 /// Wave 8 — composite sky-conditions score (0..=100) pushed from Dart
 /// to the Rust executor. Mirrors `ConditionsScore`.
 @Freezed(fromJson: true, toJson: true)
-class ConditionsScore with _$ConditionsScore {
+abstract class ConditionsScore with _$ConditionsScore {
   const ConditionsScore._();
 
   // `explicitToJson: true` so the nested `weights` field is materialised
@@ -147,7 +147,7 @@ class ConditionsScore with _$ConditionsScore {
 /// Wave 8 — runtime adaptive-swap state pushed from Rust to the dashboard.
 /// Mirrors the Rust `AdaptiveSwapRuntimeState` struct.
 @Freezed(fromJson: true, toJson: true)
-class AdaptiveSwapRuntimeState with _$AdaptiveSwapRuntimeState {
+abstract class AdaptiveSwapRuntimeState with _$AdaptiveSwapRuntimeState {
   const AdaptiveSwapRuntimeState._();
 
   @JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)
@@ -188,7 +188,7 @@ class AdaptiveSwapRuntimeState with _$AdaptiveSwapRuntimeState {
 /// telemetry has been lost while a previous adaptive-swap decision is
 /// still on display, so the two fields are independent.
 @Freezed(fromJson: true, toJson: true)
-class AdaptiveSwapSnapshot with _$AdaptiveSwapSnapshot {
+abstract class AdaptiveSwapSnapshot with _$AdaptiveSwapSnapshot {
   // `explicitToJson: true` so the nested `score` and `state` fields are
   // serialised as `Map<String, dynamic>` rather than as raw freezed
   // instances. Phase 1's `to_json_nests_score_and_state` contract test

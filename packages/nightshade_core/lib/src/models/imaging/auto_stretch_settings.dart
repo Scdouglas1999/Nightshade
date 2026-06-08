@@ -44,7 +44,7 @@ enum AutoStretchMethod {
 /// details visible in linear camera data. The settings control how aggressively
 /// the stretch is applied and which algorithm is used.
 @freezed
-class AutoStretchSettings with _$AutoStretchSettings {
+abstract class AutoStretchSettings with _$AutoStretchSettings {
   const AutoStretchSettings._();
 
   const factory AutoStretchSettings({

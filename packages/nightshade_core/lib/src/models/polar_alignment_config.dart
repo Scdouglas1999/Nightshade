@@ -100,7 +100,7 @@ extension PolarAlignPhaseExtension on PolarAlignPhase {
 
 /// Configuration for polar alignment capture settings
 @freezed
-class PolarAlignmentConfig with _$PolarAlignmentConfig {
+abstract class PolarAlignmentConfig with _$PolarAlignmentConfig {
   const PolarAlignmentConfig._();
 
   const factory PolarAlignmentConfig({
@@ -209,7 +209,7 @@ class PolarAlignmentConfig with _$PolarAlignmentConfig {
 
 /// A single polar alignment error measurement
 @freezed
-class PolarAlignmentError with _$PolarAlignmentError {
+abstract class PolarAlignmentError with _$PolarAlignmentError {
   const PolarAlignmentError._();
 
   const factory PolarAlignmentError({
@@ -283,7 +283,7 @@ class PolarAlignmentError with _$PolarAlignmentError {
 
 /// Runtime state for polar alignment process
 @freezed
-class PolarAlignmentState with _$PolarAlignmentState {
+abstract class PolarAlignmentState with _$PolarAlignmentState {
   const PolarAlignmentState._();
 
   const factory PolarAlignmentState({
@@ -359,7 +359,7 @@ class PolarAlignmentState with _$PolarAlignmentState {
 
 /// Result of a completed polar alignment session
 @freezed
-class PolarAlignmentResult with _$PolarAlignmentResult {
+abstract class PolarAlignmentResult with _$PolarAlignmentResult {
   const PolarAlignmentResult._();
 
   const factory PolarAlignmentResult({

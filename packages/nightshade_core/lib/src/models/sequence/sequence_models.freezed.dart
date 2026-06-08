@@ -1,5 +1,5 @@
-// coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
+// coverage:ignore-file
 // ignore_for_file: type=lint
 // ignore_for_file: unused_element, deprecated_member_use, deprecated_member_use_from_same_package, use_function_type_syntax_for_parameters, unnecessary_const, avoid_init_to_null, invalid_override_different_default_values_named, prefer_expression_function_bodies, annotate_overrides, invalid_annotation_target, unnecessary_question_mark
 
@@ -9,164 +9,115 @@ part of 'sequence_models.dart';
 // FreezedGenerator
 // **************************************************************************
 
+// dart format off
 T _$identity<T>(T value) => value;
-
-final _privateConstructorUsedError = UnsupportedError(
-    'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
 
 /// @nodoc
 mixin _$SequenceOverheadConfig {
   /// Time for a slew operation (seconds)
-  double get slewSecs => throw _privateConstructorUsedError;
+  double get slewSecs;
 
   /// Time for an autofocus run (seconds)
-  double get autofocusSecs => throw _privateConstructorUsedError;
+  double get autofocusSecs;
 
   /// Time for a filter wheel change (seconds)
-  double get filterChangeSecs => throw _privateConstructorUsedError;
+  double get filterChangeSecs;
 
   /// Time for a dither + settle cycle (seconds)
-  double get ditherSecs => throw _privateConstructorUsedError;
+  double get ditherSecs;
 
   /// Time for a meridian flip including re-centering (seconds)
-  double get meridianFlipSecs => throw _privateConstructorUsedError;
+  double get meridianFlipSecs;
 
   /// Time for guide acquisition and settle (seconds)
-  double get guideAcquireSecs => throw _privateConstructorUsedError;
+  double get guideAcquireSecs;
 
   /// Time for a plate solve (seconds)
-  double get plateSolveSecs => throw _privateConstructorUsedError;
+  double get plateSolveSecs;
 
   /// Time for camera cool-down (seconds)
-  double get coolingSecs => throw _privateConstructorUsedError;
+  double get coolingSecs;
 
   /// Time for camera warm-up (seconds)
-  double get warmingSecs => throw _privateConstructorUsedError;
+  double get warmingSecs;
 
   /// Per-exposure download overhead (seconds)
-  double get downloadOverheadPerExposureSecs =>
-      throw _privateConstructorUsedError;
+  double get downloadOverheadPerExposureSecs;
 
   /// Time for cover calibrator open/close (seconds)
-  double get coverMoveSecs => throw _privateConstructorUsedError;
+  double get coverMoveSecs;
 
   /// Time for center target operation (plate solve + slew iterations) (seconds)
-  double get centerTargetSecs => throw _privateConstructorUsedError;
+  double get centerTargetSecs;
 
-  @JsonKey(ignore: true)
-  $SequenceOverheadConfigCopyWith<SequenceOverheadConfig> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $SequenceOverheadConfigCopyWith<$Res> {
-  factory $SequenceOverheadConfigCopyWith(SequenceOverheadConfig value,
-          $Res Function(SequenceOverheadConfig) then) =
-      _$SequenceOverheadConfigCopyWithImpl<$Res, SequenceOverheadConfig>;
-  @useResult
-  $Res call(
-      {double slewSecs,
-      double autofocusSecs,
-      double filterChangeSecs,
-      double ditherSecs,
-      double meridianFlipSecs,
-      double guideAcquireSecs,
-      double plateSolveSecs,
-      double coolingSecs,
-      double warmingSecs,
-      double downloadOverheadPerExposureSecs,
-      double coverMoveSecs,
-      double centerTargetSecs});
-}
-
-/// @nodoc
-class _$SequenceOverheadConfigCopyWithImpl<$Res,
-        $Val extends SequenceOverheadConfig>
-    implements $SequenceOverheadConfigCopyWith<$Res> {
-  _$SequenceOverheadConfigCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of SequenceOverheadConfig
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $SequenceOverheadConfigCopyWith<SequenceOverheadConfig> get copyWith =>
+      _$SequenceOverheadConfigCopyWithImpl<SequenceOverheadConfig>(
+          this as SequenceOverheadConfig, _$identity);
+
   @override
-  $Res call({
-    Object? slewSecs = null,
-    Object? autofocusSecs = null,
-    Object? filterChangeSecs = null,
-    Object? ditherSecs = null,
-    Object? meridianFlipSecs = null,
-    Object? guideAcquireSecs = null,
-    Object? plateSolveSecs = null,
-    Object? coolingSecs = null,
-    Object? warmingSecs = null,
-    Object? downloadOverheadPerExposureSecs = null,
-    Object? coverMoveSecs = null,
-    Object? centerTargetSecs = null,
-  }) {
-    return _then(_value.copyWith(
-      slewSecs: null == slewSecs
-          ? _value.slewSecs
-          : slewSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      autofocusSecs: null == autofocusSecs
-          ? _value.autofocusSecs
-          : autofocusSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      filterChangeSecs: null == filterChangeSecs
-          ? _value.filterChangeSecs
-          : filterChangeSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      ditherSecs: null == ditherSecs
-          ? _value.ditherSecs
-          : ditherSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      meridianFlipSecs: null == meridianFlipSecs
-          ? _value.meridianFlipSecs
-          : meridianFlipSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      guideAcquireSecs: null == guideAcquireSecs
-          ? _value.guideAcquireSecs
-          : guideAcquireSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      plateSolveSecs: null == plateSolveSecs
-          ? _value.plateSolveSecs
-          : plateSolveSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      coolingSecs: null == coolingSecs
-          ? _value.coolingSecs
-          : coolingSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      warmingSecs: null == warmingSecs
-          ? _value.warmingSecs
-          : warmingSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      downloadOverheadPerExposureSecs: null == downloadOverheadPerExposureSecs
-          ? _value.downloadOverheadPerExposureSecs
-          : downloadOverheadPerExposureSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      coverMoveSecs: null == coverMoveSecs
-          ? _value.coverMoveSecs
-          : coverMoveSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      centerTargetSecs: null == centerTargetSecs
-          ? _value.centerTargetSecs
-          : centerTargetSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is SequenceOverheadConfig &&
+            (identical(other.slewSecs, slewSecs) ||
+                other.slewSecs == slewSecs) &&
+            (identical(other.autofocusSecs, autofocusSecs) ||
+                other.autofocusSecs == autofocusSecs) &&
+            (identical(other.filterChangeSecs, filterChangeSecs) ||
+                other.filterChangeSecs == filterChangeSecs) &&
+            (identical(other.ditherSecs, ditherSecs) ||
+                other.ditherSecs == ditherSecs) &&
+            (identical(other.meridianFlipSecs, meridianFlipSecs) ||
+                other.meridianFlipSecs == meridianFlipSecs) &&
+            (identical(other.guideAcquireSecs, guideAcquireSecs) ||
+                other.guideAcquireSecs == guideAcquireSecs) &&
+            (identical(other.plateSolveSecs, plateSolveSecs) ||
+                other.plateSolveSecs == plateSolveSecs) &&
+            (identical(other.coolingSecs, coolingSecs) ||
+                other.coolingSecs == coolingSecs) &&
+            (identical(other.warmingSecs, warmingSecs) ||
+                other.warmingSecs == warmingSecs) &&
+            (identical(other.downloadOverheadPerExposureSecs,
+                    downloadOverheadPerExposureSecs) ||
+                other.downloadOverheadPerExposureSecs ==
+                    downloadOverheadPerExposureSecs) &&
+            (identical(other.coverMoveSecs, coverMoveSecs) ||
+                other.coverMoveSecs == coverMoveSecs) &&
+            (identical(other.centerTargetSecs, centerTargetSecs) ||
+                other.centerTargetSecs == centerTargetSecs));
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      slewSecs,
+      autofocusSecs,
+      filterChangeSecs,
+      ditherSecs,
+      meridianFlipSecs,
+      guideAcquireSecs,
+      plateSolveSecs,
+      coolingSecs,
+      warmingSecs,
+      downloadOverheadPerExposureSecs,
+      coverMoveSecs,
+      centerTargetSecs);
+
+  @override
+  String toString() {
+    return 'SequenceOverheadConfig(slewSecs: $slewSecs, autofocusSecs: $autofocusSecs, filterChangeSecs: $filterChangeSecs, ditherSecs: $ditherSecs, meridianFlipSecs: $meridianFlipSecs, guideAcquireSecs: $guideAcquireSecs, plateSolveSecs: $plateSolveSecs, coolingSecs: $coolingSecs, warmingSecs: $warmingSecs, downloadOverheadPerExposureSecs: $downloadOverheadPerExposureSecs, coverMoveSecs: $coverMoveSecs, centerTargetSecs: $centerTargetSecs)';
   }
 }
 
 /// @nodoc
-abstract class _$$SequenceOverheadConfigImplCopyWith<$Res>
-    implements $SequenceOverheadConfigCopyWith<$Res> {
-  factory _$$SequenceOverheadConfigImplCopyWith(
-          _$SequenceOverheadConfigImpl value,
-          $Res Function(_$SequenceOverheadConfigImpl) then) =
-      __$$SequenceOverheadConfigImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $SequenceOverheadConfigCopyWith<$Res> {
+  factory $SequenceOverheadConfigCopyWith(SequenceOverheadConfig value,
+          $Res Function(SequenceOverheadConfig) _then) =
+      _$SequenceOverheadConfigCopyWithImpl;
   @useResult
   $Res call(
       {double slewSecs,
@@ -184,15 +135,15 @@ abstract class _$$SequenceOverheadConfigImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$SequenceOverheadConfigImplCopyWithImpl<$Res>
-    extends _$SequenceOverheadConfigCopyWithImpl<$Res,
-        _$SequenceOverheadConfigImpl>
-    implements _$$SequenceOverheadConfigImplCopyWith<$Res> {
-  __$$SequenceOverheadConfigImplCopyWithImpl(
-      _$SequenceOverheadConfigImpl _value,
-      $Res Function(_$SequenceOverheadConfigImpl) _then)
-      : super(_value, _then);
+class _$SequenceOverheadConfigCopyWithImpl<$Res>
+    implements $SequenceOverheadConfigCopyWith<$Res> {
+  _$SequenceOverheadConfigCopyWithImpl(this._self, this._then);
 
+  final SequenceOverheadConfig _self;
+  final $Res Function(SequenceOverheadConfig) _then;
+
+  /// Create a copy of SequenceOverheadConfig
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -209,63 +160,295 @@ class __$$SequenceOverheadConfigImplCopyWithImpl<$Res>
     Object? coverMoveSecs = null,
     Object? centerTargetSecs = null,
   }) {
-    return _then(_$SequenceOverheadConfigImpl(
+    return _then(_self.copyWith(
       slewSecs: null == slewSecs
-          ? _value.slewSecs
+          ? _self.slewSecs
           : slewSecs // ignore: cast_nullable_to_non_nullable
               as double,
       autofocusSecs: null == autofocusSecs
-          ? _value.autofocusSecs
+          ? _self.autofocusSecs
           : autofocusSecs // ignore: cast_nullable_to_non_nullable
               as double,
       filterChangeSecs: null == filterChangeSecs
-          ? _value.filterChangeSecs
+          ? _self.filterChangeSecs
           : filterChangeSecs // ignore: cast_nullable_to_non_nullable
               as double,
       ditherSecs: null == ditherSecs
-          ? _value.ditherSecs
+          ? _self.ditherSecs
           : ditherSecs // ignore: cast_nullable_to_non_nullable
               as double,
       meridianFlipSecs: null == meridianFlipSecs
-          ? _value.meridianFlipSecs
+          ? _self.meridianFlipSecs
           : meridianFlipSecs // ignore: cast_nullable_to_non_nullable
               as double,
       guideAcquireSecs: null == guideAcquireSecs
-          ? _value.guideAcquireSecs
+          ? _self.guideAcquireSecs
           : guideAcquireSecs // ignore: cast_nullable_to_non_nullable
               as double,
       plateSolveSecs: null == plateSolveSecs
-          ? _value.plateSolveSecs
+          ? _self.plateSolveSecs
           : plateSolveSecs // ignore: cast_nullable_to_non_nullable
               as double,
       coolingSecs: null == coolingSecs
-          ? _value.coolingSecs
+          ? _self.coolingSecs
           : coolingSecs // ignore: cast_nullable_to_non_nullable
               as double,
       warmingSecs: null == warmingSecs
-          ? _value.warmingSecs
+          ? _self.warmingSecs
           : warmingSecs // ignore: cast_nullable_to_non_nullable
               as double,
       downloadOverheadPerExposureSecs: null == downloadOverheadPerExposureSecs
-          ? _value.downloadOverheadPerExposureSecs
+          ? _self.downloadOverheadPerExposureSecs
           : downloadOverheadPerExposureSecs // ignore: cast_nullable_to_non_nullable
               as double,
       coverMoveSecs: null == coverMoveSecs
-          ? _value.coverMoveSecs
+          ? _self.coverMoveSecs
           : coverMoveSecs // ignore: cast_nullable_to_non_nullable
               as double,
       centerTargetSecs: null == centerTargetSecs
-          ? _value.centerTargetSecs
+          ? _self.centerTargetSecs
           : centerTargetSecs // ignore: cast_nullable_to_non_nullable
               as double,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [SequenceOverheadConfig].
+extension SequenceOverheadConfigPatterns on SequenceOverheadConfig {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_SequenceOverheadConfig value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceOverheadConfig() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_SequenceOverheadConfig value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceOverheadConfig():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_SequenceOverheadConfig value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceOverheadConfig() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            double slewSecs,
+            double autofocusSecs,
+            double filterChangeSecs,
+            double ditherSecs,
+            double meridianFlipSecs,
+            double guideAcquireSecs,
+            double plateSolveSecs,
+            double coolingSecs,
+            double warmingSecs,
+            double downloadOverheadPerExposureSecs,
+            double coverMoveSecs,
+            double centerTargetSecs)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceOverheadConfig() when $default != null:
+        return $default(
+            _that.slewSecs,
+            _that.autofocusSecs,
+            _that.filterChangeSecs,
+            _that.ditherSecs,
+            _that.meridianFlipSecs,
+            _that.guideAcquireSecs,
+            _that.plateSolveSecs,
+            _that.coolingSecs,
+            _that.warmingSecs,
+            _that.downloadOverheadPerExposureSecs,
+            _that.coverMoveSecs,
+            _that.centerTargetSecs);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            double slewSecs,
+            double autofocusSecs,
+            double filterChangeSecs,
+            double ditherSecs,
+            double meridianFlipSecs,
+            double guideAcquireSecs,
+            double plateSolveSecs,
+            double coolingSecs,
+            double warmingSecs,
+            double downloadOverheadPerExposureSecs,
+            double coverMoveSecs,
+            double centerTargetSecs)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceOverheadConfig():
+        return $default(
+            _that.slewSecs,
+            _that.autofocusSecs,
+            _that.filterChangeSecs,
+            _that.ditherSecs,
+            _that.meridianFlipSecs,
+            _that.guideAcquireSecs,
+            _that.plateSolveSecs,
+            _that.coolingSecs,
+            _that.warmingSecs,
+            _that.downloadOverheadPerExposureSecs,
+            _that.coverMoveSecs,
+            _that.centerTargetSecs);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            double slewSecs,
+            double autofocusSecs,
+            double filterChangeSecs,
+            double ditherSecs,
+            double meridianFlipSecs,
+            double guideAcquireSecs,
+            double plateSolveSecs,
+            double coolingSecs,
+            double warmingSecs,
+            double downloadOverheadPerExposureSecs,
+            double coverMoveSecs,
+            double centerTargetSecs)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceOverheadConfig() when $default != null:
+        return $default(
+            _that.slewSecs,
+            _that.autofocusSecs,
+            _that.filterChangeSecs,
+            _that.ditherSecs,
+            _that.meridianFlipSecs,
+            _that.guideAcquireSecs,
+            _that.plateSolveSecs,
+            _that.coolingSecs,
+            _that.warmingSecs,
+            _that.downloadOverheadPerExposureSecs,
+            _that.coverMoveSecs,
+            _that.centerTargetSecs);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 
-class _$SequenceOverheadConfigImpl implements _SequenceOverheadConfig {
-  const _$SequenceOverheadConfigImpl(
+class _SequenceOverheadConfig implements SequenceOverheadConfig {
+  const _SequenceOverheadConfig(
       {this.slewSecs = 30.0,
       this.autofocusSecs = 180.0,
       this.filterChangeSecs = 10.0,
@@ -339,16 +522,20 @@ class _$SequenceOverheadConfigImpl implements _SequenceOverheadConfig {
   @JsonKey()
   final double centerTargetSecs;
 
+  /// Create a copy of SequenceOverheadConfig
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'SequenceOverheadConfig(slewSecs: $slewSecs, autofocusSecs: $autofocusSecs, filterChangeSecs: $filterChangeSecs, ditherSecs: $ditherSecs, meridianFlipSecs: $meridianFlipSecs, guideAcquireSecs: $guideAcquireSecs, plateSolveSecs: $plateSolveSecs, coolingSecs: $coolingSecs, warmingSecs: $warmingSecs, downloadOverheadPerExposureSecs: $downloadOverheadPerExposureSecs, coverMoveSecs: $coverMoveSecs, centerTargetSecs: $centerTargetSecs)';
-  }
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$SequenceOverheadConfigCopyWith<_SequenceOverheadConfig> get copyWith =>
+      __$SequenceOverheadConfigCopyWithImpl<_SequenceOverheadConfig>(
+          this, _$identity);
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$SequenceOverheadConfigImpl &&
+            other is _SequenceOverheadConfig &&
             (identical(other.slewSecs, slewSecs) ||
                 other.slewSecs == slewSecs) &&
             (identical(other.autofocusSecs, autofocusSecs) ||
@@ -393,179 +580,176 @@ class _$SequenceOverheadConfigImpl implements _SequenceOverheadConfig {
       coverMoveSecs,
       centerTargetSecs);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$SequenceOverheadConfigImplCopyWith<_$SequenceOverheadConfigImpl>
-      get copyWith => __$$SequenceOverheadConfigImplCopyWithImpl<
-          _$SequenceOverheadConfigImpl>(this, _$identity);
+  String toString() {
+    return 'SequenceOverheadConfig(slewSecs: $slewSecs, autofocusSecs: $autofocusSecs, filterChangeSecs: $filterChangeSecs, ditherSecs: $ditherSecs, meridianFlipSecs: $meridianFlipSecs, guideAcquireSecs: $guideAcquireSecs, plateSolveSecs: $plateSolveSecs, coolingSecs: $coolingSecs, warmingSecs: $warmingSecs, downloadOverheadPerExposureSecs: $downloadOverheadPerExposureSecs, coverMoveSecs: $coverMoveSecs, centerTargetSecs: $centerTargetSecs)';
+  }
 }
 
-abstract class _SequenceOverheadConfig implements SequenceOverheadConfig {
-  const factory _SequenceOverheadConfig(
-      {final double slewSecs,
-      final double autofocusSecs,
-      final double filterChangeSecs,
-      final double ditherSecs,
-      final double meridianFlipSecs,
-      final double guideAcquireSecs,
-      final double plateSolveSecs,
-      final double coolingSecs,
-      final double warmingSecs,
-      final double downloadOverheadPerExposureSecs,
-      final double coverMoveSecs,
-      final double centerTargetSecs}) = _$SequenceOverheadConfigImpl;
-
+/// @nodoc
+abstract mixin class _$SequenceOverheadConfigCopyWith<$Res>
+    implements $SequenceOverheadConfigCopyWith<$Res> {
+  factory _$SequenceOverheadConfigCopyWith(_SequenceOverheadConfig value,
+          $Res Function(_SequenceOverheadConfig) _then) =
+      __$SequenceOverheadConfigCopyWithImpl;
   @override
+  @useResult
+  $Res call(
+      {double slewSecs,
+      double autofocusSecs,
+      double filterChangeSecs,
+      double ditherSecs,
+      double meridianFlipSecs,
+      double guideAcquireSecs,
+      double plateSolveSecs,
+      double coolingSecs,
+      double warmingSecs,
+      double downloadOverheadPerExposureSecs,
+      double coverMoveSecs,
+      double centerTargetSecs});
+}
 
-  /// Time for a slew operation (seconds)
-  double get slewSecs;
-  @override
+/// @nodoc
+class __$SequenceOverheadConfigCopyWithImpl<$Res>
+    implements _$SequenceOverheadConfigCopyWith<$Res> {
+  __$SequenceOverheadConfigCopyWithImpl(this._self, this._then);
 
-  /// Time for an autofocus run (seconds)
-  double get autofocusSecs;
-  @override
+  final _SequenceOverheadConfig _self;
+  final $Res Function(_SequenceOverheadConfig) _then;
 
-  /// Time for a filter wheel change (seconds)
-  double get filterChangeSecs;
+  /// Create a copy of SequenceOverheadConfig
+  /// with the given fields replaced by the non-null parameter values.
   @override
-
-  /// Time for a dither + settle cycle (seconds)
-  double get ditherSecs;
-  @override
-
-  /// Time for a meridian flip including re-centering (seconds)
-  double get meridianFlipSecs;
-  @override
-
-  /// Time for guide acquisition and settle (seconds)
-  double get guideAcquireSecs;
-  @override
-
-  /// Time for a plate solve (seconds)
-  double get plateSolveSecs;
-  @override
-
-  /// Time for camera cool-down (seconds)
-  double get coolingSecs;
-  @override
-
-  /// Time for camera warm-up (seconds)
-  double get warmingSecs;
-  @override
-
-  /// Per-exposure download overhead (seconds)
-  double get downloadOverheadPerExposureSecs;
-  @override
-
-  /// Time for cover calibrator open/close (seconds)
-  double get coverMoveSecs;
-  @override
-
-  /// Time for center target operation (plate solve + slew iterations) (seconds)
-  double get centerTargetSecs;
-  @override
-  @JsonKey(ignore: true)
-  _$$SequenceOverheadConfigImplCopyWith<_$SequenceOverheadConfigImpl>
-      get copyWith => throw _privateConstructorUsedError;
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? slewSecs = null,
+    Object? autofocusSecs = null,
+    Object? filterChangeSecs = null,
+    Object? ditherSecs = null,
+    Object? meridianFlipSecs = null,
+    Object? guideAcquireSecs = null,
+    Object? plateSolveSecs = null,
+    Object? coolingSecs = null,
+    Object? warmingSecs = null,
+    Object? downloadOverheadPerExposureSecs = null,
+    Object? coverMoveSecs = null,
+    Object? centerTargetSecs = null,
+  }) {
+    return _then(_SequenceOverheadConfig(
+      slewSecs: null == slewSecs
+          ? _self.slewSecs
+          : slewSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      autofocusSecs: null == autofocusSecs
+          ? _self.autofocusSecs
+          : autofocusSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      filterChangeSecs: null == filterChangeSecs
+          ? _self.filterChangeSecs
+          : filterChangeSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      ditherSecs: null == ditherSecs
+          ? _self.ditherSecs
+          : ditherSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      meridianFlipSecs: null == meridianFlipSecs
+          ? _self.meridianFlipSecs
+          : meridianFlipSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      guideAcquireSecs: null == guideAcquireSecs
+          ? _self.guideAcquireSecs
+          : guideAcquireSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      plateSolveSecs: null == plateSolveSecs
+          ? _self.plateSolveSecs
+          : plateSolveSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      coolingSecs: null == coolingSecs
+          ? _self.coolingSecs
+          : coolingSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      warmingSecs: null == warmingSecs
+          ? _self.warmingSecs
+          : warmingSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      downloadOverheadPerExposureSecs: null == downloadOverheadPerExposureSecs
+          ? _self.downloadOverheadPerExposureSecs
+          : downloadOverheadPerExposureSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      coverMoveSecs: null == coverMoveSecs
+          ? _self.coverMoveSecs
+          : coverMoveSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      centerTargetSecs: null == centerTargetSecs
+          ? _self.centerTargetSecs
+          : centerTargetSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
 }
 
 /// @nodoc
 mixin _$SequenceEstimate {
   /// Estimated total integration time in seconds (pure shutter-open time)
-  double get estimatedSecs => throw _privateConstructorUsedError;
+  double get estimatedSecs;
 
   /// Estimated total overhead time in seconds (slews, AF, dithers, etc.)
-  double get overheadSecs => throw _privateConstructorUsedError;
+  double get overheadSecs;
 
   /// Time for a single iteration (useful for unbounded loops)
-  double get singleIterationSecs => throw _privateConstructorUsedError;
+  double get singleIterationSecs;
 
   /// Whether the sequence contains unbounded loops (forever, whileDark, etc.)
-  bool get isUnbounded => throw _privateConstructorUsedError;
+  bool get isUnbounded;
 
   /// For untilTime loops, the target end time
-  DateTime? get untilTime => throw _privateConstructorUsedError;
+  DateTime? get untilTime;
 
   /// For unbounded loops, the condition type
-  LoopConditionType? get conditionType => throw _privateConstructorUsedError;
+  LoopConditionType? get conditionType;
 
-  @JsonKey(ignore: true)
-  $SequenceEstimateCopyWith<SequenceEstimate> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $SequenceEstimateCopyWith<$Res> {
-  factory $SequenceEstimateCopyWith(
-          SequenceEstimate value, $Res Function(SequenceEstimate) then) =
-      _$SequenceEstimateCopyWithImpl<$Res, SequenceEstimate>;
-  @useResult
-  $Res call(
-      {double estimatedSecs,
-      double overheadSecs,
-      double singleIterationSecs,
-      bool isUnbounded,
-      DateTime? untilTime,
-      LoopConditionType? conditionType});
-}
-
-/// @nodoc
-class _$SequenceEstimateCopyWithImpl<$Res, $Val extends SequenceEstimate>
-    implements $SequenceEstimateCopyWith<$Res> {
-  _$SequenceEstimateCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of SequenceEstimate
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $SequenceEstimateCopyWith<SequenceEstimate> get copyWith =>
+      _$SequenceEstimateCopyWithImpl<SequenceEstimate>(
+          this as SequenceEstimate, _$identity);
+
   @override
-  $Res call({
-    Object? estimatedSecs = null,
-    Object? overheadSecs = null,
-    Object? singleIterationSecs = null,
-    Object? isUnbounded = null,
-    Object? untilTime = freezed,
-    Object? conditionType = freezed,
-  }) {
-    return _then(_value.copyWith(
-      estimatedSecs: null == estimatedSecs
-          ? _value.estimatedSecs
-          : estimatedSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      overheadSecs: null == overheadSecs
-          ? _value.overheadSecs
-          : overheadSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      singleIterationSecs: null == singleIterationSecs
-          ? _value.singleIterationSecs
-          : singleIterationSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      isUnbounded: null == isUnbounded
-          ? _value.isUnbounded
-          : isUnbounded // ignore: cast_nullable_to_non_nullable
-              as bool,
-      untilTime: freezed == untilTime
-          ? _value.untilTime
-          : untilTime // ignore: cast_nullable_to_non_nullable
-              as DateTime?,
-      conditionType: freezed == conditionType
-          ? _value.conditionType
-          : conditionType // ignore: cast_nullable_to_non_nullable
-              as LoopConditionType?,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is SequenceEstimate &&
+            (identical(other.estimatedSecs, estimatedSecs) ||
+                other.estimatedSecs == estimatedSecs) &&
+            (identical(other.overheadSecs, overheadSecs) ||
+                other.overheadSecs == overheadSecs) &&
+            (identical(other.singleIterationSecs, singleIterationSecs) ||
+                other.singleIterationSecs == singleIterationSecs) &&
+            (identical(other.isUnbounded, isUnbounded) ||
+                other.isUnbounded == isUnbounded) &&
+            (identical(other.untilTime, untilTime) ||
+                other.untilTime == untilTime) &&
+            (identical(other.conditionType, conditionType) ||
+                other.conditionType == conditionType));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, estimatedSecs, overheadSecs,
+      singleIterationSecs, isUnbounded, untilTime, conditionType);
+
+  @override
+  String toString() {
+    return 'SequenceEstimate(estimatedSecs: $estimatedSecs, overheadSecs: $overheadSecs, singleIterationSecs: $singleIterationSecs, isUnbounded: $isUnbounded, untilTime: $untilTime, conditionType: $conditionType)';
   }
 }
 
 /// @nodoc
-abstract class _$$SequenceEstimateImplCopyWith<$Res>
-    implements $SequenceEstimateCopyWith<$Res> {
-  factory _$$SequenceEstimateImplCopyWith(_$SequenceEstimateImpl value,
-          $Res Function(_$SequenceEstimateImpl) then) =
-      __$$SequenceEstimateImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $SequenceEstimateCopyWith<$Res> {
+  factory $SequenceEstimateCopyWith(
+          SequenceEstimate value, $Res Function(SequenceEstimate) _then) =
+      _$SequenceEstimateCopyWithImpl;
   @useResult
   $Res call(
       {double estimatedSecs,
@@ -577,13 +761,15 @@ abstract class _$$SequenceEstimateImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$SequenceEstimateImplCopyWithImpl<$Res>
-    extends _$SequenceEstimateCopyWithImpl<$Res, _$SequenceEstimateImpl>
-    implements _$$SequenceEstimateImplCopyWith<$Res> {
-  __$$SequenceEstimateImplCopyWithImpl(_$SequenceEstimateImpl _value,
-      $Res Function(_$SequenceEstimateImpl) _then)
-      : super(_value, _then);
+class _$SequenceEstimateCopyWithImpl<$Res>
+    implements $SequenceEstimateCopyWith<$Res> {
+  _$SequenceEstimateCopyWithImpl(this._self, this._then);
 
+  final SequenceEstimate _self;
+  final $Res Function(SequenceEstimate) _then;
+
+  /// Create a copy of SequenceEstimate
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -594,39 +780,235 @@ class __$$SequenceEstimateImplCopyWithImpl<$Res>
     Object? untilTime = freezed,
     Object? conditionType = freezed,
   }) {
-    return _then(_$SequenceEstimateImpl(
+    return _then(_self.copyWith(
       estimatedSecs: null == estimatedSecs
-          ? _value.estimatedSecs
+          ? _self.estimatedSecs
           : estimatedSecs // ignore: cast_nullable_to_non_nullable
               as double,
       overheadSecs: null == overheadSecs
-          ? _value.overheadSecs
+          ? _self.overheadSecs
           : overheadSecs // ignore: cast_nullable_to_non_nullable
               as double,
       singleIterationSecs: null == singleIterationSecs
-          ? _value.singleIterationSecs
+          ? _self.singleIterationSecs
           : singleIterationSecs // ignore: cast_nullable_to_non_nullable
               as double,
       isUnbounded: null == isUnbounded
-          ? _value.isUnbounded
+          ? _self.isUnbounded
           : isUnbounded // ignore: cast_nullable_to_non_nullable
               as bool,
       untilTime: freezed == untilTime
-          ? _value.untilTime
+          ? _self.untilTime
           : untilTime // ignore: cast_nullable_to_non_nullable
               as DateTime?,
       conditionType: freezed == conditionType
-          ? _value.conditionType
+          ? _self.conditionType
           : conditionType // ignore: cast_nullable_to_non_nullable
               as LoopConditionType?,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [SequenceEstimate].
+extension SequenceEstimatePatterns on SequenceEstimate {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_SequenceEstimate value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceEstimate() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_SequenceEstimate value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceEstimate():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_SequenceEstimate value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceEstimate() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            double estimatedSecs,
+            double overheadSecs,
+            double singleIterationSecs,
+            bool isUnbounded,
+            DateTime? untilTime,
+            LoopConditionType? conditionType)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceEstimate() when $default != null:
+        return $default(
+            _that.estimatedSecs,
+            _that.overheadSecs,
+            _that.singleIterationSecs,
+            _that.isUnbounded,
+            _that.untilTime,
+            _that.conditionType);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            double estimatedSecs,
+            double overheadSecs,
+            double singleIterationSecs,
+            bool isUnbounded,
+            DateTime? untilTime,
+            LoopConditionType? conditionType)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceEstimate():
+        return $default(
+            _that.estimatedSecs,
+            _that.overheadSecs,
+            _that.singleIterationSecs,
+            _that.isUnbounded,
+            _that.untilTime,
+            _that.conditionType);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            double estimatedSecs,
+            double overheadSecs,
+            double singleIterationSecs,
+            bool isUnbounded,
+            DateTime? untilTime,
+            LoopConditionType? conditionType)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceEstimate() when $default != null:
+        return $default(
+            _that.estimatedSecs,
+            _that.overheadSecs,
+            _that.singleIterationSecs,
+            _that.isUnbounded,
+            _that.untilTime,
+            _that.conditionType);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 
-class _$SequenceEstimateImpl extends _SequenceEstimate {
-  const _$SequenceEstimateImpl(
+class _SequenceEstimate extends SequenceEstimate {
+  const _SequenceEstimate(
       {required this.estimatedSecs,
       this.overheadSecs = 0.0,
       required this.singleIterationSecs,
@@ -660,16 +1042,19 @@ class _$SequenceEstimateImpl extends _SequenceEstimate {
   @override
   final LoopConditionType? conditionType;
 
+  /// Create a copy of SequenceEstimate
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'SequenceEstimate(estimatedSecs: $estimatedSecs, overheadSecs: $overheadSecs, singleIterationSecs: $singleIterationSecs, isUnbounded: $isUnbounded, untilTime: $untilTime, conditionType: $conditionType)';
-  }
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$SequenceEstimateCopyWith<_SequenceEstimate> get copyWith =>
+      __$SequenceEstimateCopyWithImpl<_SequenceEstimate>(this, _$identity);
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$SequenceEstimateImpl &&
+            other is _SequenceEstimate &&
             (identical(other.estimatedSecs, estimatedSecs) ||
                 other.estimatedSecs == estimatedSecs) &&
             (identical(other.overheadSecs, overheadSecs) ||
@@ -688,137 +1073,128 @@ class _$SequenceEstimateImpl extends _SequenceEstimate {
   int get hashCode => Object.hash(runtimeType, estimatedSecs, overheadSecs,
       singleIterationSecs, isUnbounded, untilTime, conditionType);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$SequenceEstimateImplCopyWith<_$SequenceEstimateImpl> get copyWith =>
-      __$$SequenceEstimateImplCopyWithImpl<_$SequenceEstimateImpl>(
-          this, _$identity);
-}
-
-abstract class _SequenceEstimate extends SequenceEstimate {
-  const factory _SequenceEstimate(
-      {required final double estimatedSecs,
-      final double overheadSecs,
-      required final double singleIterationSecs,
-      required final bool isUnbounded,
-      final DateTime? untilTime,
-      final LoopConditionType? conditionType}) = _$SequenceEstimateImpl;
-  const _SequenceEstimate._() : super._();
-
-  @override
-
-  /// Estimated total integration time in seconds (pure shutter-open time)
-  double get estimatedSecs;
-  @override
-
-  /// Estimated total overhead time in seconds (slews, AF, dithers, etc.)
-  double get overheadSecs;
-  @override
-
-  /// Time for a single iteration (useful for unbounded loops)
-  double get singleIterationSecs;
-  @override
-
-  /// Whether the sequence contains unbounded loops (forever, whileDark, etc.)
-  bool get isUnbounded;
-  @override
-
-  /// For untilTime loops, the target end time
-  DateTime? get untilTime;
-  @override
-
-  /// For unbounded loops, the condition type
-  LoopConditionType? get conditionType;
-  @override
-  @JsonKey(ignore: true)
-  _$$SequenceEstimateImplCopyWith<_$SequenceEstimateImpl> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-MosaicPanelInfo _$MosaicPanelInfoFromJson(Map<String, dynamic> json) {
-  return _MosaicPanelInfo.fromJson(json);
-}
-
-/// @nodoc
-mixin _$MosaicPanelInfo {
-  String get mosaicName => throw _privateConstructorUsedError;
-  int get panelIndex => throw _privateConstructorUsedError;
-  int get totalPanels => throw _privateConstructorUsedError;
-  int get row => throw _privateConstructorUsedError;
-  int get column => throw _privateConstructorUsedError;
-
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $MosaicPanelInfoCopyWith<MosaicPanelInfo> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $MosaicPanelInfoCopyWith<$Res> {
-  factory $MosaicPanelInfoCopyWith(
-          MosaicPanelInfo value, $Res Function(MosaicPanelInfo) then) =
-      _$MosaicPanelInfoCopyWithImpl<$Res, MosaicPanelInfo>;
-  @useResult
-  $Res call(
-      {String mosaicName,
-      int panelIndex,
-      int totalPanels,
-      int row,
-      int column});
-}
-
-/// @nodoc
-class _$MosaicPanelInfoCopyWithImpl<$Res, $Val extends MosaicPanelInfo>
-    implements $MosaicPanelInfoCopyWith<$Res> {
-  _$MosaicPanelInfoCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? mosaicName = null,
-    Object? panelIndex = null,
-    Object? totalPanels = null,
-    Object? row = null,
-    Object? column = null,
-  }) {
-    return _then(_value.copyWith(
-      mosaicName: null == mosaicName
-          ? _value.mosaicName
-          : mosaicName // ignore: cast_nullable_to_non_nullable
-              as String,
-      panelIndex: null == panelIndex
-          ? _value.panelIndex
-          : panelIndex // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalPanels: null == totalPanels
-          ? _value.totalPanels
-          : totalPanels // ignore: cast_nullable_to_non_nullable
-              as int,
-      row: null == row
-          ? _value.row
-          : row // ignore: cast_nullable_to_non_nullable
-              as int,
-      column: null == column
-          ? _value.column
-          : column // ignore: cast_nullable_to_non_nullable
-              as int,
-    ) as $Val);
+  String toString() {
+    return 'SequenceEstimate(estimatedSecs: $estimatedSecs, overheadSecs: $overheadSecs, singleIterationSecs: $singleIterationSecs, isUnbounded: $isUnbounded, untilTime: $untilTime, conditionType: $conditionType)';
   }
 }
 
 /// @nodoc
-abstract class _$$MosaicPanelInfoImplCopyWith<$Res>
-    implements $MosaicPanelInfoCopyWith<$Res> {
-  factory _$$MosaicPanelInfoImplCopyWith(_$MosaicPanelInfoImpl value,
-          $Res Function(_$MosaicPanelInfoImpl) then) =
-      __$$MosaicPanelInfoImplCopyWithImpl<$Res>;
+abstract mixin class _$SequenceEstimateCopyWith<$Res>
+    implements $SequenceEstimateCopyWith<$Res> {
+  factory _$SequenceEstimateCopyWith(
+          _SequenceEstimate value, $Res Function(_SequenceEstimate) _then) =
+      __$SequenceEstimateCopyWithImpl;
   @override
+  @useResult
+  $Res call(
+      {double estimatedSecs,
+      double overheadSecs,
+      double singleIterationSecs,
+      bool isUnbounded,
+      DateTime? untilTime,
+      LoopConditionType? conditionType});
+}
+
+/// @nodoc
+class __$SequenceEstimateCopyWithImpl<$Res>
+    implements _$SequenceEstimateCopyWith<$Res> {
+  __$SequenceEstimateCopyWithImpl(this._self, this._then);
+
+  final _SequenceEstimate _self;
+  final $Res Function(_SequenceEstimate) _then;
+
+  /// Create a copy of SequenceEstimate
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? estimatedSecs = null,
+    Object? overheadSecs = null,
+    Object? singleIterationSecs = null,
+    Object? isUnbounded = null,
+    Object? untilTime = freezed,
+    Object? conditionType = freezed,
+  }) {
+    return _then(_SequenceEstimate(
+      estimatedSecs: null == estimatedSecs
+          ? _self.estimatedSecs
+          : estimatedSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      overheadSecs: null == overheadSecs
+          ? _self.overheadSecs
+          : overheadSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      singleIterationSecs: null == singleIterationSecs
+          ? _self.singleIterationSecs
+          : singleIterationSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      isUnbounded: null == isUnbounded
+          ? _self.isUnbounded
+          : isUnbounded // ignore: cast_nullable_to_non_nullable
+              as bool,
+      untilTime: freezed == untilTime
+          ? _self.untilTime
+          : untilTime // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      conditionType: freezed == conditionType
+          ? _self.conditionType
+          : conditionType // ignore: cast_nullable_to_non_nullable
+              as LoopConditionType?,
+    ));
+  }
+}
+
+/// @nodoc
+mixin _$MosaicPanelInfo {
+  String get mosaicName;
+  int get panelIndex;
+  int get totalPanels;
+  int get row;
+  int get column;
+
+  /// Create a copy of MosaicPanelInfo
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $MosaicPanelInfoCopyWith<MosaicPanelInfo> get copyWith =>
+      _$MosaicPanelInfoCopyWithImpl<MosaicPanelInfo>(
+          this as MosaicPanelInfo, _$identity);
+
+  /// Serializes this MosaicPanelInfo to a JSON map.
+  Map<String, dynamic> toJson();
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is MosaicPanelInfo &&
+            (identical(other.mosaicName, mosaicName) ||
+                other.mosaicName == mosaicName) &&
+            (identical(other.panelIndex, panelIndex) ||
+                other.panelIndex == panelIndex) &&
+            (identical(other.totalPanels, totalPanels) ||
+                other.totalPanels == totalPanels) &&
+            (identical(other.row, row) || other.row == row) &&
+            (identical(other.column, column) || other.column == column));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType, mosaicName, panelIndex, totalPanels, row, column);
+
+  @override
+  String toString() {
+    return 'MosaicPanelInfo(mosaicName: $mosaicName, panelIndex: $panelIndex, totalPanels: $totalPanels, row: $row, column: $column)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $MosaicPanelInfoCopyWith<$Res> {
+  factory $MosaicPanelInfoCopyWith(
+          MosaicPanelInfo value, $Res Function(MosaicPanelInfo) _then) =
+      _$MosaicPanelInfoCopyWithImpl;
   @useResult
   $Res call(
       {String mosaicName,
@@ -829,13 +1205,15 @@ abstract class _$$MosaicPanelInfoImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$MosaicPanelInfoImplCopyWithImpl<$Res>
-    extends _$MosaicPanelInfoCopyWithImpl<$Res, _$MosaicPanelInfoImpl>
-    implements _$$MosaicPanelInfoImplCopyWith<$Res> {
-  __$$MosaicPanelInfoImplCopyWithImpl(
-      _$MosaicPanelInfoImpl _value, $Res Function(_$MosaicPanelInfoImpl) _then)
-      : super(_value, _then);
+class _$MosaicPanelInfoCopyWithImpl<$Res>
+    implements $MosaicPanelInfoCopyWith<$Res> {
+  _$MosaicPanelInfoCopyWithImpl(this._self, this._then);
 
+  final MosaicPanelInfo _self;
+  final $Res Function(MosaicPanelInfo) _then;
+
+  /// Create a copy of MosaicPanelInfo
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -845,45 +1223,210 @@ class __$$MosaicPanelInfoImplCopyWithImpl<$Res>
     Object? row = null,
     Object? column = null,
   }) {
-    return _then(_$MosaicPanelInfoImpl(
+    return _then(_self.copyWith(
       mosaicName: null == mosaicName
-          ? _value.mosaicName
+          ? _self.mosaicName
           : mosaicName // ignore: cast_nullable_to_non_nullable
               as String,
       panelIndex: null == panelIndex
-          ? _value.panelIndex
+          ? _self.panelIndex
           : panelIndex // ignore: cast_nullable_to_non_nullable
               as int,
       totalPanels: null == totalPanels
-          ? _value.totalPanels
+          ? _self.totalPanels
           : totalPanels // ignore: cast_nullable_to_non_nullable
               as int,
       row: null == row
-          ? _value.row
+          ? _self.row
           : row // ignore: cast_nullable_to_non_nullable
               as int,
       column: null == column
-          ? _value.column
+          ? _self.column
           : column // ignore: cast_nullable_to_non_nullable
               as int,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [MosaicPanelInfo].
+extension MosaicPanelInfoPatterns on MosaicPanelInfo {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_MosaicPanelInfo value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _MosaicPanelInfo() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_MosaicPanelInfo value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _MosaicPanelInfo():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_MosaicPanelInfo value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _MosaicPanelInfo() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(String mosaicName, int panelIndex, int totalPanels,
+            int row, int column)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _MosaicPanelInfo() when $default != null:
+        return $default(_that.mosaicName, _that.panelIndex, _that.totalPanels,
+            _that.row, _that.column);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(String mosaicName, int panelIndex, int totalPanels,
+            int row, int column)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _MosaicPanelInfo():
+        return $default(_that.mosaicName, _that.panelIndex, _that.totalPanels,
+            _that.row, _that.column);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(String mosaicName, int panelIndex, int totalPanels,
+            int row, int column)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _MosaicPanelInfo() when $default != null:
+        return $default(_that.mosaicName, _that.panelIndex, _that.totalPanels,
+            _that.row, _that.column);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 
 @JsonSerializable(fieldRename: FieldRename.snake)
-class _$MosaicPanelInfoImpl extends _MosaicPanelInfo {
-  const _$MosaicPanelInfoImpl(
+class _MosaicPanelInfo extends MosaicPanelInfo {
+  const _MosaicPanelInfo(
       {required this.mosaicName,
       required this.panelIndex,
       required this.totalPanels,
       required this.row,
       required this.column})
       : super._();
-
-  factory _$MosaicPanelInfoImpl.fromJson(Map<String, dynamic> json) =>
-      _$$MosaicPanelInfoImplFromJson(json);
+  factory _MosaicPanelInfo.fromJson(Map<String, dynamic> json) =>
+      _$MosaicPanelInfoFromJson(json);
 
   @override
   final String mosaicName;
@@ -896,16 +1439,26 @@ class _$MosaicPanelInfoImpl extends _MosaicPanelInfo {
   @override
   final int column;
 
+  /// Create a copy of MosaicPanelInfo
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'MosaicPanelInfo(mosaicName: $mosaicName, panelIndex: $panelIndex, totalPanels: $totalPanels, row: $row, column: $column)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$MosaicPanelInfoCopyWith<_MosaicPanelInfo> get copyWith =>
+      __$MosaicPanelInfoCopyWithImpl<_MosaicPanelInfo>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$MosaicPanelInfoToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$MosaicPanelInfoImpl &&
+            other is _MosaicPanelInfo &&
             (identical(other.mosaicName, mosaicName) ||
                 other.mosaicName == mosaicName) &&
             (identical(other.panelIndex, panelIndex) ||
@@ -916,112 +1469,2906 @@ class _$MosaicPanelInfoImpl extends _MosaicPanelInfo {
             (identical(other.column, column) || other.column == column));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType, mosaicName, panelIndex, totalPanels, row, column);
 
-  @JsonKey(ignore: true)
+  @override
+  String toString() {
+    return 'MosaicPanelInfo(mosaicName: $mosaicName, panelIndex: $panelIndex, totalPanels: $totalPanels, row: $row, column: $column)';
+  }
+}
+
+/// @nodoc
+abstract mixin class _$MosaicPanelInfoCopyWith<$Res>
+    implements $MosaicPanelInfoCopyWith<$Res> {
+  factory _$MosaicPanelInfoCopyWith(
+          _MosaicPanelInfo value, $Res Function(_MosaicPanelInfo) _then) =
+      __$MosaicPanelInfoCopyWithImpl;
+  @override
+  @useResult
+  $Res call(
+      {String mosaicName,
+      int panelIndex,
+      int totalPanels,
+      int row,
+      int column});
+}
+
+/// @nodoc
+class __$MosaicPanelInfoCopyWithImpl<$Res>
+    implements _$MosaicPanelInfoCopyWith<$Res> {
+  __$MosaicPanelInfoCopyWithImpl(this._self, this._then);
+
+  final _MosaicPanelInfo _self;
+  final $Res Function(_MosaicPanelInfo) _then;
+
+  /// Create a copy of MosaicPanelInfo
+  /// with the given fields replaced by the non-null parameter values.
   @override
   @pragma('vm:prefer-inline')
-  _$$MosaicPanelInfoImplCopyWith<_$MosaicPanelInfoImpl> get copyWith =>
-      __$$MosaicPanelInfoImplCopyWithImpl<_$MosaicPanelInfoImpl>(
+  $Res call({
+    Object? mosaicName = null,
+    Object? panelIndex = null,
+    Object? totalPanels = null,
+    Object? row = null,
+    Object? column = null,
+  }) {
+    return _then(_MosaicPanelInfo(
+      mosaicName: null == mosaicName
+          ? _self.mosaicName
+          : mosaicName // ignore: cast_nullable_to_non_nullable
+              as String,
+      panelIndex: null == panelIndex
+          ? _self.panelIndex
+          : panelIndex // ignore: cast_nullable_to_non_nullable
+              as int,
+      totalPanels: null == totalPanels
+          ? _self.totalPanels
+          : totalPanels // ignore: cast_nullable_to_non_nullable
+              as int,
+      row: null == row
+          ? _self.row
+          : row // ignore: cast_nullable_to_non_nullable
+              as int,
+      column: null == column
+          ? _self.column
+          : column // ignore: cast_nullable_to_non_nullable
+              as int,
+    ));
+  }
+}
+
+/// @nodoc
+mixin _$BrightnessTierPreferences {
+  double get faintMinScore;
+  double get mediumMinScore;
+  double get brightMinScore;
+
+  /// Create a copy of BrightnessTierPreferences
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $BrightnessTierPreferencesCopyWith<BrightnessTierPreferences> get copyWith =>
+      _$BrightnessTierPreferencesCopyWithImpl<BrightnessTierPreferences>(
+          this as BrightnessTierPreferences, _$identity);
+
+  /// Serializes this BrightnessTierPreferences to a JSON map.
+  Map<String, dynamic> toJson();
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is BrightnessTierPreferences &&
+            (identical(other.faintMinScore, faintMinScore) ||
+                other.faintMinScore == faintMinScore) &&
+            (identical(other.mediumMinScore, mediumMinScore) ||
+                other.mediumMinScore == mediumMinScore) &&
+            (identical(other.brightMinScore, brightMinScore) ||
+                other.brightMinScore == brightMinScore));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, faintMinScore, mediumMinScore, brightMinScore);
+
+  @override
+  String toString() {
+    return 'BrightnessTierPreferences(faintMinScore: $faintMinScore, mediumMinScore: $mediumMinScore, brightMinScore: $brightMinScore)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $BrightnessTierPreferencesCopyWith<$Res> {
+  factory $BrightnessTierPreferencesCopyWith(BrightnessTierPreferences value,
+          $Res Function(BrightnessTierPreferences) _then) =
+      _$BrightnessTierPreferencesCopyWithImpl;
+  @useResult
+  $Res call(
+      {double faintMinScore, double mediumMinScore, double brightMinScore});
+}
+
+/// @nodoc
+class _$BrightnessTierPreferencesCopyWithImpl<$Res>
+    implements $BrightnessTierPreferencesCopyWith<$Res> {
+  _$BrightnessTierPreferencesCopyWithImpl(this._self, this._then);
+
+  final BrightnessTierPreferences _self;
+  final $Res Function(BrightnessTierPreferences) _then;
+
+  /// Create a copy of BrightnessTierPreferences
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? faintMinScore = null,
+    Object? mediumMinScore = null,
+    Object? brightMinScore = null,
+  }) {
+    return _then(_self.copyWith(
+      faintMinScore: null == faintMinScore
+          ? _self.faintMinScore
+          : faintMinScore // ignore: cast_nullable_to_non_nullable
+              as double,
+      mediumMinScore: null == mediumMinScore
+          ? _self.mediumMinScore
+          : mediumMinScore // ignore: cast_nullable_to_non_nullable
+              as double,
+      brightMinScore: null == brightMinScore
+          ? _self.brightMinScore
+          : brightMinScore // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
+}
+
+/// Adds pattern-matching-related methods to [BrightnessTierPreferences].
+extension BrightnessTierPreferencesPatterns on BrightnessTierPreferences {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_BrightnessTierPreferences value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _BrightnessTierPreferences() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_BrightnessTierPreferences value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _BrightnessTierPreferences():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_BrightnessTierPreferences value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _BrightnessTierPreferences() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            double faintMinScore, double mediumMinScore, double brightMinScore)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _BrightnessTierPreferences() when $default != null:
+        return $default(
+            _that.faintMinScore, _that.mediumMinScore, _that.brightMinScore);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            double faintMinScore, double mediumMinScore, double brightMinScore)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _BrightnessTierPreferences():
+        return $default(
+            _that.faintMinScore, _that.mediumMinScore, _that.brightMinScore);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            double faintMinScore, double mediumMinScore, double brightMinScore)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _BrightnessTierPreferences() when $default != null:
+        return $default(
+            _that.faintMinScore, _that.mediumMinScore, _that.brightMinScore);
+      case _:
+        return null;
+    }
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(fieldRename: FieldRename.snake)
+class _BrightnessTierPreferences extends BrightnessTierPreferences {
+  const _BrightnessTierPreferences(
+      {this.faintMinScore = 70.0,
+      this.mediumMinScore = 50.0,
+      this.brightMinScore = 30.0})
+      : super._();
+  factory _BrightnessTierPreferences.fromJson(Map<String, dynamic> json) =>
+      _$BrightnessTierPreferencesFromJson(json);
+
+  @override
+  @JsonKey()
+  final double faintMinScore;
+  @override
+  @JsonKey()
+  final double mediumMinScore;
+  @override
+  @JsonKey()
+  final double brightMinScore;
+
+  /// Create a copy of BrightnessTierPreferences
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$BrightnessTierPreferencesCopyWith<_BrightnessTierPreferences>
+      get copyWith =>
+          __$BrightnessTierPreferencesCopyWithImpl<_BrightnessTierPreferences>(
+              this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$BrightnessTierPreferencesToJson(
+      this,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _BrightnessTierPreferences &&
+            (identical(other.faintMinScore, faintMinScore) ||
+                other.faintMinScore == faintMinScore) &&
+            (identical(other.mediumMinScore, mediumMinScore) ||
+                other.mediumMinScore == mediumMinScore) &&
+            (identical(other.brightMinScore, brightMinScore) ||
+                other.brightMinScore == brightMinScore));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, faintMinScore, mediumMinScore, brightMinScore);
+
+  @override
+  String toString() {
+    return 'BrightnessTierPreferences(faintMinScore: $faintMinScore, mediumMinScore: $mediumMinScore, brightMinScore: $brightMinScore)';
+  }
+}
+
+/// @nodoc
+abstract mixin class _$BrightnessTierPreferencesCopyWith<$Res>
+    implements $BrightnessTierPreferencesCopyWith<$Res> {
+  factory _$BrightnessTierPreferencesCopyWith(_BrightnessTierPreferences value,
+          $Res Function(_BrightnessTierPreferences) _then) =
+      __$BrightnessTierPreferencesCopyWithImpl;
+  @override
+  @useResult
+  $Res call(
+      {double faintMinScore, double mediumMinScore, double brightMinScore});
+}
+
+/// @nodoc
+class __$BrightnessTierPreferencesCopyWithImpl<$Res>
+    implements _$BrightnessTierPreferencesCopyWith<$Res> {
+  __$BrightnessTierPreferencesCopyWithImpl(this._self, this._then);
+
+  final _BrightnessTierPreferences _self;
+  final $Res Function(_BrightnessTierPreferences) _then;
+
+  /// Create a copy of BrightnessTierPreferences
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? faintMinScore = null,
+    Object? mediumMinScore = null,
+    Object? brightMinScore = null,
+  }) {
+    return _then(_BrightnessTierPreferences(
+      faintMinScore: null == faintMinScore
+          ? _self.faintMinScore
+          : faintMinScore // ignore: cast_nullable_to_non_nullable
+              as double,
+      mediumMinScore: null == mediumMinScore
+          ? _self.mediumMinScore
+          : mediumMinScore // ignore: cast_nullable_to_non_nullable
+              as double,
+      brightMinScore: null == brightMinScore
+          ? _self.brightMinScore
+          : brightMinScore // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
+}
+
+/// @nodoc
+mixin _$ConditionsScoreWeights {
+  double get transparencyWeight;
+  double get seeingWeight;
+  double get cloudWeight;
+  double get windWeight;
+
+  /// Create a copy of ConditionsScoreWeights
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $ConditionsScoreWeightsCopyWith<ConditionsScoreWeights> get copyWith =>
+      _$ConditionsScoreWeightsCopyWithImpl<ConditionsScoreWeights>(
+          this as ConditionsScoreWeights, _$identity);
+
+  /// Serializes this ConditionsScoreWeights to a JSON map.
+  Map<String, dynamic> toJson();
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is ConditionsScoreWeights &&
+            (identical(other.transparencyWeight, transparencyWeight) ||
+                other.transparencyWeight == transparencyWeight) &&
+            (identical(other.seeingWeight, seeingWeight) ||
+                other.seeingWeight == seeingWeight) &&
+            (identical(other.cloudWeight, cloudWeight) ||
+                other.cloudWeight == cloudWeight) &&
+            (identical(other.windWeight, windWeight) ||
+                other.windWeight == windWeight));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType, transparencyWeight, seeingWeight, cloudWeight, windWeight);
+
+  @override
+  String toString() {
+    return 'ConditionsScoreWeights(transparencyWeight: $transparencyWeight, seeingWeight: $seeingWeight, cloudWeight: $cloudWeight, windWeight: $windWeight)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $ConditionsScoreWeightsCopyWith<$Res> {
+  factory $ConditionsScoreWeightsCopyWith(ConditionsScoreWeights value,
+          $Res Function(ConditionsScoreWeights) _then) =
+      _$ConditionsScoreWeightsCopyWithImpl;
+  @useResult
+  $Res call(
+      {double transparencyWeight,
+      double seeingWeight,
+      double cloudWeight,
+      double windWeight});
+}
+
+/// @nodoc
+class _$ConditionsScoreWeightsCopyWithImpl<$Res>
+    implements $ConditionsScoreWeightsCopyWith<$Res> {
+  _$ConditionsScoreWeightsCopyWithImpl(this._self, this._then);
+
+  final ConditionsScoreWeights _self;
+  final $Res Function(ConditionsScoreWeights) _then;
+
+  /// Create a copy of ConditionsScoreWeights
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? transparencyWeight = null,
+    Object? seeingWeight = null,
+    Object? cloudWeight = null,
+    Object? windWeight = null,
+  }) {
+    return _then(_self.copyWith(
+      transparencyWeight: null == transparencyWeight
+          ? _self.transparencyWeight
+          : transparencyWeight // ignore: cast_nullable_to_non_nullable
+              as double,
+      seeingWeight: null == seeingWeight
+          ? _self.seeingWeight
+          : seeingWeight // ignore: cast_nullable_to_non_nullable
+              as double,
+      cloudWeight: null == cloudWeight
+          ? _self.cloudWeight
+          : cloudWeight // ignore: cast_nullable_to_non_nullable
+              as double,
+      windWeight: null == windWeight
+          ? _self.windWeight
+          : windWeight // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
+}
+
+/// Adds pattern-matching-related methods to [ConditionsScoreWeights].
+extension ConditionsScoreWeightsPatterns on ConditionsScoreWeights {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_ConditionsScoreWeights value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _ConditionsScoreWeights() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_ConditionsScoreWeights value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ConditionsScoreWeights():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_ConditionsScoreWeights value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ConditionsScoreWeights() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(double transparencyWeight, double seeingWeight,
+            double cloudWeight, double windWeight)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _ConditionsScoreWeights() when $default != null:
+        return $default(_that.transparencyWeight, _that.seeingWeight,
+            _that.cloudWeight, _that.windWeight);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(double transparencyWeight, double seeingWeight,
+            double cloudWeight, double windWeight)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ConditionsScoreWeights():
+        return $default(_that.transparencyWeight, _that.seeingWeight,
+            _that.cloudWeight, _that.windWeight);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(double transparencyWeight, double seeingWeight,
+            double cloudWeight, double windWeight)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ConditionsScoreWeights() when $default != null:
+        return $default(_that.transparencyWeight, _that.seeingWeight,
+            _that.cloudWeight, _that.windWeight);
+      case _:
+        return null;
+    }
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(fieldRename: FieldRename.snake)
+class _ConditionsScoreWeights extends ConditionsScoreWeights {
+  const _ConditionsScoreWeights(
+      {this.transparencyWeight = 0.40,
+      this.seeingWeight = 0.25,
+      this.cloudWeight = 0.25,
+      this.windWeight = 0.10})
+      : super._();
+  factory _ConditionsScoreWeights.fromJson(Map<String, dynamic> json) =>
+      _$ConditionsScoreWeightsFromJson(json);
+
+  @override
+  @JsonKey()
+  final double transparencyWeight;
+  @override
+  @JsonKey()
+  final double seeingWeight;
+  @override
+  @JsonKey()
+  final double cloudWeight;
+  @override
+  @JsonKey()
+  final double windWeight;
+
+  /// Create a copy of ConditionsScoreWeights
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$ConditionsScoreWeightsCopyWith<_ConditionsScoreWeights> get copyWith =>
+      __$ConditionsScoreWeightsCopyWithImpl<_ConditionsScoreWeights>(
           this, _$identity);
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$MosaicPanelInfoImplToJson(
+    return _$ConditionsScoreWeightsToJson(
       this,
     );
   }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _ConditionsScoreWeights &&
+            (identical(other.transparencyWeight, transparencyWeight) ||
+                other.transparencyWeight == transparencyWeight) &&
+            (identical(other.seeingWeight, seeingWeight) ||
+                other.seeingWeight == seeingWeight) &&
+            (identical(other.cloudWeight, cloudWeight) ||
+                other.cloudWeight == cloudWeight) &&
+            (identical(other.windWeight, windWeight) ||
+                other.windWeight == windWeight));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType, transparencyWeight, seeingWeight, cloudWeight, windWeight);
+
+  @override
+  String toString() {
+    return 'ConditionsScoreWeights(transparencyWeight: $transparencyWeight, seeingWeight: $seeingWeight, cloudWeight: $cloudWeight, windWeight: $windWeight)';
+  }
 }
 
-abstract class _MosaicPanelInfo extends MosaicPanelInfo {
-  const factory _MosaicPanelInfo(
-      {required final String mosaicName,
-      required final int panelIndex,
-      required final int totalPanels,
-      required final int row,
-      required final int column}) = _$MosaicPanelInfoImpl;
-  const _MosaicPanelInfo._() : super._();
+/// @nodoc
+abstract mixin class _$ConditionsScoreWeightsCopyWith<$Res>
+    implements $ConditionsScoreWeightsCopyWith<$Res> {
+  factory _$ConditionsScoreWeightsCopyWith(_ConditionsScoreWeights value,
+          $Res Function(_ConditionsScoreWeights) _then) =
+      __$ConditionsScoreWeightsCopyWithImpl;
+  @override
+  @useResult
+  $Res call(
+      {double transparencyWeight,
+      double seeingWeight,
+      double cloudWeight,
+      double windWeight});
+}
 
-  factory _MosaicPanelInfo.fromJson(Map<String, dynamic> json) =
-      _$MosaicPanelInfoImpl.fromJson;
+/// @nodoc
+class __$ConditionsScoreWeightsCopyWithImpl<$Res>
+    implements _$ConditionsScoreWeightsCopyWith<$Res> {
+  __$ConditionsScoreWeightsCopyWithImpl(this._self, this._then);
+
+  final _ConditionsScoreWeights _self;
+  final $Res Function(_ConditionsScoreWeights) _then;
+
+  /// Create a copy of ConditionsScoreWeights
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? transparencyWeight = null,
+    Object? seeingWeight = null,
+    Object? cloudWeight = null,
+    Object? windWeight = null,
+  }) {
+    return _then(_ConditionsScoreWeights(
+      transparencyWeight: null == transparencyWeight
+          ? _self.transparencyWeight
+          : transparencyWeight // ignore: cast_nullable_to_non_nullable
+              as double,
+      seeingWeight: null == seeingWeight
+          ? _self.seeingWeight
+          : seeingWeight // ignore: cast_nullable_to_non_nullable
+              as double,
+      cloudWeight: null == cloudWeight
+          ? _self.cloudWeight
+          : cloudWeight // ignore: cast_nullable_to_non_nullable
+              as double,
+      windWeight: null == windWeight
+          ? _self.windWeight
+          : windWeight // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
+}
+
+/// @nodoc
+mixin _$ConditionsScore {
+  double get score;
+  double? get transparencyScore;
+  double? get seeingScore;
+  double? get cloudScore;
+  double? get windScore;
+  ConditionsScoreWeights
+      get weights; // `generated_unix_secs` (int seconds) on the wire. The Rust side uses
+// `serde_with::TimestampSeconds<i64>`. PHASE-2-NOTE: The pre-freezed
+// fromJson fell back to `0` (epoch) on missing field; the freezed
+// form makes the field required, which is strictly stricter (errors
+// are a feature). The Rust producer always emits this field, so
+// production traffic is unaffected; only synthetic JSON missing the
+// key will now throw — matching CLAUDE.md's "silent fallback hides
+// bugs" policy. Phase 1's contract tests always provide the key.
+  @JsonKey(name: 'generated_unix_secs')
+  @UnixSecsDateTimeConverter()
+  DateTime get generatedAt;
+
+  /// Create a copy of ConditionsScore
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $ConditionsScoreCopyWith<ConditionsScore> get copyWith =>
+      _$ConditionsScoreCopyWithImpl<ConditionsScore>(
+          this as ConditionsScore, _$identity);
+
+  /// Serializes this ConditionsScore to a JSON map.
+  Map<String, dynamic> toJson();
 
   @override
-  String get mosaicName;
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is ConditionsScore &&
+            (identical(other.score, score) || other.score == score) &&
+            (identical(other.transparencyScore, transparencyScore) ||
+                other.transparencyScore == transparencyScore) &&
+            (identical(other.seeingScore, seeingScore) ||
+                other.seeingScore == seeingScore) &&
+            (identical(other.cloudScore, cloudScore) ||
+                other.cloudScore == cloudScore) &&
+            (identical(other.windScore, windScore) ||
+                other.windScore == windScore) &&
+            (identical(other.weights, weights) || other.weights == weights) &&
+            (identical(other.generatedAt, generatedAt) ||
+                other.generatedAt == generatedAt));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get panelIndex;
+  int get hashCode => Object.hash(runtimeType, score, transparencyScore,
+      seeingScore, cloudScore, windScore, weights, generatedAt);
+
   @override
-  int get totalPanels;
+  String toString() {
+    return 'ConditionsScore(score: $score, transparencyScore: $transparencyScore, seeingScore: $seeingScore, cloudScore: $cloudScore, windScore: $windScore, weights: $weights, generatedAt: $generatedAt)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $ConditionsScoreCopyWith<$Res> {
+  factory $ConditionsScoreCopyWith(
+          ConditionsScore value, $Res Function(ConditionsScore) _then) =
+      _$ConditionsScoreCopyWithImpl;
+  @useResult
+  $Res call(
+      {double score,
+      double? transparencyScore,
+      double? seeingScore,
+      double? cloudScore,
+      double? windScore,
+      ConditionsScoreWeights weights,
+      @JsonKey(name: 'generated_unix_secs')
+      @UnixSecsDateTimeConverter()
+      DateTime generatedAt});
+
+  $ConditionsScoreWeightsCopyWith<$Res> get weights;
+}
+
+/// @nodoc
+class _$ConditionsScoreCopyWithImpl<$Res>
+    implements $ConditionsScoreCopyWith<$Res> {
+  _$ConditionsScoreCopyWithImpl(this._self, this._then);
+
+  final ConditionsScore _self;
+  final $Res Function(ConditionsScore) _then;
+
+  /// Create a copy of ConditionsScore
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
   @override
-  int get row;
+  $Res call({
+    Object? score = null,
+    Object? transparencyScore = freezed,
+    Object? seeingScore = freezed,
+    Object? cloudScore = freezed,
+    Object? windScore = freezed,
+    Object? weights = null,
+    Object? generatedAt = null,
+  }) {
+    return _then(_self.copyWith(
+      score: null == score
+          ? _self.score
+          : score // ignore: cast_nullable_to_non_nullable
+              as double,
+      transparencyScore: freezed == transparencyScore
+          ? _self.transparencyScore
+          : transparencyScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      seeingScore: freezed == seeingScore
+          ? _self.seeingScore
+          : seeingScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      cloudScore: freezed == cloudScore
+          ? _self.cloudScore
+          : cloudScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      windScore: freezed == windScore
+          ? _self.windScore
+          : windScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      weights: null == weights
+          ? _self.weights
+          : weights // ignore: cast_nullable_to_non_nullable
+              as ConditionsScoreWeights,
+      generatedAt: null == generatedAt
+          ? _self.generatedAt
+          : generatedAt // ignore: cast_nullable_to_non_nullable
+              as DateTime,
+    ));
+  }
+
+  /// Create a copy of ConditionsScore
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  int get column;
+  @pragma('vm:prefer-inline')
+  $ConditionsScoreWeightsCopyWith<$Res> get weights {
+    return $ConditionsScoreWeightsCopyWith<$Res>(_self.weights, (value) {
+      return _then(_self.copyWith(weights: value));
+    });
+  }
+}
+
+/// Adds pattern-matching-related methods to [ConditionsScore].
+extension ConditionsScorePatterns on ConditionsScore {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_ConditionsScore value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _ConditionsScore() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_ConditionsScore value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ConditionsScore():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_ConditionsScore value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ConditionsScore() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            double score,
+            double? transparencyScore,
+            double? seeingScore,
+            double? cloudScore,
+            double? windScore,
+            ConditionsScoreWeights weights,
+            @JsonKey(name: 'generated_unix_secs')
+            @UnixSecsDateTimeConverter()
+            DateTime generatedAt)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _ConditionsScore() when $default != null:
+        return $default(
+            _that.score,
+            _that.transparencyScore,
+            _that.seeingScore,
+            _that.cloudScore,
+            _that.windScore,
+            _that.weights,
+            _that.generatedAt);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            double score,
+            double? transparencyScore,
+            double? seeingScore,
+            double? cloudScore,
+            double? windScore,
+            ConditionsScoreWeights weights,
+            @JsonKey(name: 'generated_unix_secs')
+            @UnixSecsDateTimeConverter()
+            DateTime generatedAt)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ConditionsScore():
+        return $default(
+            _that.score,
+            _that.transparencyScore,
+            _that.seeingScore,
+            _that.cloudScore,
+            _that.windScore,
+            _that.weights,
+            _that.generatedAt);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            double score,
+            double? transparencyScore,
+            double? seeingScore,
+            double? cloudScore,
+            double? windScore,
+            ConditionsScoreWeights weights,
+            @JsonKey(name: 'generated_unix_secs')
+            @UnixSecsDateTimeConverter()
+            DateTime generatedAt)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _ConditionsScore() when $default != null:
+        return $default(
+            _that.score,
+            _that.transparencyScore,
+            _that.seeingScore,
+            _that.cloudScore,
+            _that.windScore,
+            _that.weights,
+            _that.generatedAt);
+      case _:
+        return null;
+    }
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(fieldRename: FieldRename.snake, explicitToJson: true)
+class _ConditionsScore extends ConditionsScore {
+  const _ConditionsScore(
+      {required this.score,
+      this.transparencyScore,
+      this.seeingScore,
+      this.cloudScore,
+      this.windScore,
+      this.weights = const ConditionsScoreWeights(),
+      @JsonKey(name: 'generated_unix_secs')
+      @UnixSecsDateTimeConverter()
+      required this.generatedAt})
+      : super._();
+  factory _ConditionsScore.fromJson(Map<String, dynamic> json) =>
+      _$ConditionsScoreFromJson(json);
+
   @override
-  @JsonKey(ignore: true)
-  _$$MosaicPanelInfoImplCopyWith<_$MosaicPanelInfoImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  final double score;
+  @override
+  final double? transparencyScore;
+  @override
+  final double? seeingScore;
+  @override
+  final double? cloudScore;
+  @override
+  final double? windScore;
+  @override
+  @JsonKey()
+  final ConditionsScoreWeights weights;
+// `generated_unix_secs` (int seconds) on the wire. The Rust side uses
+// `serde_with::TimestampSeconds<i64>`. PHASE-2-NOTE: The pre-freezed
+// fromJson fell back to `0` (epoch) on missing field; the freezed
+// form makes the field required, which is strictly stricter (errors
+// are a feature). The Rust producer always emits this field, so
+// production traffic is unaffected; only synthetic JSON missing the
+// key will now throw — matching CLAUDE.md's "silent fallback hides
+// bugs" policy. Phase 1's contract tests always provide the key.
+  @override
+  @JsonKey(name: 'generated_unix_secs')
+  @UnixSecsDateTimeConverter()
+  final DateTime generatedAt;
+
+  /// Create a copy of ConditionsScore
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$ConditionsScoreCopyWith<_ConditionsScore> get copyWith =>
+      __$ConditionsScoreCopyWithImpl<_ConditionsScore>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$ConditionsScoreToJson(
+      this,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _ConditionsScore &&
+            (identical(other.score, score) || other.score == score) &&
+            (identical(other.transparencyScore, transparencyScore) ||
+                other.transparencyScore == transparencyScore) &&
+            (identical(other.seeingScore, seeingScore) ||
+                other.seeingScore == seeingScore) &&
+            (identical(other.cloudScore, cloudScore) ||
+                other.cloudScore == cloudScore) &&
+            (identical(other.windScore, windScore) ||
+                other.windScore == windScore) &&
+            (identical(other.weights, weights) || other.weights == weights) &&
+            (identical(other.generatedAt, generatedAt) ||
+                other.generatedAt == generatedAt));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, score, transparencyScore,
+      seeingScore, cloudScore, windScore, weights, generatedAt);
+
+  @override
+  String toString() {
+    return 'ConditionsScore(score: $score, transparencyScore: $transparencyScore, seeingScore: $seeingScore, cloudScore: $cloudScore, windScore: $windScore, weights: $weights, generatedAt: $generatedAt)';
+  }
+}
+
+/// @nodoc
+abstract mixin class _$ConditionsScoreCopyWith<$Res>
+    implements $ConditionsScoreCopyWith<$Res> {
+  factory _$ConditionsScoreCopyWith(
+          _ConditionsScore value, $Res Function(_ConditionsScore) _then) =
+      __$ConditionsScoreCopyWithImpl;
+  @override
+  @useResult
+  $Res call(
+      {double score,
+      double? transparencyScore,
+      double? seeingScore,
+      double? cloudScore,
+      double? windScore,
+      ConditionsScoreWeights weights,
+      @JsonKey(name: 'generated_unix_secs')
+      @UnixSecsDateTimeConverter()
+      DateTime generatedAt});
+
+  @override
+  $ConditionsScoreWeightsCopyWith<$Res> get weights;
+}
+
+/// @nodoc
+class __$ConditionsScoreCopyWithImpl<$Res>
+    implements _$ConditionsScoreCopyWith<$Res> {
+  __$ConditionsScoreCopyWithImpl(this._self, this._then);
+
+  final _ConditionsScore _self;
+  final $Res Function(_ConditionsScore) _then;
+
+  /// Create a copy of ConditionsScore
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? score = null,
+    Object? transparencyScore = freezed,
+    Object? seeingScore = freezed,
+    Object? cloudScore = freezed,
+    Object? windScore = freezed,
+    Object? weights = null,
+    Object? generatedAt = null,
+  }) {
+    return _then(_ConditionsScore(
+      score: null == score
+          ? _self.score
+          : score // ignore: cast_nullable_to_non_nullable
+              as double,
+      transparencyScore: freezed == transparencyScore
+          ? _self.transparencyScore
+          : transparencyScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      seeingScore: freezed == seeingScore
+          ? _self.seeingScore
+          : seeingScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      cloudScore: freezed == cloudScore
+          ? _self.cloudScore
+          : cloudScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      windScore: freezed == windScore
+          ? _self.windScore
+          : windScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      weights: null == weights
+          ? _self.weights
+          : weights // ignore: cast_nullable_to_non_nullable
+              as ConditionsScoreWeights,
+      generatedAt: null == generatedAt
+          ? _self.generatedAt
+          : generatedAt // ignore: cast_nullable_to_non_nullable
+              as DateTime,
+    ));
+  }
+
+  /// Create a copy of ConditionsScore
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $ConditionsScoreWeightsCopyWith<$Res> get weights {
+    return $ConditionsScoreWeightsCopyWith<$Res>(_self.weights, (value) {
+      return _then(_self.copyWith(weights: value));
+    });
+  }
+}
+
+/// @nodoc
+mixin _$AdaptiveSwapRuntimeState {
+  String? get currentTargetId;
+  String? get currentTier;
+  String? get lastDecisionKind;
+  String?
+      get lastDecisionReason; // `last_swap_unix_secs` (nullable int seconds). When `null`, the
+// JSON field is present-with-null (not omitted) — Phase 1's
+// `null_last_swap_serialises_as_null_field` contract test pins this.
+  @JsonKey(name: 'last_swap_unix_secs')
+  @NullableUnixSecsDateTimeConverter()
+  DateTime? get lastSwapAt;
+  String? get lastSwapFromTargetId;
+  String? get lastSwapToTargetId;
+  double? get lastObservedScore;
+  double? get configuredThreshold;
+  double get configuredHysteresisSecs;
+
+  /// Create a copy of AdaptiveSwapRuntimeState
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $AdaptiveSwapRuntimeStateCopyWith<AdaptiveSwapRuntimeState> get copyWith =>
+      _$AdaptiveSwapRuntimeStateCopyWithImpl<AdaptiveSwapRuntimeState>(
+          this as AdaptiveSwapRuntimeState, _$identity);
+
+  /// Serializes this AdaptiveSwapRuntimeState to a JSON map.
+  Map<String, dynamic> toJson();
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is AdaptiveSwapRuntimeState &&
+            (identical(other.currentTargetId, currentTargetId) ||
+                other.currentTargetId == currentTargetId) &&
+            (identical(other.currentTier, currentTier) ||
+                other.currentTier == currentTier) &&
+            (identical(other.lastDecisionKind, lastDecisionKind) ||
+                other.lastDecisionKind == lastDecisionKind) &&
+            (identical(other.lastDecisionReason, lastDecisionReason) ||
+                other.lastDecisionReason == lastDecisionReason) &&
+            (identical(other.lastSwapAt, lastSwapAt) ||
+                other.lastSwapAt == lastSwapAt) &&
+            (identical(other.lastSwapFromTargetId, lastSwapFromTargetId) ||
+                other.lastSwapFromTargetId == lastSwapFromTargetId) &&
+            (identical(other.lastSwapToTargetId, lastSwapToTargetId) ||
+                other.lastSwapToTargetId == lastSwapToTargetId) &&
+            (identical(other.lastObservedScore, lastObservedScore) ||
+                other.lastObservedScore == lastObservedScore) &&
+            (identical(other.configuredThreshold, configuredThreshold) ||
+                other.configuredThreshold == configuredThreshold) &&
+            (identical(
+                    other.configuredHysteresisSecs, configuredHysteresisSecs) ||
+                other.configuredHysteresisSecs == configuredHysteresisSecs));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      currentTargetId,
+      currentTier,
+      lastDecisionKind,
+      lastDecisionReason,
+      lastSwapAt,
+      lastSwapFromTargetId,
+      lastSwapToTargetId,
+      lastObservedScore,
+      configuredThreshold,
+      configuredHysteresisSecs);
+
+  @override
+  String toString() {
+    return 'AdaptiveSwapRuntimeState(currentTargetId: $currentTargetId, currentTier: $currentTier, lastDecisionKind: $lastDecisionKind, lastDecisionReason: $lastDecisionReason, lastSwapAt: $lastSwapAt, lastSwapFromTargetId: $lastSwapFromTargetId, lastSwapToTargetId: $lastSwapToTargetId, lastObservedScore: $lastObservedScore, configuredThreshold: $configuredThreshold, configuredHysteresisSecs: $configuredHysteresisSecs)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $AdaptiveSwapRuntimeStateCopyWith<$Res> {
+  factory $AdaptiveSwapRuntimeStateCopyWith(AdaptiveSwapRuntimeState value,
+          $Res Function(AdaptiveSwapRuntimeState) _then) =
+      _$AdaptiveSwapRuntimeStateCopyWithImpl;
+  @useResult
+  $Res call(
+      {String? currentTargetId,
+      String? currentTier,
+      String? lastDecisionKind,
+      String? lastDecisionReason,
+      @JsonKey(name: 'last_swap_unix_secs')
+      @NullableUnixSecsDateTimeConverter()
+      DateTime? lastSwapAt,
+      String? lastSwapFromTargetId,
+      String? lastSwapToTargetId,
+      double? lastObservedScore,
+      double? configuredThreshold,
+      double configuredHysteresisSecs});
+}
+
+/// @nodoc
+class _$AdaptiveSwapRuntimeStateCopyWithImpl<$Res>
+    implements $AdaptiveSwapRuntimeStateCopyWith<$Res> {
+  _$AdaptiveSwapRuntimeStateCopyWithImpl(this._self, this._then);
+
+  final AdaptiveSwapRuntimeState _self;
+  final $Res Function(AdaptiveSwapRuntimeState) _then;
+
+  /// Create a copy of AdaptiveSwapRuntimeState
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? currentTargetId = freezed,
+    Object? currentTier = freezed,
+    Object? lastDecisionKind = freezed,
+    Object? lastDecisionReason = freezed,
+    Object? lastSwapAt = freezed,
+    Object? lastSwapFromTargetId = freezed,
+    Object? lastSwapToTargetId = freezed,
+    Object? lastObservedScore = freezed,
+    Object? configuredThreshold = freezed,
+    Object? configuredHysteresisSecs = null,
+  }) {
+    return _then(_self.copyWith(
+      currentTargetId: freezed == currentTargetId
+          ? _self.currentTargetId
+          : currentTargetId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      currentTier: freezed == currentTier
+          ? _self.currentTier
+          : currentTier // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastDecisionKind: freezed == lastDecisionKind
+          ? _self.lastDecisionKind
+          : lastDecisionKind // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastDecisionReason: freezed == lastDecisionReason
+          ? _self.lastDecisionReason
+          : lastDecisionReason // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastSwapAt: freezed == lastSwapAt
+          ? _self.lastSwapAt
+          : lastSwapAt // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      lastSwapFromTargetId: freezed == lastSwapFromTargetId
+          ? _self.lastSwapFromTargetId
+          : lastSwapFromTargetId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastSwapToTargetId: freezed == lastSwapToTargetId
+          ? _self.lastSwapToTargetId
+          : lastSwapToTargetId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastObservedScore: freezed == lastObservedScore
+          ? _self.lastObservedScore
+          : lastObservedScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      configuredThreshold: freezed == configuredThreshold
+          ? _self.configuredThreshold
+          : configuredThreshold // ignore: cast_nullable_to_non_nullable
+              as double?,
+      configuredHysteresisSecs: null == configuredHysteresisSecs
+          ? _self.configuredHysteresisSecs
+          : configuredHysteresisSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
+}
+
+/// Adds pattern-matching-related methods to [AdaptiveSwapRuntimeState].
+extension AdaptiveSwapRuntimeStatePatterns on AdaptiveSwapRuntimeState {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_AdaptiveSwapRuntimeState value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveSwapRuntimeState() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_AdaptiveSwapRuntimeState value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveSwapRuntimeState():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_AdaptiveSwapRuntimeState value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveSwapRuntimeState() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            String? currentTargetId,
+            String? currentTier,
+            String? lastDecisionKind,
+            String? lastDecisionReason,
+            @JsonKey(name: 'last_swap_unix_secs')
+            @NullableUnixSecsDateTimeConverter()
+            DateTime? lastSwapAt,
+            String? lastSwapFromTargetId,
+            String? lastSwapToTargetId,
+            double? lastObservedScore,
+            double? configuredThreshold,
+            double configuredHysteresisSecs)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveSwapRuntimeState() when $default != null:
+        return $default(
+            _that.currentTargetId,
+            _that.currentTier,
+            _that.lastDecisionKind,
+            _that.lastDecisionReason,
+            _that.lastSwapAt,
+            _that.lastSwapFromTargetId,
+            _that.lastSwapToTargetId,
+            _that.lastObservedScore,
+            _that.configuredThreshold,
+            _that.configuredHysteresisSecs);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            String? currentTargetId,
+            String? currentTier,
+            String? lastDecisionKind,
+            String? lastDecisionReason,
+            @JsonKey(name: 'last_swap_unix_secs')
+            @NullableUnixSecsDateTimeConverter()
+            DateTime? lastSwapAt,
+            String? lastSwapFromTargetId,
+            String? lastSwapToTargetId,
+            double? lastObservedScore,
+            double? configuredThreshold,
+            double configuredHysteresisSecs)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveSwapRuntimeState():
+        return $default(
+            _that.currentTargetId,
+            _that.currentTier,
+            _that.lastDecisionKind,
+            _that.lastDecisionReason,
+            _that.lastSwapAt,
+            _that.lastSwapFromTargetId,
+            _that.lastSwapToTargetId,
+            _that.lastObservedScore,
+            _that.configuredThreshold,
+            _that.configuredHysteresisSecs);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            String? currentTargetId,
+            String? currentTier,
+            String? lastDecisionKind,
+            String? lastDecisionReason,
+            @JsonKey(name: 'last_swap_unix_secs')
+            @NullableUnixSecsDateTimeConverter()
+            DateTime? lastSwapAt,
+            String? lastSwapFromTargetId,
+            String? lastSwapToTargetId,
+            double? lastObservedScore,
+            double? configuredThreshold,
+            double configuredHysteresisSecs)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveSwapRuntimeState() when $default != null:
+        return $default(
+            _that.currentTargetId,
+            _that.currentTier,
+            _that.lastDecisionKind,
+            _that.lastDecisionReason,
+            _that.lastSwapAt,
+            _that.lastSwapFromTargetId,
+            _that.lastSwapToTargetId,
+            _that.lastObservedScore,
+            _that.configuredThreshold,
+            _that.configuredHysteresisSecs);
+      case _:
+        return null;
+    }
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)
+class _AdaptiveSwapRuntimeState extends AdaptiveSwapRuntimeState {
+  const _AdaptiveSwapRuntimeState(
+      {this.currentTargetId,
+      this.currentTier,
+      this.lastDecisionKind,
+      this.lastDecisionReason,
+      @JsonKey(name: 'last_swap_unix_secs')
+      @NullableUnixSecsDateTimeConverter()
+      this.lastSwapAt,
+      this.lastSwapFromTargetId,
+      this.lastSwapToTargetId,
+      this.lastObservedScore,
+      this.configuredThreshold,
+      this.configuredHysteresisSecs = 180.0})
+      : super._();
+  factory _AdaptiveSwapRuntimeState.fromJson(Map<String, dynamic> json) =>
+      _$AdaptiveSwapRuntimeStateFromJson(json);
+
+  @override
+  final String? currentTargetId;
+  @override
+  final String? currentTier;
+  @override
+  final String? lastDecisionKind;
+  @override
+  final String? lastDecisionReason;
+// `last_swap_unix_secs` (nullable int seconds). When `null`, the
+// JSON field is present-with-null (not omitted) — Phase 1's
+// `null_last_swap_serialises_as_null_field` contract test pins this.
+  @override
+  @JsonKey(name: 'last_swap_unix_secs')
+  @NullableUnixSecsDateTimeConverter()
+  final DateTime? lastSwapAt;
+  @override
+  final String? lastSwapFromTargetId;
+  @override
+  final String? lastSwapToTargetId;
+  @override
+  final double? lastObservedScore;
+  @override
+  final double? configuredThreshold;
+  @override
+  @JsonKey()
+  final double configuredHysteresisSecs;
+
+  /// Create a copy of AdaptiveSwapRuntimeState
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$AdaptiveSwapRuntimeStateCopyWith<_AdaptiveSwapRuntimeState> get copyWith =>
+      __$AdaptiveSwapRuntimeStateCopyWithImpl<_AdaptiveSwapRuntimeState>(
+          this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$AdaptiveSwapRuntimeStateToJson(
+      this,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _AdaptiveSwapRuntimeState &&
+            (identical(other.currentTargetId, currentTargetId) ||
+                other.currentTargetId == currentTargetId) &&
+            (identical(other.currentTier, currentTier) ||
+                other.currentTier == currentTier) &&
+            (identical(other.lastDecisionKind, lastDecisionKind) ||
+                other.lastDecisionKind == lastDecisionKind) &&
+            (identical(other.lastDecisionReason, lastDecisionReason) ||
+                other.lastDecisionReason == lastDecisionReason) &&
+            (identical(other.lastSwapAt, lastSwapAt) ||
+                other.lastSwapAt == lastSwapAt) &&
+            (identical(other.lastSwapFromTargetId, lastSwapFromTargetId) ||
+                other.lastSwapFromTargetId == lastSwapFromTargetId) &&
+            (identical(other.lastSwapToTargetId, lastSwapToTargetId) ||
+                other.lastSwapToTargetId == lastSwapToTargetId) &&
+            (identical(other.lastObservedScore, lastObservedScore) ||
+                other.lastObservedScore == lastObservedScore) &&
+            (identical(other.configuredThreshold, configuredThreshold) ||
+                other.configuredThreshold == configuredThreshold) &&
+            (identical(
+                    other.configuredHysteresisSecs, configuredHysteresisSecs) ||
+                other.configuredHysteresisSecs == configuredHysteresisSecs));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      currentTargetId,
+      currentTier,
+      lastDecisionKind,
+      lastDecisionReason,
+      lastSwapAt,
+      lastSwapFromTargetId,
+      lastSwapToTargetId,
+      lastObservedScore,
+      configuredThreshold,
+      configuredHysteresisSecs);
+
+  @override
+  String toString() {
+    return 'AdaptiveSwapRuntimeState(currentTargetId: $currentTargetId, currentTier: $currentTier, lastDecisionKind: $lastDecisionKind, lastDecisionReason: $lastDecisionReason, lastSwapAt: $lastSwapAt, lastSwapFromTargetId: $lastSwapFromTargetId, lastSwapToTargetId: $lastSwapToTargetId, lastObservedScore: $lastObservedScore, configuredThreshold: $configuredThreshold, configuredHysteresisSecs: $configuredHysteresisSecs)';
+  }
+}
+
+/// @nodoc
+abstract mixin class _$AdaptiveSwapRuntimeStateCopyWith<$Res>
+    implements $AdaptiveSwapRuntimeStateCopyWith<$Res> {
+  factory _$AdaptiveSwapRuntimeStateCopyWith(_AdaptiveSwapRuntimeState value,
+          $Res Function(_AdaptiveSwapRuntimeState) _then) =
+      __$AdaptiveSwapRuntimeStateCopyWithImpl;
+  @override
+  @useResult
+  $Res call(
+      {String? currentTargetId,
+      String? currentTier,
+      String? lastDecisionKind,
+      String? lastDecisionReason,
+      @JsonKey(name: 'last_swap_unix_secs')
+      @NullableUnixSecsDateTimeConverter()
+      DateTime? lastSwapAt,
+      String? lastSwapFromTargetId,
+      String? lastSwapToTargetId,
+      double? lastObservedScore,
+      double? configuredThreshold,
+      double configuredHysteresisSecs});
+}
+
+/// @nodoc
+class __$AdaptiveSwapRuntimeStateCopyWithImpl<$Res>
+    implements _$AdaptiveSwapRuntimeStateCopyWith<$Res> {
+  __$AdaptiveSwapRuntimeStateCopyWithImpl(this._self, this._then);
+
+  final _AdaptiveSwapRuntimeState _self;
+  final $Res Function(_AdaptiveSwapRuntimeState) _then;
+
+  /// Create a copy of AdaptiveSwapRuntimeState
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? currentTargetId = freezed,
+    Object? currentTier = freezed,
+    Object? lastDecisionKind = freezed,
+    Object? lastDecisionReason = freezed,
+    Object? lastSwapAt = freezed,
+    Object? lastSwapFromTargetId = freezed,
+    Object? lastSwapToTargetId = freezed,
+    Object? lastObservedScore = freezed,
+    Object? configuredThreshold = freezed,
+    Object? configuredHysteresisSecs = null,
+  }) {
+    return _then(_AdaptiveSwapRuntimeState(
+      currentTargetId: freezed == currentTargetId
+          ? _self.currentTargetId
+          : currentTargetId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      currentTier: freezed == currentTier
+          ? _self.currentTier
+          : currentTier // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastDecisionKind: freezed == lastDecisionKind
+          ? _self.lastDecisionKind
+          : lastDecisionKind // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastDecisionReason: freezed == lastDecisionReason
+          ? _self.lastDecisionReason
+          : lastDecisionReason // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastSwapAt: freezed == lastSwapAt
+          ? _self.lastSwapAt
+          : lastSwapAt // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      lastSwapFromTargetId: freezed == lastSwapFromTargetId
+          ? _self.lastSwapFromTargetId
+          : lastSwapFromTargetId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastSwapToTargetId: freezed == lastSwapToTargetId
+          ? _self.lastSwapToTargetId
+          : lastSwapToTargetId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastObservedScore: freezed == lastObservedScore
+          ? _self.lastObservedScore
+          : lastObservedScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      configuredThreshold: freezed == configuredThreshold
+          ? _self.configuredThreshold
+          : configuredThreshold // ignore: cast_nullable_to_non_nullable
+              as double?,
+      configuredHysteresisSecs: null == configuredHysteresisSecs
+          ? _self.configuredHysteresisSecs
+          : configuredHysteresisSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
+}
+
+/// @nodoc
+mixin _$AdaptiveSwapSnapshot {
+  ConditionsScore?
+      get score; // Default empty state used when the JSON payload is missing
+// `state` entirely (Phase 1's
+// `from_json_treats_missing_state_as_default_state` contract test).
+  AdaptiveSwapRuntimeState get state;
+
+  /// Create a copy of AdaptiveSwapSnapshot
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $AdaptiveSwapSnapshotCopyWith<AdaptiveSwapSnapshot> get copyWith =>
+      _$AdaptiveSwapSnapshotCopyWithImpl<AdaptiveSwapSnapshot>(
+          this as AdaptiveSwapSnapshot, _$identity);
+
+  /// Serializes this AdaptiveSwapSnapshot to a JSON map.
+  Map<String, dynamic> toJson();
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is AdaptiveSwapSnapshot &&
+            (identical(other.score, score) || other.score == score) &&
+            (identical(other.state, state) || other.state == state));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, score, state);
+
+  @override
+  String toString() {
+    return 'AdaptiveSwapSnapshot(score: $score, state: $state)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $AdaptiveSwapSnapshotCopyWith<$Res> {
+  factory $AdaptiveSwapSnapshotCopyWith(AdaptiveSwapSnapshot value,
+          $Res Function(AdaptiveSwapSnapshot) _then) =
+      _$AdaptiveSwapSnapshotCopyWithImpl;
+  @useResult
+  $Res call({ConditionsScore? score, AdaptiveSwapRuntimeState state});
+
+  $ConditionsScoreCopyWith<$Res>? get score;
+  $AdaptiveSwapRuntimeStateCopyWith<$Res> get state;
+}
+
+/// @nodoc
+class _$AdaptiveSwapSnapshotCopyWithImpl<$Res>
+    implements $AdaptiveSwapSnapshotCopyWith<$Res> {
+  _$AdaptiveSwapSnapshotCopyWithImpl(this._self, this._then);
+
+  final AdaptiveSwapSnapshot _self;
+  final $Res Function(AdaptiveSwapSnapshot) _then;
+
+  /// Create a copy of AdaptiveSwapSnapshot
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? score = freezed,
+    Object? state = null,
+  }) {
+    return _then(_self.copyWith(
+      score: freezed == score
+          ? _self.score
+          : score // ignore: cast_nullable_to_non_nullable
+              as ConditionsScore?,
+      state: null == state
+          ? _self.state
+          : state // ignore: cast_nullable_to_non_nullable
+              as AdaptiveSwapRuntimeState,
+    ));
+  }
+
+  /// Create a copy of AdaptiveSwapSnapshot
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $ConditionsScoreCopyWith<$Res>? get score {
+    if (_self.score == null) {
+      return null;
+    }
+
+    return $ConditionsScoreCopyWith<$Res>(_self.score!, (value) {
+      return _then(_self.copyWith(score: value));
+    });
+  }
+
+  /// Create a copy of AdaptiveSwapSnapshot
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $AdaptiveSwapRuntimeStateCopyWith<$Res> get state {
+    return $AdaptiveSwapRuntimeStateCopyWith<$Res>(_self.state, (value) {
+      return _then(_self.copyWith(state: value));
+    });
+  }
+}
+
+/// Adds pattern-matching-related methods to [AdaptiveSwapSnapshot].
+extension AdaptiveSwapSnapshotPatterns on AdaptiveSwapSnapshot {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_AdaptiveSwapSnapshot value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveSwapSnapshot() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_AdaptiveSwapSnapshot value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveSwapSnapshot():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_AdaptiveSwapSnapshot value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveSwapSnapshot() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(ConditionsScore? score, AdaptiveSwapRuntimeState state)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveSwapSnapshot() when $default != null:
+        return $default(_that.score, _that.state);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(ConditionsScore? score, AdaptiveSwapRuntimeState state)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveSwapSnapshot():
+        return $default(_that.score, _that.state);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(ConditionsScore? score, AdaptiveSwapRuntimeState state)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveSwapSnapshot() when $default != null:
+        return $default(_that.score, _that.state);
+      case _:
+        return null;
+    }
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(explicitToJson: true)
+class _AdaptiveSwapSnapshot implements AdaptiveSwapSnapshot {
+  const _AdaptiveSwapSnapshot(
+      {this.score, this.state = const AdaptiveSwapRuntimeState()});
+  factory _AdaptiveSwapSnapshot.fromJson(Map<String, dynamic> json) =>
+      _$AdaptiveSwapSnapshotFromJson(json);
+
+  @override
+  final ConditionsScore? score;
+// Default empty state used when the JSON payload is missing
+// `state` entirely (Phase 1's
+// `from_json_treats_missing_state_as_default_state` contract test).
+  @override
+  @JsonKey()
+  final AdaptiveSwapRuntimeState state;
+
+  /// Create a copy of AdaptiveSwapSnapshot
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$AdaptiveSwapSnapshotCopyWith<_AdaptiveSwapSnapshot> get copyWith =>
+      __$AdaptiveSwapSnapshotCopyWithImpl<_AdaptiveSwapSnapshot>(
+          this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$AdaptiveSwapSnapshotToJson(
+      this,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _AdaptiveSwapSnapshot &&
+            (identical(other.score, score) || other.score == score) &&
+            (identical(other.state, state) || other.state == state));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, score, state);
+
+  @override
+  String toString() {
+    return 'AdaptiveSwapSnapshot(score: $score, state: $state)';
+  }
+}
+
+/// @nodoc
+abstract mixin class _$AdaptiveSwapSnapshotCopyWith<$Res>
+    implements $AdaptiveSwapSnapshotCopyWith<$Res> {
+  factory _$AdaptiveSwapSnapshotCopyWith(_AdaptiveSwapSnapshot value,
+          $Res Function(_AdaptiveSwapSnapshot) _then) =
+      __$AdaptiveSwapSnapshotCopyWithImpl;
+  @override
+  @useResult
+  $Res call({ConditionsScore? score, AdaptiveSwapRuntimeState state});
+
+  @override
+  $ConditionsScoreCopyWith<$Res>? get score;
+  @override
+  $AdaptiveSwapRuntimeStateCopyWith<$Res> get state;
+}
+
+/// @nodoc
+class __$AdaptiveSwapSnapshotCopyWithImpl<$Res>
+    implements _$AdaptiveSwapSnapshotCopyWith<$Res> {
+  __$AdaptiveSwapSnapshotCopyWithImpl(this._self, this._then);
+
+  final _AdaptiveSwapSnapshot _self;
+  final $Res Function(_AdaptiveSwapSnapshot) _then;
+
+  /// Create a copy of AdaptiveSwapSnapshot
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? score = freezed,
+    Object? state = null,
+  }) {
+    return _then(_AdaptiveSwapSnapshot(
+      score: freezed == score
+          ? _self.score
+          : score // ignore: cast_nullable_to_non_nullable
+              as ConditionsScore?,
+      state: null == state
+          ? _self.state
+          : state // ignore: cast_nullable_to_non_nullable
+              as AdaptiveSwapRuntimeState,
+    ));
+  }
+
+  /// Create a copy of AdaptiveSwapSnapshot
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $ConditionsScoreCopyWith<$Res>? get score {
+    if (_self.score == null) {
+      return null;
+    }
+
+    return $ConditionsScoreCopyWith<$Res>(_self.score!, (value) {
+      return _then(_self.copyWith(score: value));
+    });
+  }
+
+  /// Create a copy of AdaptiveSwapSnapshot
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $AdaptiveSwapRuntimeStateCopyWith<$Res> get state {
+    return $AdaptiveSwapRuntimeStateCopyWith<$Res>(_self.state, (value) {
+      return _then(_self.copyWith(state: value));
+    });
+  }
+}
+
+/// @nodoc
+mixin _$FilterPlan {
+  /// Filter wheel slot name (e.g. "L", "Ha"). Matched against the
+  /// connected filter wheel's name list when [filterIndex] is null.
+  String get filterName;
+
+  /// 0-based filter wheel index. Preferred over [filterName] for
+  /// reliability — matches `ExposureNode.filterIndex` / Rust
+  /// `FilterConfig::filter_index`.
+  int? get filterIndex;
+
+  /// Total number of exposures to take for this filter.
+  int get count;
+
+  /// Sub-exposure duration in seconds.
+  double get durationSecs;
+
+  /// Optional gain override. null means "use camera/profile default".
+  int? get gain;
+
+  /// Optional offset override.
+  int? get offset;
+
+  /// Binning for this filter. Defaults to 1x1.
+  @BinningModeJsonConverter()
+  BinningMode get binning;
+
+  /// Per-plan dither cadence (every N frames). null disables dithering for
+  /// this filter regardless of any global default. 0 is treated as "no
+  /// dither" — matches `ExposureNode.ditherEvery`.
+  int? get ditherEvery;
+
+  /// Create a copy of FilterPlan
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $FilterPlanCopyWith<FilterPlan> get copyWith =>
+      _$FilterPlanCopyWithImpl<FilterPlan>(this as FilterPlan, _$identity);
+
+  /// Serializes this FilterPlan to a JSON map.
+  Map<String, dynamic> toJson();
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is FilterPlan &&
+            (identical(other.filterName, filterName) ||
+                other.filterName == filterName) &&
+            (identical(other.filterIndex, filterIndex) ||
+                other.filterIndex == filterIndex) &&
+            (identical(other.count, count) || other.count == count) &&
+            (identical(other.durationSecs, durationSecs) ||
+                other.durationSecs == durationSecs) &&
+            (identical(other.gain, gain) || other.gain == gain) &&
+            (identical(other.offset, offset) || other.offset == offset) &&
+            (identical(other.binning, binning) || other.binning == binning) &&
+            (identical(other.ditherEvery, ditherEvery) ||
+                other.ditherEvery == ditherEvery));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, filterName, filterIndex, count,
+      durationSecs, gain, offset, binning, ditherEvery);
+
+  @override
+  String toString() {
+    return 'FilterPlan(filterName: $filterName, filterIndex: $filterIndex, count: $count, durationSecs: $durationSecs, gain: $gain, offset: $offset, binning: $binning, ditherEvery: $ditherEvery)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $FilterPlanCopyWith<$Res> {
+  factory $FilterPlanCopyWith(
+          FilterPlan value, $Res Function(FilterPlan) _then) =
+      _$FilterPlanCopyWithImpl;
+  @useResult
+  $Res call(
+      {String filterName,
+      int? filterIndex,
+      int count,
+      double durationSecs,
+      int? gain,
+      int? offset,
+      @BinningModeJsonConverter() BinningMode binning,
+      int? ditherEvery});
+}
+
+/// @nodoc
+class _$FilterPlanCopyWithImpl<$Res> implements $FilterPlanCopyWith<$Res> {
+  _$FilterPlanCopyWithImpl(this._self, this._then);
+
+  final FilterPlan _self;
+  final $Res Function(FilterPlan) _then;
+
+  /// Create a copy of FilterPlan
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? filterName = null,
+    Object? filterIndex = freezed,
+    Object? count = null,
+    Object? durationSecs = null,
+    Object? gain = freezed,
+    Object? offset = freezed,
+    Object? binning = null,
+    Object? ditherEvery = freezed,
+  }) {
+    return _then(_self.copyWith(
+      filterName: null == filterName
+          ? _self.filterName
+          : filterName // ignore: cast_nullable_to_non_nullable
+              as String,
+      filterIndex: freezed == filterIndex
+          ? _self.filterIndex
+          : filterIndex // ignore: cast_nullable_to_non_nullable
+              as int?,
+      count: null == count
+          ? _self.count
+          : count // ignore: cast_nullable_to_non_nullable
+              as int,
+      durationSecs: null == durationSecs
+          ? _self.durationSecs
+          : durationSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      gain: freezed == gain
+          ? _self.gain
+          : gain // ignore: cast_nullable_to_non_nullable
+              as int?,
+      offset: freezed == offset
+          ? _self.offset
+          : offset // ignore: cast_nullable_to_non_nullable
+              as int?,
+      binning: null == binning
+          ? _self.binning
+          : binning // ignore: cast_nullable_to_non_nullable
+              as BinningMode,
+      ditherEvery: freezed == ditherEvery
+          ? _self.ditherEvery
+          : ditherEvery // ignore: cast_nullable_to_non_nullable
+              as int?,
+    ));
+  }
+}
+
+/// Adds pattern-matching-related methods to [FilterPlan].
+extension FilterPlanPatterns on FilterPlan {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_FilterPlan value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _FilterPlan() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_FilterPlan value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _FilterPlan():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_FilterPlan value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _FilterPlan() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            String filterName,
+            int? filterIndex,
+            int count,
+            double durationSecs,
+            int? gain,
+            int? offset,
+            @BinningModeJsonConverter() BinningMode binning,
+            int? ditherEvery)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _FilterPlan() when $default != null:
+        return $default(
+            _that.filterName,
+            _that.filterIndex,
+            _that.count,
+            _that.durationSecs,
+            _that.gain,
+            _that.offset,
+            _that.binning,
+            _that.ditherEvery);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            String filterName,
+            int? filterIndex,
+            int count,
+            double durationSecs,
+            int? gain,
+            int? offset,
+            @BinningModeJsonConverter() BinningMode binning,
+            int? ditherEvery)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _FilterPlan():
+        return $default(
+            _that.filterName,
+            _that.filterIndex,
+            _that.count,
+            _that.durationSecs,
+            _that.gain,
+            _that.offset,
+            _that.binning,
+            _that.ditherEvery);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            String filterName,
+            int? filterIndex,
+            int count,
+            double durationSecs,
+            int? gain,
+            int? offset,
+            @BinningModeJsonConverter() BinningMode binning,
+            int? ditherEvery)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _FilterPlan() when $default != null:
+        return $default(
+            _that.filterName,
+            _that.filterIndex,
+            _that.count,
+            _that.durationSecs,
+            _that.gain,
+            _that.offset,
+            _that.binning,
+            _that.ditherEvery);
+      case _:
+        return null;
+    }
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)
+class _FilterPlan extends FilterPlan {
+  const _FilterPlan(
+      {this.filterName = '',
+      this.filterIndex,
+      this.count = 10,
+      this.durationSecs = 60.0,
+      this.gain,
+      this.offset,
+      @BinningModeJsonConverter() this.binning = BinningMode.one,
+      this.ditherEvery})
+      : super._();
+  factory _FilterPlan.fromJson(Map<String, dynamic> json) =>
+      _$FilterPlanFromJson(json);
+
+  /// Filter wheel slot name (e.g. "L", "Ha"). Matched against the
+  /// connected filter wheel's name list when [filterIndex] is null.
+  @override
+  @JsonKey()
+  final String filterName;
+
+  /// 0-based filter wheel index. Preferred over [filterName] for
+  /// reliability — matches `ExposureNode.filterIndex` / Rust
+  /// `FilterConfig::filter_index`.
+  @override
+  final int? filterIndex;
+
+  /// Total number of exposures to take for this filter.
+  @override
+  @JsonKey()
+  final int count;
+
+  /// Sub-exposure duration in seconds.
+  @override
+  @JsonKey()
+  final double durationSecs;
+
+  /// Optional gain override. null means "use camera/profile default".
+  @override
+  final int? gain;
+
+  /// Optional offset override.
+  @override
+  final int? offset;
+
+  /// Binning for this filter. Defaults to 1x1.
+  @override
+  @JsonKey()
+  @BinningModeJsonConverter()
+  final BinningMode binning;
+
+  /// Per-plan dither cadence (every N frames). null disables dithering for
+  /// this filter regardless of any global default. 0 is treated as "no
+  /// dither" — matches `ExposureNode.ditherEvery`.
+  @override
+  final int? ditherEvery;
+
+  /// Create a copy of FilterPlan
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$FilterPlanCopyWith<_FilterPlan> get copyWith =>
+      __$FilterPlanCopyWithImpl<_FilterPlan>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$FilterPlanToJson(
+      this,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _FilterPlan &&
+            (identical(other.filterName, filterName) ||
+                other.filterName == filterName) &&
+            (identical(other.filterIndex, filterIndex) ||
+                other.filterIndex == filterIndex) &&
+            (identical(other.count, count) || other.count == count) &&
+            (identical(other.durationSecs, durationSecs) ||
+                other.durationSecs == durationSecs) &&
+            (identical(other.gain, gain) || other.gain == gain) &&
+            (identical(other.offset, offset) || other.offset == offset) &&
+            (identical(other.binning, binning) || other.binning == binning) &&
+            (identical(other.ditherEvery, ditherEvery) ||
+                other.ditherEvery == ditherEvery));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, filterName, filterIndex, count,
+      durationSecs, gain, offset, binning, ditherEvery);
+
+  @override
+  String toString() {
+    return 'FilterPlan(filterName: $filterName, filterIndex: $filterIndex, count: $count, durationSecs: $durationSecs, gain: $gain, offset: $offset, binning: $binning, ditherEvery: $ditherEvery)';
+  }
+}
+
+/// @nodoc
+abstract mixin class _$FilterPlanCopyWith<$Res>
+    implements $FilterPlanCopyWith<$Res> {
+  factory _$FilterPlanCopyWith(
+          _FilterPlan value, $Res Function(_FilterPlan) _then) =
+      __$FilterPlanCopyWithImpl;
+  @override
+  @useResult
+  $Res call(
+      {String filterName,
+      int? filterIndex,
+      int count,
+      double durationSecs,
+      int? gain,
+      int? offset,
+      @BinningModeJsonConverter() BinningMode binning,
+      int? ditherEvery});
+}
+
+/// @nodoc
+class __$FilterPlanCopyWithImpl<$Res> implements _$FilterPlanCopyWith<$Res> {
+  __$FilterPlanCopyWithImpl(this._self, this._then);
+
+  final _FilterPlan _self;
+  final $Res Function(_FilterPlan) _then;
+
+  /// Create a copy of FilterPlan
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? filterName = null,
+    Object? filterIndex = freezed,
+    Object? count = null,
+    Object? durationSecs = null,
+    Object? gain = freezed,
+    Object? offset = freezed,
+    Object? binning = null,
+    Object? ditherEvery = freezed,
+  }) {
+    return _then(_FilterPlan(
+      filterName: null == filterName
+          ? _self.filterName
+          : filterName // ignore: cast_nullable_to_non_nullable
+              as String,
+      filterIndex: freezed == filterIndex
+          ? _self.filterIndex
+          : filterIndex // ignore: cast_nullable_to_non_nullable
+              as int?,
+      count: null == count
+          ? _self.count
+          : count // ignore: cast_nullable_to_non_nullable
+              as int,
+      durationSecs: null == durationSecs
+          ? _self.durationSecs
+          : durationSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      gain: freezed == gain
+          ? _self.gain
+          : gain // ignore: cast_nullable_to_non_nullable
+              as int?,
+      offset: freezed == offset
+          ? _self.offset
+          : offset // ignore: cast_nullable_to_non_nullable
+              as int?,
+      binning: null == binning
+          ? _self.binning
+          : binning // ignore: cast_nullable_to_non_nullable
+              as BinningMode,
+      ditherEvery: freezed == ditherEvery
+          ? _self.ditherEvery
+          : ditherEvery // ignore: cast_nullable_to_non_nullable
+              as int?,
+    ));
+  }
 }
 
 /// @nodoc
 mixin _$TargetTrigger {
-  @optionalTypeArgs
-  TResult when<TResult extends Object?>({
-    required TResult Function(double altitudeDeg) altitudeAbove,
-    required TResult Function(double altitudeDeg) altitudeBelow,
-    required TResult Function(int unixSeconds) timeAfter,
-    required TResult Function(int unixSeconds) timeBefore,
-    required TResult Function(List<TargetTrigger> children) and,
-    required TResult Function(List<TargetTrigger> children) or,
-    required TResult Function(double minHa, double maxHa) hourAngleBetween,
-  }) =>
-      throw _privateConstructorUsedError;
-  @optionalTypeArgs
-  TResult? whenOrNull<TResult extends Object?>({
-    TResult? Function(double altitudeDeg)? altitudeAbove,
-    TResult? Function(double altitudeDeg)? altitudeBelow,
-    TResult? Function(int unixSeconds)? timeAfter,
-    TResult? Function(int unixSeconds)? timeBefore,
-    TResult? Function(List<TargetTrigger> children)? and,
-    TResult? Function(List<TargetTrigger> children)? or,
-    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
-  }) =>
-      throw _privateConstructorUsedError;
-  @optionalTypeArgs
-  TResult maybeWhen<TResult extends Object?>({
-    TResult Function(double altitudeDeg)? altitudeAbove,
-    TResult Function(double altitudeDeg)? altitudeBelow,
-    TResult Function(int unixSeconds)? timeAfter,
-    TResult Function(int unixSeconds)? timeBefore,
-    TResult Function(List<TargetTrigger> children)? and,
-    TResult Function(List<TargetTrigger> children)? or,
-    TResult Function(double minHa, double maxHa)? hourAngleBetween,
-    required TResult orElse(),
-  }) =>
-      throw _privateConstructorUsedError;
-  @optionalTypeArgs
-  TResult map<TResult extends Object?>({
-    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
-    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
-    required TResult Function(TimeAfterTrigger value) timeAfter,
-    required TResult Function(TimeBeforeTrigger value) timeBefore,
-    required TResult Function(AndTrigger value) and,
-    required TResult Function(OrTrigger value) or,
-    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
-  }) =>
-      throw _privateConstructorUsedError;
-  @optionalTypeArgs
-  TResult? mapOrNull<TResult extends Object?>({
-    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
-    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
-    TResult? Function(TimeAfterTrigger value)? timeAfter,
-    TResult? Function(TimeBeforeTrigger value)? timeBefore,
-    TResult? Function(AndTrigger value)? and,
-    TResult? Function(OrTrigger value)? or,
-    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
-  }) =>
-      throw _privateConstructorUsedError;
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType && other is TargetTrigger);
+  }
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  String toString() {
+    return 'TargetTrigger()';
+  }
+}
+
+/// @nodoc
+class $TargetTriggerCopyWith<$Res> {
+  $TargetTriggerCopyWith(TargetTrigger _, $Res Function(TargetTrigger) __);
+}
+
+/// Adds pattern-matching-related methods to [TargetTrigger].
+extension TargetTriggerPatterns on TargetTrigger {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
   @optionalTypeArgs
   TResult maybeMap<TResult extends Object?>({
     TResult Function(AltitudeAboveTrigger value)? altitudeAbove,
@@ -1032,221 +4379,303 @@ mixin _$TargetTrigger {
     TResult Function(OrTrigger value)? or,
     TResult Function(HourAngleBetweenTrigger value)? hourAngleBetween,
     required TResult orElse(),
-  }) =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $TargetTriggerCopyWith<$Res> {
-  factory $TargetTriggerCopyWith(
-          TargetTrigger value, $Res Function(TargetTrigger) then) =
-      _$TargetTriggerCopyWithImpl<$Res, TargetTrigger>;
-}
-
-/// @nodoc
-class _$TargetTriggerCopyWithImpl<$Res, $Val extends TargetTrigger>
-    implements $TargetTriggerCopyWith<$Res> {
-  _$TargetTriggerCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-}
-
-/// @nodoc
-abstract class _$$AltitudeAboveTriggerImplCopyWith<$Res> {
-  factory _$$AltitudeAboveTriggerImplCopyWith(_$AltitudeAboveTriggerImpl value,
-          $Res Function(_$AltitudeAboveTriggerImpl) then) =
-      __$$AltitudeAboveTriggerImplCopyWithImpl<$Res>;
-  @useResult
-  $Res call({double altitudeDeg});
-}
-
-/// @nodoc
-class __$$AltitudeAboveTriggerImplCopyWithImpl<$Res>
-    extends _$TargetTriggerCopyWithImpl<$Res, _$AltitudeAboveTriggerImpl>
-    implements _$$AltitudeAboveTriggerImplCopyWith<$Res> {
-  __$$AltitudeAboveTriggerImplCopyWithImpl(_$AltitudeAboveTriggerImpl _value,
-      $Res Function(_$AltitudeAboveTriggerImpl) _then)
-      : super(_value, _then);
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? altitudeDeg = null,
   }) {
-    return _then(_$AltitudeAboveTriggerImpl(
-      null == altitudeDeg
-          ? _value.altitudeDeg
-          : altitudeDeg // ignore: cast_nullable_to_non_nullable
-              as double,
-    ));
+    final _that = this;
+    switch (_that) {
+      case AltitudeAboveTrigger() when altitudeAbove != null:
+        return altitudeAbove(_that);
+      case AltitudeBelowTrigger() when altitudeBelow != null:
+        return altitudeBelow(_that);
+      case TimeAfterTrigger() when timeAfter != null:
+        return timeAfter(_that);
+      case TimeBeforeTrigger() when timeBefore != null:
+        return timeBefore(_that);
+      case AndTrigger() when and != null:
+        return and(_that);
+      case OrTrigger() when or != null:
+        return or(_that);
+      case HourAngleBetweenTrigger() when hourAngleBetween != null:
+        return hourAngleBetween(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
+    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
+    required TResult Function(TimeAfterTrigger value) timeAfter,
+    required TResult Function(TimeBeforeTrigger value) timeBefore,
+    required TResult Function(AndTrigger value) and,
+    required TResult Function(OrTrigger value) or,
+    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
+  }) {
+    final _that = this;
+    switch (_that) {
+      case AltitudeAboveTrigger():
+        return altitudeAbove(_that);
+      case AltitudeBelowTrigger():
+        return altitudeBelow(_that);
+      case TimeAfterTrigger():
+        return timeAfter(_that);
+      case TimeBeforeTrigger():
+        return timeBefore(_that);
+      case AndTrigger():
+        return and(_that);
+      case OrTrigger():
+        return or(_that);
+      case HourAngleBetweenTrigger():
+        return hourAngleBetween(_that);
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult? Function(TimeAfterTrigger value)? timeAfter,
+    TResult? Function(TimeBeforeTrigger value)? timeBefore,
+    TResult? Function(AndTrigger value)? and,
+    TResult? Function(OrTrigger value)? or,
+    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+  }) {
+    final _that = this;
+    switch (_that) {
+      case AltitudeAboveTrigger() when altitudeAbove != null:
+        return altitudeAbove(_that);
+      case AltitudeBelowTrigger() when altitudeBelow != null:
+        return altitudeBelow(_that);
+      case TimeAfterTrigger() when timeAfter != null:
+        return timeAfter(_that);
+      case TimeBeforeTrigger() when timeBefore != null:
+        return timeBefore(_that);
+      case AndTrigger() when and != null:
+        return and(_that);
+      case OrTrigger() when or != null:
+        return or(_that);
+      case HourAngleBetweenTrigger() when hourAngleBetween != null:
+        return hourAngleBetween(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(double altitudeDeg)? altitudeAbove,
+    TResult Function(double altitudeDeg)? altitudeBelow,
+    TResult Function(int unixSeconds)? timeAfter,
+    TResult Function(int unixSeconds)? timeBefore,
+    TResult Function(List<TargetTrigger> children)? and,
+    TResult Function(List<TargetTrigger> children)? or,
+    TResult Function(double minHa, double maxHa)? hourAngleBetween,
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case AltitudeAboveTrigger() when altitudeAbove != null:
+        return altitudeAbove(_that.altitudeDeg);
+      case AltitudeBelowTrigger() when altitudeBelow != null:
+        return altitudeBelow(_that.altitudeDeg);
+      case TimeAfterTrigger() when timeAfter != null:
+        return timeAfter(_that.unixSeconds);
+      case TimeBeforeTrigger() when timeBefore != null:
+        return timeBefore(_that.unixSeconds);
+      case AndTrigger() when and != null:
+        return and(_that.children);
+      case OrTrigger() when or != null:
+        return or(_that.children);
+      case HourAngleBetweenTrigger() when hourAngleBetween != null:
+        return hourAngleBetween(_that.minHa, _that.maxHa);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(double altitudeDeg) altitudeAbove,
+    required TResult Function(double altitudeDeg) altitudeBelow,
+    required TResult Function(int unixSeconds) timeAfter,
+    required TResult Function(int unixSeconds) timeBefore,
+    required TResult Function(List<TargetTrigger> children) and,
+    required TResult Function(List<TargetTrigger> children) or,
+    required TResult Function(double minHa, double maxHa) hourAngleBetween,
+  }) {
+    final _that = this;
+    switch (_that) {
+      case AltitudeAboveTrigger():
+        return altitudeAbove(_that.altitudeDeg);
+      case AltitudeBelowTrigger():
+        return altitudeBelow(_that.altitudeDeg);
+      case TimeAfterTrigger():
+        return timeAfter(_that.unixSeconds);
+      case TimeBeforeTrigger():
+        return timeBefore(_that.unixSeconds);
+      case AndTrigger():
+        return and(_that.children);
+      case OrTrigger():
+        return or(_that.children);
+      case HourAngleBetweenTrigger():
+        return hourAngleBetween(_that.minHa, _that.maxHa);
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(double altitudeDeg)? altitudeAbove,
+    TResult? Function(double altitudeDeg)? altitudeBelow,
+    TResult? Function(int unixSeconds)? timeAfter,
+    TResult? Function(int unixSeconds)? timeBefore,
+    TResult? Function(List<TargetTrigger> children)? and,
+    TResult? Function(List<TargetTrigger> children)? or,
+    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
+  }) {
+    final _that = this;
+    switch (_that) {
+      case AltitudeAboveTrigger() when altitudeAbove != null:
+        return altitudeAbove(_that.altitudeDeg);
+      case AltitudeBelowTrigger() when altitudeBelow != null:
+        return altitudeBelow(_that.altitudeDeg);
+      case TimeAfterTrigger() when timeAfter != null:
+        return timeAfter(_that.unixSeconds);
+      case TimeBeforeTrigger() when timeBefore != null:
+        return timeBefore(_that.unixSeconds);
+      case AndTrigger() when and != null:
+        return and(_that.children);
+      case OrTrigger() when or != null:
+        return or(_that.children);
+      case HourAngleBetweenTrigger() when hourAngleBetween != null:
+        return hourAngleBetween(_that.minHa, _that.maxHa);
+      case _:
+        return null;
+    }
   }
 }
 
 /// @nodoc
 
-class _$AltitudeAboveTriggerImpl extends AltitudeAboveTrigger {
-  const _$AltitudeAboveTriggerImpl(this.altitudeDeg) : super._();
+class AltitudeAboveTrigger extends TargetTrigger {
+  const AltitudeAboveTrigger(this.altitudeDeg) : super._();
+
+  final double altitudeDeg;
+
+  /// Create a copy of TargetTrigger
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $AltitudeAboveTriggerCopyWith<AltitudeAboveTrigger> get copyWith =>
+      _$AltitudeAboveTriggerCopyWithImpl<AltitudeAboveTrigger>(
+          this, _$identity);
 
   @override
-  final double altitudeDeg;
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is AltitudeAboveTrigger &&
+            (identical(other.altitudeDeg, altitudeDeg) ||
+                other.altitudeDeg == altitudeDeg));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, altitudeDeg);
 
   @override
   String toString() {
     return 'TargetTrigger.altitudeAbove(altitudeDeg: $altitudeDeg)';
   }
-
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType &&
-            other is _$AltitudeAboveTriggerImpl &&
-            (identical(other.altitudeDeg, altitudeDeg) ||
-                other.altitudeDeg == altitudeDeg));
-  }
-
-  @override
-  int get hashCode => Object.hash(runtimeType, altitudeDeg);
-
-  @JsonKey(ignore: true)
-  @override
-  @pragma('vm:prefer-inline')
-  _$$AltitudeAboveTriggerImplCopyWith<_$AltitudeAboveTriggerImpl>
-      get copyWith =>
-          __$$AltitudeAboveTriggerImplCopyWithImpl<_$AltitudeAboveTriggerImpl>(
-              this, _$identity);
-
-  @override
-  @optionalTypeArgs
-  TResult when<TResult extends Object?>({
-    required TResult Function(double altitudeDeg) altitudeAbove,
-    required TResult Function(double altitudeDeg) altitudeBelow,
-    required TResult Function(int unixSeconds) timeAfter,
-    required TResult Function(int unixSeconds) timeBefore,
-    required TResult Function(List<TargetTrigger> children) and,
-    required TResult Function(List<TargetTrigger> children) or,
-    required TResult Function(double minHa, double maxHa) hourAngleBetween,
-  }) {
-    return altitudeAbove(altitudeDeg);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult? whenOrNull<TResult extends Object?>({
-    TResult? Function(double altitudeDeg)? altitudeAbove,
-    TResult? Function(double altitudeDeg)? altitudeBelow,
-    TResult? Function(int unixSeconds)? timeAfter,
-    TResult? Function(int unixSeconds)? timeBefore,
-    TResult? Function(List<TargetTrigger> children)? and,
-    TResult? Function(List<TargetTrigger> children)? or,
-    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
-  }) {
-    return altitudeAbove?.call(altitudeDeg);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult maybeWhen<TResult extends Object?>({
-    TResult Function(double altitudeDeg)? altitudeAbove,
-    TResult Function(double altitudeDeg)? altitudeBelow,
-    TResult Function(int unixSeconds)? timeAfter,
-    TResult Function(int unixSeconds)? timeBefore,
-    TResult Function(List<TargetTrigger> children)? and,
-    TResult Function(List<TargetTrigger> children)? or,
-    TResult Function(double minHa, double maxHa)? hourAngleBetween,
-    required TResult orElse(),
-  }) {
-    if (altitudeAbove != null) {
-      return altitudeAbove(altitudeDeg);
-    }
-    return orElse();
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult map<TResult extends Object?>({
-    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
-    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
-    required TResult Function(TimeAfterTrigger value) timeAfter,
-    required TResult Function(TimeBeforeTrigger value) timeBefore,
-    required TResult Function(AndTrigger value) and,
-    required TResult Function(OrTrigger value) or,
-    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
-  }) {
-    return altitudeAbove(this);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult? mapOrNull<TResult extends Object?>({
-    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
-    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
-    TResult? Function(TimeAfterTrigger value)? timeAfter,
-    TResult? Function(TimeBeforeTrigger value)? timeBefore,
-    TResult? Function(AndTrigger value)? and,
-    TResult? Function(OrTrigger value)? or,
-    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
-  }) {
-    return altitudeAbove?.call(this);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult maybeMap<TResult extends Object?>({
-    TResult Function(AltitudeAboveTrigger value)? altitudeAbove,
-    TResult Function(AltitudeBelowTrigger value)? altitudeBelow,
-    TResult Function(TimeAfterTrigger value)? timeAfter,
-    TResult Function(TimeBeforeTrigger value)? timeBefore,
-    TResult Function(AndTrigger value)? and,
-    TResult Function(OrTrigger value)? or,
-    TResult Function(HourAngleBetweenTrigger value)? hourAngleBetween,
-    required TResult orElse(),
-  }) {
-    if (altitudeAbove != null) {
-      return altitudeAbove(this);
-    }
-    return orElse();
-  }
-}
-
-abstract class AltitudeAboveTrigger extends TargetTrigger {
-  const factory AltitudeAboveTrigger(final double altitudeDeg) =
-      _$AltitudeAboveTriggerImpl;
-  const AltitudeAboveTrigger._() : super._();
-
-  double get altitudeDeg;
-  @JsonKey(ignore: true)
-  _$$AltitudeAboveTriggerImplCopyWith<_$AltitudeAboveTriggerImpl>
-      get copyWith => throw _privateConstructorUsedError;
 }
 
 /// @nodoc
-abstract class _$$AltitudeBelowTriggerImplCopyWith<$Res> {
-  factory _$$AltitudeBelowTriggerImplCopyWith(_$AltitudeBelowTriggerImpl value,
-          $Res Function(_$AltitudeBelowTriggerImpl) then) =
-      __$$AltitudeBelowTriggerImplCopyWithImpl<$Res>;
+abstract mixin class $AltitudeAboveTriggerCopyWith<$Res>
+    implements $TargetTriggerCopyWith<$Res> {
+  factory $AltitudeAboveTriggerCopyWith(AltitudeAboveTrigger value,
+          $Res Function(AltitudeAboveTrigger) _then) =
+      _$AltitudeAboveTriggerCopyWithImpl;
   @useResult
   $Res call({double altitudeDeg});
 }
 
 /// @nodoc
-class __$$AltitudeBelowTriggerImplCopyWithImpl<$Res>
-    extends _$TargetTriggerCopyWithImpl<$Res, _$AltitudeBelowTriggerImpl>
-    implements _$$AltitudeBelowTriggerImplCopyWith<$Res> {
-  __$$AltitudeBelowTriggerImplCopyWithImpl(_$AltitudeBelowTriggerImpl _value,
-      $Res Function(_$AltitudeBelowTriggerImpl) _then)
-      : super(_value, _then);
+class _$AltitudeAboveTriggerCopyWithImpl<$Res>
+    implements $AltitudeAboveTriggerCopyWith<$Res> {
+  _$AltitudeAboveTriggerCopyWithImpl(this._self, this._then);
 
+  final AltitudeAboveTrigger _self;
+  final $Res Function(AltitudeAboveTrigger) _then;
+
+  /// Create a copy of TargetTrigger
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
-  @override
   $Res call({
     Object? altitudeDeg = null,
   }) {
-    return _then(_$AltitudeBelowTriggerImpl(
+    return _then(AltitudeAboveTrigger(
       null == altitudeDeg
-          ? _value.altitudeDeg
+          ? _self.altitudeDeg
           : altitudeDeg // ignore: cast_nullable_to_non_nullable
               as double,
     ));
@@ -1255,22 +4684,24 @@ class __$$AltitudeBelowTriggerImplCopyWithImpl<$Res>
 
 /// @nodoc
 
-class _$AltitudeBelowTriggerImpl extends AltitudeBelowTrigger {
-  const _$AltitudeBelowTriggerImpl(this.altitudeDeg) : super._();
+class AltitudeBelowTrigger extends TargetTrigger {
+  const AltitudeBelowTrigger(this.altitudeDeg) : super._();
 
-  @override
   final double altitudeDeg;
 
-  @override
-  String toString() {
-    return 'TargetTrigger.altitudeBelow(altitudeDeg: $altitudeDeg)';
-  }
+  /// Create a copy of TargetTrigger
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $AltitudeBelowTriggerCopyWith<AltitudeBelowTrigger> get copyWith =>
+      _$AltitudeBelowTriggerCopyWithImpl<AltitudeBelowTrigger>(
+          this, _$identity);
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$AltitudeBelowTriggerImpl &&
+            other is AltitudeBelowTrigger &&
             (identical(other.altitudeDeg, altitudeDeg) ||
                 other.altitudeDeg == altitudeDeg));
   }
@@ -1278,310 +4709,104 @@ class _$AltitudeBelowTriggerImpl extends AltitudeBelowTrigger {
   @override
   int get hashCode => Object.hash(runtimeType, altitudeDeg);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$AltitudeBelowTriggerImplCopyWith<_$AltitudeBelowTriggerImpl>
-      get copyWith =>
-          __$$AltitudeBelowTriggerImplCopyWithImpl<_$AltitudeBelowTriggerImpl>(
-              this, _$identity);
-
-  @override
-  @optionalTypeArgs
-  TResult when<TResult extends Object?>({
-    required TResult Function(double altitudeDeg) altitudeAbove,
-    required TResult Function(double altitudeDeg) altitudeBelow,
-    required TResult Function(int unixSeconds) timeAfter,
-    required TResult Function(int unixSeconds) timeBefore,
-    required TResult Function(List<TargetTrigger> children) and,
-    required TResult Function(List<TargetTrigger> children) or,
-    required TResult Function(double minHa, double maxHa) hourAngleBetween,
-  }) {
-    return altitudeBelow(altitudeDeg);
+  String toString() {
+    return 'TargetTrigger.altitudeBelow(altitudeDeg: $altitudeDeg)';
   }
-
-  @override
-  @optionalTypeArgs
-  TResult? whenOrNull<TResult extends Object?>({
-    TResult? Function(double altitudeDeg)? altitudeAbove,
-    TResult? Function(double altitudeDeg)? altitudeBelow,
-    TResult? Function(int unixSeconds)? timeAfter,
-    TResult? Function(int unixSeconds)? timeBefore,
-    TResult? Function(List<TargetTrigger> children)? and,
-    TResult? Function(List<TargetTrigger> children)? or,
-    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
-  }) {
-    return altitudeBelow?.call(altitudeDeg);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult maybeWhen<TResult extends Object?>({
-    TResult Function(double altitudeDeg)? altitudeAbove,
-    TResult Function(double altitudeDeg)? altitudeBelow,
-    TResult Function(int unixSeconds)? timeAfter,
-    TResult Function(int unixSeconds)? timeBefore,
-    TResult Function(List<TargetTrigger> children)? and,
-    TResult Function(List<TargetTrigger> children)? or,
-    TResult Function(double minHa, double maxHa)? hourAngleBetween,
-    required TResult orElse(),
-  }) {
-    if (altitudeBelow != null) {
-      return altitudeBelow(altitudeDeg);
-    }
-    return orElse();
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult map<TResult extends Object?>({
-    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
-    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
-    required TResult Function(TimeAfterTrigger value) timeAfter,
-    required TResult Function(TimeBeforeTrigger value) timeBefore,
-    required TResult Function(AndTrigger value) and,
-    required TResult Function(OrTrigger value) or,
-    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
-  }) {
-    return altitudeBelow(this);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult? mapOrNull<TResult extends Object?>({
-    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
-    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
-    TResult? Function(TimeAfterTrigger value)? timeAfter,
-    TResult? Function(TimeBeforeTrigger value)? timeBefore,
-    TResult? Function(AndTrigger value)? and,
-    TResult? Function(OrTrigger value)? or,
-    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
-  }) {
-    return altitudeBelow?.call(this);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult maybeMap<TResult extends Object?>({
-    TResult Function(AltitudeAboveTrigger value)? altitudeAbove,
-    TResult Function(AltitudeBelowTrigger value)? altitudeBelow,
-    TResult Function(TimeAfterTrigger value)? timeAfter,
-    TResult Function(TimeBeforeTrigger value)? timeBefore,
-    TResult Function(AndTrigger value)? and,
-    TResult Function(OrTrigger value)? or,
-    TResult Function(HourAngleBetweenTrigger value)? hourAngleBetween,
-    required TResult orElse(),
-  }) {
-    if (altitudeBelow != null) {
-      return altitudeBelow(this);
-    }
-    return orElse();
-  }
-}
-
-abstract class AltitudeBelowTrigger extends TargetTrigger {
-  const factory AltitudeBelowTrigger(final double altitudeDeg) =
-      _$AltitudeBelowTriggerImpl;
-  const AltitudeBelowTrigger._() : super._();
-
-  double get altitudeDeg;
-  @JsonKey(ignore: true)
-  _$$AltitudeBelowTriggerImplCopyWith<_$AltitudeBelowTriggerImpl>
-      get copyWith => throw _privateConstructorUsedError;
 }
 
 /// @nodoc
-abstract class _$$TimeAfterTriggerImplCopyWith<$Res> {
-  factory _$$TimeAfterTriggerImplCopyWith(_$TimeAfterTriggerImpl value,
-          $Res Function(_$TimeAfterTriggerImpl) then) =
-      __$$TimeAfterTriggerImplCopyWithImpl<$Res>;
+abstract mixin class $AltitudeBelowTriggerCopyWith<$Res>
+    implements $TargetTriggerCopyWith<$Res> {
+  factory $AltitudeBelowTriggerCopyWith(AltitudeBelowTrigger value,
+          $Res Function(AltitudeBelowTrigger) _then) =
+      _$AltitudeBelowTriggerCopyWithImpl;
   @useResult
-  $Res call({int unixSeconds});
+  $Res call({double altitudeDeg});
 }
 
 /// @nodoc
-class __$$TimeAfterTriggerImplCopyWithImpl<$Res>
-    extends _$TargetTriggerCopyWithImpl<$Res, _$TimeAfterTriggerImpl>
-    implements _$$TimeAfterTriggerImplCopyWith<$Res> {
-  __$$TimeAfterTriggerImplCopyWithImpl(_$TimeAfterTriggerImpl _value,
-      $Res Function(_$TimeAfterTriggerImpl) _then)
-      : super(_value, _then);
+class _$AltitudeBelowTriggerCopyWithImpl<$Res>
+    implements $AltitudeBelowTriggerCopyWith<$Res> {
+  _$AltitudeBelowTriggerCopyWithImpl(this._self, this._then);
 
+  final AltitudeBelowTrigger _self;
+  final $Res Function(AltitudeBelowTrigger) _then;
+
+  /// Create a copy of TargetTrigger
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
-  @override
   $Res call({
-    Object? unixSeconds = null,
+    Object? altitudeDeg = null,
   }) {
-    return _then(_$TimeAfterTriggerImpl(
-      null == unixSeconds
-          ? _value.unixSeconds
-          : unixSeconds // ignore: cast_nullable_to_non_nullable
-              as int,
+    return _then(AltitudeBelowTrigger(
+      null == altitudeDeg
+          ? _self.altitudeDeg
+          : altitudeDeg // ignore: cast_nullable_to_non_nullable
+              as double,
     ));
   }
 }
 
 /// @nodoc
 
-class _$TimeAfterTriggerImpl extends TimeAfterTrigger {
-  const _$TimeAfterTriggerImpl(this.unixSeconds) : super._();
+class TimeAfterTrigger extends TargetTrigger {
+  const TimeAfterTrigger(this.unixSeconds) : super._();
+
+  final int unixSeconds;
+
+  /// Create a copy of TargetTrigger
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $TimeAfterTriggerCopyWith<TimeAfterTrigger> get copyWith =>
+      _$TimeAfterTriggerCopyWithImpl<TimeAfterTrigger>(this, _$identity);
 
   @override
-  final int unixSeconds;
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is TimeAfterTrigger &&
+            (identical(other.unixSeconds, unixSeconds) ||
+                other.unixSeconds == unixSeconds));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, unixSeconds);
 
   @override
   String toString() {
     return 'TargetTrigger.timeAfter(unixSeconds: $unixSeconds)';
   }
-
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType &&
-            other is _$TimeAfterTriggerImpl &&
-            (identical(other.unixSeconds, unixSeconds) ||
-                other.unixSeconds == unixSeconds));
-  }
-
-  @override
-  int get hashCode => Object.hash(runtimeType, unixSeconds);
-
-  @JsonKey(ignore: true)
-  @override
-  @pragma('vm:prefer-inline')
-  _$$TimeAfterTriggerImplCopyWith<_$TimeAfterTriggerImpl> get copyWith =>
-      __$$TimeAfterTriggerImplCopyWithImpl<_$TimeAfterTriggerImpl>(
-          this, _$identity);
-
-  @override
-  @optionalTypeArgs
-  TResult when<TResult extends Object?>({
-    required TResult Function(double altitudeDeg) altitudeAbove,
-    required TResult Function(double altitudeDeg) altitudeBelow,
-    required TResult Function(int unixSeconds) timeAfter,
-    required TResult Function(int unixSeconds) timeBefore,
-    required TResult Function(List<TargetTrigger> children) and,
-    required TResult Function(List<TargetTrigger> children) or,
-    required TResult Function(double minHa, double maxHa) hourAngleBetween,
-  }) {
-    return timeAfter(unixSeconds);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult? whenOrNull<TResult extends Object?>({
-    TResult? Function(double altitudeDeg)? altitudeAbove,
-    TResult? Function(double altitudeDeg)? altitudeBelow,
-    TResult? Function(int unixSeconds)? timeAfter,
-    TResult? Function(int unixSeconds)? timeBefore,
-    TResult? Function(List<TargetTrigger> children)? and,
-    TResult? Function(List<TargetTrigger> children)? or,
-    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
-  }) {
-    return timeAfter?.call(unixSeconds);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult maybeWhen<TResult extends Object?>({
-    TResult Function(double altitudeDeg)? altitudeAbove,
-    TResult Function(double altitudeDeg)? altitudeBelow,
-    TResult Function(int unixSeconds)? timeAfter,
-    TResult Function(int unixSeconds)? timeBefore,
-    TResult Function(List<TargetTrigger> children)? and,
-    TResult Function(List<TargetTrigger> children)? or,
-    TResult Function(double minHa, double maxHa)? hourAngleBetween,
-    required TResult orElse(),
-  }) {
-    if (timeAfter != null) {
-      return timeAfter(unixSeconds);
-    }
-    return orElse();
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult map<TResult extends Object?>({
-    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
-    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
-    required TResult Function(TimeAfterTrigger value) timeAfter,
-    required TResult Function(TimeBeforeTrigger value) timeBefore,
-    required TResult Function(AndTrigger value) and,
-    required TResult Function(OrTrigger value) or,
-    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
-  }) {
-    return timeAfter(this);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult? mapOrNull<TResult extends Object?>({
-    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
-    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
-    TResult? Function(TimeAfterTrigger value)? timeAfter,
-    TResult? Function(TimeBeforeTrigger value)? timeBefore,
-    TResult? Function(AndTrigger value)? and,
-    TResult? Function(OrTrigger value)? or,
-    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
-  }) {
-    return timeAfter?.call(this);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult maybeMap<TResult extends Object?>({
-    TResult Function(AltitudeAboveTrigger value)? altitudeAbove,
-    TResult Function(AltitudeBelowTrigger value)? altitudeBelow,
-    TResult Function(TimeAfterTrigger value)? timeAfter,
-    TResult Function(TimeBeforeTrigger value)? timeBefore,
-    TResult Function(AndTrigger value)? and,
-    TResult Function(OrTrigger value)? or,
-    TResult Function(HourAngleBetweenTrigger value)? hourAngleBetween,
-    required TResult orElse(),
-  }) {
-    if (timeAfter != null) {
-      return timeAfter(this);
-    }
-    return orElse();
-  }
-}
-
-abstract class TimeAfterTrigger extends TargetTrigger {
-  const factory TimeAfterTrigger(final int unixSeconds) =
-      _$TimeAfterTriggerImpl;
-  const TimeAfterTrigger._() : super._();
-
-  int get unixSeconds;
-  @JsonKey(ignore: true)
-  _$$TimeAfterTriggerImplCopyWith<_$TimeAfterTriggerImpl> get copyWith =>
-      throw _privateConstructorUsedError;
 }
 
 /// @nodoc
-abstract class _$$TimeBeforeTriggerImplCopyWith<$Res> {
-  factory _$$TimeBeforeTriggerImplCopyWith(_$TimeBeforeTriggerImpl value,
-          $Res Function(_$TimeBeforeTriggerImpl) then) =
-      __$$TimeBeforeTriggerImplCopyWithImpl<$Res>;
+abstract mixin class $TimeAfterTriggerCopyWith<$Res>
+    implements $TargetTriggerCopyWith<$Res> {
+  factory $TimeAfterTriggerCopyWith(
+          TimeAfterTrigger value, $Res Function(TimeAfterTrigger) _then) =
+      _$TimeAfterTriggerCopyWithImpl;
   @useResult
   $Res call({int unixSeconds});
 }
 
 /// @nodoc
-class __$$TimeBeforeTriggerImplCopyWithImpl<$Res>
-    extends _$TargetTriggerCopyWithImpl<$Res, _$TimeBeforeTriggerImpl>
-    implements _$$TimeBeforeTriggerImplCopyWith<$Res> {
-  __$$TimeBeforeTriggerImplCopyWithImpl(_$TimeBeforeTriggerImpl _value,
-      $Res Function(_$TimeBeforeTriggerImpl) _then)
-      : super(_value, _then);
+class _$TimeAfterTriggerCopyWithImpl<$Res>
+    implements $TimeAfterTriggerCopyWith<$Res> {
+  _$TimeAfterTriggerCopyWithImpl(this._self, this._then);
 
+  final TimeAfterTrigger _self;
+  final $Res Function(TimeAfterTrigger) _then;
+
+  /// Create a copy of TargetTrigger
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
-  @override
   $Res call({
     Object? unixSeconds = null,
   }) {
-    return _then(_$TimeBeforeTriggerImpl(
+    return _then(TimeAfterTrigger(
       null == unixSeconds
-          ? _value.unixSeconds
+          ? _self.unixSeconds
           : unixSeconds // ignore: cast_nullable_to_non_nullable
               as int,
     ));
@@ -1590,22 +4815,23 @@ class __$$TimeBeforeTriggerImplCopyWithImpl<$Res>
 
 /// @nodoc
 
-class _$TimeBeforeTriggerImpl extends TimeBeforeTrigger {
-  const _$TimeBeforeTriggerImpl(this.unixSeconds) : super._();
+class TimeBeforeTrigger extends TargetTrigger {
+  const TimeBeforeTrigger(this.unixSeconds) : super._();
 
-  @override
   final int unixSeconds;
 
-  @override
-  String toString() {
-    return 'TargetTrigger.timeBefore(unixSeconds: $unixSeconds)';
-  }
+  /// Create a copy of TargetTrigger
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $TimeBeforeTriggerCopyWith<TimeBeforeTrigger> get copyWith =>
+      _$TimeBeforeTriggerCopyWithImpl<TimeBeforeTrigger>(this, _$identity);
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$TimeBeforeTriggerImpl &&
+            other is TimeBeforeTrigger &&
             (identical(other.unixSeconds, unixSeconds) ||
                 other.unixSeconds == unixSeconds));
   }
@@ -1613,315 +4839,110 @@ class _$TimeBeforeTriggerImpl extends TimeBeforeTrigger {
   @override
   int get hashCode => Object.hash(runtimeType, unixSeconds);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$TimeBeforeTriggerImplCopyWith<_$TimeBeforeTriggerImpl> get copyWith =>
-      __$$TimeBeforeTriggerImplCopyWithImpl<_$TimeBeforeTriggerImpl>(
-          this, _$identity);
-
-  @override
-  @optionalTypeArgs
-  TResult when<TResult extends Object?>({
-    required TResult Function(double altitudeDeg) altitudeAbove,
-    required TResult Function(double altitudeDeg) altitudeBelow,
-    required TResult Function(int unixSeconds) timeAfter,
-    required TResult Function(int unixSeconds) timeBefore,
-    required TResult Function(List<TargetTrigger> children) and,
-    required TResult Function(List<TargetTrigger> children) or,
-    required TResult Function(double minHa, double maxHa) hourAngleBetween,
-  }) {
-    return timeBefore(unixSeconds);
+  String toString() {
+    return 'TargetTrigger.timeBefore(unixSeconds: $unixSeconds)';
   }
-
-  @override
-  @optionalTypeArgs
-  TResult? whenOrNull<TResult extends Object?>({
-    TResult? Function(double altitudeDeg)? altitudeAbove,
-    TResult? Function(double altitudeDeg)? altitudeBelow,
-    TResult? Function(int unixSeconds)? timeAfter,
-    TResult? Function(int unixSeconds)? timeBefore,
-    TResult? Function(List<TargetTrigger> children)? and,
-    TResult? Function(List<TargetTrigger> children)? or,
-    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
-  }) {
-    return timeBefore?.call(unixSeconds);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult maybeWhen<TResult extends Object?>({
-    TResult Function(double altitudeDeg)? altitudeAbove,
-    TResult Function(double altitudeDeg)? altitudeBelow,
-    TResult Function(int unixSeconds)? timeAfter,
-    TResult Function(int unixSeconds)? timeBefore,
-    TResult Function(List<TargetTrigger> children)? and,
-    TResult Function(List<TargetTrigger> children)? or,
-    TResult Function(double minHa, double maxHa)? hourAngleBetween,
-    required TResult orElse(),
-  }) {
-    if (timeBefore != null) {
-      return timeBefore(unixSeconds);
-    }
-    return orElse();
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult map<TResult extends Object?>({
-    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
-    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
-    required TResult Function(TimeAfterTrigger value) timeAfter,
-    required TResult Function(TimeBeforeTrigger value) timeBefore,
-    required TResult Function(AndTrigger value) and,
-    required TResult Function(OrTrigger value) or,
-    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
-  }) {
-    return timeBefore(this);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult? mapOrNull<TResult extends Object?>({
-    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
-    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
-    TResult? Function(TimeAfterTrigger value)? timeAfter,
-    TResult? Function(TimeBeforeTrigger value)? timeBefore,
-    TResult? Function(AndTrigger value)? and,
-    TResult? Function(OrTrigger value)? or,
-    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
-  }) {
-    return timeBefore?.call(this);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult maybeMap<TResult extends Object?>({
-    TResult Function(AltitudeAboveTrigger value)? altitudeAbove,
-    TResult Function(AltitudeBelowTrigger value)? altitudeBelow,
-    TResult Function(TimeAfterTrigger value)? timeAfter,
-    TResult Function(TimeBeforeTrigger value)? timeBefore,
-    TResult Function(AndTrigger value)? and,
-    TResult Function(OrTrigger value)? or,
-    TResult Function(HourAngleBetweenTrigger value)? hourAngleBetween,
-    required TResult orElse(),
-  }) {
-    if (timeBefore != null) {
-      return timeBefore(this);
-    }
-    return orElse();
-  }
-}
-
-abstract class TimeBeforeTrigger extends TargetTrigger {
-  const factory TimeBeforeTrigger(final int unixSeconds) =
-      _$TimeBeforeTriggerImpl;
-  const TimeBeforeTrigger._() : super._();
-
-  int get unixSeconds;
-  @JsonKey(ignore: true)
-  _$$TimeBeforeTriggerImplCopyWith<_$TimeBeforeTriggerImpl> get copyWith =>
-      throw _privateConstructorUsedError;
 }
 
 /// @nodoc
-abstract class _$$AndTriggerImplCopyWith<$Res> {
-  factory _$$AndTriggerImplCopyWith(
-          _$AndTriggerImpl value, $Res Function(_$AndTriggerImpl) then) =
-      __$$AndTriggerImplCopyWithImpl<$Res>;
+abstract mixin class $TimeBeforeTriggerCopyWith<$Res>
+    implements $TargetTriggerCopyWith<$Res> {
+  factory $TimeBeforeTriggerCopyWith(
+          TimeBeforeTrigger value, $Res Function(TimeBeforeTrigger) _then) =
+      _$TimeBeforeTriggerCopyWithImpl;
   @useResult
-  $Res call({List<TargetTrigger> children});
+  $Res call({int unixSeconds});
 }
 
 /// @nodoc
-class __$$AndTriggerImplCopyWithImpl<$Res>
-    extends _$TargetTriggerCopyWithImpl<$Res, _$AndTriggerImpl>
-    implements _$$AndTriggerImplCopyWith<$Res> {
-  __$$AndTriggerImplCopyWithImpl(
-      _$AndTriggerImpl _value, $Res Function(_$AndTriggerImpl) _then)
-      : super(_value, _then);
+class _$TimeBeforeTriggerCopyWithImpl<$Res>
+    implements $TimeBeforeTriggerCopyWith<$Res> {
+  _$TimeBeforeTriggerCopyWithImpl(this._self, this._then);
 
+  final TimeBeforeTrigger _self;
+  final $Res Function(TimeBeforeTrigger) _then;
+
+  /// Create a copy of TargetTrigger
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
-  @override
   $Res call({
-    Object? children = null,
+    Object? unixSeconds = null,
   }) {
-    return _then(_$AndTriggerImpl(
-      null == children
-          ? _value._children
-          : children // ignore: cast_nullable_to_non_nullable
-              as List<TargetTrigger>,
+    return _then(TimeBeforeTrigger(
+      null == unixSeconds
+          ? _self.unixSeconds
+          : unixSeconds // ignore: cast_nullable_to_non_nullable
+              as int,
     ));
   }
 }
 
 /// @nodoc
 
-class _$AndTriggerImpl extends AndTrigger {
-  const _$AndTriggerImpl(final List<TargetTrigger> children)
+class AndTrigger extends TargetTrigger {
+  const AndTrigger(final List<TargetTrigger> children)
       : _children = children,
         super._();
 
   final List<TargetTrigger> _children;
-  @override
   List<TargetTrigger> get children {
     if (_children is EqualUnmodifiableListView) return _children;
     // ignore: implicit_dynamic_type
     return EqualUnmodifiableListView(_children);
   }
+
+  /// Create a copy of TargetTrigger
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $AndTriggerCopyWith<AndTrigger> get copyWith =>
+      _$AndTriggerCopyWithImpl<AndTrigger>(this, _$identity);
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is AndTrigger &&
+            const DeepCollectionEquality().equals(other._children, _children));
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, const DeepCollectionEquality().hash(_children));
 
   @override
   String toString() {
     return 'TargetTrigger.and(children: $children)';
   }
-
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType &&
-            other is _$AndTriggerImpl &&
-            const DeepCollectionEquality().equals(other._children, _children));
-  }
-
-  @override
-  int get hashCode =>
-      Object.hash(runtimeType, const DeepCollectionEquality().hash(_children));
-
-  @JsonKey(ignore: true)
-  @override
-  @pragma('vm:prefer-inline')
-  _$$AndTriggerImplCopyWith<_$AndTriggerImpl> get copyWith =>
-      __$$AndTriggerImplCopyWithImpl<_$AndTriggerImpl>(this, _$identity);
-
-  @override
-  @optionalTypeArgs
-  TResult when<TResult extends Object?>({
-    required TResult Function(double altitudeDeg) altitudeAbove,
-    required TResult Function(double altitudeDeg) altitudeBelow,
-    required TResult Function(int unixSeconds) timeAfter,
-    required TResult Function(int unixSeconds) timeBefore,
-    required TResult Function(List<TargetTrigger> children) and,
-    required TResult Function(List<TargetTrigger> children) or,
-    required TResult Function(double minHa, double maxHa) hourAngleBetween,
-  }) {
-    return and(children);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult? whenOrNull<TResult extends Object?>({
-    TResult? Function(double altitudeDeg)? altitudeAbove,
-    TResult? Function(double altitudeDeg)? altitudeBelow,
-    TResult? Function(int unixSeconds)? timeAfter,
-    TResult? Function(int unixSeconds)? timeBefore,
-    TResult? Function(List<TargetTrigger> children)? and,
-    TResult? Function(List<TargetTrigger> children)? or,
-    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
-  }) {
-    return and?.call(children);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult maybeWhen<TResult extends Object?>({
-    TResult Function(double altitudeDeg)? altitudeAbove,
-    TResult Function(double altitudeDeg)? altitudeBelow,
-    TResult Function(int unixSeconds)? timeAfter,
-    TResult Function(int unixSeconds)? timeBefore,
-    TResult Function(List<TargetTrigger> children)? and,
-    TResult Function(List<TargetTrigger> children)? or,
-    TResult Function(double minHa, double maxHa)? hourAngleBetween,
-    required TResult orElse(),
-  }) {
-    if (and != null) {
-      return and(children);
-    }
-    return orElse();
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult map<TResult extends Object?>({
-    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
-    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
-    required TResult Function(TimeAfterTrigger value) timeAfter,
-    required TResult Function(TimeBeforeTrigger value) timeBefore,
-    required TResult Function(AndTrigger value) and,
-    required TResult Function(OrTrigger value) or,
-    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
-  }) {
-    return and(this);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult? mapOrNull<TResult extends Object?>({
-    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
-    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
-    TResult? Function(TimeAfterTrigger value)? timeAfter,
-    TResult? Function(TimeBeforeTrigger value)? timeBefore,
-    TResult? Function(AndTrigger value)? and,
-    TResult? Function(OrTrigger value)? or,
-    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
-  }) {
-    return and?.call(this);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult maybeMap<TResult extends Object?>({
-    TResult Function(AltitudeAboveTrigger value)? altitudeAbove,
-    TResult Function(AltitudeBelowTrigger value)? altitudeBelow,
-    TResult Function(TimeAfterTrigger value)? timeAfter,
-    TResult Function(TimeBeforeTrigger value)? timeBefore,
-    TResult Function(AndTrigger value)? and,
-    TResult Function(OrTrigger value)? or,
-    TResult Function(HourAngleBetweenTrigger value)? hourAngleBetween,
-    required TResult orElse(),
-  }) {
-    if (and != null) {
-      return and(this);
-    }
-    return orElse();
-  }
-}
-
-abstract class AndTrigger extends TargetTrigger {
-  const factory AndTrigger(final List<TargetTrigger> children) =
-      _$AndTriggerImpl;
-  const AndTrigger._() : super._();
-
-  List<TargetTrigger> get children;
-  @JsonKey(ignore: true)
-  _$$AndTriggerImplCopyWith<_$AndTriggerImpl> get copyWith =>
-      throw _privateConstructorUsedError;
 }
 
 /// @nodoc
-abstract class _$$OrTriggerImplCopyWith<$Res> {
-  factory _$$OrTriggerImplCopyWith(
-          _$OrTriggerImpl value, $Res Function(_$OrTriggerImpl) then) =
-      __$$OrTriggerImplCopyWithImpl<$Res>;
+abstract mixin class $AndTriggerCopyWith<$Res>
+    implements $TargetTriggerCopyWith<$Res> {
+  factory $AndTriggerCopyWith(
+          AndTrigger value, $Res Function(AndTrigger) _then) =
+      _$AndTriggerCopyWithImpl;
   @useResult
   $Res call({List<TargetTrigger> children});
 }
 
 /// @nodoc
-class __$$OrTriggerImplCopyWithImpl<$Res>
-    extends _$TargetTriggerCopyWithImpl<$Res, _$OrTriggerImpl>
-    implements _$$OrTriggerImplCopyWith<$Res> {
-  __$$OrTriggerImplCopyWithImpl(
-      _$OrTriggerImpl _value, $Res Function(_$OrTriggerImpl) _then)
-      : super(_value, _then);
+class _$AndTriggerCopyWithImpl<$Res> implements $AndTriggerCopyWith<$Res> {
+  _$AndTriggerCopyWithImpl(this._self, this._then);
 
+  final AndTrigger _self;
+  final $Res Function(AndTrigger) _then;
+
+  /// Create a copy of TargetTrigger
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
-  @override
   $Res call({
     Object? children = null,
   }) {
-    return _then(_$OrTriggerImpl(
+    return _then(AndTrigger(
       null == children
-          ? _value._children
+          ? _self._children
           : children // ignore: cast_nullable_to_non_nullable
               as List<TargetTrigger>,
     ));
@@ -1930,29 +4951,30 @@ class __$$OrTriggerImplCopyWithImpl<$Res>
 
 /// @nodoc
 
-class _$OrTriggerImpl extends OrTrigger {
-  const _$OrTriggerImpl(final List<TargetTrigger> children)
+class OrTrigger extends TargetTrigger {
+  const OrTrigger(final List<TargetTrigger> children)
       : _children = children,
         super._();
 
   final List<TargetTrigger> _children;
-  @override
   List<TargetTrigger> get children {
     if (_children is EqualUnmodifiableListView) return _children;
     // ignore: implicit_dynamic_type
     return EqualUnmodifiableListView(_children);
   }
 
-  @override
-  String toString() {
-    return 'TargetTrigger.or(children: $children)';
-  }
+  /// Create a copy of TargetTrigger
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $OrTriggerCopyWith<OrTrigger> get copyWith =>
+      _$OrTriggerCopyWithImpl<OrTrigger>(this, _$identity);
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$OrTriggerImpl &&
+            other is OrTrigger &&
             const DeepCollectionEquality().equals(other._children, _children));
   }
 
@@ -1960,175 +4982,65 @@ class _$OrTriggerImpl extends OrTrigger {
   int get hashCode =>
       Object.hash(runtimeType, const DeepCollectionEquality().hash(_children));
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$OrTriggerImplCopyWith<_$OrTriggerImpl> get copyWith =>
-      __$$OrTriggerImplCopyWithImpl<_$OrTriggerImpl>(this, _$identity);
-
-  @override
-  @optionalTypeArgs
-  TResult when<TResult extends Object?>({
-    required TResult Function(double altitudeDeg) altitudeAbove,
-    required TResult Function(double altitudeDeg) altitudeBelow,
-    required TResult Function(int unixSeconds) timeAfter,
-    required TResult Function(int unixSeconds) timeBefore,
-    required TResult Function(List<TargetTrigger> children) and,
-    required TResult Function(List<TargetTrigger> children) or,
-    required TResult Function(double minHa, double maxHa) hourAngleBetween,
-  }) {
-    return or(children);
+  String toString() {
+    return 'TargetTrigger.or(children: $children)';
   }
-
-  @override
-  @optionalTypeArgs
-  TResult? whenOrNull<TResult extends Object?>({
-    TResult? Function(double altitudeDeg)? altitudeAbove,
-    TResult? Function(double altitudeDeg)? altitudeBelow,
-    TResult? Function(int unixSeconds)? timeAfter,
-    TResult? Function(int unixSeconds)? timeBefore,
-    TResult? Function(List<TargetTrigger> children)? and,
-    TResult? Function(List<TargetTrigger> children)? or,
-    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
-  }) {
-    return or?.call(children);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult maybeWhen<TResult extends Object?>({
-    TResult Function(double altitudeDeg)? altitudeAbove,
-    TResult Function(double altitudeDeg)? altitudeBelow,
-    TResult Function(int unixSeconds)? timeAfter,
-    TResult Function(int unixSeconds)? timeBefore,
-    TResult Function(List<TargetTrigger> children)? and,
-    TResult Function(List<TargetTrigger> children)? or,
-    TResult Function(double minHa, double maxHa)? hourAngleBetween,
-    required TResult orElse(),
-  }) {
-    if (or != null) {
-      return or(children);
-    }
-    return orElse();
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult map<TResult extends Object?>({
-    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
-    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
-    required TResult Function(TimeAfterTrigger value) timeAfter,
-    required TResult Function(TimeBeforeTrigger value) timeBefore,
-    required TResult Function(AndTrigger value) and,
-    required TResult Function(OrTrigger value) or,
-    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
-  }) {
-    return or(this);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult? mapOrNull<TResult extends Object?>({
-    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
-    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
-    TResult? Function(TimeAfterTrigger value)? timeAfter,
-    TResult? Function(TimeBeforeTrigger value)? timeBefore,
-    TResult? Function(AndTrigger value)? and,
-    TResult? Function(OrTrigger value)? or,
-    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
-  }) {
-    return or?.call(this);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult maybeMap<TResult extends Object?>({
-    TResult Function(AltitudeAboveTrigger value)? altitudeAbove,
-    TResult Function(AltitudeBelowTrigger value)? altitudeBelow,
-    TResult Function(TimeAfterTrigger value)? timeAfter,
-    TResult Function(TimeBeforeTrigger value)? timeBefore,
-    TResult Function(AndTrigger value)? and,
-    TResult Function(OrTrigger value)? or,
-    TResult Function(HourAngleBetweenTrigger value)? hourAngleBetween,
-    required TResult orElse(),
-  }) {
-    if (or != null) {
-      return or(this);
-    }
-    return orElse();
-  }
-}
-
-abstract class OrTrigger extends TargetTrigger {
-  const factory OrTrigger(final List<TargetTrigger> children) = _$OrTriggerImpl;
-  const OrTrigger._() : super._();
-
-  List<TargetTrigger> get children;
-  @JsonKey(ignore: true)
-  _$$OrTriggerImplCopyWith<_$OrTriggerImpl> get copyWith =>
-      throw _privateConstructorUsedError;
 }
 
 /// @nodoc
-abstract class _$$HourAngleBetweenTriggerImplCopyWith<$Res> {
-  factory _$$HourAngleBetweenTriggerImplCopyWith(
-          _$HourAngleBetweenTriggerImpl value,
-          $Res Function(_$HourAngleBetweenTriggerImpl) then) =
-      __$$HourAngleBetweenTriggerImplCopyWithImpl<$Res>;
+abstract mixin class $OrTriggerCopyWith<$Res>
+    implements $TargetTriggerCopyWith<$Res> {
+  factory $OrTriggerCopyWith(OrTrigger value, $Res Function(OrTrigger) _then) =
+      _$OrTriggerCopyWithImpl;
   @useResult
-  $Res call({double minHa, double maxHa});
+  $Res call({List<TargetTrigger> children});
 }
 
 /// @nodoc
-class __$$HourAngleBetweenTriggerImplCopyWithImpl<$Res>
-    extends _$TargetTriggerCopyWithImpl<$Res, _$HourAngleBetweenTriggerImpl>
-    implements _$$HourAngleBetweenTriggerImplCopyWith<$Res> {
-  __$$HourAngleBetweenTriggerImplCopyWithImpl(
-      _$HourAngleBetweenTriggerImpl _value,
-      $Res Function(_$HourAngleBetweenTriggerImpl) _then)
-      : super(_value, _then);
+class _$OrTriggerCopyWithImpl<$Res> implements $OrTriggerCopyWith<$Res> {
+  _$OrTriggerCopyWithImpl(this._self, this._then);
 
+  final OrTrigger _self;
+  final $Res Function(OrTrigger) _then;
+
+  /// Create a copy of TargetTrigger
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
-  @override
   $Res call({
-    Object? minHa = null,
-    Object? maxHa = null,
+    Object? children = null,
   }) {
-    return _then(_$HourAngleBetweenTriggerImpl(
-      minHa: null == minHa
-          ? _value.minHa
-          : minHa // ignore: cast_nullable_to_non_nullable
-              as double,
-      maxHa: null == maxHa
-          ? _value.maxHa
-          : maxHa // ignore: cast_nullable_to_non_nullable
-              as double,
+    return _then(OrTrigger(
+      null == children
+          ? _self._children
+          : children // ignore: cast_nullable_to_non_nullable
+              as List<TargetTrigger>,
     ));
   }
 }
 
 /// @nodoc
 
-class _$HourAngleBetweenTriggerImpl extends HourAngleBetweenTrigger {
-  const _$HourAngleBetweenTriggerImpl(
-      {required this.minHa, required this.maxHa})
+class HourAngleBetweenTrigger extends TargetTrigger {
+  const HourAngleBetweenTrigger({required this.minHa, required this.maxHa})
       : super._();
 
-  @override
   final double minHa;
-  @override
   final double maxHa;
 
-  @override
-  String toString() {
-    return 'TargetTrigger.hourAngleBetween(minHa: $minHa, maxHa: $maxHa)';
-  }
+  /// Create a copy of TargetTrigger
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $HourAngleBetweenTriggerCopyWith<HourAngleBetweenTrigger> get copyWith =>
+      _$HourAngleBetweenTriggerCopyWithImpl<HourAngleBetweenTrigger>(
+          this, _$identity);
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$HourAngleBetweenTriggerImpl &&
+            other is HourAngleBetweenTrigger &&
             (identical(other.minHa, minHa) || other.minHa == minHa) &&
             (identical(other.maxHa, maxHa) || other.maxHa == maxHa));
   }
@@ -2136,246 +5048,137 @@ class _$HourAngleBetweenTriggerImpl extends HourAngleBetweenTrigger {
   @override
   int get hashCode => Object.hash(runtimeType, minHa, maxHa);
 
-  @JsonKey(ignore: true)
   @override
+  String toString() {
+    return 'TargetTrigger.hourAngleBetween(minHa: $minHa, maxHa: $maxHa)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $HourAngleBetweenTriggerCopyWith<$Res>
+    implements $TargetTriggerCopyWith<$Res> {
+  factory $HourAngleBetweenTriggerCopyWith(HourAngleBetweenTrigger value,
+          $Res Function(HourAngleBetweenTrigger) _then) =
+      _$HourAngleBetweenTriggerCopyWithImpl;
+  @useResult
+  $Res call({double minHa, double maxHa});
+}
+
+/// @nodoc
+class _$HourAngleBetweenTriggerCopyWithImpl<$Res>
+    implements $HourAngleBetweenTriggerCopyWith<$Res> {
+  _$HourAngleBetweenTriggerCopyWithImpl(this._self, this._then);
+
+  final HourAngleBetweenTrigger _self;
+  final $Res Function(HourAngleBetweenTrigger) _then;
+
+  /// Create a copy of TargetTrigger
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
-  _$$HourAngleBetweenTriggerImplCopyWith<_$HourAngleBetweenTriggerImpl>
-      get copyWith => __$$HourAngleBetweenTriggerImplCopyWithImpl<
-          _$HourAngleBetweenTriggerImpl>(this, _$identity);
-
-  @override
-  @optionalTypeArgs
-  TResult when<TResult extends Object?>({
-    required TResult Function(double altitudeDeg) altitudeAbove,
-    required TResult Function(double altitudeDeg) altitudeBelow,
-    required TResult Function(int unixSeconds) timeAfter,
-    required TResult Function(int unixSeconds) timeBefore,
-    required TResult Function(List<TargetTrigger> children) and,
-    required TResult Function(List<TargetTrigger> children) or,
-    required TResult Function(double minHa, double maxHa) hourAngleBetween,
+  $Res call({
+    Object? minHa = null,
+    Object? maxHa = null,
   }) {
-    return hourAngleBetween(minHa, maxHa);
+    return _then(HourAngleBetweenTrigger(
+      minHa: null == minHa
+          ? _self.minHa
+          : minHa // ignore: cast_nullable_to_non_nullable
+              as double,
+      maxHa: null == maxHa
+          ? _self.maxHa
+          : maxHa // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
   }
-
-  @override
-  @optionalTypeArgs
-  TResult? whenOrNull<TResult extends Object?>({
-    TResult? Function(double altitudeDeg)? altitudeAbove,
-    TResult? Function(double altitudeDeg)? altitudeBelow,
-    TResult? Function(int unixSeconds)? timeAfter,
-    TResult? Function(int unixSeconds)? timeBefore,
-    TResult? Function(List<TargetTrigger> children)? and,
-    TResult? Function(List<TargetTrigger> children)? or,
-    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
-  }) {
-    return hourAngleBetween?.call(minHa, maxHa);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult maybeWhen<TResult extends Object?>({
-    TResult Function(double altitudeDeg)? altitudeAbove,
-    TResult Function(double altitudeDeg)? altitudeBelow,
-    TResult Function(int unixSeconds)? timeAfter,
-    TResult Function(int unixSeconds)? timeBefore,
-    TResult Function(List<TargetTrigger> children)? and,
-    TResult Function(List<TargetTrigger> children)? or,
-    TResult Function(double minHa, double maxHa)? hourAngleBetween,
-    required TResult orElse(),
-  }) {
-    if (hourAngleBetween != null) {
-      return hourAngleBetween(minHa, maxHa);
-    }
-    return orElse();
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult map<TResult extends Object?>({
-    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
-    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
-    required TResult Function(TimeAfterTrigger value) timeAfter,
-    required TResult Function(TimeBeforeTrigger value) timeBefore,
-    required TResult Function(AndTrigger value) and,
-    required TResult Function(OrTrigger value) or,
-    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
-  }) {
-    return hourAngleBetween(this);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult? mapOrNull<TResult extends Object?>({
-    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
-    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
-    TResult? Function(TimeAfterTrigger value)? timeAfter,
-    TResult? Function(TimeBeforeTrigger value)? timeBefore,
-    TResult? Function(AndTrigger value)? and,
-    TResult? Function(OrTrigger value)? or,
-    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
-  }) {
-    return hourAngleBetween?.call(this);
-  }
-
-  @override
-  @optionalTypeArgs
-  TResult maybeMap<TResult extends Object?>({
-    TResult Function(AltitudeAboveTrigger value)? altitudeAbove,
-    TResult Function(AltitudeBelowTrigger value)? altitudeBelow,
-    TResult Function(TimeAfterTrigger value)? timeAfter,
-    TResult Function(TimeBeforeTrigger value)? timeBefore,
-    TResult Function(AndTrigger value)? and,
-    TResult Function(OrTrigger value)? or,
-    TResult Function(HourAngleBetweenTrigger value)? hourAngleBetween,
-    required TResult orElse(),
-  }) {
-    if (hourAngleBetween != null) {
-      return hourAngleBetween(this);
-    }
-    return orElse();
-  }
-}
-
-abstract class HourAngleBetweenTrigger extends TargetTrigger {
-  const factory HourAngleBetweenTrigger(
-      {required final double minHa,
-      required final double maxHa}) = _$HourAngleBetweenTriggerImpl;
-  const HourAngleBetweenTrigger._() : super._();
-
-  double get minHa;
-  double get maxHa;
-  @JsonKey(ignore: true)
-  _$$HourAngleBetweenTriggerImplCopyWith<_$HourAngleBetweenTriggerImpl>
-      get copyWith => throw _privateConstructorUsedError;
-}
-
-AdaptiveExposureConfig _$AdaptiveExposureConfigFromJson(
-    Map<String, dynamic> json) {
-  return _AdaptiveExposureConfig.fromJson(json);
 }
 
 /// @nodoc
 mixin _$AdaptiveExposureConfig {
   /// Target SNR (informational; the current adapter scales by sky-
   /// background flux ratio rather than aiming at a numeric target).
-  double get targetSnr => throw _privateConstructorUsedError;
+  double get targetSnr;
 
   /// Sky brightness in mag/arcsec² that the node's configured nominal
   /// exposure is calibrated for.
-  double get referenceSkyBrightnessMag => throw _privateConstructorUsedError;
+  double get referenceSkyBrightnessMag;
 
   /// Global minimum exposure clamp (seconds).
-  double get minExposureSecs => throw _privateConstructorUsedError;
+  double get minExposureSecs;
 
   /// Global maximum exposure clamp (seconds).
-  double get maxExposureSecs => throw _privateConstructorUsedError;
+  double get maxExposureSecs;
 
   /// Per-filter enable map. Filter name -> bool. Empty => apply globally.
-  Map<String, bool> get perFilterEnabled => throw _privateConstructorUsedError;
+  Map<String, bool> get perFilterEnabled;
 
   /// Per-filter minimum exposure overrides (seconds).
-  Map<String, double> get perFilterMinSecs =>
-      throw _privateConstructorUsedError;
+  Map<String, double> get perFilterMinSecs;
 
   /// Per-filter maximum exposure overrides (seconds).
-  Map<String, double> get perFilterMaxSecs =>
-      throw _privateConstructorUsedError;
+  Map<String, double> get perFilterMaxSecs;
 
   /// Global enable toggle. When false the whole config is a no-op
   /// regardless of per-filter map content.
-  bool get enabled => throw _privateConstructorUsedError;
+  bool get enabled;
 
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $AdaptiveExposureConfigCopyWith<AdaptiveExposureConfig> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $AdaptiveExposureConfigCopyWith<$Res> {
-  factory $AdaptiveExposureConfigCopyWith(AdaptiveExposureConfig value,
-          $Res Function(AdaptiveExposureConfig) then) =
-      _$AdaptiveExposureConfigCopyWithImpl<$Res, AdaptiveExposureConfig>;
-  @useResult
-  $Res call(
-      {double targetSnr,
-      double referenceSkyBrightnessMag,
-      double minExposureSecs,
-      double maxExposureSecs,
-      Map<String, bool> perFilterEnabled,
-      Map<String, double> perFilterMinSecs,
-      Map<String, double> perFilterMaxSecs,
-      bool enabled});
-}
-
-/// @nodoc
-class _$AdaptiveExposureConfigCopyWithImpl<$Res,
-        $Val extends AdaptiveExposureConfig>
-    implements $AdaptiveExposureConfigCopyWith<$Res> {
-  _$AdaptiveExposureConfigCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of AdaptiveExposureConfig
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $AdaptiveExposureConfigCopyWith<AdaptiveExposureConfig> get copyWith =>
+      _$AdaptiveExposureConfigCopyWithImpl<AdaptiveExposureConfig>(
+          this as AdaptiveExposureConfig, _$identity);
+
+  /// Serializes this AdaptiveExposureConfig to a JSON map.
+  Map<String, dynamic> toJson();
+
   @override
-  $Res call({
-    Object? targetSnr = null,
-    Object? referenceSkyBrightnessMag = null,
-    Object? minExposureSecs = null,
-    Object? maxExposureSecs = null,
-    Object? perFilterEnabled = null,
-    Object? perFilterMinSecs = null,
-    Object? perFilterMaxSecs = null,
-    Object? enabled = null,
-  }) {
-    return _then(_value.copyWith(
-      targetSnr: null == targetSnr
-          ? _value.targetSnr
-          : targetSnr // ignore: cast_nullable_to_non_nullable
-              as double,
-      referenceSkyBrightnessMag: null == referenceSkyBrightnessMag
-          ? _value.referenceSkyBrightnessMag
-          : referenceSkyBrightnessMag // ignore: cast_nullable_to_non_nullable
-              as double,
-      minExposureSecs: null == minExposureSecs
-          ? _value.minExposureSecs
-          : minExposureSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      maxExposureSecs: null == maxExposureSecs
-          ? _value.maxExposureSecs
-          : maxExposureSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      perFilterEnabled: null == perFilterEnabled
-          ? _value.perFilterEnabled
-          : perFilterEnabled // ignore: cast_nullable_to_non_nullable
-              as Map<String, bool>,
-      perFilterMinSecs: null == perFilterMinSecs
-          ? _value.perFilterMinSecs
-          : perFilterMinSecs // ignore: cast_nullable_to_non_nullable
-              as Map<String, double>,
-      perFilterMaxSecs: null == perFilterMaxSecs
-          ? _value.perFilterMaxSecs
-          : perFilterMaxSecs // ignore: cast_nullable_to_non_nullable
-              as Map<String, double>,
-      enabled: null == enabled
-          ? _value.enabled
-          : enabled // ignore: cast_nullable_to_non_nullable
-              as bool,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is AdaptiveExposureConfig &&
+            (identical(other.targetSnr, targetSnr) ||
+                other.targetSnr == targetSnr) &&
+            (identical(other.referenceSkyBrightnessMag,
+                    referenceSkyBrightnessMag) ||
+                other.referenceSkyBrightnessMag == referenceSkyBrightnessMag) &&
+            (identical(other.minExposureSecs, minExposureSecs) ||
+                other.minExposureSecs == minExposureSecs) &&
+            (identical(other.maxExposureSecs, maxExposureSecs) ||
+                other.maxExposureSecs == maxExposureSecs) &&
+            const DeepCollectionEquality()
+                .equals(other.perFilterEnabled, perFilterEnabled) &&
+            const DeepCollectionEquality()
+                .equals(other.perFilterMinSecs, perFilterMinSecs) &&
+            const DeepCollectionEquality()
+                .equals(other.perFilterMaxSecs, perFilterMaxSecs) &&
+            (identical(other.enabled, enabled) || other.enabled == enabled));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      targetSnr,
+      referenceSkyBrightnessMag,
+      minExposureSecs,
+      maxExposureSecs,
+      const DeepCollectionEquality().hash(perFilterEnabled),
+      const DeepCollectionEquality().hash(perFilterMinSecs),
+      const DeepCollectionEquality().hash(perFilterMaxSecs),
+      enabled);
+
+  @override
+  String toString() {
+    return 'AdaptiveExposureConfig(targetSnr: $targetSnr, referenceSkyBrightnessMag: $referenceSkyBrightnessMag, minExposureSecs: $minExposureSecs, maxExposureSecs: $maxExposureSecs, perFilterEnabled: $perFilterEnabled, perFilterMinSecs: $perFilterMinSecs, perFilterMaxSecs: $perFilterMaxSecs, enabled: $enabled)';
   }
 }
 
 /// @nodoc
-abstract class _$$AdaptiveExposureConfigImplCopyWith<$Res>
-    implements $AdaptiveExposureConfigCopyWith<$Res> {
-  factory _$$AdaptiveExposureConfigImplCopyWith(
-          _$AdaptiveExposureConfigImpl value,
-          $Res Function(_$AdaptiveExposureConfigImpl) then) =
-      __$$AdaptiveExposureConfigImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $AdaptiveExposureConfigCopyWith<$Res> {
+  factory $AdaptiveExposureConfigCopyWith(AdaptiveExposureConfig value,
+          $Res Function(AdaptiveExposureConfig) _then) =
+      _$AdaptiveExposureConfigCopyWithImpl;
   @useResult
   $Res call(
       {double targetSnr,
@@ -2389,15 +5192,15 @@ abstract class _$$AdaptiveExposureConfigImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$AdaptiveExposureConfigImplCopyWithImpl<$Res>
-    extends _$AdaptiveExposureConfigCopyWithImpl<$Res,
-        _$AdaptiveExposureConfigImpl>
-    implements _$$AdaptiveExposureConfigImplCopyWith<$Res> {
-  __$$AdaptiveExposureConfigImplCopyWithImpl(
-      _$AdaptiveExposureConfigImpl _value,
-      $Res Function(_$AdaptiveExposureConfigImpl) _then)
-      : super(_value, _then);
+class _$AdaptiveExposureConfigCopyWithImpl<$Res>
+    implements $AdaptiveExposureConfigCopyWith<$Res> {
+  _$AdaptiveExposureConfigCopyWithImpl(this._self, this._then);
 
+  final AdaptiveExposureConfig _self;
+  final $Res Function(AdaptiveExposureConfig) _then;
+
+  /// Create a copy of AdaptiveExposureConfig
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -2410,48 +5213,256 @@ class __$$AdaptiveExposureConfigImplCopyWithImpl<$Res>
     Object? perFilterMaxSecs = null,
     Object? enabled = null,
   }) {
-    return _then(_$AdaptiveExposureConfigImpl(
+    return _then(_self.copyWith(
       targetSnr: null == targetSnr
-          ? _value.targetSnr
+          ? _self.targetSnr
           : targetSnr // ignore: cast_nullable_to_non_nullable
               as double,
       referenceSkyBrightnessMag: null == referenceSkyBrightnessMag
-          ? _value.referenceSkyBrightnessMag
+          ? _self.referenceSkyBrightnessMag
           : referenceSkyBrightnessMag // ignore: cast_nullable_to_non_nullable
               as double,
       minExposureSecs: null == minExposureSecs
-          ? _value.minExposureSecs
+          ? _self.minExposureSecs
           : minExposureSecs // ignore: cast_nullable_to_non_nullable
               as double,
       maxExposureSecs: null == maxExposureSecs
-          ? _value.maxExposureSecs
+          ? _self.maxExposureSecs
           : maxExposureSecs // ignore: cast_nullable_to_non_nullable
               as double,
       perFilterEnabled: null == perFilterEnabled
-          ? _value._perFilterEnabled
+          ? _self.perFilterEnabled
           : perFilterEnabled // ignore: cast_nullable_to_non_nullable
               as Map<String, bool>,
       perFilterMinSecs: null == perFilterMinSecs
-          ? _value._perFilterMinSecs
+          ? _self.perFilterMinSecs
           : perFilterMinSecs // ignore: cast_nullable_to_non_nullable
               as Map<String, double>,
       perFilterMaxSecs: null == perFilterMaxSecs
-          ? _value._perFilterMaxSecs
+          ? _self.perFilterMaxSecs
           : perFilterMaxSecs // ignore: cast_nullable_to_non_nullable
               as Map<String, double>,
       enabled: null == enabled
-          ? _value.enabled
+          ? _self.enabled
           : enabled // ignore: cast_nullable_to_non_nullable
               as bool,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [AdaptiveExposureConfig].
+extension AdaptiveExposureConfigPatterns on AdaptiveExposureConfig {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_AdaptiveExposureConfig value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveExposureConfig() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_AdaptiveExposureConfig value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveExposureConfig():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_AdaptiveExposureConfig value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveExposureConfig() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            double targetSnr,
+            double referenceSkyBrightnessMag,
+            double minExposureSecs,
+            double maxExposureSecs,
+            Map<String, bool> perFilterEnabled,
+            Map<String, double> perFilterMinSecs,
+            Map<String, double> perFilterMaxSecs,
+            bool enabled)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveExposureConfig() when $default != null:
+        return $default(
+            _that.targetSnr,
+            _that.referenceSkyBrightnessMag,
+            _that.minExposureSecs,
+            _that.maxExposureSecs,
+            _that.perFilterEnabled,
+            _that.perFilterMinSecs,
+            _that.perFilterMaxSecs,
+            _that.enabled);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            double targetSnr,
+            double referenceSkyBrightnessMag,
+            double minExposureSecs,
+            double maxExposureSecs,
+            Map<String, bool> perFilterEnabled,
+            Map<String, double> perFilterMinSecs,
+            Map<String, double> perFilterMaxSecs,
+            bool enabled)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveExposureConfig():
+        return $default(
+            _that.targetSnr,
+            _that.referenceSkyBrightnessMag,
+            _that.minExposureSecs,
+            _that.maxExposureSecs,
+            _that.perFilterEnabled,
+            _that.perFilterMinSecs,
+            _that.perFilterMaxSecs,
+            _that.enabled);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            double targetSnr,
+            double referenceSkyBrightnessMag,
+            double minExposureSecs,
+            double maxExposureSecs,
+            Map<String, bool> perFilterEnabled,
+            Map<String, double> perFilterMinSecs,
+            Map<String, double> perFilterMaxSecs,
+            bool enabled)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _AdaptiveExposureConfig() when $default != null:
+        return $default(
+            _that.targetSnr,
+            _that.referenceSkyBrightnessMag,
+            _that.minExposureSecs,
+            _that.maxExposureSecs,
+            _that.perFilterEnabled,
+            _that.perFilterMinSecs,
+            _that.perFilterMaxSecs,
+            _that.enabled);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 
 @JsonSerializable(fieldRename: FieldRename.snake)
-class _$AdaptiveExposureConfigImpl extends _AdaptiveExposureConfig {
-  const _$AdaptiveExposureConfigImpl(
+class _AdaptiveExposureConfig extends AdaptiveExposureConfig {
+  const _AdaptiveExposureConfig(
       {this.targetSnr = 30.0,
       this.referenceSkyBrightnessMag = 21.5,
       this.minExposureSecs = 5.0,
@@ -2464,9 +5475,8 @@ class _$AdaptiveExposureConfigImpl extends _AdaptiveExposureConfig {
         _perFilterMinSecs = perFilterMinSecs,
         _perFilterMaxSecs = perFilterMaxSecs,
         super._();
-
-  factory _$AdaptiveExposureConfigImpl.fromJson(Map<String, dynamic> json) =>
-      _$$AdaptiveExposureConfigImplFromJson(json);
+  factory _AdaptiveExposureConfig.fromJson(Map<String, dynamic> json) =>
+      _$AdaptiveExposureConfigFromJson(json);
 
   /// Target SNR (informational; the current adapter scales by sky-
   /// background flux ratio rather than aiming at a numeric target).
@@ -2532,16 +5542,27 @@ class _$AdaptiveExposureConfigImpl extends _AdaptiveExposureConfig {
   @JsonKey()
   final bool enabled;
 
+  /// Create a copy of AdaptiveExposureConfig
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'AdaptiveExposureConfig(targetSnr: $targetSnr, referenceSkyBrightnessMag: $referenceSkyBrightnessMag, minExposureSecs: $minExposureSecs, maxExposureSecs: $maxExposureSecs, perFilterEnabled: $perFilterEnabled, perFilterMinSecs: $perFilterMinSecs, perFilterMaxSecs: $perFilterMaxSecs, enabled: $enabled)';
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$AdaptiveExposureConfigCopyWith<_AdaptiveExposureConfig> get copyWith =>
+      __$AdaptiveExposureConfigCopyWithImpl<_AdaptiveExposureConfig>(
+          this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$AdaptiveExposureConfigToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$AdaptiveExposureConfigImpl &&
+            other is _AdaptiveExposureConfig &&
             (identical(other.targetSnr, targetSnr) ||
                 other.targetSnr == targetSnr) &&
             (identical(other.referenceSkyBrightnessMag,
@@ -2560,7 +5581,7 @@ class _$AdaptiveExposureConfigImpl extends _AdaptiveExposureConfig {
             (identical(other.enabled, enabled) || other.enabled == enabled));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
       runtimeType,
@@ -2573,1846 +5594,919 @@ class _$AdaptiveExposureConfigImpl extends _AdaptiveExposureConfig {
       const DeepCollectionEquality().hash(_perFilterMaxSecs),
       enabled);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$AdaptiveExposureConfigImplCopyWith<_$AdaptiveExposureConfigImpl>
-      get copyWith => __$$AdaptiveExposureConfigImplCopyWithImpl<
-          _$AdaptiveExposureConfigImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$AdaptiveExposureConfigImplToJson(
-      this,
-    );
-  }
-}
-
-abstract class _AdaptiveExposureConfig extends AdaptiveExposureConfig {
-  const factory _AdaptiveExposureConfig(
-      {final double targetSnr,
-      final double referenceSkyBrightnessMag,
-      final double minExposureSecs,
-      final double maxExposureSecs,
-      final Map<String, bool> perFilterEnabled,
-      final Map<String, double> perFilterMinSecs,
-      final Map<String, double> perFilterMaxSecs,
-      final bool enabled}) = _$AdaptiveExposureConfigImpl;
-  const _AdaptiveExposureConfig._() : super._();
-
-  factory _AdaptiveExposureConfig.fromJson(Map<String, dynamic> json) =
-      _$AdaptiveExposureConfigImpl.fromJson;
-
-  @override
-
-  /// Target SNR (informational; the current adapter scales by sky-
-  /// background flux ratio rather than aiming at a numeric target).
-  double get targetSnr;
-  @override
-
-  /// Sky brightness in mag/arcsec² that the node's configured nominal
-  /// exposure is calibrated for.
-  double get referenceSkyBrightnessMag;
-  @override
-
-  /// Global minimum exposure clamp (seconds).
-  double get minExposureSecs;
-  @override
-
-  /// Global maximum exposure clamp (seconds).
-  double get maxExposureSecs;
-  @override
-
-  /// Per-filter enable map. Filter name -> bool. Empty => apply globally.
-  Map<String, bool> get perFilterEnabled;
-  @override
-
-  /// Per-filter minimum exposure overrides (seconds).
-  Map<String, double> get perFilterMinSecs;
-  @override
-
-  /// Per-filter maximum exposure overrides (seconds).
-  Map<String, double> get perFilterMaxSecs;
-  @override
-
-  /// Global enable toggle. When false the whole config is a no-op
-  /// regardless of per-filter map content.
-  bool get enabled;
-  @override
-  @JsonKey(ignore: true)
-  _$$AdaptiveExposureConfigImplCopyWith<_$AdaptiveExposureConfigImpl>
-      get copyWith => throw _privateConstructorUsedError;
-}
-
-BrightnessTierPreferences _$BrightnessTierPreferencesFromJson(
-    Map<String, dynamic> json) {
-  return _BrightnessTierPreferences.fromJson(json);
-}
-
-/// @nodoc
-mixin _$BrightnessTierPreferences {
-  double get faintMinScore => throw _privateConstructorUsedError;
-  double get mediumMinScore => throw _privateConstructorUsedError;
-  double get brightMinScore => throw _privateConstructorUsedError;
-
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $BrightnessTierPreferencesCopyWith<BrightnessTierPreferences> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $BrightnessTierPreferencesCopyWith<$Res> {
-  factory $BrightnessTierPreferencesCopyWith(BrightnessTierPreferences value,
-          $Res Function(BrightnessTierPreferences) then) =
-      _$BrightnessTierPreferencesCopyWithImpl<$Res, BrightnessTierPreferences>;
-  @useResult
-  $Res call(
-      {double faintMinScore, double mediumMinScore, double brightMinScore});
-}
-
-/// @nodoc
-class _$BrightnessTierPreferencesCopyWithImpl<$Res,
-        $Val extends BrightnessTierPreferences>
-    implements $BrightnessTierPreferencesCopyWith<$Res> {
-  _$BrightnessTierPreferencesCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? faintMinScore = null,
-    Object? mediumMinScore = null,
-    Object? brightMinScore = null,
-  }) {
-    return _then(_value.copyWith(
-      faintMinScore: null == faintMinScore
-          ? _value.faintMinScore
-          : faintMinScore // ignore: cast_nullable_to_non_nullable
-              as double,
-      mediumMinScore: null == mediumMinScore
-          ? _value.mediumMinScore
-          : mediumMinScore // ignore: cast_nullable_to_non_nullable
-              as double,
-      brightMinScore: null == brightMinScore
-          ? _value.brightMinScore
-          : brightMinScore // ignore: cast_nullable_to_non_nullable
-              as double,
-    ) as $Val);
+  String toString() {
+    return 'AdaptiveExposureConfig(targetSnr: $targetSnr, referenceSkyBrightnessMag: $referenceSkyBrightnessMag, minExposureSecs: $minExposureSecs, maxExposureSecs: $maxExposureSecs, perFilterEnabled: $perFilterEnabled, perFilterMinSecs: $perFilterMinSecs, perFilterMaxSecs: $perFilterMaxSecs, enabled: $enabled)';
   }
 }
 
 /// @nodoc
-abstract class _$$BrightnessTierPreferencesImplCopyWith<$Res>
-    implements $BrightnessTierPreferencesCopyWith<$Res> {
-  factory _$$BrightnessTierPreferencesImplCopyWith(
-          _$BrightnessTierPreferencesImpl value,
-          $Res Function(_$BrightnessTierPreferencesImpl) then) =
-      __$$BrightnessTierPreferencesImplCopyWithImpl<$Res>;
+abstract mixin class _$AdaptiveExposureConfigCopyWith<$Res>
+    implements $AdaptiveExposureConfigCopyWith<$Res> {
+  factory _$AdaptiveExposureConfigCopyWith(_AdaptiveExposureConfig value,
+          $Res Function(_AdaptiveExposureConfig) _then) =
+      __$AdaptiveExposureConfigCopyWithImpl;
   @override
   @useResult
   $Res call(
-      {double faintMinScore, double mediumMinScore, double brightMinScore});
+      {double targetSnr,
+      double referenceSkyBrightnessMag,
+      double minExposureSecs,
+      double maxExposureSecs,
+      Map<String, bool> perFilterEnabled,
+      Map<String, double> perFilterMinSecs,
+      Map<String, double> perFilterMaxSecs,
+      bool enabled});
 }
 
 /// @nodoc
-class __$$BrightnessTierPreferencesImplCopyWithImpl<$Res>
-    extends _$BrightnessTierPreferencesCopyWithImpl<$Res,
-        _$BrightnessTierPreferencesImpl>
-    implements _$$BrightnessTierPreferencesImplCopyWith<$Res> {
-  __$$BrightnessTierPreferencesImplCopyWithImpl(
-      _$BrightnessTierPreferencesImpl _value,
-      $Res Function(_$BrightnessTierPreferencesImpl) _then)
-      : super(_value, _then);
+class __$AdaptiveExposureConfigCopyWithImpl<$Res>
+    implements _$AdaptiveExposureConfigCopyWith<$Res> {
+  __$AdaptiveExposureConfigCopyWithImpl(this._self, this._then);
 
-  @pragma('vm:prefer-inline')
+  final _AdaptiveExposureConfig _self;
+  final $Res Function(_AdaptiveExposureConfig) _then;
+
+  /// Create a copy of AdaptiveExposureConfig
+  /// with the given fields replaced by the non-null parameter values.
   @override
+  @pragma('vm:prefer-inline')
   $Res call({
-    Object? faintMinScore = null,
-    Object? mediumMinScore = null,
-    Object? brightMinScore = null,
+    Object? targetSnr = null,
+    Object? referenceSkyBrightnessMag = null,
+    Object? minExposureSecs = null,
+    Object? maxExposureSecs = null,
+    Object? perFilterEnabled = null,
+    Object? perFilterMinSecs = null,
+    Object? perFilterMaxSecs = null,
+    Object? enabled = null,
   }) {
-    return _then(_$BrightnessTierPreferencesImpl(
-      faintMinScore: null == faintMinScore
-          ? _value.faintMinScore
-          : faintMinScore // ignore: cast_nullable_to_non_nullable
+    return _then(_AdaptiveExposureConfig(
+      targetSnr: null == targetSnr
+          ? _self.targetSnr
+          : targetSnr // ignore: cast_nullable_to_non_nullable
               as double,
-      mediumMinScore: null == mediumMinScore
-          ? _value.mediumMinScore
-          : mediumMinScore // ignore: cast_nullable_to_non_nullable
+      referenceSkyBrightnessMag: null == referenceSkyBrightnessMag
+          ? _self.referenceSkyBrightnessMag
+          : referenceSkyBrightnessMag // ignore: cast_nullable_to_non_nullable
               as double,
-      brightMinScore: null == brightMinScore
-          ? _value.brightMinScore
-          : brightMinScore // ignore: cast_nullable_to_non_nullable
+      minExposureSecs: null == minExposureSecs
+          ? _self.minExposureSecs
+          : minExposureSecs // ignore: cast_nullable_to_non_nullable
               as double,
+      maxExposureSecs: null == maxExposureSecs
+          ? _self.maxExposureSecs
+          : maxExposureSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      perFilterEnabled: null == perFilterEnabled
+          ? _self._perFilterEnabled
+          : perFilterEnabled // ignore: cast_nullable_to_non_nullable
+              as Map<String, bool>,
+      perFilterMinSecs: null == perFilterMinSecs
+          ? _self._perFilterMinSecs
+          : perFilterMinSecs // ignore: cast_nullable_to_non_nullable
+              as Map<String, double>,
+      perFilterMaxSecs: null == perFilterMaxSecs
+          ? _self._perFilterMaxSecs
+          : perFilterMaxSecs // ignore: cast_nullable_to_non_nullable
+              as Map<String, double>,
+      enabled: null == enabled
+          ? _self.enabled
+          : enabled // ignore: cast_nullable_to_non_nullable
+              as bool,
     ));
   }
 }
 
 /// @nodoc
+mixin _$PhotometryQualityGates {
+  /// Minimum target SNR. AAVSO research-grade default is 50.
+  double get minSnr;
 
-@JsonSerializable(fieldRename: FieldRename.snake)
-class _$BrightnessTierPreferencesImpl extends _BrightnessTierPreferences {
-  const _$BrightnessTierPreferencesImpl(
-      {this.faintMinScore = 70.0,
-      this.mediumMinScore = 50.0,
-      this.brightMinScore = 30.0})
-      : super._();
+  /// Maximum acceptable FWHM in arcseconds. Default 5".
+  double get maxFwhmArcsec;
 
-  factory _$BrightnessTierPreferencesImpl.fromJson(Map<String, dynamic> json) =>
-      _$$BrightnessTierPreferencesImplFromJson(json);
+  /// When true, frames where any reference star failed to extract are
+  /// rejected.
+  bool get requireAllRefsVisible;
 
-  @override
-  @JsonKey()
-  final double faintMinScore;
-  @override
-  @JsonKey()
-  final double mediumMinScore;
-  @override
-  @JsonKey()
-  final double brightMinScore;
+  /// Maximum airmass. AAVSO Bright Star Monitor cut-off ≈ 2.5.
+  double get maxAirmass;
 
-  @override
-  String toString() {
-    return 'BrightnessTierPreferences(faintMinScore: $faintMinScore, mediumMinScore: $mediumMinScore, brightMinScore: $brightMinScore)';
-  }
+  /// Create a copy of PhotometryQualityGates
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $PhotometryQualityGatesCopyWith<PhotometryQualityGates> get copyWith =>
+      _$PhotometryQualityGatesCopyWithImpl<PhotometryQualityGates>(
+          this as PhotometryQualityGates, _$identity);
+
+  /// Serializes this PhotometryQualityGates to a JSON map.
+  Map<String, dynamic> toJson();
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$BrightnessTierPreferencesImpl &&
-            (identical(other.faintMinScore, faintMinScore) ||
-                other.faintMinScore == faintMinScore) &&
-            (identical(other.mediumMinScore, mediumMinScore) ||
-                other.mediumMinScore == mediumMinScore) &&
-            (identical(other.brightMinScore, brightMinScore) ||
-                other.brightMinScore == brightMinScore));
+            other is PhotometryQualityGates &&
+            (identical(other.minSnr, minSnr) || other.minSnr == minSnr) &&
+            (identical(other.maxFwhmArcsec, maxFwhmArcsec) ||
+                other.maxFwhmArcsec == maxFwhmArcsec) &&
+            (identical(other.requireAllRefsVisible, requireAllRefsVisible) ||
+                other.requireAllRefsVisible == requireAllRefsVisible) &&
+            (identical(other.maxAirmass, maxAirmass) ||
+                other.maxAirmass == maxAirmass));
   }
 
-  @JsonKey(ignore: true)
-  @override
-  int get hashCode =>
-      Object.hash(runtimeType, faintMinScore, mediumMinScore, brightMinScore);
-
-  @JsonKey(ignore: true)
-  @override
-  @pragma('vm:prefer-inline')
-  _$$BrightnessTierPreferencesImplCopyWith<_$BrightnessTierPreferencesImpl>
-      get copyWith => __$$BrightnessTierPreferencesImplCopyWithImpl<
-          _$BrightnessTierPreferencesImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$BrightnessTierPreferencesImplToJson(
-      this,
-    );
-  }
-}
-
-abstract class _BrightnessTierPreferences extends BrightnessTierPreferences {
-  const factory _BrightnessTierPreferences(
-      {final double faintMinScore,
-      final double mediumMinScore,
-      final double brightMinScore}) = _$BrightnessTierPreferencesImpl;
-  const _BrightnessTierPreferences._() : super._();
-
-  factory _BrightnessTierPreferences.fromJson(Map<String, dynamic> json) =
-      _$BrightnessTierPreferencesImpl.fromJson;
-
-  @override
-  double get faintMinScore;
-  @override
-  double get mediumMinScore;
-  @override
-  double get brightMinScore;
-  @override
-  @JsonKey(ignore: true)
-  _$$BrightnessTierPreferencesImplCopyWith<_$BrightnessTierPreferencesImpl>
-      get copyWith => throw _privateConstructorUsedError;
-}
-
-ConditionsScoreWeights _$ConditionsScoreWeightsFromJson(
-    Map<String, dynamic> json) {
-  return _ConditionsScoreWeights.fromJson(json);
-}
-
-/// @nodoc
-mixin _$ConditionsScoreWeights {
-  double get transparencyWeight => throw _privateConstructorUsedError;
-  double get seeingWeight => throw _privateConstructorUsedError;
-  double get cloudWeight => throw _privateConstructorUsedError;
-  double get windWeight => throw _privateConstructorUsedError;
-
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $ConditionsScoreWeightsCopyWith<ConditionsScoreWeights> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $ConditionsScoreWeightsCopyWith<$Res> {
-  factory $ConditionsScoreWeightsCopyWith(ConditionsScoreWeights value,
-          $Res Function(ConditionsScoreWeights) then) =
-      _$ConditionsScoreWeightsCopyWithImpl<$Res, ConditionsScoreWeights>;
-  @useResult
-  $Res call(
-      {double transparencyWeight,
-      double seeingWeight,
-      double cloudWeight,
-      double windWeight});
-}
-
-/// @nodoc
-class _$ConditionsScoreWeightsCopyWithImpl<$Res,
-        $Val extends ConditionsScoreWeights>
-    implements $ConditionsScoreWeightsCopyWith<$Res> {
-  _$ConditionsScoreWeightsCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? transparencyWeight = null,
-    Object? seeingWeight = null,
-    Object? cloudWeight = null,
-    Object? windWeight = null,
-  }) {
-    return _then(_value.copyWith(
-      transparencyWeight: null == transparencyWeight
-          ? _value.transparencyWeight
-          : transparencyWeight // ignore: cast_nullable_to_non_nullable
-              as double,
-      seeingWeight: null == seeingWeight
-          ? _value.seeingWeight
-          : seeingWeight // ignore: cast_nullable_to_non_nullable
-              as double,
-      cloudWeight: null == cloudWeight
-          ? _value.cloudWeight
-          : cloudWeight // ignore: cast_nullable_to_non_nullable
-              as double,
-      windWeight: null == windWeight
-          ? _value.windWeight
-          : windWeight // ignore: cast_nullable_to_non_nullable
-              as double,
-    ) as $Val);
-  }
-}
-
-/// @nodoc
-abstract class _$$ConditionsScoreWeightsImplCopyWith<$Res>
-    implements $ConditionsScoreWeightsCopyWith<$Res> {
-  factory _$$ConditionsScoreWeightsImplCopyWith(
-          _$ConditionsScoreWeightsImpl value,
-          $Res Function(_$ConditionsScoreWeightsImpl) then) =
-      __$$ConditionsScoreWeightsImplCopyWithImpl<$Res>;
-  @override
-  @useResult
-  $Res call(
-      {double transparencyWeight,
-      double seeingWeight,
-      double cloudWeight,
-      double windWeight});
-}
-
-/// @nodoc
-class __$$ConditionsScoreWeightsImplCopyWithImpl<$Res>
-    extends _$ConditionsScoreWeightsCopyWithImpl<$Res,
-        _$ConditionsScoreWeightsImpl>
-    implements _$$ConditionsScoreWeightsImplCopyWith<$Res> {
-  __$$ConditionsScoreWeightsImplCopyWithImpl(
-      _$ConditionsScoreWeightsImpl _value,
-      $Res Function(_$ConditionsScoreWeightsImpl) _then)
-      : super(_value, _then);
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? transparencyWeight = null,
-    Object? seeingWeight = null,
-    Object? cloudWeight = null,
-    Object? windWeight = null,
-  }) {
-    return _then(_$ConditionsScoreWeightsImpl(
-      transparencyWeight: null == transparencyWeight
-          ? _value.transparencyWeight
-          : transparencyWeight // ignore: cast_nullable_to_non_nullable
-              as double,
-      seeingWeight: null == seeingWeight
-          ? _value.seeingWeight
-          : seeingWeight // ignore: cast_nullable_to_non_nullable
-              as double,
-      cloudWeight: null == cloudWeight
-          ? _value.cloudWeight
-          : cloudWeight // ignore: cast_nullable_to_non_nullable
-              as double,
-      windWeight: null == windWeight
-          ? _value.windWeight
-          : windWeight // ignore: cast_nullable_to_non_nullable
-              as double,
-    ));
-  }
-}
-
-/// @nodoc
-
-@JsonSerializable(fieldRename: FieldRename.snake)
-class _$ConditionsScoreWeightsImpl extends _ConditionsScoreWeights {
-  const _$ConditionsScoreWeightsImpl(
-      {this.transparencyWeight = 0.40,
-      this.seeingWeight = 0.25,
-      this.cloudWeight = 0.25,
-      this.windWeight = 0.10})
-      : super._();
-
-  factory _$ConditionsScoreWeightsImpl.fromJson(Map<String, dynamic> json) =>
-      _$$ConditionsScoreWeightsImplFromJson(json);
-
-  @override
-  @JsonKey()
-  final double transparencyWeight;
-  @override
-  @JsonKey()
-  final double seeingWeight;
-  @override
-  @JsonKey()
-  final double cloudWeight;
-  @override
-  @JsonKey()
-  final double windWeight;
-
-  @override
-  String toString() {
-    return 'ConditionsScoreWeights(transparencyWeight: $transparencyWeight, seeingWeight: $seeingWeight, cloudWeight: $cloudWeight, windWeight: $windWeight)';
-  }
-
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType &&
-            other is _$ConditionsScoreWeightsImpl &&
-            (identical(other.transparencyWeight, transparencyWeight) ||
-                other.transparencyWeight == transparencyWeight) &&
-            (identical(other.seeingWeight, seeingWeight) ||
-                other.seeingWeight == seeingWeight) &&
-            (identical(other.cloudWeight, cloudWeight) ||
-                other.cloudWeight == cloudWeight) &&
-            (identical(other.windWeight, windWeight) ||
-                other.windWeight == windWeight));
-  }
-
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
-      runtimeType, transparencyWeight, seeingWeight, cloudWeight, windWeight);
-
-  @JsonKey(ignore: true)
-  @override
-  @pragma('vm:prefer-inline')
-  _$$ConditionsScoreWeightsImplCopyWith<_$ConditionsScoreWeightsImpl>
-      get copyWith => __$$ConditionsScoreWeightsImplCopyWithImpl<
-          _$ConditionsScoreWeightsImpl>(this, _$identity);
+      runtimeType, minSnr, maxFwhmArcsec, requireAllRefsVisible, maxAirmass);
 
   @override
-  Map<String, dynamic> toJson() {
-    return _$$ConditionsScoreWeightsImplToJson(
-      this,
-    );
+  String toString() {
+    return 'PhotometryQualityGates(minSnr: $minSnr, maxFwhmArcsec: $maxFwhmArcsec, requireAllRefsVisible: $requireAllRefsVisible, maxAirmass: $maxAirmass)';
   }
 }
 
-abstract class _ConditionsScoreWeights extends ConditionsScoreWeights {
-  const factory _ConditionsScoreWeights(
-      {final double transparencyWeight,
-      final double seeingWeight,
-      final double cloudWeight,
-      final double windWeight}) = _$ConditionsScoreWeightsImpl;
-  const _ConditionsScoreWeights._() : super._();
-
-  factory _ConditionsScoreWeights.fromJson(Map<String, dynamic> json) =
-      _$ConditionsScoreWeightsImpl.fromJson;
-
-  @override
-  double get transparencyWeight;
-  @override
-  double get seeingWeight;
-  @override
-  double get cloudWeight;
-  @override
-  double get windWeight;
-  @override
-  @JsonKey(ignore: true)
-  _$$ConditionsScoreWeightsImplCopyWith<_$ConditionsScoreWeightsImpl>
-      get copyWith => throw _privateConstructorUsedError;
-}
-
-ConditionsScore _$ConditionsScoreFromJson(Map<String, dynamic> json) {
-  return _ConditionsScore.fromJson(json);
-}
-
 /// @nodoc
-mixin _$ConditionsScore {
-  double get score => throw _privateConstructorUsedError;
-  double? get transparencyScore => throw _privateConstructorUsedError;
-  double? get seeingScore => throw _privateConstructorUsedError;
-  double? get cloudScore => throw _privateConstructorUsedError;
-  double? get windScore => throw _privateConstructorUsedError;
-  ConditionsScoreWeights get weights =>
-      throw _privateConstructorUsedError; // `generated_unix_secs` (int seconds) on the wire. The Rust side uses
-// `serde_with::TimestampSeconds<i64>`. PHASE-2-NOTE: The pre-freezed
-// fromJson fell back to `0` (epoch) on missing field; the freezed
-// form makes the field required, which is strictly stricter (errors
-// are a feature). The Rust producer always emits this field, so
-// production traffic is unaffected; only synthetic JSON missing the
-// key will now throw — matching CLAUDE.md's "silent fallback hides
-// bugs" policy. Phase 1's contract tests always provide the key.
-  @JsonKey(name: 'generated_unix_secs')
-  @UnixSecsDateTimeConverter()
-  DateTime get generatedAt => throw _privateConstructorUsedError;
-
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $ConditionsScoreCopyWith<ConditionsScore> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $ConditionsScoreCopyWith<$Res> {
-  factory $ConditionsScoreCopyWith(
-          ConditionsScore value, $Res Function(ConditionsScore) then) =
-      _$ConditionsScoreCopyWithImpl<$Res, ConditionsScore>;
+abstract mixin class $PhotometryQualityGatesCopyWith<$Res> {
+  factory $PhotometryQualityGatesCopyWith(PhotometryQualityGates value,
+          $Res Function(PhotometryQualityGates) _then) =
+      _$PhotometryQualityGatesCopyWithImpl;
   @useResult
   $Res call(
-      {double score,
-      double? transparencyScore,
-      double? seeingScore,
-      double? cloudScore,
-      double? windScore,
-      ConditionsScoreWeights weights,
-      @JsonKey(name: 'generated_unix_secs')
-      @UnixSecsDateTimeConverter()
-      DateTime generatedAt});
-
-  $ConditionsScoreWeightsCopyWith<$Res> get weights;
+      {double minSnr,
+      double maxFwhmArcsec,
+      bool requireAllRefsVisible,
+      double maxAirmass});
 }
 
 /// @nodoc
-class _$ConditionsScoreCopyWithImpl<$Res, $Val extends ConditionsScore>
-    implements $ConditionsScoreCopyWith<$Res> {
-  _$ConditionsScoreCopyWithImpl(this._value, this._then);
+class _$PhotometryQualityGatesCopyWithImpl<$Res>
+    implements $PhotometryQualityGatesCopyWith<$Res> {
+  _$PhotometryQualityGatesCopyWithImpl(this._self, this._then);
 
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
+  final PhotometryQualityGates _self;
+  final $Res Function(PhotometryQualityGates) _then;
 
+  /// Create a copy of PhotometryQualityGates
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? score = null,
-    Object? transparencyScore = freezed,
-    Object? seeingScore = freezed,
-    Object? cloudScore = freezed,
-    Object? windScore = freezed,
-    Object? weights = null,
-    Object? generatedAt = null,
+    Object? minSnr = null,
+    Object? maxFwhmArcsec = null,
+    Object? requireAllRefsVisible = null,
+    Object? maxAirmass = null,
   }) {
-    return _then(_value.copyWith(
-      score: null == score
-          ? _value.score
-          : score // ignore: cast_nullable_to_non_nullable
+    return _then(_self.copyWith(
+      minSnr: null == minSnr
+          ? _self.minSnr
+          : minSnr // ignore: cast_nullable_to_non_nullable
               as double,
-      transparencyScore: freezed == transparencyScore
-          ? _value.transparencyScore
-          : transparencyScore // ignore: cast_nullable_to_non_nullable
-              as double?,
-      seeingScore: freezed == seeingScore
-          ? _value.seeingScore
-          : seeingScore // ignore: cast_nullable_to_non_nullable
-              as double?,
-      cloudScore: freezed == cloudScore
-          ? _value.cloudScore
-          : cloudScore // ignore: cast_nullable_to_non_nullable
-              as double?,
-      windScore: freezed == windScore
-          ? _value.windScore
-          : windScore // ignore: cast_nullable_to_non_nullable
-              as double?,
-      weights: null == weights
-          ? _value.weights
-          : weights // ignore: cast_nullable_to_non_nullable
-              as ConditionsScoreWeights,
-      generatedAt: null == generatedAt
-          ? _value.generatedAt
-          : generatedAt // ignore: cast_nullable_to_non_nullable
-              as DateTime,
-    ) as $Val);
-  }
-
-  @override
-  @pragma('vm:prefer-inline')
-  $ConditionsScoreWeightsCopyWith<$Res> get weights {
-    return $ConditionsScoreWeightsCopyWith<$Res>(_value.weights, (value) {
-      return _then(_value.copyWith(weights: value) as $Val);
-    });
-  }
-}
-
-/// @nodoc
-abstract class _$$ConditionsScoreImplCopyWith<$Res>
-    implements $ConditionsScoreCopyWith<$Res> {
-  factory _$$ConditionsScoreImplCopyWith(_$ConditionsScoreImpl value,
-          $Res Function(_$ConditionsScoreImpl) then) =
-      __$$ConditionsScoreImplCopyWithImpl<$Res>;
-  @override
-  @useResult
-  $Res call(
-      {double score,
-      double? transparencyScore,
-      double? seeingScore,
-      double? cloudScore,
-      double? windScore,
-      ConditionsScoreWeights weights,
-      @JsonKey(name: 'generated_unix_secs')
-      @UnixSecsDateTimeConverter()
-      DateTime generatedAt});
-
-  @override
-  $ConditionsScoreWeightsCopyWith<$Res> get weights;
-}
-
-/// @nodoc
-class __$$ConditionsScoreImplCopyWithImpl<$Res>
-    extends _$ConditionsScoreCopyWithImpl<$Res, _$ConditionsScoreImpl>
-    implements _$$ConditionsScoreImplCopyWith<$Res> {
-  __$$ConditionsScoreImplCopyWithImpl(
-      _$ConditionsScoreImpl _value, $Res Function(_$ConditionsScoreImpl) _then)
-      : super(_value, _then);
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? score = null,
-    Object? transparencyScore = freezed,
-    Object? seeingScore = freezed,
-    Object? cloudScore = freezed,
-    Object? windScore = freezed,
-    Object? weights = null,
-    Object? generatedAt = null,
-  }) {
-    return _then(_$ConditionsScoreImpl(
-      score: null == score
-          ? _value.score
-          : score // ignore: cast_nullable_to_non_nullable
+      maxFwhmArcsec: null == maxFwhmArcsec
+          ? _self.maxFwhmArcsec
+          : maxFwhmArcsec // ignore: cast_nullable_to_non_nullable
               as double,
-      transparencyScore: freezed == transparencyScore
-          ? _value.transparencyScore
-          : transparencyScore // ignore: cast_nullable_to_non_nullable
-              as double?,
-      seeingScore: freezed == seeingScore
-          ? _value.seeingScore
-          : seeingScore // ignore: cast_nullable_to_non_nullable
-              as double?,
-      cloudScore: freezed == cloudScore
-          ? _value.cloudScore
-          : cloudScore // ignore: cast_nullable_to_non_nullable
-              as double?,
-      windScore: freezed == windScore
-          ? _value.windScore
-          : windScore // ignore: cast_nullable_to_non_nullable
-              as double?,
-      weights: null == weights
-          ? _value.weights
-          : weights // ignore: cast_nullable_to_non_nullable
-              as ConditionsScoreWeights,
-      generatedAt: null == generatedAt
-          ? _value.generatedAt
-          : generatedAt // ignore: cast_nullable_to_non_nullable
-              as DateTime,
+      requireAllRefsVisible: null == requireAllRefsVisible
+          ? _self.requireAllRefsVisible
+          : requireAllRefsVisible // ignore: cast_nullable_to_non_nullable
+              as bool,
+      maxAirmass: null == maxAirmass
+          ? _self.maxAirmass
+          : maxAirmass // ignore: cast_nullable_to_non_nullable
+              as double,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [PhotometryQualityGates].
+extension PhotometryQualityGatesPatterns on PhotometryQualityGates {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_PhotometryQualityGates value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _PhotometryQualityGates() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_PhotometryQualityGates value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _PhotometryQualityGates():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_PhotometryQualityGates value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _PhotometryQualityGates() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(double minSnr, double maxFwhmArcsec,
+            bool requireAllRefsVisible, double maxAirmass)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _PhotometryQualityGates() when $default != null:
+        return $default(_that.minSnr, _that.maxFwhmArcsec,
+            _that.requireAllRefsVisible, _that.maxAirmass);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(double minSnr, double maxFwhmArcsec,
+            bool requireAllRefsVisible, double maxAirmass)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _PhotometryQualityGates():
+        return $default(_that.minSnr, _that.maxFwhmArcsec,
+            _that.requireAllRefsVisible, _that.maxAirmass);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(double minSnr, double maxFwhmArcsec,
+            bool requireAllRefsVisible, double maxAirmass)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _PhotometryQualityGates() when $default != null:
+        return $default(_that.minSnr, _that.maxFwhmArcsec,
+            _that.requireAllRefsVisible, _that.maxAirmass);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 
-@JsonSerializable(fieldRename: FieldRename.snake, explicitToJson: true)
-class _$ConditionsScoreImpl extends _ConditionsScore {
-  const _$ConditionsScoreImpl(
-      {required this.score,
-      this.transparencyScore,
-      this.seeingScore,
-      this.cloudScore,
-      this.windScore,
-      this.weights = const ConditionsScoreWeights(),
-      @JsonKey(name: 'generated_unix_secs')
-      @UnixSecsDateTimeConverter()
-      required this.generatedAt})
-      : super._();
+@JsonSerializable(fieldRename: FieldRename.snake)
+class _PhotometryQualityGates implements PhotometryQualityGates {
+  const _PhotometryQualityGates(
+      {this.minSnr = 50.0,
+      this.maxFwhmArcsec = 5.0,
+      this.requireAllRefsVisible = true,
+      this.maxAirmass = 2.5});
+  factory _PhotometryQualityGates.fromJson(Map<String, dynamic> json) =>
+      _$PhotometryQualityGatesFromJson(json);
 
-  factory _$ConditionsScoreImpl.fromJson(Map<String, dynamic> json) =>
-      _$$ConditionsScoreImplFromJson(json);
-
-  @override
-  final double score;
-  @override
-  final double? transparencyScore;
-  @override
-  final double? seeingScore;
-  @override
-  final double? cloudScore;
-  @override
-  final double? windScore;
+  /// Minimum target SNR. AAVSO research-grade default is 50.
   @override
   @JsonKey()
-  final ConditionsScoreWeights weights;
-// `generated_unix_secs` (int seconds) on the wire. The Rust side uses
-// `serde_with::TimestampSeconds<i64>`. PHASE-2-NOTE: The pre-freezed
-// fromJson fell back to `0` (epoch) on missing field; the freezed
-// form makes the field required, which is strictly stricter (errors
-// are a feature). The Rust producer always emits this field, so
-// production traffic is unaffected; only synthetic JSON missing the
-// key will now throw — matching CLAUDE.md's "silent fallback hides
-// bugs" policy. Phase 1's contract tests always provide the key.
-  @override
-  @JsonKey(name: 'generated_unix_secs')
-  @UnixSecsDateTimeConverter()
-  final DateTime generatedAt;
+  final double minSnr;
 
+  /// Maximum acceptable FWHM in arcseconds. Default 5".
   @override
-  String toString() {
-    return 'ConditionsScore(score: $score, transparencyScore: $transparencyScore, seeingScore: $seeingScore, cloudScore: $cloudScore, windScore: $windScore, weights: $weights, generatedAt: $generatedAt)';
-  }
+  @JsonKey()
+  final double maxFwhmArcsec;
 
+  /// When true, frames where any reference star failed to extract are
+  /// rejected.
   @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType &&
-            other is _$ConditionsScoreImpl &&
-            (identical(other.score, score) || other.score == score) &&
-            (identical(other.transparencyScore, transparencyScore) ||
-                other.transparencyScore == transparencyScore) &&
-            (identical(other.seeingScore, seeingScore) ||
-                other.seeingScore == seeingScore) &&
-            (identical(other.cloudScore, cloudScore) ||
-                other.cloudScore == cloudScore) &&
-            (identical(other.windScore, windScore) ||
-                other.windScore == windScore) &&
-            (identical(other.weights, weights) || other.weights == weights) &&
-            (identical(other.generatedAt, generatedAt) ||
-                other.generatedAt == generatedAt));
-  }
+  @JsonKey()
+  final bool requireAllRefsVisible;
 
-  @JsonKey(ignore: true)
+  /// Maximum airmass. AAVSO Bright Star Monitor cut-off ≈ 2.5.
   @override
-  int get hashCode => Object.hash(runtimeType, score, transparencyScore,
-      seeingScore, cloudScore, windScore, weights, generatedAt);
+  @JsonKey()
+  final double maxAirmass;
 
-  @JsonKey(ignore: true)
+  /// Create a copy of PhotometryQualityGates
+  /// with the given fields replaced by the non-null parameter values.
   @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
-  _$$ConditionsScoreImplCopyWith<_$ConditionsScoreImpl> get copyWith =>
-      __$$ConditionsScoreImplCopyWithImpl<_$ConditionsScoreImpl>(
+  _$PhotometryQualityGatesCopyWith<_PhotometryQualityGates> get copyWith =>
+      __$PhotometryQualityGatesCopyWithImpl<_PhotometryQualityGates>(
           this, _$identity);
 
   @override
   Map<String, dynamic> toJson() {
-    return _$$ConditionsScoreImplToJson(
+    return _$PhotometryQualityGatesToJson(
       this,
     );
-  }
-}
-
-abstract class _ConditionsScore extends ConditionsScore {
-  const factory _ConditionsScore(
-      {required final double score,
-      final double? transparencyScore,
-      final double? seeingScore,
-      final double? cloudScore,
-      final double? windScore,
-      final ConditionsScoreWeights weights,
-      @JsonKey(name: 'generated_unix_secs')
-      @UnixSecsDateTimeConverter()
-      required final DateTime generatedAt}) = _$ConditionsScoreImpl;
-  const _ConditionsScore._() : super._();
-
-  factory _ConditionsScore.fromJson(Map<String, dynamic> json) =
-      _$ConditionsScoreImpl.fromJson;
-
-  @override
-  double get score;
-  @override
-  double? get transparencyScore;
-  @override
-  double? get seeingScore;
-  @override
-  double? get cloudScore;
-  @override
-  double? get windScore;
-  @override
-  ConditionsScoreWeights get weights;
-  @override // `generated_unix_secs` (int seconds) on the wire. The Rust side uses
-// `serde_with::TimestampSeconds<i64>`. PHASE-2-NOTE: The pre-freezed
-// fromJson fell back to `0` (epoch) on missing field; the freezed
-// form makes the field required, which is strictly stricter (errors
-// are a feature). The Rust producer always emits this field, so
-// production traffic is unaffected; only synthetic JSON missing the
-// key will now throw — matching CLAUDE.md's "silent fallback hides
-// bugs" policy. Phase 1's contract tests always provide the key.
-  @JsonKey(name: 'generated_unix_secs')
-  @UnixSecsDateTimeConverter()
-  DateTime get generatedAt;
-  @override
-  @JsonKey(ignore: true)
-  _$$ConditionsScoreImplCopyWith<_$ConditionsScoreImpl> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-AdaptiveSwapRuntimeState _$AdaptiveSwapRuntimeStateFromJson(
-    Map<String, dynamic> json) {
-  return _AdaptiveSwapRuntimeState.fromJson(json);
-}
-
-/// @nodoc
-mixin _$AdaptiveSwapRuntimeState {
-  String? get currentTargetId => throw _privateConstructorUsedError;
-  String? get currentTier => throw _privateConstructorUsedError;
-  String? get lastDecisionKind => throw _privateConstructorUsedError;
-  String? get lastDecisionReason =>
-      throw _privateConstructorUsedError; // `last_swap_unix_secs` (nullable int seconds). When `null`, the
-// JSON field is present-with-null (not omitted) — Phase 1's
-// `null_last_swap_serialises_as_null_field` contract test pins this.
-  @JsonKey(name: 'last_swap_unix_secs')
-  @NullableUnixSecsDateTimeConverter()
-  DateTime? get lastSwapAt => throw _privateConstructorUsedError;
-  String? get lastSwapFromTargetId => throw _privateConstructorUsedError;
-  String? get lastSwapToTargetId => throw _privateConstructorUsedError;
-  double? get lastObservedScore => throw _privateConstructorUsedError;
-  double? get configuredThreshold => throw _privateConstructorUsedError;
-  double get configuredHysteresisSecs => throw _privateConstructorUsedError;
-
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $AdaptiveSwapRuntimeStateCopyWith<AdaptiveSwapRuntimeState> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $AdaptiveSwapRuntimeStateCopyWith<$Res> {
-  factory $AdaptiveSwapRuntimeStateCopyWith(AdaptiveSwapRuntimeState value,
-          $Res Function(AdaptiveSwapRuntimeState) then) =
-      _$AdaptiveSwapRuntimeStateCopyWithImpl<$Res, AdaptiveSwapRuntimeState>;
-  @useResult
-  $Res call(
-      {String? currentTargetId,
-      String? currentTier,
-      String? lastDecisionKind,
-      String? lastDecisionReason,
-      @JsonKey(name: 'last_swap_unix_secs')
-      @NullableUnixSecsDateTimeConverter()
-      DateTime? lastSwapAt,
-      String? lastSwapFromTargetId,
-      String? lastSwapToTargetId,
-      double? lastObservedScore,
-      double? configuredThreshold,
-      double configuredHysteresisSecs});
-}
-
-/// @nodoc
-class _$AdaptiveSwapRuntimeStateCopyWithImpl<$Res,
-        $Val extends AdaptiveSwapRuntimeState>
-    implements $AdaptiveSwapRuntimeStateCopyWith<$Res> {
-  _$AdaptiveSwapRuntimeStateCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? currentTargetId = freezed,
-    Object? currentTier = freezed,
-    Object? lastDecisionKind = freezed,
-    Object? lastDecisionReason = freezed,
-    Object? lastSwapAt = freezed,
-    Object? lastSwapFromTargetId = freezed,
-    Object? lastSwapToTargetId = freezed,
-    Object? lastObservedScore = freezed,
-    Object? configuredThreshold = freezed,
-    Object? configuredHysteresisSecs = null,
-  }) {
-    return _then(_value.copyWith(
-      currentTargetId: freezed == currentTargetId
-          ? _value.currentTargetId
-          : currentTargetId // ignore: cast_nullable_to_non_nullable
-              as String?,
-      currentTier: freezed == currentTier
-          ? _value.currentTier
-          : currentTier // ignore: cast_nullable_to_non_nullable
-              as String?,
-      lastDecisionKind: freezed == lastDecisionKind
-          ? _value.lastDecisionKind
-          : lastDecisionKind // ignore: cast_nullable_to_non_nullable
-              as String?,
-      lastDecisionReason: freezed == lastDecisionReason
-          ? _value.lastDecisionReason
-          : lastDecisionReason // ignore: cast_nullable_to_non_nullable
-              as String?,
-      lastSwapAt: freezed == lastSwapAt
-          ? _value.lastSwapAt
-          : lastSwapAt // ignore: cast_nullable_to_non_nullable
-              as DateTime?,
-      lastSwapFromTargetId: freezed == lastSwapFromTargetId
-          ? _value.lastSwapFromTargetId
-          : lastSwapFromTargetId // ignore: cast_nullable_to_non_nullable
-              as String?,
-      lastSwapToTargetId: freezed == lastSwapToTargetId
-          ? _value.lastSwapToTargetId
-          : lastSwapToTargetId // ignore: cast_nullable_to_non_nullable
-              as String?,
-      lastObservedScore: freezed == lastObservedScore
-          ? _value.lastObservedScore
-          : lastObservedScore // ignore: cast_nullable_to_non_nullable
-              as double?,
-      configuredThreshold: freezed == configuredThreshold
-          ? _value.configuredThreshold
-          : configuredThreshold // ignore: cast_nullable_to_non_nullable
-              as double?,
-      configuredHysteresisSecs: null == configuredHysteresisSecs
-          ? _value.configuredHysteresisSecs
-          : configuredHysteresisSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-    ) as $Val);
-  }
-}
-
-/// @nodoc
-abstract class _$$AdaptiveSwapRuntimeStateImplCopyWith<$Res>
-    implements $AdaptiveSwapRuntimeStateCopyWith<$Res> {
-  factory _$$AdaptiveSwapRuntimeStateImplCopyWith(
-          _$AdaptiveSwapRuntimeStateImpl value,
-          $Res Function(_$AdaptiveSwapRuntimeStateImpl) then) =
-      __$$AdaptiveSwapRuntimeStateImplCopyWithImpl<$Res>;
-  @override
-  @useResult
-  $Res call(
-      {String? currentTargetId,
-      String? currentTier,
-      String? lastDecisionKind,
-      String? lastDecisionReason,
-      @JsonKey(name: 'last_swap_unix_secs')
-      @NullableUnixSecsDateTimeConverter()
-      DateTime? lastSwapAt,
-      String? lastSwapFromTargetId,
-      String? lastSwapToTargetId,
-      double? lastObservedScore,
-      double? configuredThreshold,
-      double configuredHysteresisSecs});
-}
-
-/// @nodoc
-class __$$AdaptiveSwapRuntimeStateImplCopyWithImpl<$Res>
-    extends _$AdaptiveSwapRuntimeStateCopyWithImpl<$Res,
-        _$AdaptiveSwapRuntimeStateImpl>
-    implements _$$AdaptiveSwapRuntimeStateImplCopyWith<$Res> {
-  __$$AdaptiveSwapRuntimeStateImplCopyWithImpl(
-      _$AdaptiveSwapRuntimeStateImpl _value,
-      $Res Function(_$AdaptiveSwapRuntimeStateImpl) _then)
-      : super(_value, _then);
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? currentTargetId = freezed,
-    Object? currentTier = freezed,
-    Object? lastDecisionKind = freezed,
-    Object? lastDecisionReason = freezed,
-    Object? lastSwapAt = freezed,
-    Object? lastSwapFromTargetId = freezed,
-    Object? lastSwapToTargetId = freezed,
-    Object? lastObservedScore = freezed,
-    Object? configuredThreshold = freezed,
-    Object? configuredHysteresisSecs = null,
-  }) {
-    return _then(_$AdaptiveSwapRuntimeStateImpl(
-      currentTargetId: freezed == currentTargetId
-          ? _value.currentTargetId
-          : currentTargetId // ignore: cast_nullable_to_non_nullable
-              as String?,
-      currentTier: freezed == currentTier
-          ? _value.currentTier
-          : currentTier // ignore: cast_nullable_to_non_nullable
-              as String?,
-      lastDecisionKind: freezed == lastDecisionKind
-          ? _value.lastDecisionKind
-          : lastDecisionKind // ignore: cast_nullable_to_non_nullable
-              as String?,
-      lastDecisionReason: freezed == lastDecisionReason
-          ? _value.lastDecisionReason
-          : lastDecisionReason // ignore: cast_nullable_to_non_nullable
-              as String?,
-      lastSwapAt: freezed == lastSwapAt
-          ? _value.lastSwapAt
-          : lastSwapAt // ignore: cast_nullable_to_non_nullable
-              as DateTime?,
-      lastSwapFromTargetId: freezed == lastSwapFromTargetId
-          ? _value.lastSwapFromTargetId
-          : lastSwapFromTargetId // ignore: cast_nullable_to_non_nullable
-              as String?,
-      lastSwapToTargetId: freezed == lastSwapToTargetId
-          ? _value.lastSwapToTargetId
-          : lastSwapToTargetId // ignore: cast_nullable_to_non_nullable
-              as String?,
-      lastObservedScore: freezed == lastObservedScore
-          ? _value.lastObservedScore
-          : lastObservedScore // ignore: cast_nullable_to_non_nullable
-              as double?,
-      configuredThreshold: freezed == configuredThreshold
-          ? _value.configuredThreshold
-          : configuredThreshold // ignore: cast_nullable_to_non_nullable
-              as double?,
-      configuredHysteresisSecs: null == configuredHysteresisSecs
-          ? _value.configuredHysteresisSecs
-          : configuredHysteresisSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-    ));
-  }
-}
-
-/// @nodoc
-
-@JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)
-class _$AdaptiveSwapRuntimeStateImpl extends _AdaptiveSwapRuntimeState {
-  const _$AdaptiveSwapRuntimeStateImpl(
-      {this.currentTargetId,
-      this.currentTier,
-      this.lastDecisionKind,
-      this.lastDecisionReason,
-      @JsonKey(name: 'last_swap_unix_secs')
-      @NullableUnixSecsDateTimeConverter()
-      this.lastSwapAt,
-      this.lastSwapFromTargetId,
-      this.lastSwapToTargetId,
-      this.lastObservedScore,
-      this.configuredThreshold,
-      this.configuredHysteresisSecs = 180.0})
-      : super._();
-
-  factory _$AdaptiveSwapRuntimeStateImpl.fromJson(Map<String, dynamic> json) =>
-      _$$AdaptiveSwapRuntimeStateImplFromJson(json);
-
-  @override
-  final String? currentTargetId;
-  @override
-  final String? currentTier;
-  @override
-  final String? lastDecisionKind;
-  @override
-  final String? lastDecisionReason;
-// `last_swap_unix_secs` (nullable int seconds). When `null`, the
-// JSON field is present-with-null (not omitted) — Phase 1's
-// `null_last_swap_serialises_as_null_field` contract test pins this.
-  @override
-  @JsonKey(name: 'last_swap_unix_secs')
-  @NullableUnixSecsDateTimeConverter()
-  final DateTime? lastSwapAt;
-  @override
-  final String? lastSwapFromTargetId;
-  @override
-  final String? lastSwapToTargetId;
-  @override
-  final double? lastObservedScore;
-  @override
-  final double? configuredThreshold;
-  @override
-  @JsonKey()
-  final double configuredHysteresisSecs;
-
-  @override
-  String toString() {
-    return 'AdaptiveSwapRuntimeState(currentTargetId: $currentTargetId, currentTier: $currentTier, lastDecisionKind: $lastDecisionKind, lastDecisionReason: $lastDecisionReason, lastSwapAt: $lastSwapAt, lastSwapFromTargetId: $lastSwapFromTargetId, lastSwapToTargetId: $lastSwapToTargetId, lastObservedScore: $lastObservedScore, configuredThreshold: $configuredThreshold, configuredHysteresisSecs: $configuredHysteresisSecs)';
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$AdaptiveSwapRuntimeStateImpl &&
-            (identical(other.currentTargetId, currentTargetId) ||
-                other.currentTargetId == currentTargetId) &&
-            (identical(other.currentTier, currentTier) ||
-                other.currentTier == currentTier) &&
-            (identical(other.lastDecisionKind, lastDecisionKind) ||
-                other.lastDecisionKind == lastDecisionKind) &&
-            (identical(other.lastDecisionReason, lastDecisionReason) ||
-                other.lastDecisionReason == lastDecisionReason) &&
-            (identical(other.lastSwapAt, lastSwapAt) ||
-                other.lastSwapAt == lastSwapAt) &&
-            (identical(other.lastSwapFromTargetId, lastSwapFromTargetId) ||
-                other.lastSwapFromTargetId == lastSwapFromTargetId) &&
-            (identical(other.lastSwapToTargetId, lastSwapToTargetId) ||
-                other.lastSwapToTargetId == lastSwapToTargetId) &&
-            (identical(other.lastObservedScore, lastObservedScore) ||
-                other.lastObservedScore == lastObservedScore) &&
-            (identical(other.configuredThreshold, configuredThreshold) ||
-                other.configuredThreshold == configuredThreshold) &&
-            (identical(
-                    other.configuredHysteresisSecs, configuredHysteresisSecs) ||
-                other.configuredHysteresisSecs == configuredHysteresisSecs));
+            other is _PhotometryQualityGates &&
+            (identical(other.minSnr, minSnr) || other.minSnr == minSnr) &&
+            (identical(other.maxFwhmArcsec, maxFwhmArcsec) ||
+                other.maxFwhmArcsec == maxFwhmArcsec) &&
+            (identical(other.requireAllRefsVisible, requireAllRefsVisible) ||
+                other.requireAllRefsVisible == requireAllRefsVisible) &&
+            (identical(other.maxAirmass, maxAirmass) ||
+                other.maxAirmass == maxAirmass));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode => Object.hash(
-      runtimeType,
-      currentTargetId,
-      currentTier,
-      lastDecisionKind,
-      lastDecisionReason,
-      lastSwapAt,
-      lastSwapFromTargetId,
-      lastSwapToTargetId,
-      lastObservedScore,
-      configuredThreshold,
-      configuredHysteresisSecs);
-
-  @JsonKey(ignore: true)
-  @override
-  @pragma('vm:prefer-inline')
-  _$$AdaptiveSwapRuntimeStateImplCopyWith<_$AdaptiveSwapRuntimeStateImpl>
-      get copyWith => __$$AdaptiveSwapRuntimeStateImplCopyWithImpl<
-          _$AdaptiveSwapRuntimeStateImpl>(this, _$identity);
+      runtimeType, minSnr, maxFwhmArcsec, requireAllRefsVisible, maxAirmass);
 
   @override
-  Map<String, dynamic> toJson() {
-    return _$$AdaptiveSwapRuntimeStateImplToJson(
-      this,
-    );
-  }
-}
-
-abstract class _AdaptiveSwapRuntimeState extends AdaptiveSwapRuntimeState {
-  const factory _AdaptiveSwapRuntimeState(
-      {final String? currentTargetId,
-      final String? currentTier,
-      final String? lastDecisionKind,
-      final String? lastDecisionReason,
-      @JsonKey(name: 'last_swap_unix_secs')
-      @NullableUnixSecsDateTimeConverter()
-      final DateTime? lastSwapAt,
-      final String? lastSwapFromTargetId,
-      final String? lastSwapToTargetId,
-      final double? lastObservedScore,
-      final double? configuredThreshold,
-      final double configuredHysteresisSecs}) = _$AdaptiveSwapRuntimeStateImpl;
-  const _AdaptiveSwapRuntimeState._() : super._();
-
-  factory _AdaptiveSwapRuntimeState.fromJson(Map<String, dynamic> json) =
-      _$AdaptiveSwapRuntimeStateImpl.fromJson;
-
-  @override
-  String? get currentTargetId;
-  @override
-  String? get currentTier;
-  @override
-  String? get lastDecisionKind;
-  @override
-  String? get lastDecisionReason;
-  @override // `last_swap_unix_secs` (nullable int seconds). When `null`, the
-// JSON field is present-with-null (not omitted) — Phase 1's
-// `null_last_swap_serialises_as_null_field` contract test pins this.
-  @JsonKey(name: 'last_swap_unix_secs')
-  @NullableUnixSecsDateTimeConverter()
-  DateTime? get lastSwapAt;
-  @override
-  String? get lastSwapFromTargetId;
-  @override
-  String? get lastSwapToTargetId;
-  @override
-  double? get lastObservedScore;
-  @override
-  double? get configuredThreshold;
-  @override
-  double get configuredHysteresisSecs;
-  @override
-  @JsonKey(ignore: true)
-  _$$AdaptiveSwapRuntimeStateImplCopyWith<_$AdaptiveSwapRuntimeStateImpl>
-      get copyWith => throw _privateConstructorUsedError;
-}
-
-AdaptiveSwapSnapshot _$AdaptiveSwapSnapshotFromJson(Map<String, dynamic> json) {
-  return _AdaptiveSwapSnapshot.fromJson(json);
-}
-
-/// @nodoc
-mixin _$AdaptiveSwapSnapshot {
-  ConditionsScore? get score =>
-      throw _privateConstructorUsedError; // Default empty state used when the JSON payload is missing
-// `state` entirely (Phase 1's
-// `from_json_treats_missing_state_as_default_state` contract test).
-  AdaptiveSwapRuntimeState get state => throw _privateConstructorUsedError;
-
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $AdaptiveSwapSnapshotCopyWith<AdaptiveSwapSnapshot> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $AdaptiveSwapSnapshotCopyWith<$Res> {
-  factory $AdaptiveSwapSnapshotCopyWith(AdaptiveSwapSnapshot value,
-          $Res Function(AdaptiveSwapSnapshot) then) =
-      _$AdaptiveSwapSnapshotCopyWithImpl<$Res, AdaptiveSwapSnapshot>;
-  @useResult
-  $Res call({ConditionsScore? score, AdaptiveSwapRuntimeState state});
-
-  $ConditionsScoreCopyWith<$Res>? get score;
-  $AdaptiveSwapRuntimeStateCopyWith<$Res> get state;
-}
-
-/// @nodoc
-class _$AdaptiveSwapSnapshotCopyWithImpl<$Res,
-        $Val extends AdaptiveSwapSnapshot>
-    implements $AdaptiveSwapSnapshotCopyWith<$Res> {
-  _$AdaptiveSwapSnapshotCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? score = freezed,
-    Object? state = null,
-  }) {
-    return _then(_value.copyWith(
-      score: freezed == score
-          ? _value.score
-          : score // ignore: cast_nullable_to_non_nullable
-              as ConditionsScore?,
-      state: null == state
-          ? _value.state
-          : state // ignore: cast_nullable_to_non_nullable
-              as AdaptiveSwapRuntimeState,
-    ) as $Val);
-  }
-
-  @override
-  @pragma('vm:prefer-inline')
-  $ConditionsScoreCopyWith<$Res>? get score {
-    if (_value.score == null) {
-      return null;
-    }
-
-    return $ConditionsScoreCopyWith<$Res>(_value.score!, (value) {
-      return _then(_value.copyWith(score: value) as $Val);
-    });
-  }
-
-  @override
-  @pragma('vm:prefer-inline')
-  $AdaptiveSwapRuntimeStateCopyWith<$Res> get state {
-    return $AdaptiveSwapRuntimeStateCopyWith<$Res>(_value.state, (value) {
-      return _then(_value.copyWith(state: value) as $Val);
-    });
+  String toString() {
+    return 'PhotometryQualityGates(minSnr: $minSnr, maxFwhmArcsec: $maxFwhmArcsec, requireAllRefsVisible: $requireAllRefsVisible, maxAirmass: $maxAirmass)';
   }
 }
 
 /// @nodoc
-abstract class _$$AdaptiveSwapSnapshotImplCopyWith<$Res>
-    implements $AdaptiveSwapSnapshotCopyWith<$Res> {
-  factory _$$AdaptiveSwapSnapshotImplCopyWith(_$AdaptiveSwapSnapshotImpl value,
-          $Res Function(_$AdaptiveSwapSnapshotImpl) then) =
-      __$$AdaptiveSwapSnapshotImplCopyWithImpl<$Res>;
+abstract mixin class _$PhotometryQualityGatesCopyWith<$Res>
+    implements $PhotometryQualityGatesCopyWith<$Res> {
+  factory _$PhotometryQualityGatesCopyWith(_PhotometryQualityGates value,
+          $Res Function(_PhotometryQualityGates) _then) =
+      __$PhotometryQualityGatesCopyWithImpl;
   @override
   @useResult
-  $Res call({ConditionsScore? score, AdaptiveSwapRuntimeState state});
-
-  @override
-  $ConditionsScoreCopyWith<$Res>? get score;
-  @override
-  $AdaptiveSwapRuntimeStateCopyWith<$Res> get state;
+  $Res call(
+      {double minSnr,
+      double maxFwhmArcsec,
+      bool requireAllRefsVisible,
+      double maxAirmass});
 }
 
 /// @nodoc
-class __$$AdaptiveSwapSnapshotImplCopyWithImpl<$Res>
-    extends _$AdaptiveSwapSnapshotCopyWithImpl<$Res, _$AdaptiveSwapSnapshotImpl>
-    implements _$$AdaptiveSwapSnapshotImplCopyWith<$Res> {
-  __$$AdaptiveSwapSnapshotImplCopyWithImpl(_$AdaptiveSwapSnapshotImpl _value,
-      $Res Function(_$AdaptiveSwapSnapshotImpl) _then)
-      : super(_value, _then);
+class __$PhotometryQualityGatesCopyWithImpl<$Res>
+    implements _$PhotometryQualityGatesCopyWith<$Res> {
+  __$PhotometryQualityGatesCopyWithImpl(this._self, this._then);
 
-  @pragma('vm:prefer-inline')
+  final _PhotometryQualityGates _self;
+  final $Res Function(_PhotometryQualityGates) _then;
+
+  /// Create a copy of PhotometryQualityGates
+  /// with the given fields replaced by the non-null parameter values.
   @override
+  @pragma('vm:prefer-inline')
   $Res call({
-    Object? score = freezed,
-    Object? state = null,
+    Object? minSnr = null,
+    Object? maxFwhmArcsec = null,
+    Object? requireAllRefsVisible = null,
+    Object? maxAirmass = null,
   }) {
-    return _then(_$AdaptiveSwapSnapshotImpl(
-      score: freezed == score
-          ? _value.score
-          : score // ignore: cast_nullable_to_non_nullable
-              as ConditionsScore?,
-      state: null == state
-          ? _value.state
-          : state // ignore: cast_nullable_to_non_nullable
-              as AdaptiveSwapRuntimeState,
+    return _then(_PhotometryQualityGates(
+      minSnr: null == minSnr
+          ? _self.minSnr
+          : minSnr // ignore: cast_nullable_to_non_nullable
+              as double,
+      maxFwhmArcsec: null == maxFwhmArcsec
+          ? _self.maxFwhmArcsec
+          : maxFwhmArcsec // ignore: cast_nullable_to_non_nullable
+              as double,
+      requireAllRefsVisible: null == requireAllRefsVisible
+          ? _self.requireAllRefsVisible
+          : requireAllRefsVisible // ignore: cast_nullable_to_non_nullable
+              as bool,
+      maxAirmass: null == maxAirmass
+          ? _self.maxAirmass
+          : maxAirmass // ignore: cast_nullable_to_non_nullable
+              as double,
     ));
   }
 }
 
 /// @nodoc
+mixin _$TransparencyBackupPlan {
+  /// Filter to switch to when transparency drops (e.g. `"Lum"`).
+  String? get backupFilter;
 
-@JsonSerializable(explicitToJson: true)
-class _$AdaptiveSwapSnapshotImpl implements _AdaptiveSwapSnapshot {
-  const _$AdaptiveSwapSnapshotImpl(
-      {this.score, this.state = const AdaptiveSwapRuntimeState()});
+  /// Sequence node id to skip to when transparency drops.
+  String? get backupTargetId;
 
-  factory _$AdaptiveSwapSnapshotImpl.fromJson(Map<String, dynamic> json) =>
-      _$$AdaptiveSwapSnapshotImplFromJson(json);
+  /// Optional human-readable description surfaced in the UI / logs.
+  String? get description;
 
-  @override
-  final ConditionsScore? score;
-// Default empty state used when the JSON payload is missing
-// `state` entirely (Phase 1's
-// `from_json_treats_missing_state_as_default_state` contract test).
-  @override
-  @JsonKey()
-  final AdaptiveSwapRuntimeState state;
+  /// Create a copy of TransparencyBackupPlan
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $TransparencyBackupPlanCopyWith<TransparencyBackupPlan> get copyWith =>
+      _$TransparencyBackupPlanCopyWithImpl<TransparencyBackupPlan>(
+          this as TransparencyBackupPlan, _$identity);
 
-  @override
-  String toString() {
-    return 'AdaptiveSwapSnapshot(score: $score, state: $state)';
-  }
+  /// Serializes this TransparencyBackupPlan to a JSON map.
+  Map<String, dynamic> toJson();
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$AdaptiveSwapSnapshotImpl &&
-            (identical(other.score, score) || other.score == score) &&
-            (identical(other.state, state) || other.state == state));
+            other is TransparencyBackupPlan &&
+            (identical(other.backupFilter, backupFilter) ||
+                other.backupFilter == backupFilter) &&
+            (identical(other.backupTargetId, backupTargetId) ||
+                other.backupTargetId == backupTargetId) &&
+            (identical(other.description, description) ||
+                other.description == description));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, score, state);
-
-  @JsonKey(ignore: true)
-  @override
-  @pragma('vm:prefer-inline')
-  _$$AdaptiveSwapSnapshotImplCopyWith<_$AdaptiveSwapSnapshotImpl>
-      get copyWith =>
-          __$$AdaptiveSwapSnapshotImplCopyWithImpl<_$AdaptiveSwapSnapshotImpl>(
-              this, _$identity);
+  int get hashCode =>
+      Object.hash(runtimeType, backupFilter, backupTargetId, description);
 
   @override
-  Map<String, dynamic> toJson() {
-    return _$$AdaptiveSwapSnapshotImplToJson(
-      this,
-    );
+  String toString() {
+    return 'TransparencyBackupPlan(backupFilter: $backupFilter, backupTargetId: $backupTargetId, description: $description)';
   }
 }
 
-abstract class _AdaptiveSwapSnapshot implements AdaptiveSwapSnapshot {
-  const factory _AdaptiveSwapSnapshot(
-      {final ConditionsScore? score,
-      final AdaptiveSwapRuntimeState state}) = _$AdaptiveSwapSnapshotImpl;
-
-  factory _AdaptiveSwapSnapshot.fromJson(Map<String, dynamic> json) =
-      _$AdaptiveSwapSnapshotImpl.fromJson;
-
-  @override
-  ConditionsScore? get score;
-  @override // Default empty state used when the JSON payload is missing
-// `state` entirely (Phase 1's
-// `from_json_treats_missing_state_as_default_state` contract test).
-  AdaptiveSwapRuntimeState get state;
-  @override
-  @JsonKey(ignore: true)
-  _$$AdaptiveSwapSnapshotImplCopyWith<_$AdaptiveSwapSnapshotImpl>
-      get copyWith => throw _privateConstructorUsedError;
-}
-
-FilterPlan _$FilterPlanFromJson(Map<String, dynamic> json) {
-  return _FilterPlan.fromJson(json);
-}
-
 /// @nodoc
-mixin _$FilterPlan {
-  /// Filter wheel slot name (e.g. "L", "Ha"). Matched against the
-  /// connected filter wheel's name list when [filterIndex] is null.
-  String get filterName => throw _privateConstructorUsedError;
-
-  /// 0-based filter wheel index. Preferred over [filterName] for
-  /// reliability — matches `ExposureNode.filterIndex` / Rust
-  /// `FilterConfig::filter_index`.
-  int? get filterIndex => throw _privateConstructorUsedError;
-
-  /// Total number of exposures to take for this filter.
-  int get count => throw _privateConstructorUsedError;
-
-  /// Sub-exposure duration in seconds.
-  double get durationSecs => throw _privateConstructorUsedError;
-
-  /// Optional gain override. null means "use camera/profile default".
-  int? get gain => throw _privateConstructorUsedError;
-
-  /// Optional offset override.
-  int? get offset => throw _privateConstructorUsedError;
-
-  /// Binning for this filter. Defaults to 1x1.
-  @BinningModeJsonConverter()
-  BinningMode get binning => throw _privateConstructorUsedError;
-
-  /// Per-plan dither cadence (every N frames). null disables dithering for
-  /// this filter regardless of any global default. 0 is treated as "no
-  /// dither" — matches `ExposureNode.ditherEvery`.
-  int? get ditherEvery => throw _privateConstructorUsedError;
-
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $FilterPlanCopyWith<FilterPlan> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $FilterPlanCopyWith<$Res> {
-  factory $FilterPlanCopyWith(
-          FilterPlan value, $Res Function(FilterPlan) then) =
-      _$FilterPlanCopyWithImpl<$Res, FilterPlan>;
+abstract mixin class $TransparencyBackupPlanCopyWith<$Res> {
+  factory $TransparencyBackupPlanCopyWith(TransparencyBackupPlan value,
+          $Res Function(TransparencyBackupPlan) _then) =
+      _$TransparencyBackupPlanCopyWithImpl;
   @useResult
   $Res call(
-      {String filterName,
-      int? filterIndex,
-      int count,
-      double durationSecs,
-      int? gain,
-      int? offset,
-      @BinningModeJsonConverter() BinningMode binning,
-      int? ditherEvery});
+      {String? backupFilter, String? backupTargetId, String? description});
 }
 
 /// @nodoc
-class _$FilterPlanCopyWithImpl<$Res, $Val extends FilterPlan>
-    implements $FilterPlanCopyWith<$Res> {
-  _$FilterPlanCopyWithImpl(this._value, this._then);
+class _$TransparencyBackupPlanCopyWithImpl<$Res>
+    implements $TransparencyBackupPlanCopyWith<$Res> {
+  _$TransparencyBackupPlanCopyWithImpl(this._self, this._then);
 
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
+  final TransparencyBackupPlan _self;
+  final $Res Function(TransparencyBackupPlan) _then;
 
+  /// Create a copy of TransparencyBackupPlan
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
-    Object? filterName = null,
-    Object? filterIndex = freezed,
-    Object? count = null,
-    Object? durationSecs = null,
-    Object? gain = freezed,
-    Object? offset = freezed,
-    Object? binning = null,
-    Object? ditherEvery = freezed,
+    Object? backupFilter = freezed,
+    Object? backupTargetId = freezed,
+    Object? description = freezed,
   }) {
-    return _then(_value.copyWith(
-      filterName: null == filterName
-          ? _value.filterName
-          : filterName // ignore: cast_nullable_to_non_nullable
-              as String,
-      filterIndex: freezed == filterIndex
-          ? _value.filterIndex
-          : filterIndex // ignore: cast_nullable_to_non_nullable
-              as int?,
-      count: null == count
-          ? _value.count
-          : count // ignore: cast_nullable_to_non_nullable
-              as int,
-      durationSecs: null == durationSecs
-          ? _value.durationSecs
-          : durationSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      gain: freezed == gain
-          ? _value.gain
-          : gain // ignore: cast_nullable_to_non_nullable
-              as int?,
-      offset: freezed == offset
-          ? _value.offset
-          : offset // ignore: cast_nullable_to_non_nullable
-              as int?,
-      binning: null == binning
-          ? _value.binning
-          : binning // ignore: cast_nullable_to_non_nullable
-              as BinningMode,
-      ditherEvery: freezed == ditherEvery
-          ? _value.ditherEvery
-          : ditherEvery // ignore: cast_nullable_to_non_nullable
-              as int?,
-    ) as $Val);
-  }
-}
-
-/// @nodoc
-abstract class _$$FilterPlanImplCopyWith<$Res>
-    implements $FilterPlanCopyWith<$Res> {
-  factory _$$FilterPlanImplCopyWith(
-          _$FilterPlanImpl value, $Res Function(_$FilterPlanImpl) then) =
-      __$$FilterPlanImplCopyWithImpl<$Res>;
-  @override
-  @useResult
-  $Res call(
-      {String filterName,
-      int? filterIndex,
-      int count,
-      double durationSecs,
-      int? gain,
-      int? offset,
-      @BinningModeJsonConverter() BinningMode binning,
-      int? ditherEvery});
-}
-
-/// @nodoc
-class __$$FilterPlanImplCopyWithImpl<$Res>
-    extends _$FilterPlanCopyWithImpl<$Res, _$FilterPlanImpl>
-    implements _$$FilterPlanImplCopyWith<$Res> {
-  __$$FilterPlanImplCopyWithImpl(
-      _$FilterPlanImpl _value, $Res Function(_$FilterPlanImpl) _then)
-      : super(_value, _then);
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? filterName = null,
-    Object? filterIndex = freezed,
-    Object? count = null,
-    Object? durationSecs = null,
-    Object? gain = freezed,
-    Object? offset = freezed,
-    Object? binning = null,
-    Object? ditherEvery = freezed,
-  }) {
-    return _then(_$FilterPlanImpl(
-      filterName: null == filterName
-          ? _value.filterName
-          : filterName // ignore: cast_nullable_to_non_nullable
-              as String,
-      filterIndex: freezed == filterIndex
-          ? _value.filterIndex
-          : filterIndex // ignore: cast_nullable_to_non_nullable
-              as int?,
-      count: null == count
-          ? _value.count
-          : count // ignore: cast_nullable_to_non_nullable
-              as int,
-      durationSecs: null == durationSecs
-          ? _value.durationSecs
-          : durationSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      gain: freezed == gain
-          ? _value.gain
-          : gain // ignore: cast_nullable_to_non_nullable
-              as int?,
-      offset: freezed == offset
-          ? _value.offset
-          : offset // ignore: cast_nullable_to_non_nullable
-              as int?,
-      binning: null == binning
-          ? _value.binning
-          : binning // ignore: cast_nullable_to_non_nullable
-              as BinningMode,
-      ditherEvery: freezed == ditherEvery
-          ? _value.ditherEvery
-          : ditherEvery // ignore: cast_nullable_to_non_nullable
-              as int?,
+    return _then(_self.copyWith(
+      backupFilter: freezed == backupFilter
+          ? _self.backupFilter
+          : backupFilter // ignore: cast_nullable_to_non_nullable
+              as String?,
+      backupTargetId: freezed == backupTargetId
+          ? _self.backupTargetId
+          : backupTargetId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      description: freezed == description
+          ? _self.description
+          : description // ignore: cast_nullable_to_non_nullable
+              as String?,
     ));
+  }
+}
+
+/// Adds pattern-matching-related methods to [TransparencyBackupPlan].
+extension TransparencyBackupPlanPatterns on TransparencyBackupPlan {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_TransparencyBackupPlan value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _TransparencyBackupPlan() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_TransparencyBackupPlan value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _TransparencyBackupPlan():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_TransparencyBackupPlan value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _TransparencyBackupPlan() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            String? backupFilter, String? backupTargetId, String? description)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _TransparencyBackupPlan() when $default != null:
+        return $default(
+            _that.backupFilter, _that.backupTargetId, _that.description);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            String? backupFilter, String? backupTargetId, String? description)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _TransparencyBackupPlan():
+        return $default(
+            _that.backupFilter, _that.backupTargetId, _that.description);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            String? backupFilter, String? backupTargetId, String? description)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _TransparencyBackupPlan() when $default != null:
+        return $default(
+            _that.backupFilter, _that.backupTargetId, _that.description);
+      case _:
+        return null;
+    }
   }
 }
 
 /// @nodoc
 
 @JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)
-class _$FilterPlanImpl extends _FilterPlan {
-  const _$FilterPlanImpl(
-      {this.filterName = '',
-      this.filterIndex,
-      this.count = 10,
-      this.durationSecs = 60.0,
-      this.gain,
-      this.offset,
-      @BinningModeJsonConverter() this.binning = BinningMode.one,
-      this.ditherEvery})
+class _TransparencyBackupPlan extends TransparencyBackupPlan {
+  const _TransparencyBackupPlan(
+      {this.backupFilter, this.backupTargetId, this.description})
       : super._();
+  factory _TransparencyBackupPlan.fromJson(Map<String, dynamic> json) =>
+      _$TransparencyBackupPlanFromJson(json);
 
-  factory _$FilterPlanImpl.fromJson(Map<String, dynamic> json) =>
-      _$$FilterPlanImplFromJson(json);
-
-  /// Filter wheel slot name (e.g. "L", "Ha"). Matched against the
-  /// connected filter wheel's name list when [filterIndex] is null.
+  /// Filter to switch to when transparency drops (e.g. `"Lum"`).
   @override
-  @JsonKey()
-  final String filterName;
+  final String? backupFilter;
 
-  /// 0-based filter wheel index. Preferred over [filterName] for
-  /// reliability — matches `ExposureNode.filterIndex` / Rust
-  /// `FilterConfig::filter_index`.
+  /// Sequence node id to skip to when transparency drops.
   @override
-  final int? filterIndex;
+  final String? backupTargetId;
 
-  /// Total number of exposures to take for this filter.
+  /// Optional human-readable description surfaced in the UI / logs.
   @override
-  @JsonKey()
-  final int count;
+  final String? description;
 
-  /// Sub-exposure duration in seconds.
+  /// Create a copy of TransparencyBackupPlan
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  @JsonKey()
-  final double durationSecs;
-
-  /// Optional gain override. null means "use camera/profile default".
-  @override
-  final int? gain;
-
-  /// Optional offset override.
-  @override
-  final int? offset;
-
-  /// Binning for this filter. Defaults to 1x1.
-  @override
-  @JsonKey()
-  @BinningModeJsonConverter()
-  final BinningMode binning;
-
-  /// Per-plan dither cadence (every N frames). null disables dithering for
-  /// this filter regardless of any global default. 0 is treated as "no
-  /// dither" — matches `ExposureNode.ditherEvery`.
-  @override
-  final int? ditherEvery;
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$TransparencyBackupPlanCopyWith<_TransparencyBackupPlan> get copyWith =>
+      __$TransparencyBackupPlanCopyWithImpl<_TransparencyBackupPlan>(
+          this, _$identity);
 
   @override
-  String toString() {
-    return 'FilterPlan(filterName: $filterName, filterIndex: $filterIndex, count: $count, durationSecs: $durationSecs, gain: $gain, offset: $offset, binning: $binning, ditherEvery: $ditherEvery)';
+  Map<String, dynamic> toJson() {
+    return _$TransparencyBackupPlanToJson(
+      this,
+    );
   }
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$FilterPlanImpl &&
-            (identical(other.filterName, filterName) ||
-                other.filterName == filterName) &&
-            (identical(other.filterIndex, filterIndex) ||
-                other.filterIndex == filterIndex) &&
-            (identical(other.count, count) || other.count == count) &&
-            (identical(other.durationSecs, durationSecs) ||
-                other.durationSecs == durationSecs) &&
-            (identical(other.gain, gain) || other.gain == gain) &&
-            (identical(other.offset, offset) || other.offset == offset) &&
-            (identical(other.binning, binning) || other.binning == binning) &&
-            (identical(other.ditherEvery, ditherEvery) ||
-                other.ditherEvery == ditherEvery));
+            other is _TransparencyBackupPlan &&
+            (identical(other.backupFilter, backupFilter) ||
+                other.backupFilter == backupFilter) &&
+            (identical(other.backupTargetId, backupTargetId) ||
+                other.backupTargetId == backupTargetId) &&
+            (identical(other.description, description) ||
+                other.description == description));
   }
 
-  @JsonKey(ignore: true)
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(runtimeType, filterName, filterIndex, count,
-      durationSecs, gain, offset, binning, ditherEvery);
-
-  @JsonKey(ignore: true)
-  @override
-  @pragma('vm:prefer-inline')
-  _$$FilterPlanImplCopyWith<_$FilterPlanImpl> get copyWith =>
-      __$$FilterPlanImplCopyWithImpl<_$FilterPlanImpl>(this, _$identity);
+  int get hashCode =>
+      Object.hash(runtimeType, backupFilter, backupTargetId, description);
 
   @override
-  Map<String, dynamic> toJson() {
-    return _$$FilterPlanImplToJson(
-      this,
-    );
+  String toString() {
+    return 'TransparencyBackupPlan(backupFilter: $backupFilter, backupTargetId: $backupTargetId, description: $description)';
   }
 }
 
-abstract class _FilterPlan extends FilterPlan {
-  const factory _FilterPlan(
-      {final String filterName,
-      final int? filterIndex,
-      final int count,
-      final double durationSecs,
-      final int? gain,
-      final int? offset,
-      @BinningModeJsonConverter() final BinningMode binning,
-      final int? ditherEvery}) = _$FilterPlanImpl;
-  const _FilterPlan._() : super._();
-
-  factory _FilterPlan.fromJson(Map<String, dynamic> json) =
-      _$FilterPlanImpl.fromJson;
-
+/// @nodoc
+abstract mixin class _$TransparencyBackupPlanCopyWith<$Res>
+    implements $TransparencyBackupPlanCopyWith<$Res> {
+  factory _$TransparencyBackupPlanCopyWith(_TransparencyBackupPlan value,
+          $Res Function(_TransparencyBackupPlan) _then) =
+      __$TransparencyBackupPlanCopyWithImpl;
   @override
+  @useResult
+  $Res call(
+      {String? backupFilter, String? backupTargetId, String? description});
+}
 
-  /// Filter wheel slot name (e.g. "L", "Ha"). Matched against the
-  /// connected filter wheel's name list when [filterIndex] is null.
-  String get filterName;
-  @override
+/// @nodoc
+class __$TransparencyBackupPlanCopyWithImpl<$Res>
+    implements _$TransparencyBackupPlanCopyWith<$Res> {
+  __$TransparencyBackupPlanCopyWithImpl(this._self, this._then);
 
-  /// 0-based filter wheel index. Preferred over [filterName] for
-  /// reliability — matches `ExposureNode.filterIndex` / Rust
-  /// `FilterConfig::filter_index`.
-  int? get filterIndex;
-  @override
+  final _TransparencyBackupPlan _self;
+  final $Res Function(_TransparencyBackupPlan) _then;
 
-  /// Total number of exposures to take for this filter.
-  int get count;
+  /// Create a copy of TransparencyBackupPlan
+  /// with the given fields replaced by the non-null parameter values.
   @override
-
-  /// Sub-exposure duration in seconds.
-  double get durationSecs;
-  @override
-
-  /// Optional gain override. null means "use camera/profile default".
-  int? get gain;
-  @override
-
-  /// Optional offset override.
-  int? get offset;
-  @override
-
-  /// Binning for this filter. Defaults to 1x1.
-  @BinningModeJsonConverter()
-  BinningMode get binning;
-  @override
-
-  /// Per-plan dither cadence (every N frames). null disables dithering for
-  /// this filter regardless of any global default. 0 is treated as "no
-  /// dither" — matches `ExposureNode.ditherEvery`.
-  int? get ditherEvery;
-  @override
-  @JsonKey(ignore: true)
-  _$$FilterPlanImplCopyWith<_$FilterPlanImpl> get copyWith =>
-      throw _privateConstructorUsedError;
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? backupFilter = freezed,
+    Object? backupTargetId = freezed,
+    Object? description = freezed,
+  }) {
+    return _then(_TransparencyBackupPlan(
+      backupFilter: freezed == backupFilter
+          ? _self.backupFilter
+          : backupFilter // ignore: cast_nullable_to_non_nullable
+              as String?,
+      backupTargetId: freezed == backupTargetId
+          ? _self.backupTargetId
+          : backupTargetId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      description: freezed == description
+          ? _self.description
+          : description // ignore: cast_nullable_to_non_nullable
+              as String?,
+    ));
+  }
 }
 
 /// @nodoc
 mixin _$Sequence {
-  String get id => throw _privateConstructorUsedError;
-  int? get databaseId => throw _privateConstructorUsedError;
-  String get name => throw _privateConstructorUsedError;
-  String get description => throw _privateConstructorUsedError;
-  Map<String, SequenceNode> get nodes => throw _privateConstructorUsedError;
-  String? get rootNodeId => throw _privateConstructorUsedError;
-  DateTime get createdAt => throw _privateConstructorUsedError;
-  DateTime get modifiedAt => throw _privateConstructorUsedError;
-  bool get isTemplate => throw _privateConstructorUsedError;
-  int? get estimatedDurationMins => throw _privateConstructorUsedError;
+  String get id;
+  int? get databaseId;
+  String get name;
+  String get description;
+  Map<String, SequenceNode> get nodes;
+  String? get rootNodeId;
+  DateTime get createdAt;
+  DateTime get modifiedAt;
+  bool get isTemplate;
+  int? get estimatedDurationMins;
 
-  @JsonKey(ignore: true)
-  $SequenceCopyWith<Sequence> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $SequenceCopyWith<$Res> {
-  factory $SequenceCopyWith(Sequence value, $Res Function(Sequence) then) =
-      _$SequenceCopyWithImpl<$Res, Sequence>;
-  @useResult
-  $Res call(
-      {String id,
-      int? databaseId,
-      String name,
-      String description,
-      Map<String, SequenceNode> nodes,
-      String? rootNodeId,
-      DateTime createdAt,
-      DateTime modifiedAt,
-      bool isTemplate,
-      int? estimatedDurationMins});
-}
-
-/// @nodoc
-class _$SequenceCopyWithImpl<$Res, $Val extends Sequence>
-    implements $SequenceCopyWith<$Res> {
-  _$SequenceCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
+  /// Create a copy of Sequence
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
   @pragma('vm:prefer-inline')
+  $SequenceCopyWith<Sequence> get copyWith =>
+      _$SequenceCopyWithImpl<Sequence>(this as Sequence, _$identity);
+
   @override
-  $Res call({
-    Object? id = null,
-    Object? databaseId = freezed,
-    Object? name = null,
-    Object? description = null,
-    Object? nodes = null,
-    Object? rootNodeId = freezed,
-    Object? createdAt = null,
-    Object? modifiedAt = null,
-    Object? isTemplate = null,
-    Object? estimatedDurationMins = freezed,
-  }) {
-    return _then(_value.copyWith(
-      id: null == id
-          ? _value.id
-          : id // ignore: cast_nullable_to_non_nullable
-              as String,
-      databaseId: freezed == databaseId
-          ? _value.databaseId
-          : databaseId // ignore: cast_nullable_to_non_nullable
-              as int?,
-      name: null == name
-          ? _value.name
-          : name // ignore: cast_nullable_to_non_nullable
-              as String,
-      description: null == description
-          ? _value.description
-          : description // ignore: cast_nullable_to_non_nullable
-              as String,
-      nodes: null == nodes
-          ? _value.nodes
-          : nodes // ignore: cast_nullable_to_non_nullable
-              as Map<String, SequenceNode>,
-      rootNodeId: freezed == rootNodeId
-          ? _value.rootNodeId
-          : rootNodeId // ignore: cast_nullable_to_non_nullable
-              as String?,
-      createdAt: null == createdAt
-          ? _value.createdAt
-          : createdAt // ignore: cast_nullable_to_non_nullable
-              as DateTime,
-      modifiedAt: null == modifiedAt
-          ? _value.modifiedAt
-          : modifiedAt // ignore: cast_nullable_to_non_nullable
-              as DateTime,
-      isTemplate: null == isTemplate
-          ? _value.isTemplate
-          : isTemplate // ignore: cast_nullable_to_non_nullable
-              as bool,
-      estimatedDurationMins: freezed == estimatedDurationMins
-          ? _value.estimatedDurationMins
-          : estimatedDurationMins // ignore: cast_nullable_to_non_nullable
-              as int?,
-    ) as $Val);
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is Sequence &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.databaseId, databaseId) ||
+                other.databaseId == databaseId) &&
+            (identical(other.name, name) || other.name == name) &&
+            (identical(other.description, description) ||
+                other.description == description) &&
+            const DeepCollectionEquality().equals(other.nodes, nodes) &&
+            (identical(other.rootNodeId, rootNodeId) ||
+                other.rootNodeId == rootNodeId) &&
+            (identical(other.createdAt, createdAt) ||
+                other.createdAt == createdAt) &&
+            (identical(other.modifiedAt, modifiedAt) ||
+                other.modifiedAt == modifiedAt) &&
+            (identical(other.isTemplate, isTemplate) ||
+                other.isTemplate == isTemplate) &&
+            (identical(other.estimatedDurationMins, estimatedDurationMins) ||
+                other.estimatedDurationMins == estimatedDurationMins));
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      id,
+      databaseId,
+      name,
+      description,
+      const DeepCollectionEquality().hash(nodes),
+      rootNodeId,
+      createdAt,
+      modifiedAt,
+      isTemplate,
+      estimatedDurationMins);
+
+  @override
+  String toString() {
+    return 'Sequence(id: $id, databaseId: $databaseId, name: $name, description: $description, nodes: $nodes, rootNodeId: $rootNodeId, createdAt: $createdAt, modifiedAt: $modifiedAt, isTemplate: $isTemplate, estimatedDurationMins: $estimatedDurationMins)';
   }
 }
 
 /// @nodoc
-abstract class _$$SequenceImplCopyWith<$Res>
-    implements $SequenceCopyWith<$Res> {
-  factory _$$SequenceImplCopyWith(
-          _$SequenceImpl value, $Res Function(_$SequenceImpl) then) =
-      __$$SequenceImplCopyWithImpl<$Res>;
-  @override
+abstract mixin class $SequenceCopyWith<$Res> {
+  factory $SequenceCopyWith(Sequence value, $Res Function(Sequence) _then) =
+      _$SequenceCopyWithImpl;
   @useResult
   $Res call(
       {String id,
@@ -4428,13 +6522,14 @@ abstract class _$$SequenceImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$SequenceImplCopyWithImpl<$Res>
-    extends _$SequenceCopyWithImpl<$Res, _$SequenceImpl>
-    implements _$$SequenceImplCopyWith<$Res> {
-  __$$SequenceImplCopyWithImpl(
-      _$SequenceImpl _value, $Res Function(_$SequenceImpl) _then)
-      : super(_value, _then);
+class _$SequenceCopyWithImpl<$Res> implements $SequenceCopyWith<$Res> {
+  _$SequenceCopyWithImpl(this._self, this._then);
 
+  final Sequence _self;
+  final $Res Function(Sequence) _then;
+
+  /// Create a copy of Sequence
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -4449,55 +6544,275 @@ class __$$SequenceImplCopyWithImpl<$Res>
     Object? isTemplate = null,
     Object? estimatedDurationMins = freezed,
   }) {
-    return _then(_$SequenceImpl(
+    return _then(_self.copyWith(
       id: null == id
-          ? _value.id
+          ? _self.id
           : id // ignore: cast_nullable_to_non_nullable
               as String,
       databaseId: freezed == databaseId
-          ? _value.databaseId
+          ? _self.databaseId
           : databaseId // ignore: cast_nullable_to_non_nullable
               as int?,
       name: null == name
-          ? _value.name
+          ? _self.name
           : name // ignore: cast_nullable_to_non_nullable
               as String,
       description: null == description
-          ? _value.description
+          ? _self.description
           : description // ignore: cast_nullable_to_non_nullable
               as String,
       nodes: null == nodes
-          ? _value._nodes
+          ? _self.nodes
           : nodes // ignore: cast_nullable_to_non_nullable
               as Map<String, SequenceNode>,
       rootNodeId: freezed == rootNodeId
-          ? _value.rootNodeId
+          ? _self.rootNodeId
           : rootNodeId // ignore: cast_nullable_to_non_nullable
               as String?,
       createdAt: null == createdAt
-          ? _value.createdAt
+          ? _self.createdAt
           : createdAt // ignore: cast_nullable_to_non_nullable
               as DateTime,
       modifiedAt: null == modifiedAt
-          ? _value.modifiedAt
+          ? _self.modifiedAt
           : modifiedAt // ignore: cast_nullable_to_non_nullable
               as DateTime,
       isTemplate: null == isTemplate
-          ? _value.isTemplate
+          ? _self.isTemplate
           : isTemplate // ignore: cast_nullable_to_non_nullable
               as bool,
       estimatedDurationMins: freezed == estimatedDurationMins
-          ? _value.estimatedDurationMins
+          ? _self.estimatedDurationMins
           : estimatedDurationMins // ignore: cast_nullable_to_non_nullable
               as int?,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [Sequence].
+extension SequencePatterns on Sequence {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_Sequence value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _Sequence() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_Sequence value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Sequence():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_Sequence value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Sequence() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            String id,
+            int? databaseId,
+            String name,
+            String description,
+            Map<String, SequenceNode> nodes,
+            String? rootNodeId,
+            DateTime createdAt,
+            DateTime modifiedAt,
+            bool isTemplate,
+            int? estimatedDurationMins)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _Sequence() when $default != null:
+        return $default(
+            _that.id,
+            _that.databaseId,
+            _that.name,
+            _that.description,
+            _that.nodes,
+            _that.rootNodeId,
+            _that.createdAt,
+            _that.modifiedAt,
+            _that.isTemplate,
+            _that.estimatedDurationMins);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            String id,
+            int? databaseId,
+            String name,
+            String description,
+            Map<String, SequenceNode> nodes,
+            String? rootNodeId,
+            DateTime createdAt,
+            DateTime modifiedAt,
+            bool isTemplate,
+            int? estimatedDurationMins)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Sequence():
+        return $default(
+            _that.id,
+            _that.databaseId,
+            _that.name,
+            _that.description,
+            _that.nodes,
+            _that.rootNodeId,
+            _that.createdAt,
+            _that.modifiedAt,
+            _that.isTemplate,
+            _that.estimatedDurationMins);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            String id,
+            int? databaseId,
+            String name,
+            String description,
+            Map<String, SequenceNode> nodes,
+            String? rootNodeId,
+            DateTime createdAt,
+            DateTime modifiedAt,
+            bool isTemplate,
+            int? estimatedDurationMins)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _Sequence() when $default != null:
+        return $default(
+            _that.id,
+            _that.databaseId,
+            _that.name,
+            _that.description,
+            _that.nodes,
+            _that.rootNodeId,
+            _that.createdAt,
+            _that.modifiedAt,
+            _that.isTemplate,
+            _that.estimatedDurationMins);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 
-class _$SequenceImpl extends _Sequence {
-  const _$SequenceImpl(
+class _Sequence extends Sequence {
+  const _Sequence(
       {required this.id,
       this.databaseId,
       required this.name,
@@ -4541,16 +6856,19 @@ class _$SequenceImpl extends _Sequence {
   @override
   final int? estimatedDurationMins;
 
+  /// Create a copy of Sequence
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'Sequence(id: $id, databaseId: $databaseId, name: $name, description: $description, nodes: $nodes, rootNodeId: $rootNodeId, createdAt: $createdAt, modifiedAt: $modifiedAt, isTemplate: $isTemplate, estimatedDurationMins: $estimatedDurationMins)';
-  }
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$SequenceCopyWith<_Sequence> get copyWith =>
+      __$SequenceCopyWithImpl<_Sequence>(this, _$identity);
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$SequenceImpl &&
+            other is _Sequence &&
             (identical(other.id, id) || other.id == id) &&
             (identical(other.databaseId, databaseId) ||
                 other.databaseId == databaseId) &&
@@ -4584,225 +6902,207 @@ class _$SequenceImpl extends _Sequence {
       isTemplate,
       estimatedDurationMins);
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$SequenceImplCopyWith<_$SequenceImpl> get copyWith =>
-      __$$SequenceImplCopyWithImpl<_$SequenceImpl>(this, _$identity);
-}
-
-abstract class _Sequence extends Sequence {
-  const factory _Sequence(
-      {required final String id,
-      final int? databaseId,
-      required final String name,
-      final String description,
-      final Map<String, SequenceNode> nodes,
-      final String? rootNodeId,
-      required final DateTime createdAt,
-      required final DateTime modifiedAt,
-      final bool isTemplate,
-      final int? estimatedDurationMins}) = _$SequenceImpl;
-  const _Sequence._() : super._();
-
-  @override
-  String get id;
-  @override
-  int? get databaseId;
-  @override
-  String get name;
-  @override
-  String get description;
-  @override
-  Map<String, SequenceNode> get nodes;
-  @override
-  String? get rootNodeId;
-  @override
-  DateTime get createdAt;
-  @override
-  DateTime get modifiedAt;
-  @override
-  bool get isTemplate;
-  @override
-  int? get estimatedDurationMins;
-  @override
-  @JsonKey(ignore: true)
-  _$$SequenceImplCopyWith<_$SequenceImpl> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-mixin _$SequenceProgress {
-  SequenceExecutionState get state => throw _privateConstructorUsedError;
-  String? get currentNodeId => throw _privateConstructorUsedError;
-  String? get currentNodeName => throw _privateConstructorUsedError;
-  NodeStatus? get currentNodeStatus => throw _privateConstructorUsedError;
-  int get totalExposures => throw _privateConstructorUsedError;
-  int get completedExposures => throw _privateConstructorUsedError;
-  double get totalIntegrationSecs => throw _privateConstructorUsedError;
-  double get completedIntegrationSecs => throw _privateConstructorUsedError;
-  double get elapsedSecs => throw _privateConstructorUsedError;
-  double? get estimatedRemainingSecs => throw _privateConstructorUsedError;
-  String? get currentTarget => throw _privateConstructorUsedError;
-  String? get currentFilter => throw _privateConstructorUsedError;
-  String? get message => throw _privateConstructorUsedError;
-  Map<String, NodeStatus> get nodeStatuses =>
-      throw _privateConstructorUsedError;
-
-  /// Per-node instruction progress (0-100 percent)
-  Map<String, double> get nodeProgressPercent =>
-      throw _privateConstructorUsedError;
-
-  /// Per-node instruction progress detail message
-  Map<String, String> get nodeProgressDetail =>
-      throw _privateConstructorUsedError;
-
-  /// Per-node structured instruction progress detail.
-  Map<String, InstructionProgressDetail> get nodeProgressStructuredDetail =>
-      throw _privateConstructorUsedError;
-
-  @JsonKey(ignore: true)
-  $SequenceProgressCopyWith<SequenceProgress> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $SequenceProgressCopyWith<$Res> {
-  factory $SequenceProgressCopyWith(
-          SequenceProgress value, $Res Function(SequenceProgress) then) =
-      _$SequenceProgressCopyWithImpl<$Res, SequenceProgress>;
-  @useResult
-  $Res call(
-      {SequenceExecutionState state,
-      String? currentNodeId,
-      String? currentNodeName,
-      NodeStatus? currentNodeStatus,
-      int totalExposures,
-      int completedExposures,
-      double totalIntegrationSecs,
-      double completedIntegrationSecs,
-      double elapsedSecs,
-      double? estimatedRemainingSecs,
-      String? currentTarget,
-      String? currentFilter,
-      String? message,
-      Map<String, NodeStatus> nodeStatuses,
-      Map<String, double> nodeProgressPercent,
-      Map<String, String> nodeProgressDetail,
-      Map<String, InstructionProgressDetail> nodeProgressStructuredDetail});
-}
-
-/// @nodoc
-class _$SequenceProgressCopyWithImpl<$Res, $Val extends SequenceProgress>
-    implements $SequenceProgressCopyWith<$Res> {
-  _$SequenceProgressCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? state = null,
-    Object? currentNodeId = freezed,
-    Object? currentNodeName = freezed,
-    Object? currentNodeStatus = freezed,
-    Object? totalExposures = null,
-    Object? completedExposures = null,
-    Object? totalIntegrationSecs = null,
-    Object? completedIntegrationSecs = null,
-    Object? elapsedSecs = null,
-    Object? estimatedRemainingSecs = freezed,
-    Object? currentTarget = freezed,
-    Object? currentFilter = freezed,
-    Object? message = freezed,
-    Object? nodeStatuses = null,
-    Object? nodeProgressPercent = null,
-    Object? nodeProgressDetail = null,
-    Object? nodeProgressStructuredDetail = null,
-  }) {
-    return _then(_value.copyWith(
-      state: null == state
-          ? _value.state
-          : state // ignore: cast_nullable_to_non_nullable
-              as SequenceExecutionState,
-      currentNodeId: freezed == currentNodeId
-          ? _value.currentNodeId
-          : currentNodeId // ignore: cast_nullable_to_non_nullable
-              as String?,
-      currentNodeName: freezed == currentNodeName
-          ? _value.currentNodeName
-          : currentNodeName // ignore: cast_nullable_to_non_nullable
-              as String?,
-      currentNodeStatus: freezed == currentNodeStatus
-          ? _value.currentNodeStatus
-          : currentNodeStatus // ignore: cast_nullable_to_non_nullable
-              as NodeStatus?,
-      totalExposures: null == totalExposures
-          ? _value.totalExposures
-          : totalExposures // ignore: cast_nullable_to_non_nullable
-              as int,
-      completedExposures: null == completedExposures
-          ? _value.completedExposures
-          : completedExposures // ignore: cast_nullable_to_non_nullable
-              as int,
-      totalIntegrationSecs: null == totalIntegrationSecs
-          ? _value.totalIntegrationSecs
-          : totalIntegrationSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      completedIntegrationSecs: null == completedIntegrationSecs
-          ? _value.completedIntegrationSecs
-          : completedIntegrationSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      elapsedSecs: null == elapsedSecs
-          ? _value.elapsedSecs
-          : elapsedSecs // ignore: cast_nullable_to_non_nullable
-              as double,
-      estimatedRemainingSecs: freezed == estimatedRemainingSecs
-          ? _value.estimatedRemainingSecs
-          : estimatedRemainingSecs // ignore: cast_nullable_to_non_nullable
-              as double?,
-      currentTarget: freezed == currentTarget
-          ? _value.currentTarget
-          : currentTarget // ignore: cast_nullable_to_non_nullable
-              as String?,
-      currentFilter: freezed == currentFilter
-          ? _value.currentFilter
-          : currentFilter // ignore: cast_nullable_to_non_nullable
-              as String?,
-      message: freezed == message
-          ? _value.message
-          : message // ignore: cast_nullable_to_non_nullable
-              as String?,
-      nodeStatuses: null == nodeStatuses
-          ? _value.nodeStatuses
-          : nodeStatuses // ignore: cast_nullable_to_non_nullable
-              as Map<String, NodeStatus>,
-      nodeProgressPercent: null == nodeProgressPercent
-          ? _value.nodeProgressPercent
-          : nodeProgressPercent // ignore: cast_nullable_to_non_nullable
-              as Map<String, double>,
-      nodeProgressDetail: null == nodeProgressDetail
-          ? _value.nodeProgressDetail
-          : nodeProgressDetail // ignore: cast_nullable_to_non_nullable
-              as Map<String, String>,
-      nodeProgressStructuredDetail: null == nodeProgressStructuredDetail
-          ? _value.nodeProgressStructuredDetail
-          : nodeProgressStructuredDetail // ignore: cast_nullable_to_non_nullable
-              as Map<String, InstructionProgressDetail>,
-    ) as $Val);
+  String toString() {
+    return 'Sequence(id: $id, databaseId: $databaseId, name: $name, description: $description, nodes: $nodes, rootNodeId: $rootNodeId, createdAt: $createdAt, modifiedAt: $modifiedAt, isTemplate: $isTemplate, estimatedDurationMins: $estimatedDurationMins)';
   }
 }
 
 /// @nodoc
-abstract class _$$SequenceProgressImplCopyWith<$Res>
-    implements $SequenceProgressCopyWith<$Res> {
-  factory _$$SequenceProgressImplCopyWith(_$SequenceProgressImpl value,
-          $Res Function(_$SequenceProgressImpl) then) =
-      __$$SequenceProgressImplCopyWithImpl<$Res>;
+abstract mixin class _$SequenceCopyWith<$Res>
+    implements $SequenceCopyWith<$Res> {
+  factory _$SequenceCopyWith(_Sequence value, $Res Function(_Sequence) _then) =
+      __$SequenceCopyWithImpl;
   @override
+  @useResult
+  $Res call(
+      {String id,
+      int? databaseId,
+      String name,
+      String description,
+      Map<String, SequenceNode> nodes,
+      String? rootNodeId,
+      DateTime createdAt,
+      DateTime modifiedAt,
+      bool isTemplate,
+      int? estimatedDurationMins});
+}
+
+/// @nodoc
+class __$SequenceCopyWithImpl<$Res> implements _$SequenceCopyWith<$Res> {
+  __$SequenceCopyWithImpl(this._self, this._then);
+
+  final _Sequence _self;
+  final $Res Function(_Sequence) _then;
+
+  /// Create a copy of Sequence
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $Res call({
+    Object? id = null,
+    Object? databaseId = freezed,
+    Object? name = null,
+    Object? description = null,
+    Object? nodes = null,
+    Object? rootNodeId = freezed,
+    Object? createdAt = null,
+    Object? modifiedAt = null,
+    Object? isTemplate = null,
+    Object? estimatedDurationMins = freezed,
+  }) {
+    return _then(_Sequence(
+      id: null == id
+          ? _self.id
+          : id // ignore: cast_nullable_to_non_nullable
+              as String,
+      databaseId: freezed == databaseId
+          ? _self.databaseId
+          : databaseId // ignore: cast_nullable_to_non_nullable
+              as int?,
+      name: null == name
+          ? _self.name
+          : name // ignore: cast_nullable_to_non_nullable
+              as String,
+      description: null == description
+          ? _self.description
+          : description // ignore: cast_nullable_to_non_nullable
+              as String,
+      nodes: null == nodes
+          ? _self._nodes
+          : nodes // ignore: cast_nullable_to_non_nullable
+              as Map<String, SequenceNode>,
+      rootNodeId: freezed == rootNodeId
+          ? _self.rootNodeId
+          : rootNodeId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      createdAt: null == createdAt
+          ? _self.createdAt
+          : createdAt // ignore: cast_nullable_to_non_nullable
+              as DateTime,
+      modifiedAt: null == modifiedAt
+          ? _self.modifiedAt
+          : modifiedAt // ignore: cast_nullable_to_non_nullable
+              as DateTime,
+      isTemplate: null == isTemplate
+          ? _self.isTemplate
+          : isTemplate // ignore: cast_nullable_to_non_nullable
+              as bool,
+      estimatedDurationMins: freezed == estimatedDurationMins
+          ? _self.estimatedDurationMins
+          : estimatedDurationMins // ignore: cast_nullable_to_non_nullable
+              as int?,
+    ));
+  }
+}
+
+/// @nodoc
+mixin _$SequenceProgress {
+  SequenceExecutionState get state;
+  String? get currentNodeId;
+  String? get currentNodeName;
+  NodeStatus? get currentNodeStatus;
+  int get totalExposures;
+  int get completedExposures;
+  double get totalIntegrationSecs;
+  double get completedIntegrationSecs;
+  double get elapsedSecs;
+  double? get estimatedRemainingSecs;
+  String? get currentTarget;
+  String? get currentFilter;
+  String? get message;
+  Map<String, NodeStatus> get nodeStatuses;
+
+  /// Per-node instruction progress (0-100 percent)
+  Map<String, double> get nodeProgressPercent;
+
+  /// Per-node instruction progress detail message
+  Map<String, String> get nodeProgressDetail;
+
+  /// Per-node structured instruction progress detail.
+  Map<String, InstructionProgressDetail> get nodeProgressStructuredDetail;
+
+  /// Create a copy of SequenceProgress
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  $SequenceProgressCopyWith<SequenceProgress> get copyWith =>
+      _$SequenceProgressCopyWithImpl<SequenceProgress>(
+          this as SequenceProgress, _$identity);
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is SequenceProgress &&
+            (identical(other.state, state) || other.state == state) &&
+            (identical(other.currentNodeId, currentNodeId) ||
+                other.currentNodeId == currentNodeId) &&
+            (identical(other.currentNodeName, currentNodeName) ||
+                other.currentNodeName == currentNodeName) &&
+            (identical(other.currentNodeStatus, currentNodeStatus) ||
+                other.currentNodeStatus == currentNodeStatus) &&
+            (identical(other.totalExposures, totalExposures) ||
+                other.totalExposures == totalExposures) &&
+            (identical(other.completedExposures, completedExposures) ||
+                other.completedExposures == completedExposures) &&
+            (identical(other.totalIntegrationSecs, totalIntegrationSecs) ||
+                other.totalIntegrationSecs == totalIntegrationSecs) &&
+            (identical(
+                    other.completedIntegrationSecs, completedIntegrationSecs) ||
+                other.completedIntegrationSecs == completedIntegrationSecs) &&
+            (identical(other.elapsedSecs, elapsedSecs) ||
+                other.elapsedSecs == elapsedSecs) &&
+            (identical(other.estimatedRemainingSecs, estimatedRemainingSecs) ||
+                other.estimatedRemainingSecs == estimatedRemainingSecs) &&
+            (identical(other.currentTarget, currentTarget) ||
+                other.currentTarget == currentTarget) &&
+            (identical(other.currentFilter, currentFilter) ||
+                other.currentFilter == currentFilter) &&
+            (identical(other.message, message) || other.message == message) &&
+            const DeepCollectionEquality()
+                .equals(other.nodeStatuses, nodeStatuses) &&
+            const DeepCollectionEquality()
+                .equals(other.nodeProgressPercent, nodeProgressPercent) &&
+            const DeepCollectionEquality()
+                .equals(other.nodeProgressDetail, nodeProgressDetail) &&
+            const DeepCollectionEquality().equals(
+                other.nodeProgressStructuredDetail,
+                nodeProgressStructuredDetail));
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      state,
+      currentNodeId,
+      currentNodeName,
+      currentNodeStatus,
+      totalExposures,
+      completedExposures,
+      totalIntegrationSecs,
+      completedIntegrationSecs,
+      elapsedSecs,
+      estimatedRemainingSecs,
+      currentTarget,
+      currentFilter,
+      message,
+      const DeepCollectionEquality().hash(nodeStatuses),
+      const DeepCollectionEquality().hash(nodeProgressPercent),
+      const DeepCollectionEquality().hash(nodeProgressDetail),
+      const DeepCollectionEquality().hash(nodeProgressStructuredDetail));
+
+  @override
+  String toString() {
+    return 'SequenceProgress(state: $state, currentNodeId: $currentNodeId, currentNodeName: $currentNodeName, currentNodeStatus: $currentNodeStatus, totalExposures: $totalExposures, completedExposures: $completedExposures, totalIntegrationSecs: $totalIntegrationSecs, completedIntegrationSecs: $completedIntegrationSecs, elapsedSecs: $elapsedSecs, estimatedRemainingSecs: $estimatedRemainingSecs, currentTarget: $currentTarget, currentFilter: $currentFilter, message: $message, nodeStatuses: $nodeStatuses, nodeProgressPercent: $nodeProgressPercent, nodeProgressDetail: $nodeProgressDetail, nodeProgressStructuredDetail: $nodeProgressStructuredDetail)';
+  }
+}
+
+/// @nodoc
+abstract mixin class $SequenceProgressCopyWith<$Res> {
+  factory $SequenceProgressCopyWith(
+          SequenceProgress value, $Res Function(SequenceProgress) _then) =
+      _$SequenceProgressCopyWithImpl;
   @useResult
   $Res call(
       {SequenceExecutionState state,
@@ -4825,13 +7125,15 @@ abstract class _$$SequenceProgressImplCopyWith<$Res>
 }
 
 /// @nodoc
-class __$$SequenceProgressImplCopyWithImpl<$Res>
-    extends _$SequenceProgressCopyWithImpl<$Res, _$SequenceProgressImpl>
-    implements _$$SequenceProgressImplCopyWith<$Res> {
-  __$$SequenceProgressImplCopyWithImpl(_$SequenceProgressImpl _value,
-      $Res Function(_$SequenceProgressImpl) _then)
-      : super(_value, _then);
+class _$SequenceProgressCopyWithImpl<$Res>
+    implements $SequenceProgressCopyWith<$Res> {
+  _$SequenceProgressCopyWithImpl(this._self, this._then);
 
+  final SequenceProgress _self;
+  final $Res Function(SequenceProgress) _then;
+
+  /// Create a copy of SequenceProgress
+  /// with the given fields replaced by the non-null parameter values.
   @pragma('vm:prefer-inline')
   @override
   $Res call({
@@ -4853,83 +7155,347 @@ class __$$SequenceProgressImplCopyWithImpl<$Res>
     Object? nodeProgressDetail = null,
     Object? nodeProgressStructuredDetail = null,
   }) {
-    return _then(_$SequenceProgressImpl(
+    return _then(_self.copyWith(
       state: null == state
-          ? _value.state
+          ? _self.state
           : state // ignore: cast_nullable_to_non_nullable
               as SequenceExecutionState,
       currentNodeId: freezed == currentNodeId
-          ? _value.currentNodeId
+          ? _self.currentNodeId
           : currentNodeId // ignore: cast_nullable_to_non_nullable
               as String?,
       currentNodeName: freezed == currentNodeName
-          ? _value.currentNodeName
+          ? _self.currentNodeName
           : currentNodeName // ignore: cast_nullable_to_non_nullable
               as String?,
       currentNodeStatus: freezed == currentNodeStatus
-          ? _value.currentNodeStatus
+          ? _self.currentNodeStatus
           : currentNodeStatus // ignore: cast_nullable_to_non_nullable
               as NodeStatus?,
       totalExposures: null == totalExposures
-          ? _value.totalExposures
+          ? _self.totalExposures
           : totalExposures // ignore: cast_nullable_to_non_nullable
               as int,
       completedExposures: null == completedExposures
-          ? _value.completedExposures
+          ? _self.completedExposures
           : completedExposures // ignore: cast_nullable_to_non_nullable
               as int,
       totalIntegrationSecs: null == totalIntegrationSecs
-          ? _value.totalIntegrationSecs
+          ? _self.totalIntegrationSecs
           : totalIntegrationSecs // ignore: cast_nullable_to_non_nullable
               as double,
       completedIntegrationSecs: null == completedIntegrationSecs
-          ? _value.completedIntegrationSecs
+          ? _self.completedIntegrationSecs
           : completedIntegrationSecs // ignore: cast_nullable_to_non_nullable
               as double,
       elapsedSecs: null == elapsedSecs
-          ? _value.elapsedSecs
+          ? _self.elapsedSecs
           : elapsedSecs // ignore: cast_nullable_to_non_nullable
               as double,
       estimatedRemainingSecs: freezed == estimatedRemainingSecs
-          ? _value.estimatedRemainingSecs
+          ? _self.estimatedRemainingSecs
           : estimatedRemainingSecs // ignore: cast_nullable_to_non_nullable
               as double?,
       currentTarget: freezed == currentTarget
-          ? _value.currentTarget
+          ? _self.currentTarget
           : currentTarget // ignore: cast_nullable_to_non_nullable
               as String?,
       currentFilter: freezed == currentFilter
-          ? _value.currentFilter
+          ? _self.currentFilter
           : currentFilter // ignore: cast_nullable_to_non_nullable
               as String?,
       message: freezed == message
-          ? _value.message
+          ? _self.message
           : message // ignore: cast_nullable_to_non_nullable
               as String?,
       nodeStatuses: null == nodeStatuses
-          ? _value._nodeStatuses
+          ? _self.nodeStatuses
           : nodeStatuses // ignore: cast_nullable_to_non_nullable
               as Map<String, NodeStatus>,
       nodeProgressPercent: null == nodeProgressPercent
-          ? _value._nodeProgressPercent
+          ? _self.nodeProgressPercent
           : nodeProgressPercent // ignore: cast_nullable_to_non_nullable
               as Map<String, double>,
       nodeProgressDetail: null == nodeProgressDetail
-          ? _value._nodeProgressDetail
+          ? _self.nodeProgressDetail
           : nodeProgressDetail // ignore: cast_nullable_to_non_nullable
               as Map<String, String>,
       nodeProgressStructuredDetail: null == nodeProgressStructuredDetail
-          ? _value._nodeProgressStructuredDetail
+          ? _self.nodeProgressStructuredDetail
           : nodeProgressStructuredDetail // ignore: cast_nullable_to_non_nullable
               as Map<String, InstructionProgressDetail>,
     ));
   }
 }
 
+/// Adds pattern-matching-related methods to [SequenceProgress].
+extension SequenceProgressPatterns on SequenceProgress {
+  /// A variant of `map` that fallback to returning `orElse`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>(
+    TResult Function(_SequenceProgress value)? $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceProgress() when $default != null:
+        return $default(_that);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// Callbacks receives the raw object, upcasted.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case final Subclass2 value:
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>(
+    TResult Function(_SequenceProgress value) $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceProgress():
+        return $default(_that);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `map` that fallback to returning `null`.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case final Subclass value:
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>(
+    TResult? Function(_SequenceProgress value)? $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceProgress() when $default != null:
+        return $default(_that);
+      case _:
+        return null;
+    }
+  }
+
+  /// A variant of `when` that fallback to an `orElse` callback.
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return orElse();
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>(
+    TResult Function(
+            SequenceExecutionState state,
+            String? currentNodeId,
+            String? currentNodeName,
+            NodeStatus? currentNodeStatus,
+            int totalExposures,
+            int completedExposures,
+            double totalIntegrationSecs,
+            double completedIntegrationSecs,
+            double elapsedSecs,
+            double? estimatedRemainingSecs,
+            String? currentTarget,
+            String? currentFilter,
+            String? message,
+            Map<String, NodeStatus> nodeStatuses,
+            Map<String, double> nodeProgressPercent,
+            Map<String, String> nodeProgressDetail,
+            Map<String, InstructionProgressDetail>
+                nodeProgressStructuredDetail)?
+        $default, {
+    required TResult orElse(),
+  }) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceProgress() when $default != null:
+        return $default(
+            _that.state,
+            _that.currentNodeId,
+            _that.currentNodeName,
+            _that.currentNodeStatus,
+            _that.totalExposures,
+            _that.completedExposures,
+            _that.totalIntegrationSecs,
+            _that.completedIntegrationSecs,
+            _that.elapsedSecs,
+            _that.estimatedRemainingSecs,
+            _that.currentTarget,
+            _that.currentFilter,
+            _that.message,
+            _that.nodeStatuses,
+            _that.nodeProgressPercent,
+            _that.nodeProgressDetail,
+            _that.nodeProgressStructuredDetail);
+      case _:
+        return orElse();
+    }
+  }
+
+  /// A `switch`-like method, using callbacks.
+  ///
+  /// As opposed to `map`, this offers destructuring.
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case Subclass2(:final field2):
+  ///     return ...;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>(
+    TResult Function(
+            SequenceExecutionState state,
+            String? currentNodeId,
+            String? currentNodeName,
+            NodeStatus? currentNodeStatus,
+            int totalExposures,
+            int completedExposures,
+            double totalIntegrationSecs,
+            double completedIntegrationSecs,
+            double elapsedSecs,
+            double? estimatedRemainingSecs,
+            String? currentTarget,
+            String? currentFilter,
+            String? message,
+            Map<String, NodeStatus> nodeStatuses,
+            Map<String, double> nodeProgressPercent,
+            Map<String, String> nodeProgressDetail,
+            Map<String, InstructionProgressDetail> nodeProgressStructuredDetail)
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceProgress():
+        return $default(
+            _that.state,
+            _that.currentNodeId,
+            _that.currentNodeName,
+            _that.currentNodeStatus,
+            _that.totalExposures,
+            _that.completedExposures,
+            _that.totalIntegrationSecs,
+            _that.completedIntegrationSecs,
+            _that.elapsedSecs,
+            _that.estimatedRemainingSecs,
+            _that.currentTarget,
+            _that.currentFilter,
+            _that.message,
+            _that.nodeStatuses,
+            _that.nodeProgressPercent,
+            _that.nodeProgressDetail,
+            _that.nodeProgressStructuredDetail);
+      case _:
+        throw StateError('Unexpected subclass');
+    }
+  }
+
+  /// A variant of `when` that fallback to returning `null`
+  ///
+  /// It is equivalent to doing:
+  /// ```dart
+  /// switch (sealedClass) {
+  ///   case Subclass(:final field):
+  ///     return ...;
+  ///   case _:
+  ///     return null;
+  /// }
+  /// ```
+
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>(
+    TResult? Function(
+            SequenceExecutionState state,
+            String? currentNodeId,
+            String? currentNodeName,
+            NodeStatus? currentNodeStatus,
+            int totalExposures,
+            int completedExposures,
+            double totalIntegrationSecs,
+            double completedIntegrationSecs,
+            double elapsedSecs,
+            double? estimatedRemainingSecs,
+            String? currentTarget,
+            String? currentFilter,
+            String? message,
+            Map<String, NodeStatus> nodeStatuses,
+            Map<String, double> nodeProgressPercent,
+            Map<String, String> nodeProgressDetail,
+            Map<String, InstructionProgressDetail>
+                nodeProgressStructuredDetail)?
+        $default,
+  ) {
+    final _that = this;
+    switch (_that) {
+      case _SequenceProgress() when $default != null:
+        return $default(
+            _that.state,
+            _that.currentNodeId,
+            _that.currentNodeName,
+            _that.currentNodeStatus,
+            _that.totalExposures,
+            _that.completedExposures,
+            _that.totalIntegrationSecs,
+            _that.completedIntegrationSecs,
+            _that.elapsedSecs,
+            _that.estimatedRemainingSecs,
+            _that.currentTarget,
+            _that.currentFilter,
+            _that.message,
+            _that.nodeStatuses,
+            _that.nodeProgressPercent,
+            _that.nodeProgressDetail,
+            _that.nodeProgressStructuredDetail);
+      case _:
+        return null;
+    }
+  }
+}
+
 /// @nodoc
 
-class _$SequenceProgressImpl extends _SequenceProgress {
-  const _$SequenceProgressImpl(
+class _SequenceProgress extends SequenceProgress {
+  const _SequenceProgress(
       {this.state = SequenceExecutionState.idle,
       this.currentNodeId,
       this.currentNodeName,
@@ -5034,16 +7600,19 @@ class _$SequenceProgressImpl extends _SequenceProgress {
     return EqualUnmodifiableMapView(_nodeProgressStructuredDetail);
   }
 
+  /// Create a copy of SequenceProgress
+  /// with the given fields replaced by the non-null parameter values.
   @override
-  String toString() {
-    return 'SequenceProgress(state: $state, currentNodeId: $currentNodeId, currentNodeName: $currentNodeName, currentNodeStatus: $currentNodeStatus, totalExposures: $totalExposures, completedExposures: $completedExposures, totalIntegrationSecs: $totalIntegrationSecs, completedIntegrationSecs: $completedIntegrationSecs, elapsedSecs: $elapsedSecs, estimatedRemainingSecs: $estimatedRemainingSecs, currentTarget: $currentTarget, currentFilter: $currentFilter, message: $message, nodeStatuses: $nodeStatuses, nodeProgressPercent: $nodeProgressPercent, nodeProgressDetail: $nodeProgressDetail, nodeProgressStructuredDetail: $nodeProgressStructuredDetail)';
-  }
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @pragma('vm:prefer-inline')
+  _$SequenceProgressCopyWith<_SequenceProgress> get copyWith =>
+      __$SequenceProgressCopyWithImpl<_SequenceProgress>(this, _$identity);
 
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
-            other is _$SequenceProgressImpl &&
+            other is _SequenceProgress &&
             (identical(other.state, state) || other.state == state) &&
             (identical(other.currentNodeId, currentNodeId) ||
                 other.currentNodeId == currentNodeId) &&
@@ -5101,521 +7670,142 @@ class _$SequenceProgressImpl extends _SequenceProgress {
       const DeepCollectionEquality().hash(_nodeProgressDetail),
       const DeepCollectionEquality().hash(_nodeProgressStructuredDetail));
 
-  @JsonKey(ignore: true)
   @override
-  @pragma('vm:prefer-inline')
-  _$$SequenceProgressImplCopyWith<_$SequenceProgressImpl> get copyWith =>
-      __$$SequenceProgressImplCopyWithImpl<_$SequenceProgressImpl>(
-          this, _$identity);
-}
-
-abstract class _SequenceProgress extends SequenceProgress {
-  const factory _SequenceProgress(
-      {final SequenceExecutionState state,
-      final String? currentNodeId,
-      final String? currentNodeName,
-      final NodeStatus? currentNodeStatus,
-      final int totalExposures,
-      final int completedExposures,
-      final double totalIntegrationSecs,
-      final double completedIntegrationSecs,
-      final double elapsedSecs,
-      final double? estimatedRemainingSecs,
-      final String? currentTarget,
-      final String? currentFilter,
-      final String? message,
-      final Map<String, NodeStatus> nodeStatuses,
-      final Map<String, double> nodeProgressPercent,
-      final Map<String, String> nodeProgressDetail,
-      final Map<String, InstructionProgressDetail>
-          nodeProgressStructuredDetail}) = _$SequenceProgressImpl;
-  const _SequenceProgress._() : super._();
-
-  @override
-  SequenceExecutionState get state;
-  @override
-  String? get currentNodeId;
-  @override
-  String? get currentNodeName;
-  @override
-  NodeStatus? get currentNodeStatus;
-  @override
-  int get totalExposures;
-  @override
-  int get completedExposures;
-  @override
-  double get totalIntegrationSecs;
-  @override
-  double get completedIntegrationSecs;
-  @override
-  double get elapsedSecs;
-  @override
-  double? get estimatedRemainingSecs;
-  @override
-  String? get currentTarget;
-  @override
-  String? get currentFilter;
-  @override
-  String? get message;
-  @override
-  Map<String, NodeStatus> get nodeStatuses;
-  @override
-
-  /// Per-node instruction progress (0-100 percent)
-  Map<String, double> get nodeProgressPercent;
-  @override
-
-  /// Per-node instruction progress detail message
-  Map<String, String> get nodeProgressDetail;
-  @override
-
-  /// Per-node structured instruction progress detail.
-  Map<String, InstructionProgressDetail> get nodeProgressStructuredDetail;
-  @override
-  @JsonKey(ignore: true)
-  _$$SequenceProgressImplCopyWith<_$SequenceProgressImpl> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-PhotometryQualityGates _$PhotometryQualityGatesFromJson(
-    Map<String, dynamic> json) {
-  return _PhotometryQualityGates.fromJson(json);
-}
-
-/// @nodoc
-mixin _$PhotometryQualityGates {
-  /// Minimum target SNR. AAVSO research-grade default is 50.
-  double get minSnr => throw _privateConstructorUsedError;
-
-  /// Maximum acceptable FWHM in arcseconds. Default 5".
-  double get maxFwhmArcsec => throw _privateConstructorUsedError;
-
-  /// When true, frames where any reference star failed to extract are
-  /// rejected.
-  bool get requireAllRefsVisible => throw _privateConstructorUsedError;
-
-  /// Maximum airmass. AAVSO Bright Star Monitor cut-off ≈ 2.5.
-  double get maxAirmass => throw _privateConstructorUsedError;
-
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $PhotometryQualityGatesCopyWith<PhotometryQualityGates> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $PhotometryQualityGatesCopyWith<$Res> {
-  factory $PhotometryQualityGatesCopyWith(PhotometryQualityGates value,
-          $Res Function(PhotometryQualityGates) then) =
-      _$PhotometryQualityGatesCopyWithImpl<$Res, PhotometryQualityGates>;
-  @useResult
-  $Res call(
-      {double minSnr,
-      double maxFwhmArcsec,
-      bool requireAllRefsVisible,
-      double maxAirmass});
-}
-
-/// @nodoc
-class _$PhotometryQualityGatesCopyWithImpl<$Res,
-        $Val extends PhotometryQualityGates>
-    implements $PhotometryQualityGatesCopyWith<$Res> {
-  _$PhotometryQualityGatesCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? minSnr = null,
-    Object? maxFwhmArcsec = null,
-    Object? requireAllRefsVisible = null,
-    Object? maxAirmass = null,
-  }) {
-    return _then(_value.copyWith(
-      minSnr: null == minSnr
-          ? _value.minSnr
-          : minSnr // ignore: cast_nullable_to_non_nullable
-              as double,
-      maxFwhmArcsec: null == maxFwhmArcsec
-          ? _value.maxFwhmArcsec
-          : maxFwhmArcsec // ignore: cast_nullable_to_non_nullable
-              as double,
-      requireAllRefsVisible: null == requireAllRefsVisible
-          ? _value.requireAllRefsVisible
-          : requireAllRefsVisible // ignore: cast_nullable_to_non_nullable
-              as bool,
-      maxAirmass: null == maxAirmass
-          ? _value.maxAirmass
-          : maxAirmass // ignore: cast_nullable_to_non_nullable
-              as double,
-    ) as $Val);
+  String toString() {
+    return 'SequenceProgress(state: $state, currentNodeId: $currentNodeId, currentNodeName: $currentNodeName, currentNodeStatus: $currentNodeStatus, totalExposures: $totalExposures, completedExposures: $completedExposures, totalIntegrationSecs: $totalIntegrationSecs, completedIntegrationSecs: $completedIntegrationSecs, elapsedSecs: $elapsedSecs, estimatedRemainingSecs: $estimatedRemainingSecs, currentTarget: $currentTarget, currentFilter: $currentFilter, message: $message, nodeStatuses: $nodeStatuses, nodeProgressPercent: $nodeProgressPercent, nodeProgressDetail: $nodeProgressDetail, nodeProgressStructuredDetail: $nodeProgressStructuredDetail)';
   }
 }
 
 /// @nodoc
-abstract class _$$PhotometryQualityGatesImplCopyWith<$Res>
-    implements $PhotometryQualityGatesCopyWith<$Res> {
-  factory _$$PhotometryQualityGatesImplCopyWith(
-          _$PhotometryQualityGatesImpl value,
-          $Res Function(_$PhotometryQualityGatesImpl) then) =
-      __$$PhotometryQualityGatesImplCopyWithImpl<$Res>;
+abstract mixin class _$SequenceProgressCopyWith<$Res>
+    implements $SequenceProgressCopyWith<$Res> {
+  factory _$SequenceProgressCopyWith(
+          _SequenceProgress value, $Res Function(_SequenceProgress) _then) =
+      __$SequenceProgressCopyWithImpl;
   @override
   @useResult
   $Res call(
-      {double minSnr,
-      double maxFwhmArcsec,
-      bool requireAllRefsVisible,
-      double maxAirmass});
+      {SequenceExecutionState state,
+      String? currentNodeId,
+      String? currentNodeName,
+      NodeStatus? currentNodeStatus,
+      int totalExposures,
+      int completedExposures,
+      double totalIntegrationSecs,
+      double completedIntegrationSecs,
+      double elapsedSecs,
+      double? estimatedRemainingSecs,
+      String? currentTarget,
+      String? currentFilter,
+      String? message,
+      Map<String, NodeStatus> nodeStatuses,
+      Map<String, double> nodeProgressPercent,
+      Map<String, String> nodeProgressDetail,
+      Map<String, InstructionProgressDetail> nodeProgressStructuredDetail});
 }
 
 /// @nodoc
-class __$$PhotometryQualityGatesImplCopyWithImpl<$Res>
-    extends _$PhotometryQualityGatesCopyWithImpl<$Res,
-        _$PhotometryQualityGatesImpl>
-    implements _$$PhotometryQualityGatesImplCopyWith<$Res> {
-  __$$PhotometryQualityGatesImplCopyWithImpl(
-      _$PhotometryQualityGatesImpl _value,
-      $Res Function(_$PhotometryQualityGatesImpl) _then)
-      : super(_value, _then);
+class __$SequenceProgressCopyWithImpl<$Res>
+    implements _$SequenceProgressCopyWith<$Res> {
+  __$SequenceProgressCopyWithImpl(this._self, this._then);
 
-  @pragma('vm:prefer-inline')
+  final _SequenceProgress _self;
+  final $Res Function(_SequenceProgress) _then;
+
+  /// Create a copy of SequenceProgress
+  /// with the given fields replaced by the non-null parameter values.
   @override
+  @pragma('vm:prefer-inline')
   $Res call({
-    Object? minSnr = null,
-    Object? maxFwhmArcsec = null,
-    Object? requireAllRefsVisible = null,
-    Object? maxAirmass = null,
+    Object? state = null,
+    Object? currentNodeId = freezed,
+    Object? currentNodeName = freezed,
+    Object? currentNodeStatus = freezed,
+    Object? totalExposures = null,
+    Object? completedExposures = null,
+    Object? totalIntegrationSecs = null,
+    Object? completedIntegrationSecs = null,
+    Object? elapsedSecs = null,
+    Object? estimatedRemainingSecs = freezed,
+    Object? currentTarget = freezed,
+    Object? currentFilter = freezed,
+    Object? message = freezed,
+    Object? nodeStatuses = null,
+    Object? nodeProgressPercent = null,
+    Object? nodeProgressDetail = null,
+    Object? nodeProgressStructuredDetail = null,
   }) {
-    return _then(_$PhotometryQualityGatesImpl(
-      minSnr: null == minSnr
-          ? _value.minSnr
-          : minSnr // ignore: cast_nullable_to_non_nullable
+    return _then(_SequenceProgress(
+      state: null == state
+          ? _self.state
+          : state // ignore: cast_nullable_to_non_nullable
+              as SequenceExecutionState,
+      currentNodeId: freezed == currentNodeId
+          ? _self.currentNodeId
+          : currentNodeId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      currentNodeName: freezed == currentNodeName
+          ? _self.currentNodeName
+          : currentNodeName // ignore: cast_nullable_to_non_nullable
+              as String?,
+      currentNodeStatus: freezed == currentNodeStatus
+          ? _self.currentNodeStatus
+          : currentNodeStatus // ignore: cast_nullable_to_non_nullable
+              as NodeStatus?,
+      totalExposures: null == totalExposures
+          ? _self.totalExposures
+          : totalExposures // ignore: cast_nullable_to_non_nullable
+              as int,
+      completedExposures: null == completedExposures
+          ? _self.completedExposures
+          : completedExposures // ignore: cast_nullable_to_non_nullable
+              as int,
+      totalIntegrationSecs: null == totalIntegrationSecs
+          ? _self.totalIntegrationSecs
+          : totalIntegrationSecs // ignore: cast_nullable_to_non_nullable
               as double,
-      maxFwhmArcsec: null == maxFwhmArcsec
-          ? _value.maxFwhmArcsec
-          : maxFwhmArcsec // ignore: cast_nullable_to_non_nullable
+      completedIntegrationSecs: null == completedIntegrationSecs
+          ? _self.completedIntegrationSecs
+          : completedIntegrationSecs // ignore: cast_nullable_to_non_nullable
               as double,
-      requireAllRefsVisible: null == requireAllRefsVisible
-          ? _value.requireAllRefsVisible
-          : requireAllRefsVisible // ignore: cast_nullable_to_non_nullable
-              as bool,
-      maxAirmass: null == maxAirmass
-          ? _value.maxAirmass
-          : maxAirmass // ignore: cast_nullable_to_non_nullable
+      elapsedSecs: null == elapsedSecs
+          ? _self.elapsedSecs
+          : elapsedSecs // ignore: cast_nullable_to_non_nullable
               as double,
+      estimatedRemainingSecs: freezed == estimatedRemainingSecs
+          ? _self.estimatedRemainingSecs
+          : estimatedRemainingSecs // ignore: cast_nullable_to_non_nullable
+              as double?,
+      currentTarget: freezed == currentTarget
+          ? _self.currentTarget
+          : currentTarget // ignore: cast_nullable_to_non_nullable
+              as String?,
+      currentFilter: freezed == currentFilter
+          ? _self.currentFilter
+          : currentFilter // ignore: cast_nullable_to_non_nullable
+              as String?,
+      message: freezed == message
+          ? _self.message
+          : message // ignore: cast_nullable_to_non_nullable
+              as String?,
+      nodeStatuses: null == nodeStatuses
+          ? _self._nodeStatuses
+          : nodeStatuses // ignore: cast_nullable_to_non_nullable
+              as Map<String, NodeStatus>,
+      nodeProgressPercent: null == nodeProgressPercent
+          ? _self._nodeProgressPercent
+          : nodeProgressPercent // ignore: cast_nullable_to_non_nullable
+              as Map<String, double>,
+      nodeProgressDetail: null == nodeProgressDetail
+          ? _self._nodeProgressDetail
+          : nodeProgressDetail // ignore: cast_nullable_to_non_nullable
+              as Map<String, String>,
+      nodeProgressStructuredDetail: null == nodeProgressStructuredDetail
+          ? _self._nodeProgressStructuredDetail
+          : nodeProgressStructuredDetail // ignore: cast_nullable_to_non_nullable
+              as Map<String, InstructionProgressDetail>,
     ));
   }
 }
 
-/// @nodoc
-
-@JsonSerializable(fieldRename: FieldRename.snake)
-class _$PhotometryQualityGatesImpl implements _PhotometryQualityGates {
-  const _$PhotometryQualityGatesImpl(
-      {this.minSnr = 50.0,
-      this.maxFwhmArcsec = 5.0,
-      this.requireAllRefsVisible = true,
-      this.maxAirmass = 2.5});
-
-  factory _$PhotometryQualityGatesImpl.fromJson(Map<String, dynamic> json) =>
-      _$$PhotometryQualityGatesImplFromJson(json);
-
-  /// Minimum target SNR. AAVSO research-grade default is 50.
-  @override
-  @JsonKey()
-  final double minSnr;
-
-  /// Maximum acceptable FWHM in arcseconds. Default 5".
-  @override
-  @JsonKey()
-  final double maxFwhmArcsec;
-
-  /// When true, frames where any reference star failed to extract are
-  /// rejected.
-  @override
-  @JsonKey()
-  final bool requireAllRefsVisible;
-
-  /// Maximum airmass. AAVSO Bright Star Monitor cut-off ≈ 2.5.
-  @override
-  @JsonKey()
-  final double maxAirmass;
-
-  @override
-  String toString() {
-    return 'PhotometryQualityGates(minSnr: $minSnr, maxFwhmArcsec: $maxFwhmArcsec, requireAllRefsVisible: $requireAllRefsVisible, maxAirmass: $maxAirmass)';
-  }
-
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType &&
-            other is _$PhotometryQualityGatesImpl &&
-            (identical(other.minSnr, minSnr) || other.minSnr == minSnr) &&
-            (identical(other.maxFwhmArcsec, maxFwhmArcsec) ||
-                other.maxFwhmArcsec == maxFwhmArcsec) &&
-            (identical(other.requireAllRefsVisible, requireAllRefsVisible) ||
-                other.requireAllRefsVisible == requireAllRefsVisible) &&
-            (identical(other.maxAirmass, maxAirmass) ||
-                other.maxAirmass == maxAirmass));
-  }
-
-  @JsonKey(ignore: true)
-  @override
-  int get hashCode => Object.hash(
-      runtimeType, minSnr, maxFwhmArcsec, requireAllRefsVisible, maxAirmass);
-
-  @JsonKey(ignore: true)
-  @override
-  @pragma('vm:prefer-inline')
-  _$$PhotometryQualityGatesImplCopyWith<_$PhotometryQualityGatesImpl>
-      get copyWith => __$$PhotometryQualityGatesImplCopyWithImpl<
-          _$PhotometryQualityGatesImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$PhotometryQualityGatesImplToJson(
-      this,
-    );
-  }
-}
-
-abstract class _PhotometryQualityGates implements PhotometryQualityGates {
-  const factory _PhotometryQualityGates(
-      {final double minSnr,
-      final double maxFwhmArcsec,
-      final bool requireAllRefsVisible,
-      final double maxAirmass}) = _$PhotometryQualityGatesImpl;
-
-  factory _PhotometryQualityGates.fromJson(Map<String, dynamic> json) =
-      _$PhotometryQualityGatesImpl.fromJson;
-
-  @override
-
-  /// Minimum target SNR. AAVSO research-grade default is 50.
-  double get minSnr;
-  @override
-
-  /// Maximum acceptable FWHM in arcseconds. Default 5".
-  double get maxFwhmArcsec;
-  @override
-
-  /// When true, frames where any reference star failed to extract are
-  /// rejected.
-  bool get requireAllRefsVisible;
-  @override
-
-  /// Maximum airmass. AAVSO Bright Star Monitor cut-off ≈ 2.5.
-  double get maxAirmass;
-  @override
-  @JsonKey(ignore: true)
-  _$$PhotometryQualityGatesImplCopyWith<_$PhotometryQualityGatesImpl>
-      get copyWith => throw _privateConstructorUsedError;
-}
-
-TransparencyBackupPlan _$TransparencyBackupPlanFromJson(
-    Map<String, dynamic> json) {
-  return _TransparencyBackupPlan.fromJson(json);
-}
-
-/// @nodoc
-mixin _$TransparencyBackupPlan {
-  /// Filter to switch to when transparency drops (e.g. `"Lum"`).
-  String? get backupFilter => throw _privateConstructorUsedError;
-
-  /// Sequence node id to skip to when transparency drops.
-  String? get backupTargetId => throw _privateConstructorUsedError;
-
-  /// Optional human-readable description surfaced in the UI / logs.
-  String? get description => throw _privateConstructorUsedError;
-
-  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
-  @JsonKey(ignore: true)
-  $TransparencyBackupPlanCopyWith<TransparencyBackupPlan> get copyWith =>
-      throw _privateConstructorUsedError;
-}
-
-/// @nodoc
-abstract class $TransparencyBackupPlanCopyWith<$Res> {
-  factory $TransparencyBackupPlanCopyWith(TransparencyBackupPlan value,
-          $Res Function(TransparencyBackupPlan) then) =
-      _$TransparencyBackupPlanCopyWithImpl<$Res, TransparencyBackupPlan>;
-  @useResult
-  $Res call(
-      {String? backupFilter, String? backupTargetId, String? description});
-}
-
-/// @nodoc
-class _$TransparencyBackupPlanCopyWithImpl<$Res,
-        $Val extends TransparencyBackupPlan>
-    implements $TransparencyBackupPlanCopyWith<$Res> {
-  _$TransparencyBackupPlanCopyWithImpl(this._value, this._then);
-
-  // ignore: unused_field
-  final $Val _value;
-  // ignore: unused_field
-  final $Res Function($Val) _then;
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? backupFilter = freezed,
-    Object? backupTargetId = freezed,
-    Object? description = freezed,
-  }) {
-    return _then(_value.copyWith(
-      backupFilter: freezed == backupFilter
-          ? _value.backupFilter
-          : backupFilter // ignore: cast_nullable_to_non_nullable
-              as String?,
-      backupTargetId: freezed == backupTargetId
-          ? _value.backupTargetId
-          : backupTargetId // ignore: cast_nullable_to_non_nullable
-              as String?,
-      description: freezed == description
-          ? _value.description
-          : description // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ) as $Val);
-  }
-}
-
-/// @nodoc
-abstract class _$$TransparencyBackupPlanImplCopyWith<$Res>
-    implements $TransparencyBackupPlanCopyWith<$Res> {
-  factory _$$TransparencyBackupPlanImplCopyWith(
-          _$TransparencyBackupPlanImpl value,
-          $Res Function(_$TransparencyBackupPlanImpl) then) =
-      __$$TransparencyBackupPlanImplCopyWithImpl<$Res>;
-  @override
-  @useResult
-  $Res call(
-      {String? backupFilter, String? backupTargetId, String? description});
-}
-
-/// @nodoc
-class __$$TransparencyBackupPlanImplCopyWithImpl<$Res>
-    extends _$TransparencyBackupPlanCopyWithImpl<$Res,
-        _$TransparencyBackupPlanImpl>
-    implements _$$TransparencyBackupPlanImplCopyWith<$Res> {
-  __$$TransparencyBackupPlanImplCopyWithImpl(
-      _$TransparencyBackupPlanImpl _value,
-      $Res Function(_$TransparencyBackupPlanImpl) _then)
-      : super(_value, _then);
-
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call({
-    Object? backupFilter = freezed,
-    Object? backupTargetId = freezed,
-    Object? description = freezed,
-  }) {
-    return _then(_$TransparencyBackupPlanImpl(
-      backupFilter: freezed == backupFilter
-          ? _value.backupFilter
-          : backupFilter // ignore: cast_nullable_to_non_nullable
-              as String?,
-      backupTargetId: freezed == backupTargetId
-          ? _value.backupTargetId
-          : backupTargetId // ignore: cast_nullable_to_non_nullable
-              as String?,
-      description: freezed == description
-          ? _value.description
-          : description // ignore: cast_nullable_to_non_nullable
-              as String?,
-    ));
-  }
-}
-
-/// @nodoc
-
-@JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)
-class _$TransparencyBackupPlanImpl extends _TransparencyBackupPlan {
-  const _$TransparencyBackupPlanImpl(
-      {this.backupFilter, this.backupTargetId, this.description})
-      : super._();
-
-  factory _$TransparencyBackupPlanImpl.fromJson(Map<String, dynamic> json) =>
-      _$$TransparencyBackupPlanImplFromJson(json);
-
-  /// Filter to switch to when transparency drops (e.g. `"Lum"`).
-  @override
-  final String? backupFilter;
-
-  /// Sequence node id to skip to when transparency drops.
-  @override
-  final String? backupTargetId;
-
-  /// Optional human-readable description surfaced in the UI / logs.
-  @override
-  final String? description;
-
-  @override
-  String toString() {
-    return 'TransparencyBackupPlan(backupFilter: $backupFilter, backupTargetId: $backupTargetId, description: $description)';
-  }
-
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType &&
-            other is _$TransparencyBackupPlanImpl &&
-            (identical(other.backupFilter, backupFilter) ||
-                other.backupFilter == backupFilter) &&
-            (identical(other.backupTargetId, backupTargetId) ||
-                other.backupTargetId == backupTargetId) &&
-            (identical(other.description, description) ||
-                other.description == description));
-  }
-
-  @JsonKey(ignore: true)
-  @override
-  int get hashCode =>
-      Object.hash(runtimeType, backupFilter, backupTargetId, description);
-
-  @JsonKey(ignore: true)
-  @override
-  @pragma('vm:prefer-inline')
-  _$$TransparencyBackupPlanImplCopyWith<_$TransparencyBackupPlanImpl>
-      get copyWith => __$$TransparencyBackupPlanImplCopyWithImpl<
-          _$TransparencyBackupPlanImpl>(this, _$identity);
-
-  @override
-  Map<String, dynamic> toJson() {
-    return _$$TransparencyBackupPlanImplToJson(
-      this,
-    );
-  }
-}
-
-abstract class _TransparencyBackupPlan extends TransparencyBackupPlan {
-  const factory _TransparencyBackupPlan(
-      {final String? backupFilter,
-      final String? backupTargetId,
-      final String? description}) = _$TransparencyBackupPlanImpl;
-  const _TransparencyBackupPlan._() : super._();
-
-  factory _TransparencyBackupPlan.fromJson(Map<String, dynamic> json) =
-      _$TransparencyBackupPlanImpl.fromJson;
-
-  @override
-
-  /// Filter to switch to when transparency drops (e.g. `"Lum"`).
-  String? get backupFilter;
-  @override
-
-  /// Sequence node id to skip to when transparency drops.
-  String? get backupTargetId;
-  @override
-
-  /// Optional human-readable description surfaced in the UI / logs.
-  String? get description;
-  @override
-  @JsonKey(ignore: true)
-  _$$TransparencyBackupPlanImplCopyWith<_$TransparencyBackupPlanImpl>
-      get copyWith => throw _privateConstructorUsedError;
-}
+// dart format on

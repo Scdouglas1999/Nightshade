@@ -6,8 +6,7 @@ part of 'radar_frame.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$RadarFrameImpl _$$RadarFrameImplFromJson(Map<String, dynamic> json) =>
-    _$RadarFrameImpl(
+_RadarFrame _$RadarFrameFromJson(Map<String, dynamic> json) => _RadarFrame(
       timestamp: DateTime.parse(json['timestamp'] as String),
       tileUrlTemplate: json['tileUrlTemplate'] as String,
       north: (json['north'] as num).toDouble(),
@@ -30,7 +29,7 @@ _$RadarFrameImpl _$$RadarFrameImplFromJson(Map<String, dynamic> json) =>
       ),
     );
 
-Map<String, dynamic> _$$RadarFrameImplToJson(_$RadarFrameImpl instance) =>
+Map<String, dynamic> _$RadarFrameToJson(_RadarFrame instance) =>
     <String, dynamic>{
       'timestamp': instance.timestamp.toIso8601String(),
       'tileUrlTemplate': instance.tileUrlTemplate,

@@ -20,7 +20,7 @@ class RuntimeOnlyValueConverter implements JsonConverter<Object?, Object?> {
 
 /// ADU measurement for tracking convergence
 @freezed
-class AduMeasurement with _$AduMeasurement {
+abstract class AduMeasurement with _$AduMeasurement {
   const factory AduMeasurement({
     required double exposure,
     required double adu,
@@ -33,7 +33,7 @@ class AduMeasurement with _$AduMeasurement {
 
 /// Sky brightness measurement for rate tracking
 @freezed
-class SkyBrightnessMeasurement with _$SkyBrightnessMeasurement {
+abstract class SkyBrightnessMeasurement with _$SkyBrightnessMeasurement {
   const factory SkyBrightnessMeasurement({
     required double adu,
     required double exposureUsed,
@@ -46,7 +46,7 @@ class SkyBrightnessMeasurement with _$SkyBrightnessMeasurement {
 
 /// Complete flat wizard state
 @freezed
-class FlatWizardState with _$FlatWizardState {
+abstract class FlatWizardState with _$FlatWizardState {
   const factory FlatWizardState({
     /// Current operating mode
     @Default(FlatWizardMode.quick) FlatWizardMode mode,

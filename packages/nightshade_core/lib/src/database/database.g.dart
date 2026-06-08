@@ -22860,7 +22860,7 @@ final class $$EquipmentProfilesTableReferences extends BaseReferences<
   $$ImagingSessionsTableProcessedTableManager get imagingSessionsRefs {
     final manager =
         $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
-            .filter((f) => f.profileId.id($_item.id));
+            .filter((f) => f.profileId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_imagingSessionsRefsTable($_db));
@@ -22876,7 +22876,8 @@ final class $$EquipmentProfilesTableReferences extends BaseReferences<
 
   $$FlatHistoryTableProcessedTableManager get flatHistoryRefs {
     final manager = $$FlatHistoryTableTableManager($_db, $_db.flatHistory)
-        .filter((f) => f.equipmentProfileId.id($_item.id));
+        .filter(
+            (f) => f.equipmentProfileId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_flatHistoryRefsTable($_db));
     return ProcessedTableManager(
@@ -22894,7 +22895,8 @@ final class $$EquipmentProfilesTableReferences extends BaseReferences<
       get polarAlignmentHistoryRefs {
     final manager = $$PolarAlignmentHistoryTableTableManager(
             $_db, $_db.polarAlignmentHistory)
-        .filter((f) => f.equipmentProfileId.id($_item.id));
+        .filter(
+            (f) => f.equipmentProfileId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_polarAlignmentHistoryRefsTable($_db));
@@ -22913,7 +22915,8 @@ final class $$EquipmentProfilesTableReferences extends BaseReferences<
       get photometricTransformsRefs {
     final manager = $$PhotometricTransformsTableTableManager(
             $_db, $_db.photometricTransforms)
-        .filter((f) => f.equipmentProfileId.id($_item.id));
+        .filter(
+            (f) => f.equipmentProfileId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_photometricTransformsRefsTable($_db));
@@ -22929,8 +22932,8 @@ final class $$EquipmentProfilesTableReferences extends BaseReferences<
 
   $$ObservationLogsTableProcessedTableManager get observationLogsRefs {
     final manager =
-        $$ObservationLogsTableTableManager($_db, $_db.observationLogs)
-            .filter((f) => f.equipmentProfileId.id($_item.id));
+        $$ObservationLogsTableTableManager($_db, $_db.observationLogs).filter(
+            (f) => f.equipmentProfileId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_observationLogsRefsTable($_db));
@@ -22946,7 +22949,8 @@ final class $$EquipmentProfilesTableReferences extends BaseReferences<
 
   $$FocusModelsTableProcessedTableManager get focusModelsRefs {
     final manager = $$FocusModelsTableTableManager($_db, $_db.focusModels)
-        .filter((f) => f.equipmentProfileId.id($_item.id));
+        .filter(
+            (f) => f.equipmentProfileId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_focusModelsRefsTable($_db));
     return ProcessedTableManager(
@@ -23891,7 +23895,8 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
               getPrefetchedDataCallback: (items) async {
                 return [
                   if (imagingSessionsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<EquipmentProfile,
+                            $EquipmentProfilesTable, ImagingSession>(
                         currentTable: table,
                         referencedTable: $$EquipmentProfilesTableReferences
                             ._imagingSessionsRefsTable(db),
@@ -23903,7 +23908,8 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
                                 .where((e) => e.profileId == item.id),
                         typedResults: items),
                   if (flatHistoryRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<EquipmentProfile,
+                            $EquipmentProfilesTable, FlatHistoryEntry>(
                         currentTable: table,
                         referencedTable: $$EquipmentProfilesTableReferences
                             ._flatHistoryRefsTable(db),
@@ -23915,7 +23921,10 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
                                 .where((e) => e.equipmentProfileId == item.id),
                         typedResults: items),
                   if (polarAlignmentHistoryRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<
+                            EquipmentProfile,
+                            $EquipmentProfilesTable,
+                            PolarAlignmentHistoryEntry>(
                         currentTable: table,
                         referencedTable: $$EquipmentProfilesTableReferences
                             ._polarAlignmentHistoryRefsTable(db),
@@ -23927,7 +23936,8 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
                                 .where((e) => e.equipmentProfileId == item.id),
                         typedResults: items),
                   if (photometricTransformsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<EquipmentProfile,
+                            $EquipmentProfilesTable, PhotometricTransformRow>(
                         currentTable: table,
                         referencedTable: $$EquipmentProfilesTableReferences
                             ._photometricTransformsRefsTable(db),
@@ -23939,7 +23949,8 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
                                 .where((e) => e.equipmentProfileId == item.id),
                         typedResults: items),
                   if (observationLogsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<EquipmentProfile,
+                            $EquipmentProfilesTable, ObservationLogEntry>(
                         currentTable: table,
                         referencedTable: $$EquipmentProfilesTableReferences
                             ._observationLogsRefsTable(db),
@@ -23951,7 +23962,8 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
                                 .where((e) => e.equipmentProfileId == item.id),
                         typedResults: items),
                   if (focusModelsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<EquipmentProfile,
+                            $EquipmentProfilesTable, FocusModelEntry>(
                         currentTable: table,
                         referencedTable: $$EquipmentProfilesTableReferences
                             ._focusModelsRefsTable(db),
@@ -24047,7 +24059,7 @@ final class $$TargetsTableReferences
   $$ImagingSessionsTableProcessedTableManager get imagingSessionsRefs {
     final manager =
         $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
-            .filter((f) => f.targetId.id($_item.id));
+            .filter((f) => f.targetId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_imagingSessionsRefsTable($_db));
@@ -24063,7 +24075,7 @@ final class $$TargetsTableReferences
 
   $$SequenceNodesTableProcessedTableManager get sequenceNodesRefs {
     final manager = $$SequenceNodesTableTableManager($_db, $_db.sequenceNodes)
-        .filter((f) => f.targetId.id($_item.id));
+        .filter((f) => f.targetId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_sequenceNodesRefsTable($_db));
     return ProcessedTableManager(
@@ -24078,7 +24090,7 @@ final class $$TargetsTableReferences
 
   $$CapturedImagesTableProcessedTableManager get capturedImagesRefs {
     final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
-        .filter((f) => f.targetId.id($_item.id));
+        .filter((f) => f.targetId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_capturedImagesRefsTable($_db));
     return ProcessedTableManager(
@@ -24578,7 +24590,8 @@ class $$TargetsTableTableManager extends RootTableManager<
               getPrefetchedDataCallback: (items) async {
                 return [
                   if (imagingSessionsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<Target, $TargetsTable,
+                            ImagingSession>(
                         currentTable: table,
                         referencedTable: $$TargetsTableReferences
                             ._imagingSessionsRefsTable(db),
@@ -24590,7 +24603,8 @@ class $$TargetsTableTableManager extends RootTableManager<
                             referencedItems.where((e) => e.targetId == item.id),
                         typedResults: items),
                   if (sequenceNodesRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<Target, $TargetsTable,
+                            SequenceNode>(
                         currentTable: table,
                         referencedTable: $$TargetsTableReferences
                             ._sequenceNodesRefsTable(db),
@@ -24602,7 +24616,8 @@ class $$TargetsTableTableManager extends RootTableManager<
                             referencedItems.where((e) => e.targetId == item.id),
                         typedResults: items),
                   if (capturedImagesRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<Target, $TargetsTable,
+                            CapturedImage>(
                         currentTable: table,
                         referencedTable: $$TargetsTableReferences
                             ._capturedImagesRefsTable(db),
@@ -24669,7 +24684,7 @@ final class $$SequencesTableReferences
   $$ImagingSessionsTableProcessedTableManager get imagingSessionsRefs {
     final manager =
         $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
-            .filter((f) => f.sequenceId.id($_item.id));
+            .filter((f) => f.sequenceId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_imagingSessionsRefsTable($_db));
@@ -24685,7 +24700,7 @@ final class $$SequencesTableReferences
 
   $$SequenceNodesTableProcessedTableManager get sequenceNodesRefs {
     final manager = $$SequenceNodesTableTableManager($_db, $_db.sequenceNodes)
-        .filter((f) => f.sequenceId.id($_item.id));
+        .filter((f) => f.sequenceId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_sequenceNodesRefsTable($_db));
     return ProcessedTableManager(
@@ -24702,7 +24717,7 @@ final class $$SequencesTableReferences
   $$SequenceCheckpointsTableProcessedTableManager get sequenceCheckpointsRefs {
     final manager =
         $$SequenceCheckpointsTableTableManager($_db, $_db.sequenceCheckpoints)
-            .filter((f) => f.sequenceId.id($_item.id));
+            .filter((f) => f.sequenceId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_sequenceCheckpointsRefsTable($_db));
@@ -24718,7 +24733,7 @@ final class $$SequencesTableReferences
 
   $$SequenceRunsTableProcessedTableManager get sequenceRunsRefs {
     final manager = $$SequenceRunsTableTableManager($_db, $_db.sequenceRuns)
-        .filter((f) => f.sequenceId.id($_item.id));
+        .filter((f) => f.sequenceId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_sequenceRunsRefsTable($_db));
     return ProcessedTableManager(
@@ -25089,7 +25104,8 @@ class $$SequencesTableTableManager extends RootTableManager<
               getPrefetchedDataCallback: (items) async {
                 return [
                   if (imagingSessionsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<Sequence, $SequencesTable,
+                            ImagingSession>(
                         currentTable: table,
                         referencedTable: $$SequencesTableReferences
                             ._imagingSessionsRefsTable(db),
@@ -25101,7 +25117,8 @@ class $$SequencesTableTableManager extends RootTableManager<
                                 .where((e) => e.sequenceId == item.id),
                         typedResults: items),
                   if (sequenceNodesRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<Sequence, $SequencesTable,
+                            SequenceNode>(
                         currentTable: table,
                         referencedTable: $$SequencesTableReferences
                             ._sequenceNodesRefsTable(db),
@@ -25113,7 +25130,8 @@ class $$SequencesTableTableManager extends RootTableManager<
                                 .where((e) => e.sequenceId == item.id),
                         typedResults: items),
                   if (sequenceCheckpointsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<Sequence, $SequencesTable,
+                            SequenceCheckpoint>(
                         currentTable: table,
                         referencedTable: $$SequencesTableReferences
                             ._sequenceCheckpointsRefsTable(db),
@@ -25125,7 +25143,8 @@ class $$SequencesTableTableManager extends RootTableManager<
                                 .where((e) => e.sequenceId == item.id),
                         typedResults: items),
                   if (sequenceRunsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<Sequence, $SequencesTable,
+                            SequenceRun>(
                         currentTable: table,
                         referencedTable: $$SequencesTableReferences
                             ._sequenceRunsRefsTable(db),
@@ -25216,10 +25235,11 @@ final class $$ImagingSessionsTableReferences extends BaseReferences<
           db.imagingSessions.profileId, db.equipmentProfiles.id));
 
   $$EquipmentProfilesTableProcessedTableManager? get profileId {
-    if ($_item.profileId == null) return null;
+    final $_column = $_itemColumn<int>('profile_id');
+    if ($_column == null) return null;
     final manager =
         $$EquipmentProfilesTableTableManager($_db, $_db.equipmentProfiles)
-            .filter((f) => f.id($_item.profileId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_profileIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -25231,9 +25251,10 @@ final class $$ImagingSessionsTableReferences extends BaseReferences<
           $_aliasNameGenerator(db.imagingSessions.targetId, db.targets.id));
 
   $$TargetsTableProcessedTableManager? get targetId {
-    if ($_item.targetId == null) return null;
+    final $_column = $_itemColumn<int>('target_id');
+    if ($_column == null) return null;
     final manager = $$TargetsTableTableManager($_db, $_db.targets)
-        .filter((f) => f.id($_item.targetId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_targetIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -25245,9 +25266,10 @@ final class $$ImagingSessionsTableReferences extends BaseReferences<
           $_aliasNameGenerator(db.imagingSessions.sequenceId, db.sequences.id));
 
   $$SequencesTableProcessedTableManager? get sequenceId {
-    if ($_item.sequenceId == null) return null;
+    final $_column = $_itemColumn<int>('sequence_id');
+    if ($_column == null) return null;
     final manager = $$SequencesTableTableManager($_db, $_db.sequences)
-        .filter((f) => f.id($_item.sequenceId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_sequenceIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -25262,7 +25284,7 @@ final class $$ImagingSessionsTableReferences extends BaseReferences<
 
   $$CapturedImagesTableProcessedTableManager get capturedImagesRefs {
     final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
-        .filter((f) => f.sessionId.id($_item.id));
+        .filter((f) => f.sessionId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_capturedImagesRefsTable($_db));
     return ProcessedTableManager(
@@ -25280,7 +25302,7 @@ final class $$ImagingSessionsTableReferences extends BaseReferences<
       get scienceSessionConfigRefs {
     final manager =
         $$ScienceSessionConfigTableTableManager($_db, $_db.scienceSessionConfig)
-            .filter((f) => f.sessionId.id($_item.id));
+            .filter((f) => f.sessionId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_scienceSessionConfigRefsTable($_db));
@@ -25299,7 +25321,7 @@ final class $$ImagingSessionsTableReferences extends BaseReferences<
       get photometryMeasurementsRefs {
     final manager = $$PhotometryMeasurementsTableTableManager(
             $_db, $_db.photometryMeasurements)
-        .filter((f) => f.sessionId.id($_item.id));
+        .filter((f) => f.sessionId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_photometryMeasurementsRefsTable($_db));
@@ -25318,7 +25340,7 @@ final class $$ImagingSessionsTableReferences extends BaseReferences<
       get framePhotometricCalibrationRefs {
     final manager = $$FramePhotometricCalibrationTableTableManager(
             $_db, $_db.framePhotometricCalibration)
-        .filter((f) => f.sessionId.id($_item.id));
+        .filter((f) => f.sessionId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult
         .readTableOrNull(_framePhotometricCalibrationRefsTable($_db));
@@ -25336,7 +25358,7 @@ final class $$ImagingSessionsTableReferences extends BaseReferences<
   $$TransparencySamplesTableProcessedTableManager get transparencySamplesRefs {
     final manager =
         $$TransparencySamplesTableTableManager($_db, $_db.transparencySamples)
-            .filter((f) => f.sessionId.id($_item.id));
+            .filter((f) => f.sessionId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_transparencySamplesRefsTable($_db));
@@ -25352,7 +25374,7 @@ final class $$ImagingSessionsTableReferences extends BaseReferences<
 
   $$PsfFieldTilesTableProcessedTableManager get psfFieldTilesRefs {
     final manager = $$PsfFieldTilesTableTableManager($_db, $_db.psfFieldTiles)
-        .filter((f) => f.sessionId.id($_item.id));
+        .filter((f) => f.sessionId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_psfFieldTilesRefsTable($_db));
     return ProcessedTableManager(
@@ -25370,7 +25392,7 @@ final class $$ImagingSessionsTableReferences extends BaseReferences<
       get scienceFrameQualityMetricsRefs {
     final manager = $$ScienceFrameQualityMetricsTableTableManager(
             $_db, $_db.scienceFrameQualityMetrics)
-        .filter((f) => f.sessionId.id($_item.id));
+        .filter((f) => f.sessionId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult
         .readTableOrNull(_scienceFrameQualityMetricsRefsTable($_db));
@@ -25388,7 +25410,7 @@ final class $$ImagingSessionsTableReferences extends BaseReferences<
   $$ScienceTileMetricsTableProcessedTableManager get scienceTileMetricsRefs {
     final manager =
         $$ScienceTileMetricsTableTableManager($_db, $_db.scienceTileMetrics)
-            .filter((f) => f.sessionId.id($_item.id));
+            .filter((f) => f.sessionId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_scienceTileMetricsRefsTable($_db));
@@ -25407,7 +25429,7 @@ final class $$ImagingSessionsTableReferences extends BaseReferences<
       get astrometryResidualVectorsRefs {
     final manager = $$AstrometryResidualVectorsTableTableManager(
             $_db, $_db.astrometryResidualVectors)
-        .filter((f) => f.sessionId.id($_item.id));
+        .filter((f) => f.sessionId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult
         .readTableOrNull(_astrometryResidualVectorsRefsTable($_db));
@@ -25426,7 +25448,7 @@ final class $$ImagingSessionsTableReferences extends BaseReferences<
       get movingObjectCandidatesRefs {
     final manager = $$MovingObjectCandidatesTableTableManager(
             $_db, $_db.movingObjectCandidates)
-        .filter((f) => f.sessionId.id($_item.id));
+        .filter((f) => f.sessionId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_movingObjectCandidatesRefsTable($_db));
@@ -25443,7 +25465,7 @@ final class $$ImagingSessionsTableReferences extends BaseReferences<
   $$LineRatioProductsTableProcessedTableManager get lineRatioProductsRefs {
     final manager =
         $$LineRatioProductsTableTableManager($_db, $_db.lineRatioProducts)
-            .filter((f) => f.sessionId.id($_item.id));
+            .filter((f) => f.sessionId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_lineRatioProductsRefsTable($_db));
@@ -26539,7 +26561,8 @@ class $$ImagingSessionsTableTableManager extends RootTableManager<
               getPrefetchedDataCallback: (items) async {
                 return [
                   if (capturedImagesRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<ImagingSession,
+                            $ImagingSessionsTable, CapturedImage>(
                         currentTable: table,
                         referencedTable: $$ImagingSessionsTableReferences
                             ._capturedImagesRefsTable(db),
@@ -26551,7 +26574,8 @@ class $$ImagingSessionsTableTableManager extends RootTableManager<
                                 .where((e) => e.sessionId == item.id),
                         typedResults: items),
                   if (scienceSessionConfigRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<ImagingSession,
+                            $ImagingSessionsTable, ScienceSessionConfigRow>(
                         currentTable: table,
                         referencedTable: $$ImagingSessionsTableReferences
                             ._scienceSessionConfigRefsTable(db),
@@ -26563,7 +26587,8 @@ class $$ImagingSessionsTableTableManager extends RootTableManager<
                                 .where((e) => e.sessionId == item.id),
                         typedResults: items),
                   if (photometryMeasurementsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<ImagingSession,
+                            $ImagingSessionsTable, PhotometryMeasurementRow>(
                         currentTable: table,
                         referencedTable: $$ImagingSessionsTableReferences
                             ._photometryMeasurementsRefsTable(db),
@@ -26575,7 +26600,10 @@ class $$ImagingSessionsTableTableManager extends RootTableManager<
                                 .where((e) => e.sessionId == item.id),
                         typedResults: items),
                   if (framePhotometricCalibrationRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<
+                            ImagingSession,
+                            $ImagingSessionsTable,
+                            FramePhotometricCalibrationRow>(
                         currentTable: table,
                         referencedTable: $$ImagingSessionsTableReferences
                             ._framePhotometricCalibrationRefsTable(db),
@@ -26587,7 +26615,8 @@ class $$ImagingSessionsTableTableManager extends RootTableManager<
                                 .where((e) => e.sessionId == item.id),
                         typedResults: items),
                   if (transparencySamplesRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<ImagingSession,
+                            $ImagingSessionsTable, TransparencySampleRow>(
                         currentTable: table,
                         referencedTable: $$ImagingSessionsTableReferences
                             ._transparencySamplesRefsTable(db),
@@ -26599,7 +26628,8 @@ class $$ImagingSessionsTableTableManager extends RootTableManager<
                                 .where((e) => e.sessionId == item.id),
                         typedResults: items),
                   if (psfFieldTilesRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<ImagingSession,
+                            $ImagingSessionsTable, PsfFieldTileRow>(
                         currentTable: table,
                         referencedTable: $$ImagingSessionsTableReferences
                             ._psfFieldTilesRefsTable(db),
@@ -26611,7 +26641,10 @@ class $$ImagingSessionsTableTableManager extends RootTableManager<
                                 .where((e) => e.sessionId == item.id),
                         typedResults: items),
                   if (scienceFrameQualityMetricsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<
+                            ImagingSession,
+                            $ImagingSessionsTable,
+                            ScienceFrameQualityMetricsRow>(
                         currentTable: table,
                         referencedTable: $$ImagingSessionsTableReferences
                             ._scienceFrameQualityMetricsRefsTable(db),
@@ -26623,7 +26656,8 @@ class $$ImagingSessionsTableTableManager extends RootTableManager<
                                 .where((e) => e.sessionId == item.id),
                         typedResults: items),
                   if (scienceTileMetricsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<ImagingSession,
+                            $ImagingSessionsTable, ScienceTileMetricRow>(
                         currentTable: table,
                         referencedTable: $$ImagingSessionsTableReferences
                             ._scienceTileMetricsRefsTable(db),
@@ -26635,7 +26669,8 @@ class $$ImagingSessionsTableTableManager extends RootTableManager<
                                 .where((e) => e.sessionId == item.id),
                         typedResults: items),
                   if (astrometryResidualVectorsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<ImagingSession,
+                            $ImagingSessionsTable, AstrometryResidualVectorRow>(
                         currentTable: table,
                         referencedTable: $$ImagingSessionsTableReferences
                             ._astrometryResidualVectorsRefsTable(db),
@@ -26647,7 +26682,8 @@ class $$ImagingSessionsTableTableManager extends RootTableManager<
                                 .where((e) => e.sessionId == item.id),
                         typedResults: items),
                   if (movingObjectCandidatesRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<ImagingSession,
+                            $ImagingSessionsTable, MovingObjectCandidateRow>(
                         currentTable: table,
                         referencedTable: $$ImagingSessionsTableReferences
                             ._movingObjectCandidatesRefsTable(db),
@@ -26659,7 +26695,8 @@ class $$ImagingSessionsTableTableManager extends RootTableManager<
                                 .where((e) => e.sessionId == item.id),
                         typedResults: items),
                   if (lineRatioProductsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<ImagingSession,
+                            $ImagingSessionsTable, LineRatioProductRow>(
                         currentTable: table,
                         referencedTable: $$ImagingSessionsTableReferences
                             ._lineRatioProductsRefsTable(db),
@@ -26743,10 +26780,11 @@ final class $$SequenceNodesTableReferences extends BaseReferences<
       db.sequences.createAlias(
           $_aliasNameGenerator(db.sequenceNodes.sequenceId, db.sequences.id));
 
-  $$SequencesTableProcessedTableManager? get sequenceId {
-    if ($_item.sequenceId == null) return null;
+  $$SequencesTableProcessedTableManager get sequenceId {
+    final $_column = $_itemColumn<int>('sequence_id')!;
+
     final manager = $$SequencesTableTableManager($_db, $_db.sequences)
-        .filter((f) => f.id($_item.sequenceId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_sequenceIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -26758,9 +26796,10 @@ final class $$SequenceNodesTableReferences extends BaseReferences<
           $_aliasNameGenerator(db.sequenceNodes.targetId, db.targets.id));
 
   $$TargetsTableProcessedTableManager? get targetId {
-    if ($_item.targetId == null) return null;
+    final $_column = $_itemColumn<int>('target_id');
+    if ($_column == null) return null;
     final manager = $$TargetsTableTableManager($_db, $_db.targets)
-        .filter((f) => f.id($_item.targetId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_targetIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -27187,10 +27226,11 @@ final class $$SequenceCheckpointsTableReferences extends BaseReferences<
       db.sequences.createAlias($_aliasNameGenerator(
           db.sequenceCheckpoints.sequenceId, db.sequences.id));
 
-  $$SequencesTableProcessedTableManager? get sequenceId {
-    if ($_item.sequenceId == null) return null;
+  $$SequencesTableProcessedTableManager get sequenceId {
+    final $_column = $_itemColumn<int>('sequence_id')!;
+
     final manager = $$SequencesTableTableManager($_db, $_db.sequences)
-        .filter((f) => f.id($_item.sequenceId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_sequenceIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -27566,10 +27606,11 @@ final class $$CapturedImagesTableReferences extends BaseReferences<
           db.capturedImages.sessionId, db.imagingSessions.id));
 
   $$ImagingSessionsTableProcessedTableManager? get sessionId {
-    if ($_item.sessionId == null) return null;
+    final $_column = $_itemColumn<int>('session_id');
+    if ($_column == null) return null;
     final manager =
         $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
-            .filter((f) => f.id($_item.sessionId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -27581,9 +27622,10 @@ final class $$CapturedImagesTableReferences extends BaseReferences<
           $_aliasNameGenerator(db.capturedImages.targetId, db.targets.id));
 
   $$TargetsTableProcessedTableManager? get targetId {
-    if ($_item.targetId == null) return null;
+    final $_column = $_itemColumn<int>('target_id');
+    if ($_column == null) return null;
     final manager = $$TargetsTableTableManager($_db, $_db.targets)
-        .filter((f) => f.id($_item.targetId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_targetIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -27598,7 +27640,7 @@ final class $$CapturedImagesTableReferences extends BaseReferences<
 
   $$ImageMetadataTableProcessedTableManager get imageMetadataRefs {
     final manager = $$ImageMetadataTableTableManager($_db, $_db.imageMetadata)
-        .filter((f) => f.imageId.id($_item.id));
+        .filter((f) => f.imageId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_imageMetadataRefsTable($_db));
     return ProcessedTableManager(
@@ -27616,7 +27658,8 @@ final class $$CapturedImagesTableReferences extends BaseReferences<
       get photometryMeasurementsRefs {
     final manager = $$PhotometryMeasurementsTableTableManager(
             $_db, $_db.photometryMeasurements)
-        .filter((f) => f.capturedImageId.id($_item.id));
+        .filter(
+            (f) => f.capturedImageId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_photometryMeasurementsRefsTable($_db));
@@ -27635,7 +27678,8 @@ final class $$CapturedImagesTableReferences extends BaseReferences<
       get framePhotometricCalibrationRefs {
     final manager = $$FramePhotometricCalibrationTableTableManager(
             $_db, $_db.framePhotometricCalibration)
-        .filter((f) => f.capturedImageId.id($_item.id));
+        .filter(
+            (f) => f.capturedImageId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult
         .readTableOrNull(_framePhotometricCalibrationRefsTable($_db));
@@ -27651,9 +27695,10 @@ final class $$CapturedImagesTableReferences extends BaseReferences<
               db.capturedImages.id, db.transparencySamples.capturedImageId));
 
   $$TransparencySamplesTableProcessedTableManager get transparencySamplesRefs {
-    final manager =
-        $$TransparencySamplesTableTableManager($_db, $_db.transparencySamples)
-            .filter((f) => f.capturedImageId.id($_item.id));
+    final manager = $$TransparencySamplesTableTableManager(
+            $_db, $_db.transparencySamples)
+        .filter(
+            (f) => f.capturedImageId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_transparencySamplesRefsTable($_db));
@@ -27669,7 +27714,8 @@ final class $$CapturedImagesTableReferences extends BaseReferences<
 
   $$PsfFieldTilesTableProcessedTableManager get psfFieldTilesRefs {
     final manager = $$PsfFieldTilesTableTableManager($_db, $_db.psfFieldTiles)
-        .filter((f) => f.capturedImageId.id($_item.id));
+        .filter(
+            (f) => f.capturedImageId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult.readTableOrNull(_psfFieldTilesRefsTable($_db));
     return ProcessedTableManager(
@@ -27687,7 +27733,8 @@ final class $$CapturedImagesTableReferences extends BaseReferences<
       get scienceFrameQualityMetricsRefs {
     final manager = $$ScienceFrameQualityMetricsTableTableManager(
             $_db, $_db.scienceFrameQualityMetrics)
-        .filter((f) => f.capturedImageId.id($_item.id));
+        .filter(
+            (f) => f.capturedImageId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult
         .readTableOrNull(_scienceFrameQualityMetricsRefsTable($_db));
@@ -27703,9 +27750,10 @@ final class $$CapturedImagesTableReferences extends BaseReferences<
               db.capturedImages.id, db.scienceTileMetrics.capturedImageId));
 
   $$ScienceTileMetricsTableProcessedTableManager get scienceTileMetricsRefs {
-    final manager =
-        $$ScienceTileMetricsTableTableManager($_db, $_db.scienceTileMetrics)
-            .filter((f) => f.capturedImageId.id($_item.id));
+    final manager = $$ScienceTileMetricsTableTableManager(
+            $_db, $_db.scienceTileMetrics)
+        .filter(
+            (f) => f.capturedImageId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_scienceTileMetricsRefsTable($_db));
@@ -27724,7 +27772,8 @@ final class $$CapturedImagesTableReferences extends BaseReferences<
       get astrometryResidualVectorsRefs {
     final manager = $$AstrometryResidualVectorsTableTableManager(
             $_db, $_db.astrometryResidualVectors)
-        .filter((f) => f.capturedImageId.id($_item.id));
+        .filter(
+            (f) => f.capturedImageId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache = $_typedResult
         .readTableOrNull(_astrometryResidualVectorsRefsTable($_db));
@@ -27743,7 +27792,8 @@ final class $$CapturedImagesTableReferences extends BaseReferences<
       get movingObjectCandidatesRefs {
     final manager = $$MovingObjectCandidatesTableTableManager(
             $_db, $_db.movingObjectCandidates)
-        .filter((f) => f.capturedImageId.id($_item.id));
+        .filter(
+            (f) => f.capturedImageId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_movingObjectCandidatesRefsTable($_db));
@@ -28957,7 +29007,8 @@ class $$CapturedImagesTableTableManager extends RootTableManager<
               getPrefetchedDataCallback: (items) async {
                 return [
                   if (imageMetadataRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<CapturedImage,
+                            $CapturedImagesTable, ImageMetadatum>(
                         currentTable: table,
                         referencedTable: $$CapturedImagesTableReferences
                             ._imageMetadataRefsTable(db),
@@ -28969,7 +29020,8 @@ class $$CapturedImagesTableTableManager extends RootTableManager<
                             referencedItems.where((e) => e.imageId == item.id),
                         typedResults: items),
                   if (photometryMeasurementsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<CapturedImage,
+                            $CapturedImagesTable, PhotometryMeasurementRow>(
                         currentTable: table,
                         referencedTable: $$CapturedImagesTableReferences
                             ._photometryMeasurementsRefsTable(db),
@@ -28981,7 +29033,10 @@ class $$CapturedImagesTableTableManager extends RootTableManager<
                                 .where((e) => e.capturedImageId == item.id),
                         typedResults: items),
                   if (framePhotometricCalibrationRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<
+                            CapturedImage,
+                            $CapturedImagesTable,
+                            FramePhotometricCalibrationRow>(
                         currentTable: table,
                         referencedTable: $$CapturedImagesTableReferences
                             ._framePhotometricCalibrationRefsTable(db),
@@ -28993,7 +29048,8 @@ class $$CapturedImagesTableTableManager extends RootTableManager<
                                 .where((e) => e.capturedImageId == item.id),
                         typedResults: items),
                   if (transparencySamplesRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<CapturedImage,
+                            $CapturedImagesTable, TransparencySampleRow>(
                         currentTable: table,
                         referencedTable: $$CapturedImagesTableReferences
                             ._transparencySamplesRefsTable(db),
@@ -29005,7 +29061,8 @@ class $$CapturedImagesTableTableManager extends RootTableManager<
                                 .where((e) => e.capturedImageId == item.id),
                         typedResults: items),
                   if (psfFieldTilesRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<CapturedImage,
+                            $CapturedImagesTable, PsfFieldTileRow>(
                         currentTable: table,
                         referencedTable: $$CapturedImagesTableReferences
                             ._psfFieldTilesRefsTable(db),
@@ -29017,7 +29074,10 @@ class $$CapturedImagesTableTableManager extends RootTableManager<
                                 .where((e) => e.capturedImageId == item.id),
                         typedResults: items),
                   if (scienceFrameQualityMetricsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<
+                            CapturedImage,
+                            $CapturedImagesTable,
+                            ScienceFrameQualityMetricsRow>(
                         currentTable: table,
                         referencedTable: $$CapturedImagesTableReferences
                             ._scienceFrameQualityMetricsRefsTable(db),
@@ -29029,7 +29089,8 @@ class $$CapturedImagesTableTableManager extends RootTableManager<
                                 .where((e) => e.capturedImageId == item.id),
                         typedResults: items),
                   if (scienceTileMetricsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<CapturedImage,
+                            $CapturedImagesTable, ScienceTileMetricRow>(
                         currentTable: table,
                         referencedTable: $$CapturedImagesTableReferences
                             ._scienceTileMetricsRefsTable(db),
@@ -29041,7 +29102,8 @@ class $$CapturedImagesTableTableManager extends RootTableManager<
                                 .where((e) => e.capturedImageId == item.id),
                         typedResults: items),
                   if (astrometryResidualVectorsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<CapturedImage,
+                            $CapturedImagesTable, AstrometryResidualVectorRow>(
                         currentTable: table,
                         referencedTable: $$CapturedImagesTableReferences
                             ._astrometryResidualVectorsRefsTable(db),
@@ -29053,7 +29115,8 @@ class $$CapturedImagesTableTableManager extends RootTableManager<
                                 .where((e) => e.capturedImageId == item.id),
                         typedResults: items),
                   if (movingObjectCandidatesRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<CapturedImage,
+                            $CapturedImagesTable, MovingObjectCandidateRow>(
                         currentTable: table,
                         referencedTable: $$CapturedImagesTableReferences
                             ._movingObjectCandidatesRefsTable(db),
@@ -29120,10 +29183,11 @@ final class $$ImageMetadataTableReferences extends BaseReferences<
       db.capturedImages.createAlias(
           $_aliasNameGenerator(db.imageMetadata.imageId, db.capturedImages.id));
 
-  $$CapturedImagesTableProcessedTableManager? get imageId {
-    if ($_item.imageId == null) return null;
+  $$CapturedImagesTableProcessedTableManager get imageId {
+    final $_column = $_itemColumn<int>('image_id')!;
+
     final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
-        .filter((f) => f.id($_item.imageId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_imageIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -29870,10 +29934,11 @@ final class $$FlatHistoryTableReferences extends BaseReferences<
           db.flatHistory.equipmentProfileId, db.equipmentProfiles.id));
 
   $$EquipmentProfilesTableProcessedTableManager? get equipmentProfileId {
-    if ($_item.equipmentProfileId == null) return null;
+    final $_column = $_itemColumn<int>('equipment_profile_id');
+    if ($_column == null) return null;
     final manager =
         $$EquipmentProfilesTableTableManager($_db, $_db.equipmentProfiles)
-            .filter((f) => f.id($_item.equipmentProfileId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_equipmentProfileIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -30461,10 +30526,11 @@ final class $$PolarAlignmentHistoryTableReferences extends BaseReferences<
           db.equipmentProfiles.id));
 
   $$EquipmentProfilesTableProcessedTableManager? get equipmentProfileId {
-    if ($_item.equipmentProfileId == null) return null;
+    final $_column = $_itemColumn<int>('equipment_profile_id');
+    if ($_column == null) return null;
     final manager =
         $$EquipmentProfilesTableTableManager($_db, $_db.equipmentProfiles)
-            .filter((f) => f.id($_item.equipmentProfileId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_equipmentProfileIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -30873,10 +30939,11 @@ final class $$ScienceSessionConfigTableReferences extends BaseReferences<
           db.scienceSessionConfig.sessionId, db.imagingSessions.id));
 
   $$ImagingSessionsTableProcessedTableManager? get sessionId {
-    if ($_item.sessionId == null) return null;
+    final $_column = $_itemColumn<int>('session_id');
+    if ($_column == null) return null;
     final manager =
         $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
-            .filter((f) => f.id($_item.sessionId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -31300,9 +31367,10 @@ final class $$PhotometryMeasurementsTableReferences extends BaseReferences<
           db.photometryMeasurements.capturedImageId, db.capturedImages.id));
 
   $$CapturedImagesTableProcessedTableManager? get capturedImageId {
-    if ($_item.capturedImageId == null) return null;
+    final $_column = $_itemColumn<int>('captured_image_id');
+    if ($_column == null) return null;
     final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
-        .filter((f) => f.id($_item.capturedImageId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_capturedImageIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -31314,10 +31382,11 @@ final class $$PhotometryMeasurementsTableReferences extends BaseReferences<
           db.photometryMeasurements.sessionId, db.imagingSessions.id));
 
   $$ImagingSessionsTableProcessedTableManager? get sessionId {
-    if ($_item.sessionId == null) return null;
+    final $_column = $_itemColumn<int>('session_id');
+    if ($_column == null) return null;
     final manager =
         $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
-            .filter((f) => f.id($_item.sessionId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -31791,9 +31860,10 @@ final class $$FramePhotometricCalibrationTableReferences extends BaseReferences<
           db.capturedImages.id));
 
   $$CapturedImagesTableProcessedTableManager? get capturedImageId {
-    if ($_item.capturedImageId == null) return null;
+    final $_column = $_itemColumn<int>('captured_image_id');
+    if ($_column == null) return null;
     final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
-        .filter((f) => f.id($_item.capturedImageId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_capturedImageIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -31805,10 +31875,11 @@ final class $$FramePhotometricCalibrationTableReferences extends BaseReferences<
           db.framePhotometricCalibration.sessionId, db.imagingSessions.id));
 
   $$ImagingSessionsTableProcessedTableManager? get sessionId {
-    if ($_item.sessionId == null) return null;
+    final $_column = $_itemColumn<int>('session_id');
+    if ($_column == null) return null;
     final manager =
         $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
-            .filter((f) => f.id($_item.sessionId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -32261,9 +32332,10 @@ final class $$TransparencySamplesTableReferences extends BaseReferences<
           db.transparencySamples.capturedImageId, db.capturedImages.id));
 
   $$CapturedImagesTableProcessedTableManager? get capturedImageId {
-    if ($_item.capturedImageId == null) return null;
+    final $_column = $_itemColumn<int>('captured_image_id');
+    if ($_column == null) return null;
     final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
-        .filter((f) => f.id($_item.capturedImageId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_capturedImageIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -32275,10 +32347,11 @@ final class $$TransparencySamplesTableReferences extends BaseReferences<
           db.transparencySamples.sessionId, db.imagingSessions.id));
 
   $$ImagingSessionsTableProcessedTableManager? get sessionId {
-    if ($_item.sessionId == null) return null;
+    final $_column = $_itemColumn<int>('session_id');
+    if ($_column == null) return null;
     final manager =
         $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
-            .filter((f) => f.id($_item.sessionId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -32668,9 +32741,10 @@ final class $$PsfFieldTilesTableReferences extends BaseReferences<
           db.psfFieldTiles.capturedImageId, db.capturedImages.id));
 
   $$CapturedImagesTableProcessedTableManager? get capturedImageId {
-    if ($_item.capturedImageId == null) return null;
+    final $_column = $_itemColumn<int>('captured_image_id');
+    if ($_column == null) return null;
     final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
-        .filter((f) => f.id($_item.capturedImageId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_capturedImageIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -32682,10 +32756,11 @@ final class $$PsfFieldTilesTableReferences extends BaseReferences<
           db.psfFieldTiles.sessionId, db.imagingSessions.id));
 
   $$ImagingSessionsTableProcessedTableManager? get sessionId {
-    if ($_item.sessionId == null) return null;
+    final $_column = $_itemColumn<int>('session_id');
+    if ($_column == null) return null;
     final manager =
         $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
-            .filter((f) => f.id($_item.sessionId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -33126,9 +33201,10 @@ final class $$ScienceFrameQualityMetricsTableReferences extends BaseReferences<
           db.scienceFrameQualityMetrics.capturedImageId, db.capturedImages.id));
 
   $$CapturedImagesTableProcessedTableManager? get capturedImageId {
-    if ($_item.capturedImageId == null) return null;
+    final $_column = $_itemColumn<int>('captured_image_id');
+    if ($_column == null) return null;
     final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
-        .filter((f) => f.id($_item.capturedImageId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_capturedImageIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -33140,10 +33216,11 @@ final class $$ScienceFrameQualityMetricsTableReferences extends BaseReferences<
           db.scienceFrameQualityMetrics.sessionId, db.imagingSessions.id));
 
   $$ImagingSessionsTableProcessedTableManager? get sessionId {
-    if ($_item.sessionId == null) return null;
+    final $_column = $_itemColumn<int>('session_id');
+    if ($_column == null) return null;
     final manager =
         $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
-            .filter((f) => f.id($_item.sessionId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -33695,9 +33772,10 @@ final class $$ScienceTileMetricsTableReferences extends BaseReferences<
           db.scienceTileMetrics.capturedImageId, db.capturedImages.id));
 
   $$CapturedImagesTableProcessedTableManager? get capturedImageId {
-    if ($_item.capturedImageId == null) return null;
+    final $_column = $_itemColumn<int>('captured_image_id');
+    if ($_column == null) return null;
     final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
-        .filter((f) => f.id($_item.capturedImageId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_capturedImageIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -33709,10 +33787,11 @@ final class $$ScienceTileMetricsTableReferences extends BaseReferences<
           db.scienceTileMetrics.sessionId, db.imagingSessions.id));
 
   $$ImagingSessionsTableProcessedTableManager? get sessionId {
-    if ($_item.sessionId == null) return null;
+    final $_column = $_itemColumn<int>('session_id');
+    if ($_column == null) return null;
     final manager =
         $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
-            .filter((f) => f.id($_item.sessionId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -34161,9 +34240,10 @@ final class $$AstrometryResidualVectorsTableReferences extends BaseReferences<
           db.astrometryResidualVectors.capturedImageId, db.capturedImages.id));
 
   $$CapturedImagesTableProcessedTableManager? get capturedImageId {
-    if ($_item.capturedImageId == null) return null;
+    final $_column = $_itemColumn<int>('captured_image_id');
+    if ($_column == null) return null;
     final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
-        .filter((f) => f.id($_item.capturedImageId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_capturedImageIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -34175,10 +34255,11 @@ final class $$AstrometryResidualVectorsTableReferences extends BaseReferences<
           db.astrometryResidualVectors.sessionId, db.imagingSessions.id));
 
   $$ImagingSessionsTableProcessedTableManager? get sessionId {
-    if ($_item.sessionId == null) return null;
+    final $_column = $_itemColumn<int>('session_id');
+    if ($_column == null) return null;
     final manager =
         $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
-            .filter((f) => f.id($_item.sessionId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -34604,9 +34685,10 @@ final class $$MovingObjectCandidatesTableReferences extends BaseReferences<
           db.movingObjectCandidates.capturedImageId, db.capturedImages.id));
 
   $$CapturedImagesTableProcessedTableManager? get capturedImageId {
-    if ($_item.capturedImageId == null) return null;
+    final $_column = $_itemColumn<int>('captured_image_id');
+    if ($_column == null) return null;
     final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
-        .filter((f) => f.id($_item.capturedImageId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_capturedImageIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -34618,10 +34700,11 @@ final class $$MovingObjectCandidatesTableReferences extends BaseReferences<
           db.movingObjectCandidates.sessionId, db.imagingSessions.id));
 
   $$ImagingSessionsTableProcessedTableManager? get sessionId {
-    if ($_item.sessionId == null) return null;
+    final $_column = $_itemColumn<int>('session_id');
+    if ($_column == null) return null;
     final manager =
         $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
-            .filter((f) => f.id($_item.sessionId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -35078,10 +35161,11 @@ final class $$LineRatioProductsTableReferences extends BaseReferences<
           db.lineRatioProducts.sessionId, db.imagingSessions.id));
 
   $$ImagingSessionsTableProcessedTableManager? get sessionId {
-    if ($_item.sessionId == null) return null;
+    final $_column = $_itemColumn<int>('session_id');
+    if ($_column == null) return null;
     final manager =
         $$ImagingSessionsTableTableManager($_db, $_db.imagingSessions)
-            .filter((f) => f.id($_item.sessionId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_sessionIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -35093,9 +35177,10 @@ final class $$LineRatioProductsTableReferences extends BaseReferences<
           db.lineRatioProducts.hAlphaImageId, db.capturedImages.id));
 
   $$CapturedImagesTableProcessedTableManager? get hAlphaImageId {
-    if ($_item.hAlphaImageId == null) return null;
+    final $_column = $_itemColumn<int>('h_alpha_image_id');
+    if ($_column == null) return null;
     final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
-        .filter((f) => f.id($_item.hAlphaImageId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_hAlphaImageIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -35107,9 +35192,10 @@ final class $$LineRatioProductsTableReferences extends BaseReferences<
           db.lineRatioProducts.oiiiImageId, db.capturedImages.id));
 
   $$CapturedImagesTableProcessedTableManager? get oiiiImageId {
-    if ($_item.oiiiImageId == null) return null;
+    final $_column = $_itemColumn<int>('oiii_image_id');
+    if ($_column == null) return null;
     final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
-        .filter((f) => f.id($_item.oiiiImageId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_oiiiImageIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -35121,9 +35207,10 @@ final class $$LineRatioProductsTableReferences extends BaseReferences<
           db.lineRatioProducts.siiImageId, db.capturedImages.id));
 
   $$CapturedImagesTableProcessedTableManager? get siiImageId {
-    if ($_item.siiImageId == null) return null;
+    final $_column = $_itemColumn<int>('sii_image_id');
+    if ($_column == null) return null;
     final manager = $$CapturedImagesTableTableManager($_db, $_db.capturedImages)
-        .filter((f) => f.id($_item.siiImageId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_siiImageIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -35686,10 +35773,11 @@ final class $$PhotometricTransformsTableReferences extends BaseReferences<
           db.equipmentProfiles.id));
 
   $$EquipmentProfilesTableProcessedTableManager? get equipmentProfileId {
-    if ($_item.equipmentProfileId == null) return null;
+    final $_column = $_itemColumn<int>('equipment_profile_id');
+    if ($_column == null) return null;
     final manager =
         $$EquipmentProfilesTableTableManager($_db, $_db.equipmentProfiles)
-            .filter((f) => f.id($_item.equipmentProfileId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_equipmentProfileIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -36380,10 +36468,11 @@ final class $$ObservationLogsTableReferences extends BaseReferences<
           db.observationLogs.equipmentProfileId, db.equipmentProfiles.id));
 
   $$EquipmentProfilesTableProcessedTableManager? get equipmentProfileId {
-    if ($_item.equipmentProfileId == null) return null;
+    final $_column = $_itemColumn<int>('equipment_profile_id');
+    if ($_column == null) return null;
     final manager =
         $$EquipmentProfilesTableTableManager($_db, $_db.equipmentProfiles)
-            .filter((f) => f.id($_item.equipmentProfileId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_equipmentProfileIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -36819,7 +36908,7 @@ final class $$ObservingListsTableReferences extends BaseReferences<
   $$ObservingListItemsTableProcessedTableManager get observingListItemsRefs {
     final manager =
         $$ObservingListItemsTableTableManager($_db, $_db.observingListItems)
-            .filter((f) => f.listId.id($_item.id));
+            .filter((f) => f.listId.id.sqlEquals($_itemColumn<int>('id')!));
 
     final cache =
         $_typedResult.readTableOrNull(_observingListItemsRefsTable($_db));
@@ -37026,7 +37115,8 @@ class $$ObservingListsTableTableManager extends RootTableManager<
               getPrefetchedDataCallback: (items) async {
                 return [
                   if (observingListItemsRefs)
-                    await $_getPrefetchedData(
+                    await $_getPrefetchedData<ObservingList,
+                            $ObservingListsTable, ObservingListItem>(
                         currentTable: table,
                         referencedTable: $$ObservingListsTableReferences
                             ._observingListItemsRefsTable(db),
@@ -37096,10 +37186,11 @@ final class $$ObservingListItemsTableReferences extends BaseReferences<
       db.observingLists.createAlias($_aliasNameGenerator(
           db.observingListItems.listId, db.observingLists.id));
 
-  $$ObservingListsTableProcessedTableManager? get listId {
-    if ($_item.listId == null) return null;
+  $$ObservingListsTableProcessedTableManager get listId {
+    final $_column = $_itemColumn<int>('list_id')!;
+
     final manager = $$ObservingListsTableTableManager($_db, $_db.observingLists)
-        .filter((f) => f.id($_item.listId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_listIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -37462,9 +37553,10 @@ final class $$SequenceRunsTableReferences extends BaseReferences<
           $_aliasNameGenerator(db.sequenceRuns.sequenceId, db.sequences.id));
 
   $$SequencesTableProcessedTableManager? get sequenceId {
-    if ($_item.sequenceId == null) return null;
+    final $_column = $_itemColumn<int>('sequence_id');
+    if ($_column == null) return null;
     final manager = $$SequencesTableTableManager($_db, $_db.sequences)
-        .filter((f) => f.id($_item.sequenceId!));
+        .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_sequenceIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(
@@ -38017,10 +38109,11 @@ final class $$FocusModelsTableReferences extends BaseReferences<
           db.focusModels.equipmentProfileId, db.equipmentProfiles.id));
 
   $$EquipmentProfilesTableProcessedTableManager? get equipmentProfileId {
-    if ($_item.equipmentProfileId == null) return null;
+    final $_column = $_itemColumn<int>('equipment_profile_id');
+    if ($_column == null) return null;
     final manager =
         $$EquipmentProfilesTableTableManager($_db, $_db.equipmentProfiles)
-            .filter((f) => f.id($_item.equipmentProfileId!));
+            .filter((f) => f.id.sqlEquals($_column));
     final item = $_typedResult.readTableOrNull(_equipmentProfileIdTable($_db));
     if (item == null) return manager;
     return ProcessedTableManager(

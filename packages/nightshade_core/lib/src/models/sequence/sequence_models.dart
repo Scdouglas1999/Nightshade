@@ -109,7 +109,7 @@ enum LoopConditionType {
 /// These values represent typical real-world durations for each operation
 /// beyond the raw integration time.
 @freezed
-class SequenceOverheadConfig with _$SequenceOverheadConfig {
+abstract class SequenceOverheadConfig with _$SequenceOverheadConfig {
   const factory SequenceOverheadConfig({
     /// Time for a slew operation (seconds)
     @Default(30.0) double slewSecs,
@@ -151,7 +151,7 @@ class SequenceOverheadConfig with _$SequenceOverheadConfig {
 
 /// Result of sequence integration time estimation
 @freezed
-class SequenceEstimate with _$SequenceEstimate {
+abstract class SequenceEstimate with _$SequenceEstimate {
   const SequenceEstimate._();
 
   const factory SequenceEstimate({
@@ -366,7 +366,7 @@ enum NodeCategory { instruction, trigger, logic, target }
 
 /// Information about a mosaic panel for multi-panel imaging
 @Freezed(fromJson: true, toJson: true)
-class MosaicPanelInfo with _$MosaicPanelInfo {
+abstract class MosaicPanelInfo with _$MosaicPanelInfo {
   const MosaicPanelInfo._();
 
   @JsonSerializable(fieldRename: FieldRename.snake)

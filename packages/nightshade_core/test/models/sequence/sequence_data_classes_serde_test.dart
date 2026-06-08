@@ -991,6 +991,12 @@ void main() {
         durationSecs: 60.0,
         count: 10,
       );
+      // Fixed timestamps so two makeSequence() instances compare equal.
+      // Sequence.create defaults createdAt/modifiedAt to DateTime.now(); on a
+      // fine-resolution (microsecond) clock two calls produce different
+      // timestamps and break value equality. A coarse (millisecond) clock
+      // masked this, so it only surfaced on Linux.
+      final fixedTs = DateTime.utc(2026, 1, 1);
       return Sequence.create(
         id: 'seq1',
         name: 'Test sequence',
@@ -999,6 +1005,8 @@ void main() {
           exposure.id: exposure.copyWith(parentId: target.id),
         },
         rootNodeId: target.id,
+        createdAt: fixedTs,
+        modifiedAt: fixedTs,
       );
     }
 

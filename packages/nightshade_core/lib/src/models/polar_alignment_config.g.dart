@@ -6,9 +6,9 @@ part of 'polar_alignment_config.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$PolarAlignmentConfigImpl _$$PolarAlignmentConfigImplFromJson(
+_PolarAlignmentConfig _$PolarAlignmentConfigFromJson(
         Map<String, dynamic> json) =>
-    _$PolarAlignmentConfigImpl(
+    _PolarAlignmentConfig(
       exposureTime: (json['exposureTime'] as num?)?.toDouble() ?? 5.0,
       stepSize: (json['stepSize'] as num?)?.toDouble() ?? 15.0,
       binning: (json['binning'] as num?)?.toInt() ?? 2,
@@ -23,8 +23,8 @@ _$PolarAlignmentConfigImpl _$$PolarAlignmentConfigImplFromJson(
       offset: (json['offset'] as num?)?.toInt(),
     );
 
-Map<String, dynamic> _$$PolarAlignmentConfigImplToJson(
-        _$PolarAlignmentConfigImpl instance) =>
+Map<String, dynamic> _$PolarAlignmentConfigToJson(
+        _PolarAlignmentConfig instance) =>
     <String, dynamic>{
       'exposureTime': instance.exposureTime,
       'stepSize': instance.stepSize,
@@ -39,9 +39,8 @@ Map<String, dynamic> _$$PolarAlignmentConfigImplToJson(
       'offset': instance.offset,
     };
 
-_$PolarAlignmentErrorImpl _$$PolarAlignmentErrorImplFromJson(
-        Map<String, dynamic> json) =>
-    _$PolarAlignmentErrorImpl(
+_PolarAlignmentError _$PolarAlignmentErrorFromJson(Map<String, dynamic> json) =>
+    _PolarAlignmentError(
       azimuthError: (json['azimuthError'] as num).toDouble(),
       altitudeError: (json['altitudeError'] as num).toDouble(),
       totalError: (json['totalError'] as num).toDouble(),
@@ -52,8 +51,8 @@ _$PolarAlignmentErrorImpl _$$PolarAlignmentErrorImplFromJson(
       timestamp: DateTime.parse(json['timestamp'] as String),
     );
 
-Map<String, dynamic> _$$PolarAlignmentErrorImplToJson(
-        _$PolarAlignmentErrorImpl instance) =>
+Map<String, dynamic> _$PolarAlignmentErrorToJson(
+        _PolarAlignmentError instance) =>
     <String, dynamic>{
       'azimuthError': instance.azimuthError,
       'altitudeError': instance.altitudeError,
@@ -65,9 +64,8 @@ Map<String, dynamic> _$$PolarAlignmentErrorImplToJson(
       'timestamp': instance.timestamp.toIso8601String(),
     };
 
-_$PolarAlignmentStateImpl _$$PolarAlignmentStateImplFromJson(
-        Map<String, dynamic> json) =>
-    _$PolarAlignmentStateImpl(
+_PolarAlignmentState _$PolarAlignmentStateFromJson(Map<String, dynamic> json) =>
+    _PolarAlignmentState(
       phase: $enumDecodeNullable(_$PolarAlignPhaseEnumMap, json['phase']) ??
           PolarAlignPhase.idle,
       currentPoint: (json['currentPoint'] as num?)?.toInt() ?? 0,
@@ -97,8 +95,8 @@ _$PolarAlignmentStateImpl _$$PolarAlignmentStateImplFromJson(
           : DateTime.parse(json['startedAt'] as String),
     );
 
-Map<String, dynamic> _$$PolarAlignmentStateImplToJson(
-        _$PolarAlignmentStateImpl instance) =>
+Map<String, dynamic> _$PolarAlignmentStateToJson(
+        _PolarAlignmentState instance) =>
     <String, dynamic>{
       'phase': _$PolarAlignPhaseEnumMap[instance.phase]!,
       'currentPoint': instance.currentPoint,
@@ -124,9 +122,9 @@ const _$PolarAlignPhaseEnumMap = {
   PolarAlignPhase.error: 'error',
 };
 
-_$PolarAlignmentResultImpl _$$PolarAlignmentResultImplFromJson(
+_PolarAlignmentResult _$PolarAlignmentResultFromJson(
         Map<String, dynamic> json) =>
-    _$PolarAlignmentResultImpl(
+    _PolarAlignmentResult(
       initialError: PolarAlignmentError.fromJson(
           json['initialError'] as Map<String, dynamic>),
       finalError: PolarAlignmentError.fromJson(
@@ -139,8 +137,8 @@ _$PolarAlignmentResultImpl _$$PolarAlignmentResultImplFromJson(
       equipmentProfileId: (json['equipmentProfileId'] as num?)?.toInt(),
     );
 
-Map<String, dynamic> _$$PolarAlignmentResultImplToJson(
-        _$PolarAlignmentResultImpl instance) =>
+Map<String, dynamic> _$PolarAlignmentResultToJson(
+        _PolarAlignmentResult instance) =>
     <String, dynamic>{
       'initialError': instance.initialError,
       'finalError': instance.finalError,

@@ -6,23 +6,22 @@ part of 'update_manifest.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
-_$UpdateFileInfoImpl _$$UpdateFileInfoImplFromJson(Map<String, dynamic> json) =>
-    _$UpdateFileInfoImpl(
+_UpdateFileInfo _$UpdateFileInfoFromJson(Map<String, dynamic> json) =>
+    _UpdateFileInfo(
       path: json['path'] as String,
       size: (json['size'] as num).toInt(),
       sha256: json['sha256'] as String,
     );
 
-Map<String, dynamic> _$$UpdateFileInfoImplToJson(
-        _$UpdateFileInfoImpl instance) =>
+Map<String, dynamic> _$UpdateFileInfoToJson(_UpdateFileInfo instance) =>
     <String, dynamic>{
       'path': instance.path,
       'size': instance.size,
       'sha256': instance.sha256,
     };
 
-_$UpdateManifestImpl _$$UpdateManifestImplFromJson(Map<String, dynamic> json) =>
-    _$UpdateManifestImpl(
+_UpdateManifest _$UpdateManifestFromJson(Map<String, dynamic> json) =>
+    _UpdateManifest(
       version: json['version'] as String,
       buildNumber: (json['buildNumber'] as num).toInt(),
       releaseDate: DateTime.parse(json['releaseDate'] as String),
@@ -41,8 +40,7 @@ _$UpdateManifestImpl _$$UpdateManifestImplFromJson(Map<String, dynamic> json) =>
       signature: json['signature'] as String?,
     );
 
-Map<String, dynamic> _$$UpdateManifestImplToJson(
-        _$UpdateManifestImpl instance) =>
+Map<String, dynamic> _$UpdateManifestToJson(_UpdateManifest instance) =>
     <String, dynamic>{
       'version': instance.version,
       'buildNumber': instance.buildNumber,
@@ -59,8 +57,7 @@ Map<String, dynamic> _$$UpdateManifestImplToJson(
       'signature': instance.signature,
     };
 
-_$VersionInfoImpl _$$VersionInfoImplFromJson(Map<String, dynamic> json) =>
-    _$VersionInfoImpl(
+_VersionInfo _$VersionInfoFromJson(Map<String, dynamic> json) => _VersionInfo(
       latestVersion: json['latestVersion'] as String,
       latestBuildNumber: (json['latestBuildNumber'] as num).toInt(),
       channels: (json['channels'] as Map<String, dynamic>).map(
@@ -70,7 +67,7 @@ _$VersionInfoImpl _$$VersionInfoImplFromJson(Map<String, dynamic> json) =>
       serverVersion: json['serverVersion'] as String?,
     );
 
-Map<String, dynamic> _$$VersionInfoImplToJson(_$VersionInfoImpl instance) =>
+Map<String, dynamic> _$VersionInfoToJson(_VersionInfo instance) =>
     <String, dynamic>{
       'latestVersion': instance.latestVersion,
       'latestBuildNumber': instance.latestBuildNumber,
@@ -79,13 +76,12 @@ Map<String, dynamic> _$$VersionInfoImplToJson(_$VersionInfoImpl instance) =>
       'serverVersion': instance.serverVersion,
     };
 
-_$ChannelInfoImpl _$$ChannelInfoImplFromJson(Map<String, dynamic> json) =>
-    _$ChannelInfoImpl(
+_ChannelInfo _$ChannelInfoFromJson(Map<String, dynamic> json) => _ChannelInfo(
       version: json['version'] as String,
       manifestUrl: json['manifestUrl'] as String,
     );
 
-Map<String, dynamic> _$$ChannelInfoImplToJson(_$ChannelInfoImpl instance) =>
+Map<String, dynamic> _$ChannelInfoToJson(_ChannelInfo instance) =>
     <String, dynamic>{
       'version': instance.version,
       'manifestUrl': instance.manifestUrl,

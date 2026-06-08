@@ -1,21 +1,22 @@
-# melos_managed_dependency_overrides: nightshade_desktop
-# melos_managed_dependency_overrides: nightshade_app,nightshade_bridge,nightshade_core,nightshade_planetarium,nightshade_plugins,nightshade_ui,nightshade_remote_protocol,nightshade_updater
+# melos_managed_dependency_overrides: nightshade_app,nightshade_bridge,nightshade_core,nightshade_desktop,nightshade_planetarium,nightshade_plugins,nightshade_remote_protocol,nightshade_ui,nightshade_updater,lucide_icons
 dependency_overrides:
+  lucide_icons:
+    path: ../../third_party/lucide_icons
   nightshade_app:
     path: ../../packages/nightshade_app
   nightshade_bridge:
     path: ../../packages/nightshade_bridge
   nightshade_core:
     path: ../../packages/nightshade_core
+  nightshade_desktop:
+    path: ../desktop
   nightshade_planetarium:
     path: ../../packages/nightshade_planetarium
   nightshade_plugins:
     path: ../../packages/nightshade_plugins
+  nightshade_remote_protocol:
+    path: ../../packages/nightshade_remote_protocol
   nightshade_ui:
     path: ../../packages/nightshade_ui
   nightshade_updater:
     path: ../../packages/nightshade_updater
-  nightshade_remote_protocol:
-    path: ../../packages/nightshade_remote_protocol
-  nightshade_desktop:
-    path: ..\\desktop

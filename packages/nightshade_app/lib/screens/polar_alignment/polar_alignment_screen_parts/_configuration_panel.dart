@@ -150,7 +150,9 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
     final ui = ref.watch(polarAlignmentUiStateProvider);
     final uiNotifier = ref.read(polarAlignmentUiStateProvider.notifier);
 
-    return Theme(
+    return Material(
+      type: MaterialType.transparency,
+      child: Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
         tilePadding: EdgeInsets.zero,
@@ -236,6 +238,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
           ),
         ],
       ),
+      ),
     );
   }
 
@@ -248,7 +251,9 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
     final ui = ref.watch(polarAlignmentUiStateProvider);
     final uiNotifier = ref.read(polarAlignmentUiStateProvider.notifier);
 
-    return Theme(
+    return Material(
+      type: MaterialType.transparency,
+      child: Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
         tilePadding: EdgeInsets.zero,
@@ -357,6 +362,7 @@ extension _ConfigurationPanel on _PolarAlignmentScreenState {
             ),
           ),
         ],
+      ),
       ),
     );
   }
