@@ -33,6 +33,7 @@ export 'routes/log_routes.dart';
 export 'routes/mosaic_routes.dart';
 export 'routes/pairing_routes.dart';
 export 'routes/planetarium_routes.dart';
+export 'routes/push_routes.dart';
 export 'routes/plugin_routes.dart';
 export 'routes/profile_routes.dart';
 export 'routes/run_watch_routes.dart';

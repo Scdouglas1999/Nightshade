@@ -299,3 +299,13 @@ dist-release/
 
 # Workflow scratch build-briefs (not source)
 .briefs/
+
+# Phase D — cellular push operator secrets (never committed). The FCM
+# service-account JSON and the APNs .p8 auth key are referenced by path from
+# push_config.json; keep all three out of git. The throwaway test-key
+# fixtures under test/push/fixtures/ are explicitly re-included below.
+push_config.json
+*.p8
+*service-account*.json
+!**/test/push/fixtures/*.p8
+!**/test/push/fixtures/*.pem

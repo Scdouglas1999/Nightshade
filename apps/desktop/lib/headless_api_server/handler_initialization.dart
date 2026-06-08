@@ -57,6 +57,13 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
       pairingPrintCodes: pairingPrintCodes,
       logger: container.read(loggingServiceProvider),
     );
+    // Phase D — push token/preference endpoints. Reuses `_ensurePairingService`
+    // so the `device_push_tokens` / `device_push_prefs` tables live in the same
+    // Drift DB as the paired-device rows they reference.
+    _pushHandlers = PushHandlers(
+      ensurePairingService: _ensurePairingService,
+      logger: container.read(loggingServiceProvider),
+    );
     _systemHandlers = SystemHandlers(
       container: container,
       view: SystemServerView(

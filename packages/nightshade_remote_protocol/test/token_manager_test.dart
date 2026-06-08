@@ -23,6 +23,13 @@ void main() {
     setUp(() {
       mockDb = MockPairingDatabase();
       tokenManager = TokenManager(mockDb);
+      // The expiry/revoke sweep deletes each affected device's push rows so a
+      // deauthorized phone stops receiving cellular criticals. Stub these as
+      // no-ops by default; the dedicated sweep test verifies the call count.
+      when(() => mockDb.deletePushTokensForDevice(any()))
+          .thenAnswer((_) async {});
+      when(() => mockDb.deletePushPrefsForDevice(any()))
+          .thenAnswer((_) async {});
     });
 
     group('generateSecureToken', () {

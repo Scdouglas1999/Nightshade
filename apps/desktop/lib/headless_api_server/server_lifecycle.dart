@@ -17,6 +17,8 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     final allRoutes = <HeadlessRoute>[
       ...buildSystemRoutes(_systemHandlers),
       ...buildPairingRoutes(_pairingHandlers),
+      // Phase D — authenticated cellular-push token + preference routes.
+      ...buildPushRoutes(_pushHandlers),
       ...buildAuthRoutes(_authHandlers),
       ...buildCollaborationRoutes(_collaborationHandlers),
       ...buildDeviceDiscoveryRoutes(_deviceDiscoveryHandlers),

@@ -424,6 +424,36 @@ class _ApiServerLifecycle {
           fields: {'error': '$e'},
         );
       }
+
+      // Phase D — wire cellular (FCM/APNs) remote push delivery. Reads
+      // push_config.json from the app-support dir (or NIGHTSHADE_PUSH_CONFIG):
+      // the real FCM/APNs senders activate when the operator has supplied a
+      // service-account JSON / .p8 key, otherwise the no-cloud mock delivery is
+      // the default. The mock exercises the full recipient lookup
+      // (device_push_tokens) + per-device preference gate (device_push_prefs)
+      // and logs each "would-send" frame, so the whole pipeline is live and
+      // testable before any cloud account exists.
+      try {
+        final appSupportDir = await getApplicationSupportDirectory();
+        final delivery = await nextServer.wireRemotePushDelivery(
+          appSupportDir: appSupportDir.path,
+          log: (message) => logger.info(message, source: _logSource),
+        );
+        logger.info(
+          delivery is MockRemotePushDelivery
+              ? 'Cellular push delivery wired (mock — no cloud credentials)'
+              : delivery == null
+                  ? 'Cellular push delivery not wired (no channel configured)'
+                  : 'Cellular push delivery wired (cloud channel configured)',
+          source: _logSource,
+        );
+      } catch (e) {
+        logger.warning(
+          'Cellular push delivery failed to wire',
+          source: _logSource,
+          fields: {'error': '$e'},
+        );
+      }
     } catch (e) {
       logger.error(
         'Remote access failed to start',

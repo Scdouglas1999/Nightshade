@@ -352,6 +352,12 @@ class TokenManager {
       } else if (!row.isActive) {
         revoked.add(row.sessionToken);
       }
+      // A deauthorized phone must stop receiving cellular criticals. Delete
+      // the device's push token + prefs rows regardless of expired-vs-revoked
+      // (the expired `paired_devices` row is hard-deleted below; the revoked
+      // one is retained for audit but its push rows are not). Idempotent.
+      await _database.deletePushTokensForDevice(row.deviceId);
+      await _database.deletePushPrefsForDevice(row.deviceId);
     }
     // Hard-delete expired rows so the table does not grow without bound.
     // Revoked rows are intentionally kept for audit (the operator may want

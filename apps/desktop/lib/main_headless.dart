@@ -713,6 +713,36 @@ Future<HeadlessApiServer> _startHeadlessServices(
     );
   }
 
+  // Phase D — wire cellular (FCM/APNs) remote push delivery. Wired regardless
+  // of the LAN-bind state because the cellular path reaches a phone hours from
+  // the rig even when the server is loopback-only behind a reverse proxy. The
+  // delivery is chosen from push_config.json (app-support dir, or the
+  // NIGHTSHADE_PUSH_CONFIG override): the real FCM/APNs senders activate when
+  // the operator supplies a service-account JSON / .p8 key, otherwise the
+  // no-cloud mock delivery is the default. The mock exercises the full
+  // recipient lookup (device_push_tokens) + per-device preference gate
+  // (device_push_prefs) and logs each "would-send" frame.
+  try {
+    final pushAppSupportDir = await getApplicationSupportDirectory();
+    final delivery = await apiServer.wireRemotePushDelivery(
+      appSupportDir: pushAppSupportDir.path,
+      log: (message) => logger.info(message, source: _headlessLogSource),
+    );
+    logger.info(
+      delivery is MockRemotePushDelivery
+          ? 'Cellular push delivery wired (mock — no cloud credentials)'
+          : delivery == null
+              ? 'Cellular push delivery not wired (no channel configured)'
+              : 'Cellular push delivery wired (cloud channel configured)',
+      source: _headlessLogSource,
+    );
+  } catch (e, st) {
+    logger.warning(
+      'Cellular push delivery failed to wire: $e\n$st',
+      source: _headlessLogSource,
+    );
+  }
+
   try {
     final interfaces = await NetworkInterface.list();
     String? localIp;

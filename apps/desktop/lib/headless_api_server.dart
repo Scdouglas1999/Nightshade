@@ -31,6 +31,7 @@ import 'headless_api/auth_policy.dart';
 import 'headless_api/command_correlator.dart';
 import 'headless_api/event_replay_buffer.dart';
 import 'headless_api/handlers.dart';
+import 'headless_api/push/database_push_token_store.dart';
 import 'headless_api/routes.dart';
 import 'headless_api/job_manager.dart';
 import 'headless_api/request_context.dart' as ctx;
@@ -252,6 +253,10 @@ class HeadlessApiServer {
   late final StaticFileHandlers _staticFileHandlers;
   late final AuthHandlers _authHandlers;
   late final PairingHandlers _pairingHandlers;
+  // Phase D — cellular-push token + preference endpoints. Shares the pairing
+  // PairingService/DB via `_ensurePairingService` so push tokens live next to
+  // the paired-device rows they belong to.
+  late final PushHandlers _pushHandlers;
   late final SystemHandlers _systemHandlers;
   late final GuidingHandlers _guidingHandlers;
   late final SequencerHandlers _sequencerHandlers;
@@ -619,6 +624,71 @@ class HeadlessApiServer {
 
   void setRemotePushDelivery(RemotePushDelivery? delivery) =>
       _setRemotePushDelivery(delivery);
+
+  /// A [PushTokenStore] over this server's pairing DB — the recipient list the
+  /// FCM/APNs/mock deliveries enumerate. Lazily constructs the
+  /// [PairingService] (and thus opens the Drift DB) on first call, so only
+  /// deployments that actually wire cellular push pay the DB-open cost.
+  PushTokenStore get pushTokenStore =>
+      DatabasePushTokenStore(_ensurePairingService().database);
+
+  /// Phase D — wire the no-cloud [MockRemotePushDelivery] as the active remote
+  /// delivery. Every critical push that reaches the cellular tap is then
+  /// enumerated against the registered tokens (filtered by per-device prefs)
+  /// and recorded into the mock's `delivered` list / logged as "would-send".
+  ///
+  /// This is the default Phase-D path: the operator gets a fully exercised
+  /// fan-out (recipient lookup + preference gate) with zero Firebase/Apple
+  /// accounts. Swap in the real FCM/APNs deliveries (sharing this same
+  /// [pushTokenStore]) once credentials exist.
+  MockRemotePushDelivery wireMockRemotePushDelivery({
+    void Function(String message)? log,
+  }) {
+    final mock = MockRemotePushDelivery(store: pushTokenStore, log: log);
+    _setRemotePushDelivery(mock);
+    return mock;
+  }
+
+  /// Phase D — load [PushConfig] from [appSupportDir] (or the
+  /// `NIGHTSHADE_PUSH_CONFIG` env override) and wire the resulting delivery:
+  ///
+  ///  * a real FCM and/or APNs delivery when the operator has dropped a valid
+  ///    `push_config.json` pointing at the service-account JSON / `.p8` key
+  ///    (the "real when configured" path), otherwise
+  ///  * the no-cloud [MockRemotePushDelivery] (the "mock by default" path) so
+  ///    the recipient lookup + per-device preference gate are exercised end to
+  ///    end with zero Firebase/Apple accounts.
+  ///
+  /// All deliveries share [pushTokenStore], so each enumerates the same
+  /// `device_push_tokens` rows filtered by `device_push_prefs`. Returns the
+  /// wired delivery (or `null` only if config explicitly disables every
+  /// channel AND the mock — i.e. `mock:false` with no cloud channel, leaving
+  /// LAN + WS push untouched). Never throws: a malformed config degrades to
+  /// the mock so the server always starts.
+  Future<RemotePushDelivery?> wireRemotePushDelivery({
+    required String appSupportDir,
+    void Function(String message)? log,
+  }) async {
+    final store = pushTokenStore;
+    PushConfig config;
+    try {
+      config = await PushConfig.load(appSupportDir: appSupportDir);
+    } catch (_) {
+      config = PushConfig.disabled;
+    }
+    // `buildRemotePushDelivery` returns the real FCM/APNs senders when a cloud
+    // channel is configured, the mock when `config.mock` is set, else null.
+    // With no cloud channel and no explicit `mock:false` opt-out we still want
+    // the mock as the Phase-D default, so fall back to it here.
+    final delivery = buildRemotePushDelivery(config, store) ??
+        (config.hasCloudChannel
+            ? null
+            : MockRemotePushDelivery(store: store, log: log));
+    if (delivery != null) {
+      _setRemotePushDelivery(delivery);
+    }
+    return delivery;
+  }
 
   void setUpdateController(UpdateController? controller) =>
       _setUpdateController(controller);

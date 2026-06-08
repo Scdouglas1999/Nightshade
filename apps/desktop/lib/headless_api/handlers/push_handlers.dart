@@ -1,0 +1,240 @@
+/// HTTP handlers for the cellular-push token + preference endpoints
+/// (Phase D).
+///
+/// A paired phone, once it has obtained its FCM (Android) or APNs (iOS)
+/// token, posts it here so the desktop's remote-push delivery can fan a
+/// critical alert out to it over cellular — the path the LAN UDP broadcaster
+/// cannot reach. These endpoints are NOT in `publicPaths`: a token
+/// registration must come from an already-paired client (the same bearer
+/// token the rest of the authenticated API uses), so an off-host attacker
+/// cannot enroll a rogue recipient.
+///
+/// Endpoints owned by this class:
+///   * `POST   /api/push/register-token` — upsert `{deviceId, platform, token}`
+///     into `device_push_tokens`.
+///   * `DELETE /api/push/token` — remove a device's tokens (`{deviceId}`) or a
+///     single stale token (`{token}`); used on unpair / sign-out.
+///   * `GET    /api/push/preferences?deviceId=...` — the device's prefs row
+///     (defaults when none).
+///   * `PUT    /api/push/preferences` — upsert `{deviceId, enabled, mute*}`.
+///
+/// Storage is the same Drift `PairingDatabase` the pairing flow uses, reached
+/// through [EnsurePairingService] so this handler stays decoupled from the
+/// server's private state (mirrors `PairingHandlers`).
+library;
+
+import 'package:nightshade_core/nightshade_core.dart';
+import 'package:shelf/shelf.dart';
+
+import '../request_context.dart';
+import '../response_helpers.dart';
+import '../validation.dart';
+// Reuse the [EnsurePairingService] typedef declared by the pairing handlers
+// so token storage and device pairing share one lazily-constructed
+// [PairingService] (and one Drift DB) — re-declaring it here would collide on
+// the `handlers.dart` barrel re-export.
+import 'pairing_handlers.dart' show EnsurePairingService;
+
+/// Recognised cellular-push platforms. Mirrors the `platform` column domain.
+const Set<String> _kPushPlatforms = {'fcm', 'apns'};
+
+/// HTTP handlers for the `/api/push/*` endpoints.
+class PushHandlers {
+  final EnsurePairingService ensurePairingService;
+  final LoggingService logger;
+
+  PushHandlers({
+    required this.ensurePairingService,
+    required this.logger,
+  });
+
+  void _logInfo(String message) =>
+      logger.info(message, source: 'PushHandlers');
+  void _logWarning(String message) =>
+      logger.warning(message, source: 'PushHandlers');
+
+  /// `POST /api/push/register-token` — body `{deviceId, platform, token}`.
+  ///
+  /// Upserts into `device_push_tokens` keyed on `(deviceId, platform)`, so a
+  /// token refresh overwrites in place. The `deviceId` MUST belong to a
+  /// currently-paired device — registering a token for an unknown device is a
+  /// 404 so a deauthorized client cannot keep a recipient alive.
+  Future<Response> handleRegisterToken(Request request) async {
+    final requestId = requestIdFrom(request);
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId', maxLength: 128);
+    final platform = requireString(payload, 'platform', maxLength: 16);
+    final token = requireString(payload, 'token', maxLength: 4096);
+
+    if (!_kPushPlatforms.contains(platform)) {
+      throw BadRequestError(
+        field: 'platform',
+        expected: "'fcm' | 'apns'",
+        message: "platform must be one of: ${_kPushPlatforms.join(', ')}",
+      );
+    }
+
+    final db = ensurePairingService().database;
+    final device = await db.getPairedDevice(deviceId);
+    if (device == null) {
+      _logWarning(
+        '[push][$requestId] register-token rejected: unknown deviceId',
+      );
+      return jsonNotFound(
+        {
+          'error': 'unknown_device',
+          'message':
+              'deviceId is not a paired device. Pair before registering a '
+                  'push token.',
+          'requestId': requestId,
+        },
+        headers: {requestIdHeader: requestId},
+      );
+    }
+
+    await db.upsertPushToken(
+      deviceId: deviceId,
+      platform: platform,
+      token: token,
+    );
+    _logInfo(
+      '[push][$requestId] registered $platform token for device=$deviceId',
+    );
+    return jsonOk(
+      {'status': 'registered', 'deviceId': deviceId, 'platform': platform},
+      headers: {requestIdHeader: requestId},
+    );
+  }
+
+  /// `DELETE /api/push/token` — body `{deviceId}` (delete all of a device's
+  /// tokens) or `{token}` (delete one stale token). At least one is required.
+  ///
+  /// Used on unpair / sign-out, and as the manual counterpart to the
+  /// delivery's automatic stale-token cleanup. Idempotent — deleting an
+  /// already-absent token is a 200.
+  Future<Response> handleDeleteToken(Request request) async {
+    final requestId = requestIdFrom(request);
+    final payload = await readJsonObject(request);
+    final deviceId = optionalString(payload, 'deviceId', maxLength: 128);
+    final token = optionalString(payload, 'token', maxLength: 4096);
+
+    if (deviceId == null && token == null) {
+      throw BadRequestError(
+        field: 'deviceId',
+        expected: 'string',
+        message: 'Provide deviceId (delete all of a device\'s tokens) or '
+            'token (delete one).',
+      );
+    }
+
+    final db = ensurePairingService().database;
+    if (deviceId != null) {
+      await db.deletePushTokensForDevice(deviceId);
+    }
+    if (token != null) {
+      await db.deletePushToken(token);
+    }
+    _logInfo(
+      '[push][$requestId] deleted push token(s) '
+      '(deviceId=${deviceId ?? '-'}, byToken=${token != null})',
+    );
+    return jsonOk(
+      {'status': 'deleted'},
+      headers: {requestIdHeader: requestId},
+    );
+  }
+
+  /// `GET /api/push/preferences?deviceId=...` — the device's per-category mute
+  /// matrix. Returns the all-enabled defaults when the device has never
+  /// written a row (so a client can render the toggles before the first PUT).
+  Future<Response> handleGetPreferences(Request request) async {
+    final requestId = requestIdFrom(request);
+    final deviceId = request.url.queryParameters['deviceId'];
+    if (deviceId == null || deviceId.isEmpty) {
+      throw BadRequestError(
+        field: 'deviceId',
+        expected: 'string',
+        message: 'deviceId query parameter is required',
+      );
+    }
+
+    final db = ensurePairingService().database;
+    final prefs = await db.getPushPrefs(deviceId);
+    return jsonOk(
+      {
+        'deviceId': deviceId,
+        // Default to all-enabled when no row exists — matches the delivery's
+        // fail-open default so the rendered toggles and the actual gate agree.
+        'enabled': prefs?.enabled ?? true,
+        'muteSequenceFailed': prefs?.muteSequenceFailed ?? false,
+        'muteWeatherUnsafe': prefs?.muteWeatherUnsafe ?? false,
+        'muteGuidingLost': prefs?.muteGuidingLost ?? false,
+        'muteAutofocusFailed': prefs?.muteAutofocusFailed ?? false,
+        'muteEquipmentDisconnected': prefs?.muteEquipmentDisconnected ?? false,
+      },
+      headers: {requestIdHeader: requestId},
+    );
+  }
+
+  /// `PUT /api/push/preferences` — body `{deviceId, enabled, mute*}`.
+  ///
+  /// The client sends the full row each time (master `enabled` plus every
+  /// mute flag); omitted flags default to "not muted" so a partial body is a
+  /// reset-to-enabled rather than a silent re-mute. The `deviceId` MUST belong
+  /// to a paired device.
+  Future<Response> handlePutPreferences(Request request) async {
+    final requestId = requestIdFrom(request);
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId', maxLength: 128);
+
+    final db = ensurePairingService().database;
+    final device = await db.getPairedDevice(deviceId);
+    if (device == null) {
+      return jsonNotFound(
+        {
+          'error': 'unknown_device',
+          'message': 'deviceId is not a paired device.',
+          'requestId': requestId,
+        },
+        headers: {requestIdHeader: requestId},
+      );
+    }
+
+    final enabled = optionalBool(payload, 'enabled') ?? true;
+    final muteSequenceFailed =
+        optionalBool(payload, 'muteSequenceFailed') ?? false;
+    final muteWeatherUnsafe =
+        optionalBool(payload, 'muteWeatherUnsafe') ?? false;
+    final muteGuidingLost = optionalBool(payload, 'muteGuidingLost') ?? false;
+    final muteAutofocusFailed =
+        optionalBool(payload, 'muteAutofocusFailed') ?? false;
+    final muteEquipmentDisconnected =
+        optionalBool(payload, 'muteEquipmentDisconnected') ?? false;
+
+    await db.upsertPushPrefs(
+      deviceId: deviceId,
+      enabled: enabled,
+      muteSequenceFailed: muteSequenceFailed,
+      muteWeatherUnsafe: muteWeatherUnsafe,
+      muteGuidingLost: muteGuidingLost,
+      muteAutofocusFailed: muteAutofocusFailed,
+      muteEquipmentDisconnected: muteEquipmentDisconnected,
+    );
+    _logInfo(
+      '[push][$requestId] updated preferences for device=$deviceId '
+      '(enabled=$enabled)',
+    );
+    return jsonOk(
+      {
+        'deviceId': deviceId,
+        'enabled': enabled,
+        'muteSequenceFailed': muteSequenceFailed,
+        'muteWeatherUnsafe': muteWeatherUnsafe,
+        'muteGuidingLost': muteGuidingLost,
+        'muteAutofocusFailed': muteAutofocusFailed,
+        'muteEquipmentDisconnected': muteEquipmentDisconnected,
+      },
+      headers: {requestIdHeader: requestId},
+    );
+  }
+}
