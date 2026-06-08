@@ -21,6 +21,7 @@ import '../screens/settings/plate_solving_settings_screen.dart';
 import '../screens/polar_alignment/polar_alignment_screen.dart';
 import '../screens/transients/transients_screen.dart';
 import '../screens/planner/planner_screen.dart';
+import '../screens/tonight/tonight_screen.dart';
 import '../screens/scheduler/scheduler_screen.dart';
 import '../screens/diagnostics/diagnostics_screen.dart';
 import '../screens/diagnostics/diagnostic_dump_screen.dart';
@@ -293,6 +294,20 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 transitionDuration: const Duration(milliseconds: 300),
               );
             },
+          ),
+          // One-tap "image this target tonight" flow (Phase F). The
+          // opinionated beginner landing CTA — pick → frame → Smart Night
+          // plan → GO, with a single primary action. Shared by mobile +
+          // desktop (same shell). Sibling to /planner; the deep planner and
+          // sequencer stay fully available via the screen's "Advanced" link.
+          GoRoute(
+            path: '/tonight',
+            name: 'tonight',
+            pageBuilder: (context, state) => const CustomTransitionPage(
+              child: TonightScreen(),
+              transitionsBuilder: PageTransitions.slideFadeTransition,
+              transitionDuration: Duration(milliseconds: 300),
+            ),
           ),
           // DEPRECATED: use /planner?tab=scheduler. Kept for one release for
           // deep-link compatibility — Scheduler merged into Plan Tonight as

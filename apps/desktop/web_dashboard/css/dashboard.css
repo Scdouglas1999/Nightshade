@@ -84,6 +84,48 @@
   --bp-desktop: 1024px;
 }
 
+/* ====== Light theme (§Phase F dashboard-polish) ======
+   The dashboard is dark-first to match nightshade_ui NightshadeColors.dark.
+   Light mode is a pure CSS-variable swap toggled by data-theme="light" on the
+   <html> element (set/persisted in app.js). Only the *core* palette tokens are
+   redefined here; every downstream alias (--bg-*, --text-*, --tint-*, etc.) is
+   derived from these via var() in :root, so the cascade flips the whole UI from
+   this one block. Mirrors NightshadeColors.light from packages/nightshade_ui. */
+:root[data-theme="light"] {
+  --color-primary: #2E6F92;
+  --color-accent: #3F86AB;
+  --color-background: #F4F6F8;
+  --color-surface: #FFFFFF;
+  --color-surface-alt: #FFFFFF;
+  --color-surface-hover: #ECEFF3;
+  --color-surface-elevated: #FFFFFF;
+  --color-surface-overlay: #FFFFFF;
+  --color-border: #D4DAE1;
+  --color-border-highlight: #B9C2CC;
+  --color-text-primary: #1A1F26;
+  --color-text-secondary: #525A64;
+  --color-text-muted: #7B838D;
+  --color-success: #2E8B57;
+  --color-warning: #B5791F;
+  --color-error: #C0392B;
+  --color-info: #2E6F92;
+  --color-on-primary: #FFFFFF;
+
+  /* Tints recomputed from the light accent/status hues so status fills stay
+     legible on a pale surface. */
+  --tint-primary: rgba(46, 111, 146, var(--opacity-status-fill));
+  --tint-primary-strong: rgba(46, 111, 146, 0.30);
+  --tint-success: rgba(46, 139, 87, var(--opacity-status-fill));
+  --tint-success-strong: rgba(46, 139, 87, 0.30);
+  --tint-warning: rgba(181, 121, 31, var(--opacity-status-fill));
+  --tint-error: rgba(192, 57, 43, var(--opacity-status-fill));
+  --tint-error-strong: rgba(192, 57, 43, 0.30);
+
+  /* Softer shadows read better on light surfaces. */
+  --shadow: 0 1px 2px rgba(26, 31, 38, 0.12);
+  --shadow-lg: 0 2px 10px rgba(26, 31, 38, 0.16);
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -137,6 +179,19 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* Icon-only button (theme toggle, panel collapse). Square, no text padding. */
+.btn-icon {
+  padding: 0;
+  width: var(--btn-height-sm);
+  min-width: var(--btn-height-sm);
+  min-height: var(--btn-height-sm);
+}
+
+.theme-toggle-glyph {
+  font-size: 15px;
+  line-height: 1;
 }
 
 .capability-nav {
@@ -364,6 +419,54 @@ body {
 .panel-actions {
   display: flex;
   gap: 4px;
+}
+
+/* ====== Panel collapse (§Phase F dashboard-polish) ======
+   A caret button is injected into every panel header by app.js. Collapsed
+   panels keep their header (so the operator can re-open them) but hide the
+   body and shrink to header height. Which panels are collapsed is persisted to
+   localStorage (nightshade_panel_collapsed) and restored on init, so an
+   8-hour overnight layout survives reloads. */
+.panel-collapse-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+  padding: 4px;
+  margin-left: 6px;
+  border-radius: var(--radius-xs);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: transform 0.15s, color 0.15s;
+}
+
+.panel-collapse-btn:hover {
+  color: var(--text-primary);
+}
+
+.panel-collapse-btn:focus-visible {
+  outline: 2px solid var(--border-active);
+  outline-offset: 1px;
+}
+
+/* The caret points down when open, right when collapsed. */
+.panel.is-collapsed .panel-collapse-btn {
+  transform: rotate(-90deg);
+}
+
+.panel.is-collapsed {
+  /* Collapse to just the header; auto-rows in the grid let neighbours reflow. */
+  align-self: start;
+  min-height: 0;
+}
+
+.panel.is-collapsed .panel-body,
+.panel.is-collapsed .panel-actions {
+  display: none;
 }
 
 .panel-body {

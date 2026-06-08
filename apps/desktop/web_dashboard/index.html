@@ -24,6 +24,15 @@
         <span class="top-bar-version">Web Dashboard</span>
       </div>
       <div class="top-bar-right">
+        <!-- Theme toggle (§Phase F dashboard-polish). Light/dark is persisted to
+             localStorage (nightshade_theme); first load honours
+             prefers-color-scheme. Themes are pure CSS-variable swaps applied via
+             the data-theme attribute on <html>; the glyph + label flip in JS. -->
+        <button id="btn-theme-toggle" class="btn btn-sm btn-icon" type="button"
+                aria-label="Switch to light theme" title="Toggle light/dark theme"
+                aria-pressed="false">
+          <span class="theme-toggle-glyph" aria-hidden="true">&#9788;</span>
+        </button>
         <!-- Manual server URL input is hidden unless ?debug=1 is set on the URL,
              to satisfy §2.4 (CSP connect-src restricted to same origin). The
              dashboard initialises serverUrl from window.location.origin. -->

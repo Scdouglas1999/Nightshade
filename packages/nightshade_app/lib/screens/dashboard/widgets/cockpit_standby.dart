@@ -61,11 +61,25 @@ class CockpitStandby extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: 20),
+              // Beginner landing CTA: one tap to frame + plan + run tonight's
+              // best target. The deep Smart Night wizard stays available as the
+              // secondary action below, and the full planner/sequencer remain a
+              // tap away from the /tonight screen's "Advanced" link.
               Center(
                 child: NightshadeButton(
-                  label: 'Plan Tonight',
-                  icon: LucideIcons.sparkles,
+                  label: 'Image tonight',
+                  icon: LucideIcons.moonStar,
                   variant: ButtonVariant.primary,
+                  size: ButtonSize.large,
+                  onPressed: () => context.go('/tonight'),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Center(
+                child: NightshadeButton(
+                  label: 'Plan Tonight (advanced)',
+                  icon: LucideIcons.sparkles,
+                  variant: ButtonVariant.outline,
                   onPressed: () => showDialog<void>(
                     context: context,
                     builder: (_) => const SmartNightDialog(),

@@ -140,6 +140,14 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
           ),
           const SizedBox(height: 20),
 
+          // Tracked-star list — only the built-in multi-star guider reports a
+          // per-star list (PHD2 tracks a single lock star). Reuses the same
+          // guiding status path that feeds the graph above.
+          if (isBuiltinGuider) ...[
+            GuideStarList(colors: widget.colors),
+            const SizedBox(height: 20),
+          ],
+
           // Control Section
           PanelSection(
             title: 'Control',
@@ -904,6 +912,148 @@ class _CompactGuidingGraphPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _CompactGuidingGraphPainter oldDelegate) {
     return oldDelegate.data != data;
+  }
+}
+
+/// Per-star tracked-star list for the built-in multi-star guider.
+///
+/// The internal guider tracks up to 8 reference stars; this surfaces each
+/// star's SNR, lock highlight, and per-star residual so the panel is no longer
+/// empty when the built-in guider is active. Driven by [guideStarsProvider],
+/// which rides the same guiding status path that feeds [CompactGuidingGraph]
+/// above. Renders an honest empty-state (not an error) when no stars are
+/// tracked yet — e.g. before looping starts.
+class GuideStarList extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const GuideStarList({super.key, required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stars = ref.watch(guideStarsProvider);
+
+    return PanelSection(
+      title: 'Tracked Stars (${stars.length})',
+      colors: colors,
+      child: stars.isEmpty
+          ? Padding(
+              padding: const EdgeInsets.symmetric(vertical: 6),
+              child: Row(
+                children: [
+                  Icon(NightshadeIcons.star,
+                      size: 14, color: colors.textMuted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'No stars tracked yet',
+                      style: TextStyle(
+                        fontSize: NightshadeTypography.fontSize11,
+                        color: colors.textMuted,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            )
+          : Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Column header.
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: [
+                      const SizedBox(width: 18),
+                      Expanded(
+                        flex: 3,
+                        child: Text('Star',
+                            style: _headerStyle(colors)),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Text('SNR',
+                            textAlign: TextAlign.end,
+                            style: _headerStyle(colors)),
+                      ),
+                      Expanded(
+                        flex: 2,
+                        child: Text('Resid',
+                            textAlign: TextAlign.end,
+                            style: _headerStyle(colors)),
+                      ),
+                    ],
+                  ),
+                ),
+                for (final star in stars)
+                  _GuideStarRow(star: star, colors: colors),
+              ],
+            ),
+    );
+  }
+
+  static TextStyle _headerStyle(NightshadeColors colors) => TextStyle(
+        fontSize: NightshadeTypography.fontSize9,
+        fontWeight: FontWeight.w600,
+        color: colors.textMuted,
+      );
+}
+
+class _GuideStarRow extends StatelessWidget {
+  final GuideStar star;
+  final NightshadeColors colors;
+
+  const _GuideStarRow({required this.star, required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    final valueStyle = TextStyle(
+      fontSize: NightshadeTypography.fontSize11,
+      color: colors.textPrimary,
+    );
+    final residual = star.residual;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          // Lock indicator: the active lock star gets a filled accent dot, the
+          // rest a hollow muted marker so the lock star reads at a glance.
+          SizedBox(
+            width: 18,
+            child: Icon(
+              star.isLock ? NightshadeIcons.crosshair : LucideIcons.circle,
+              size: 12,
+              color: star.isLock ? colors.primary : colors.textMuted,
+            ),
+          ),
+          Expanded(
+            flex: 3,
+            child: Text(
+              star.isLock ? 'Star ${star.id + 1} (lock)' : 'Star ${star.id + 1}',
+              style: valueStyle.copyWith(
+                color: star.isLock ? colors.primary : colors.textPrimary,
+                fontWeight: star.isLock ? FontWeight.w600 : FontWeight.w400,
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              star.snr.toStringAsFixed(1),
+              textAlign: TextAlign.end,
+              style: valueStyle,
+            ),
+          ),
+          Expanded(
+            flex: 2,
+            child: Text(
+              residual == null ? '—' : '${residual.toStringAsFixed(2)}px',
+              textAlign: TextAlign.end,
+              style: valueStyle.copyWith(color: colors.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }
 

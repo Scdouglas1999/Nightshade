@@ -321,6 +321,12 @@
     const btnGuidePause = document.getElementById('btn-guide-pause');
     if (btnGuidePause) btnGuidePause.addEventListener('click', handleGuidePauseToggle);
 
+    // §Phase F dashboard-polish — theme toggle + persisted panel collapse.
+    // Run before the rest of the panel wireup so a restored-collapsed panel
+    // never flashes its body open on load.
+    setupTheme();
+    setupPanelPrefs();
+
     setupCapabilityNav();
     setupPlanetariumPanel();
     setupSettingsPanel();
@@ -839,6 +845,139 @@
       // §2.17 ops — keep tooltip wording in sync with the panel title.
       case 'dome': return 'Dome';
       default: return t;
+    }
+  }
+
+  // =========================================================================
+  // §Phase F dashboard-polish — Theme toggle (light/dark, localStorage)
+  // =========================================================================
+
+  // Persist key + the two header <meta theme-color> values so the browser
+  // chrome (notch / address bar) matches the active theme.
+  const THEME_STORAGE_KEY = 'nightshade_theme';
+  const THEME_META_COLOR = { dark: '#0A0C0F', light: '#F4F6F8' };
+
+  function resolveInitialTheme() {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === 'light' || stored === 'dark') return stored;
+    // First load with no stored choice: honour the OS preference, defaulting
+    // to dark (the dashboard's native palette) when the query is unsupported.
+    if (window.matchMedia &&
+        window.matchMedia('(prefers-color-scheme: light)').matches) {
+      return 'light';
+    }
+    return 'dark';
+  }
+
+  function applyTheme(theme) {
+    const isLight = theme === 'light';
+    // Dark is the default :root palette, so we only set the attribute for
+    // light — keeps the DOM clean and the default fast-path untouched.
+    if (isLight) {
+      document.documentElement.setAttribute('data-theme', 'light');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', THEME_META_COLOR[isLight ? 'light' : 'dark']);
+
+    const btn = document.getElementById('btn-theme-toggle');
+    if (btn) {
+      // Glyph shows the *current* theme; the label/aria announce the action.
+      const glyph = btn.querySelector('.theme-toggle-glyph');
+      if (glyph) glyph.innerHTML = isLight ? '&#9728;' : '&#9788;'; // ☀ / ☾
+      btn.setAttribute('aria-pressed', isLight ? 'true' : 'false');
+      btn.setAttribute('aria-label',
+        isLight ? 'Switch to dark theme' : 'Switch to light theme');
+    }
+  }
+
+  function setupTheme() {
+    let theme = resolveInitialTheme();
+    applyTheme(theme);
+    const btn = document.getElementById('btn-theme-toggle');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        theme = theme === 'light' ? 'dark' : 'light';
+        localStorage.setItem(THEME_STORAGE_KEY, theme);
+        applyTheme(theme);
+        // Canvas/SVG widgets (guide graph, planetarium) read CSS vars at draw
+        // time via themeColor(); repaint so they pick up the new palette.
+        repaintThemedCanvases();
+      });
+    }
+  }
+
+  // Repaint the few canvas surfaces that cache CSS-variable colours so a theme
+  // flip is reflected without waiting for the next data tick.
+  function repaintThemedCanvases() {
+    try { if (typeof drawGuideGraph === 'function') drawGuideGraph(); } catch (_) {}
+  }
+
+  // =========================================================================
+  // §Phase F dashboard-polish — Persisted panel prefs (collapse state)
+  // =========================================================================
+
+  // Persist which panels the operator collapsed so an overnight layout survives
+  // a reload. Stored as a JSON array of panel ids under this key. We persist the
+  // *collapsed* set (typically small) rather than the full layout because the
+  // panel order is fixed in markup; "which panels are open/closed" is the
+  // load-bearing pref for an 8-hour tool.
+  const PANEL_PREFS_KEY = 'nightshade_panel_collapsed';
+
+  function loadCollapsedPanels() {
+    try {
+      const raw = localStorage.getItem(PANEL_PREFS_KEY);
+      if (!raw) return new Set();
+      const parsed = JSON.parse(raw);
+      return new Set(Array.isArray(parsed) ? parsed.filter((x) => typeof x === 'string') : []);
+    } catch (_) {
+      // Corrupt value — drop it rather than wedging init.
+      return new Set();
+    }
+  }
+
+  function saveCollapsedPanels(set) {
+    try {
+      localStorage.setItem(PANEL_PREFS_KEY, JSON.stringify(Array.from(set)));
+    } catch (_) {
+      // localStorage can throw (private mode / quota); collapse still works
+      // for the session, it just won't persist.
+    }
+  }
+
+  function setupPanelPrefs() {
+    const collapsed = loadCollapsedPanels();
+
+    for (const panel of document.querySelectorAll('.panel')) {
+      const header = panel.querySelector('.panel-header');
+      if (!header) continue;
+
+      const title = (panel.querySelector('.panel-title') || {}).textContent || panel.id;
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'panel-collapse-btn';
+      btn.innerHTML = '&#9662;'; // ▾ — CSS rotates it to ▸ when collapsed.
+      btn.setAttribute('aria-label', 'Collapse ' + title.trim() + ' panel');
+      btn.setAttribute('aria-expanded', 'true');
+      // The caret is the right-most header affordance so it never crowds the
+      // existing panel action buttons.
+      header.appendChild(btn);
+
+      const apply = (isCollapsed, persist) => {
+        panel.classList.toggle('is-collapsed', isCollapsed);
+        btn.setAttribute('aria-expanded', isCollapsed ? 'false' : 'true');
+        if (isCollapsed) collapsed.add(panel.id); else collapsed.delete(panel.id);
+        if (persist) saveCollapsedPanels(collapsed);
+      };
+
+      // Restore persisted state (no re-persist — nothing changed yet).
+      if (collapsed.has(panel.id)) apply(true, false);
+
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        apply(!panel.classList.contains('is-collapsed'), true);
+      });
     }
   }
 

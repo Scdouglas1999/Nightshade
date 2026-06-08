@@ -128,6 +128,10 @@ class GuidingHandlers {
       "snr": status.snr,
       "starMass": status.starMass,
       "avgDistance": status.avgDistance,
+      // Per-star list from the built-in multi-star guider, so the mobile/web
+      // guider UI can render a real star list instead of an empty panel. Empty
+      // for PHD2/external guiders (single aggregate lock star only).
+      "trackedStars": [for (final s in status.trackedStars) s.toJson()],
     });
   }
 

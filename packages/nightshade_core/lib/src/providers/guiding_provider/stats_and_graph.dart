@@ -166,6 +166,113 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
   }
 }
 
+// =============================================================================
+// PER-STAR TRACKED-STAR PROVIDER (built-in multi-star guider)
+//
+// The internal guider tracks up to 8 reference stars natively, but only its
+// aggregate PHD2-shaped stats reached Dart — so its star-list UI rendered empty.
+// This provider polls the guiding status (which now carries a `trackedStars`
+// JSON array) while the built-in guider is active and exposes the per-star list
+// so the guider panel can show per-star SNR + lock + residual alongside the same
+// CompactGuidingGraph the PHD2 path drives.
+// =============================================================================
+
+/// Per-star tracked-star list from the built-in multi-star guider.
+///
+/// Empty for PHD2 / external guiders (they report a single aggregate lock star).
+/// Populated only while the built-in guider is the active guider AND it is
+/// looping/guiding/calibrating; cleared on disconnect.
+final guideStarsProvider =
+    StateNotifierProvider<GuideStarsNotifier, List<GuideStar>>((ref) {
+  return GuideStarsNotifier(ref);
+});
+
+class GuideStarsNotifier extends StateNotifier<List<GuideStar>> {
+  GuideStarsNotifier(this.ref) : super(const []) {
+    // Poll only while the built-in guider is active and producing frames.
+    ref.listen<Phd2State>(phd2StateProvider, (previous, next) {
+      if (!_isBuiltin) {
+        _stopPolling();
+        if (state.isNotEmpty) state = const [];
+        return;
+      }
+      if (next == Phd2State.guiding ||
+          next == Phd2State.looping ||
+          next == Phd2State.calibrating ||
+          next == Phd2State.settling) {
+        _startPolling();
+      } else {
+        _stopPolling();
+      }
+    });
+
+    // Clear on disconnect so a stale list never lingers across sessions.
+    ref.listen<GuiderState>(guiderStateProvider, (previous, next) {
+      if (next.connectionState == DeviceConnectionState.disconnected) {
+        _stopPolling();
+        if (state.isNotEmpty) state = const [];
+      }
+    });
+  }
+
+  final Ref ref;
+  Timer? _pollTimer;
+  LoggingService get _logger => ref.read(loggingServiceProvider);
+
+  bool get _isBuiltin => ref.read(isBuiltinGuiderProvider);
+
+  void _startPolling() {
+    _stopPolling();
+    _pollTimer =
+        Timer.periodic(const Duration(milliseconds: 1000), (_) => _fetch());
+    _fetch();
+  }
+
+  void _stopPolling() {
+    _pollTimer?.cancel();
+    _pollTimer = null;
+  }
+
+  Future<void> _fetch() async {
+    if (!mounted) return;
+    try {
+      final backend = ref.read(backendProvider);
+      final status = await backend.phd2GetStatus();
+      if (!mounted) return;
+      // Only adopt the list when it actually changed — avoids churning the
+      // graph/list rebuilds every poll when nothing moved.
+      if (!_listEquals(status.trackedStars, state)) {
+        state = status.trackedStars;
+      }
+    } catch (e) {
+      _logger.debug('guideStarsProvider poll failed: $e',
+          source: 'GuideStarsNotifier');
+    }
+  }
+
+  /// Test/imperative hook: directly seed the tracked-star list (used by the
+  /// guider UI golden + provider override in tests, and by any future
+  /// event-driven push path).
+  void setStars(List<GuideStar> stars) {
+    if (!mounted) return;
+    state = List.unmodifiable(stars);
+  }
+
+  static bool _listEquals(List<GuideStar> a, List<GuideStar> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  void dispose() {
+    _stopPolling();
+    super.dispose();
+  }
+}
+
 /// Data point for the guiding graph
 class GuideGraphPoint {
   final double ra;

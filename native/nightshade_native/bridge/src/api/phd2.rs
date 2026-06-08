@@ -955,6 +955,24 @@ pub async fn api_builtin_guider_get_config() -> Result<BuiltinGuiderConfig, Nigh
     })
 }
 
+/// Per-star tracked-star snapshot for the built-in multi-star guider, as a JSON
+/// string (`{"count":N,"stars":[...]}`).
+///
+/// This is the bridged entry point for the `#[frb(ignore)]`
+/// `builtin_guider::get_tracked_stars_json` DTO: the built-in guider tracks up
+/// to `GUIDE_MAX_TRACKED_STARS` reference stars, but the PHD2-shaped aggregate
+/// `Phd2Status` only carries rms/snr/star_mass, so the per-star list never
+/// reached the Dart guider UI (its star-list panel rendered empty on real
+/// hardware). The host FFI backend calls this from `phd2GetStatus()` and decodes
+/// the JSON into `Phd2Status.trackedStars`.
+///
+/// Returns `{"count":0,"stars":[]}` when the built-in guider is not the active
+/// guider or is not tracking (e.g. PHD2/external guiders), so it is always safe
+/// to call on the status path.
+pub async fn api_builtin_guider_get_tracked_stars_json() -> String {
+    crate::builtin_guider::get_tracked_stars_json().await
+}
+
 /// Set the built-in guider configuration.
 /// Can be called while guiding is active; changes apply to subsequent frames.
 pub async fn api_builtin_guider_set_config(

@@ -20,6 +20,31 @@ Vanilla JavaScript, no build step. Two source files do everything:
 
 CSS lives in `css/dashboard.css`. Markup is `index.html`.
 
+## Theme + layout preferences (overnight-tool polish)
+
+The dashboard is built to sit open for an 8-hour imaging session, so a
+couple of operator preferences are persisted to `localStorage`:
+
+- **Theme toggle (light / dark).** The dashboard is dark-first to match
+  `nightshade_ui` `NightshadeColors.dark`. A toggle in the top bar (sun /
+  moon glyph, left of the Connect button) flips to a light palette. The
+  whole UI is a CSS-variable swap: light mode only redefines the *core*
+  palette tokens under `:root[data-theme="light"]` in `dashboard.css`, and
+  every downstream alias (`--bg-*`, `--text-*`, `--tint-*`, …) cascades from
+  there. The choice is saved to `localStorage.nightshade_theme`; on first
+  visit with no stored choice the dashboard honours
+  `prefers-color-scheme`. The `<meta name="theme-color">` updates so the
+  browser chrome matches.
+- **Persisted panel collapse.** Every panel header carries a caret
+  (injected by `setupPanelPrefs()` in `app.js`) that collapses the panel to
+  just its header. The set of collapsed panels is saved to
+  `localStorage.nightshade_panel_collapsed` (a JSON array of panel ids) and
+  restored on `init()`, so the operator's chosen layout survives a reload
+  during a long session. Panel *order* is fixed in the markup; "which panels
+  are open vs. collapsed" is the load-bearing layout pref here.
+
+Both are pure vanilla JS/CSS — no build step, no dependencies.
+
 ## URL routes (hash-based)
 
 The dashboard is a single-page grid; the hash drives which panel the
@@ -76,7 +101,66 @@ SPA upgrades the bearer to an `HttpOnly nightshade_session` cookie via
 | Log tail       | `EventSource /api/logs/tail?minSeverity=info&access_token=...` | Bearer goes in the query string because EventSource lacks a header API |
 | Sequencer state | `GET /api/sequencer/status` + WS sequencer events | WS-driven; REST fallback only when WS is silent for 10s |
 
-## Smoke test recipe
+### Update model: WS firehose first, REST as a silence fallback
+
+Every live panel is driven by the `/events` WebSocket firehose, **not** by
+per-panel polling. `api.on('event', …)` fans each event into
+`handleServerEvent()` (`app.js`), which dispatches by `category` —
+`camera`/`imaging`, `mount`, `focuser`, `filterWheel`, `rotator`,
+`sequencer`, `dome`, `safety`/`weather`, `profile`, `guiding`/`phd2`,
+`equipment`, `polarAlignment` — and refreshes only the affected panel.
+
+There is **no per-panel `setInterval`**. The only timers are resilience
+infrastructure: a 30 s WS ping, a 2 s staleness watchdog, and a 5 s REST
+fallback (`fetchAllStatus`) that arms **only** once the WS has been silent
+past `WS_FALLBACK_THRESHOLD_MS` (10 s) and is torn down the moment the
+socket recovers (`checkStaleness()` in `app.js`). The two config-only
+panels (Planetarium remote-slew and Settings) have no live event category
+and refresh on connect, on their manual Refresh button, and via the
+fallback — which is correct, as the host doesn't emit events for them.
+
+The `tools/smoke.mjs` guard asserts this invariant (≤ 3 `setInterval`
+timers, all resilience; REST fallback gated on WS silence) so a future
+per-panel poll can't sneak back in.
+
+## Automated smoke test (no browser, no build step)
+
+The dashboard is vanilla JS/CSS and is not Flutter-golden-able, so the
+automated guard is a static smoke script that runs under plain `node`:
+
+```sh
+node apps/desktop/web_dashboard/tools/smoke.mjs
+```
+
+It (1) compiles `js/app.js` and `js/api.js` (catches syntax errors), and
+(2) asserts the Phase F polish hooks are wired and consistent across
+`index.html` / `dashboard.css` / `app.js`: the theme toggle + light
+palette + `nightshade_theme` persistence + `prefers-color-scheme`, the
+persisted panel-collapse (`nightshade_panel_collapsed`), and the
+WS-firehose update model (≤ 3 resilience `setInterval` timers; REST
+fallback gated on WS silence). Exit 0 = pass, 1 = a check failed.
+
+## Reference screenshots
+
+Captured headless via Chromium (`--screenshot`, 1440-wide) against the
+static files; the login overlay is present because no server was connected
+during capture. Stored in `docs/screenshots/`:
+
+| File | Shows |
+|------|-------|
+| `docs/screenshots/dashboard-dark.png` | Default dark theme (the native palette). |
+| `docs/screenshots/dashboard-light.png` | Light theme via the top-bar toggle (persisted to `localStorage`). |
+| `docs/screenshots/dashboard-light-collapsed.png` | Light theme with Filter Wheel / Rotator / Settings panels collapsed and restored from `localStorage` after a reload. |
+
+To re-capture after a UI change, serve the static files so `/dashboard/`
+resolves (any static server that maps `/dashboard` → `web_dashboard/`),
+then run Chromium headless with `--screenshot=…` against
+`http://127.0.0.1:<port>/dashboard/`. Pre-seed `localStorage`
+(`nightshade_theme`, `nightshade_panel_collapsed`) from a tiny bootstrap
+page that `location.replace('/dashboard/')` to exercise the persisted
+paths.
+
+## Smoke test recipe (manual, against a live server)
 
 After a code change, manually verify against a running headless
 server. The recipe is:
@@ -129,6 +213,18 @@ server. The recipe is:
    `NIGHTSHADE_REQUIRE_AUTH=false`, restart, and re-open the
    dashboard. Expected: no overlay appears at all; the dashboard
    auto-connects.
+
+11. **Verify the theme toggle**. Click the sun/moon button in the top
+    bar (left of Connect). The whole dashboard flips between dark and
+    light, the glyph + browser chrome colour flip too, and the choice
+    survives a reload (it's in `localStorage.nightshade_theme`). With
+    no stored choice, the first load matches the OS light/dark setting.
+
+12. **Verify persisted panel collapse**. Click the caret at the right
+    of any panel header — the panel collapses to just its header. Reload
+    the page: the same panels stay collapsed (restored from
+    `localStorage.nightshade_panel_collapsed`). Re-open them and reload
+    to confirm the cleared state persists too.
 
 10. **Manually exercise edge cases**:
     - Disconnect the server while the dashboard is open — the status

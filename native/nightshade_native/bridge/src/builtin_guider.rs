@@ -40,6 +40,7 @@ use crate::device::DeviceType;
 use crate::error::NightshadeError;
 use crate::event::{EventSeverity, GuidingEvent};
 use nightshade_imaging::{detect_stars_with_stats, DetectedStar, ImageData, StarDetectionConfig};
+use serde::Serialize;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
@@ -107,6 +108,12 @@ struct GuideReferenceStar {
     y: f64,
     flux: f64,
     snr: f64,
+    /// Per-star residual against this reference's expected position on the most
+    /// recent matched frame, in pixels. `None` until the star is matched at
+    /// least once (e.g. immediately after `select_reference_stars`). Populated
+    /// by [`measure_offset`] each guide frame so the per-star UI can show how
+    /// far each tracked star drifted, not just the aggregate centroid offset.
+    last_residual: Option<Vec2>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -160,6 +167,114 @@ impl Default for BuiltinGuideStatus {
             pixel_scale: 0.0,
         }
     }
+}
+
+// =============================================================================
+// Per-star tracked-star export (Phase F, guider-ui)
+//
+// The built-in guider tracks up to `GUIDE_MAX_TRACKED_STARS` reference stars,
+// but `get_status()` only returns the PHD2-shaped *aggregate* `Phd2Status`
+// (rms/snr/star_mass), so the 8 tracked stars never reached the Dart UI and its
+// star-list panel rendered empty.
+//
+// These DTOs surface the per-star list. They are `#[frb(ignore)]` and serialize
+// to a JSON *string* so they ride alongside the existing guiding-status path
+// without changing any flutter_rust_bridge-generated struct shape (no regen).
+// The same `*_json: String` convention is used by the typed event payloads in
+// `event.rs` (FRB does not bridge `serde_json::Value` directly).
+// =============================================================================
+
+/// One tracked reference star, as surfaced to the per-star guider UI.
+#[flutter_rust_bridge::frb(ignore)]
+#[derive(Clone, Debug, Serialize)]
+pub struct BuiltinGuideTrackedStar {
+    /// Stable index within the tracked-star list (0-based), used by the UI as
+    /// the per-star identity / lock-star key.
+    pub id: usize,
+    /// Centroid X in guide-camera pixels.
+    pub x: f64,
+    /// Centroid Y in guide-camera pixels.
+    pub y: f64,
+    /// Integrated flux (star mass / brightness).
+    pub flux: f64,
+    /// Signal-to-noise ratio.
+    pub snr: f64,
+    /// Whether this is the active lock star (the centroid the corrections key
+    /// off). `None` when no lock has been established yet.
+    pub is_lock: bool,
+    /// Per-star residual magnitude (pixels) on the most recent matched frame, or
+    /// `None` before the star has been matched at least once.
+    pub residual: Option<f64>,
+}
+
+/// Per-star tracked-star snapshot. Serialized to JSON and exposed through the
+/// guiding-status path so the Dart guider UI can populate its star list + feed
+/// the same `CompactGuidingGraph` the PHD2 path uses.
+#[flutter_rust_bridge::frb(ignore)]
+#[derive(Clone, Debug, Serialize, Default)]
+pub struct BuiltinGuideTrackedStars {
+    /// Number of stars currently tracked (mirrors `stars.len()`; convenience for
+    /// consumers that only need the count).
+    pub count: usize,
+    /// The tracked reference stars, brightest-first as selected.
+    pub stars: Vec<BuiltinGuideTrackedStar>,
+}
+
+/// Build the per-star tracked-star DTO from the current reference-star set.
+///
+/// The lock star is the reference nearest the active manual lock position (the
+/// centroid the guider corrects to); ties fall back to the first/brightest star
+/// when no lock has been set.
+#[flutter_rust_bridge::frb(ignore)]
+fn build_tracked_stars(state: &BuiltinGuiderState) -> BuiltinGuideTrackedStars {
+    let lock = state.manual_lock;
+    // Choose the lock-star index: the reference closest to the manual lock.
+    let lock_index = lock.and_then(|target| {
+        state
+            .reference_stars
+            .iter()
+            .enumerate()
+            .map(|(i, r)| {
+                let dx = r.x - target.x;
+                let dy = r.y - target.y;
+                (i, (dx * dx + dy * dy).sqrt())
+            })
+            .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .map(|(i, _)| i)
+    });
+
+    let stars = state
+        .reference_stars
+        .iter()
+        .enumerate()
+        .map(|(i, r)| BuiltinGuideTrackedStar {
+            id: i,
+            x: r.x,
+            y: r.y,
+            flux: r.flux,
+            snr: r.snr,
+            is_lock: Some(i) == lock_index,
+            residual: r.last_residual.map(|v| v.magnitude()),
+        })
+        .collect::<Vec<_>>();
+
+    BuiltinGuideTrackedStars {
+        count: stars.len(),
+        stars,
+    }
+}
+
+/// Per-star tracked-star list, serialized to a JSON string.
+///
+/// `#[frb(ignore)]` so it never touches the generated bridge: the JSON rides
+/// through the existing guiding-status network path (the headless API embeds it
+/// as a `trackedStars` array) where the Dart `Phd2Status`/`GuideStar` models
+/// decode it. Returns `{"count":0,"stars":[]}` when nothing is tracked.
+#[flutter_rust_bridge::frb(ignore)]
+pub async fn get_tracked_stars_json() -> String {
+    let guard = state().read().await;
+    let dto = build_tracked_stars(&guard);
+    serde_json::to_string(&dto).unwrap_or_else(|_| "{\"count\":0,\"stars\":[]}".to_string())
 }
 
 struct BuiltinGuiderState {
@@ -854,6 +969,9 @@ async fn run_guiding_loop(
                 measure_offset(&guard.reference_stars, &frame.stars, desired).ok_or_else(|| {
                     NightshadeError::OperationFailed("Unable to match guide stars".to_string())
                 })?;
+            // Record per-star residuals so the per-star UI can show how far each
+            // tracked star drifted this frame, not just the aggregate centroid.
+            record_per_star_residuals(&mut guard.reference_stars, &frame.stars, desired);
             update_snapshot_from_frame(&mut guard, &frame, 50);
             guard.last_status.connected = true;
             guard.last_status.state = "Guiding".to_string();
@@ -1009,6 +1127,31 @@ fn measure_offset(
     })
 }
 
+/// Update each reference star's `last_residual` from its matched detection on
+/// the current frame. Mirrors the matching done in [`measure_offset`] but per
+/// star (no flux weighting): the residual is the vector from the star's
+/// expected position to its nearest detected centroid. Stars with no match this
+/// frame keep their previous residual (the per-star UI shows the last good
+/// value rather than flicking to "—").
+fn record_per_star_residuals(
+    reference_stars: &mut [GuideReferenceStar],
+    current_stars: &[DetectedStar],
+    desired_offset: Vec2,
+) {
+    for reference in reference_stars.iter_mut() {
+        let expected = Vec2 {
+            x: reference.x + desired_offset.x,
+            y: reference.y + desired_offset.y,
+        };
+        if let Some(star) = nearest_star(current_stars, expected, GUIDE_MAX_MATCH_DISTANCE_PX) {
+            reference.last_residual = Some(Vec2 {
+                x: star.x - expected.x,
+                y: star.y - expected.y,
+            });
+        }
+    }
+}
+
 fn guide_reference_weight(reference: &GuideReferenceStar) -> f64 {
     let flux_weight = reference.flux.max(1.0).sqrt();
     let snr_weight = reference.snr.max(1.0);
@@ -1150,6 +1293,7 @@ fn select_reference_stars(stars: &[DetectedStar]) -> Vec<GuideReferenceStar> {
                 y: star.y,
                 flux: star.flux,
                 snr: star.snr,
+                last_residual: None,
             });
         }
     }
@@ -1322,12 +1466,14 @@ mod tests {
                 y: 10.0,
                 flux: 1000.0,
                 snr: 10.0,
+                last_residual: None,
             },
             GuideReferenceStar {
                 x: 30.0,
                 y: 30.0,
                 flux: 900.0,
                 snr: 9.0,
+                last_residual: None,
             },
         ];
         let stars = vec![star(11.5, 8.5, 1000.0), star(31.5, 28.5, 900.0)];
@@ -1344,12 +1490,14 @@ mod tests {
                 y: 10.0,
                 flux: 10000.0,
                 snr: 20.0,
+                last_residual: None,
             },
             GuideReferenceStar {
                 x: 30.0,
                 y: 30.0,
                 flux: 100.0,
                 snr: 2.0,
+                last_residual: None,
             },
         ];
         let stars = vec![star(12.0, 10.0, 10000.0), star(30.0, 40.0, 100.0)];
@@ -1357,6 +1505,79 @@ mod tests {
 
         assert!(offset.x > 1.8);
         assert!(offset.y < 1.0);
+    }
+
+    #[test]
+    fn record_per_star_residuals_sets_matched_star_delta() {
+        let mut refs = vec![
+            GuideReferenceStar {
+                x: 10.0,
+                y: 10.0,
+                flux: 1000.0,
+                snr: 10.0,
+                last_residual: None,
+            },
+            GuideReferenceStar {
+                x: 30.0,
+                y: 30.0,
+                flux: 900.0,
+                snr: 9.0,
+                last_residual: None,
+            },
+        ];
+        // First reference drifts +1.5/-1.5; second has no nearby detection so it
+        // retains its (None) residual.
+        let stars = vec![star(11.5, 8.5, 1000.0), star(80.0, 80.0, 900.0)];
+        record_per_star_residuals(&mut refs, &stars, Vec2::default());
+
+        let r0 = refs[0].last_residual.expect("first star matched");
+        assert!((r0.x - 1.5).abs() < 1e-6);
+        assert!((r0.y + 1.5).abs() < 1e-6);
+        assert!(refs[1].last_residual.is_none());
+    }
+
+    #[test]
+    fn build_tracked_stars_flags_lock_and_serializes() {
+        let mut state = BuiltinGuiderState::default();
+        state.reference_stars = vec![
+            GuideReferenceStar {
+                x: 10.0,
+                y: 12.0,
+                flux: 5000.0,
+                snr: 18.0,
+                last_residual: Some(Vec2 { x: 0.3, y: -0.4 }),
+            },
+            GuideReferenceStar {
+                x: 60.0,
+                y: 64.0,
+                flux: 2000.0,
+                snr: 9.0,
+                last_residual: None,
+            },
+        ];
+        // Lock sits on top of the second reference star.
+        state.manual_lock = Some(Vec2 { x: 60.0, y: 64.0 });
+
+        let dto = build_tracked_stars(&state);
+        assert_eq!(dto.count, 2);
+        assert_eq!(dto.stars[0].id, 0);
+        assert!(!dto.stars[0].is_lock);
+        assert!(dto.stars[1].is_lock, "nearest reference to lock is the lock");
+        // residual magnitude of (0.3,-0.4) is 0.5
+        assert!((dto.stars[0].residual.expect("residual") - 0.5).abs() < 1e-6);
+        assert!(dto.stars[1].residual.is_none());
+
+        let json = serde_json::to_string(&dto).expect("serialize");
+        assert!(json.contains("\"count\":2"));
+        assert!(json.contains("\"is_lock\":true"));
+    }
+
+    #[test]
+    fn build_tracked_stars_empty_is_zero_count() {
+        let state = BuiltinGuiderState::default();
+        let dto = build_tracked_stars(&state);
+        assert_eq!(dto.count, 0);
+        assert!(dto.stars.is_empty());
     }
 
     #[test]

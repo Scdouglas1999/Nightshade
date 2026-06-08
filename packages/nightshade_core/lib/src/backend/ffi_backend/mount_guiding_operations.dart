@@ -252,6 +252,23 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
   @override
   Future<Phd2Status> phd2GetStatus() async {
     final status = await bridge.NativeBridge.phd2GetStatus();
+    // Pull the built-in multi-star guider's per-star list off the native export
+    // and decode it into `trackedStars`. Without this the host FFI backend
+    // always returned `trackedStars: const []`, so the headless API serialized
+    // an empty array and the guider star-list panel stayed permanently empty on
+    // real hardware. The native call returns `{"count":0,"stars":[]}` when the
+    // built-in guider is not the active guider (e.g. PHD2/external), so the list
+    // is naturally empty for those backends — matching the aggregate-only PHD2
+    // status path. Failing this lookup must not break the (load-bearing) status
+    // poll, so fall back to an empty list.
+    List<GuideStar> trackedStars = const [];
+    try {
+      final trackedStarsJson =
+          await bridge.NativeBridge.builtinGuiderGetTrackedStarsJson();
+      trackedStars = decodeTrackedStars(trackedStarsJson);
+    } catch (_) {
+      trackedStars = const [];
+    }
     return Phd2Status(
       state: status.state,
       connected: status.connected,
@@ -262,6 +279,7 @@ mixin _FfiMountGuidingOperations on _FfiBackendBase {
       starMass: status.starMass,
       // FRB Phd2Status no longer provides avgDistance; keep legacy field at 0
       avgDistance: 0.0,
+      trackedStars: trackedStars,
     );
   }
 

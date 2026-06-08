@@ -65,6 +65,9 @@ mixin _NetworkBackendGuidingOperations on _NetworkBackendTransport {
       snr: (response['snr'] as num?)?.toDouble() ?? 0.0,
       starMass: (response['starMass'] as num?)?.toDouble() ?? 0.0,
       avgDistance: (response['avgDistance'] as num?)?.toDouble() ?? 0.0,
+      // Per-star list from the built-in multi-star guider (empty for PHD2).
+      // Rides through the status JSON as a `trackedStars` array — no FRB regen.
+      trackedStars: decodeTrackedStars(response['trackedStars']),
     );
   }
 
