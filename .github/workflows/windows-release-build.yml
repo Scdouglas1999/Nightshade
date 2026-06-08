@@ -51,8 +51,20 @@ jobs:
       - name: Bootstrap workspace
         run: dart run melos bootstrap
 
-      - name: Build Windows release (Rust bridge + Flutter + stage native DLLs)
-        run: dart run melos run build:desktop:windows --no-select
+      # Run the three build phases as explicit steps rather than via
+      # `melos run build:desktop:windows`: that script's multi-line `run:` block
+      # only executes its first line (cargo) on the Windows shell, silently
+      # skipping the flutter build + staging and producing no Release output.
+      - name: Build Rust native bridge (release)
+        run: cargo build --release --manifest-path native/nightshade_native/bridge/Cargo.toml
+
+      - name: Build Flutter Windows app (release)
+        working-directory: apps/desktop
+        run: flutter build windows --release
+
+      - name: Stage native DLLs (bridge, libraw, MSVC runtime) into Release
+        shell: pwsh
+        run: ./scripts/stage_windows_release.ps1 -Profile Release
 
       - name: Verify the Release output is complete
         shell: pwsh
