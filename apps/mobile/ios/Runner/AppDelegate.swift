@@ -1,6 +1,7 @@
 import ActivityKit
 import Flutter
 import UIKit
+import UserNotifications
 import WidgetKit
 
 // MARK: - Live Activity host bridge
@@ -28,6 +29,20 @@ import WidgetKit
   /// async lookup, but maintaining our own map lets us answer synchronously
   /// from the channel handler. Cleared in `liveActivityEnd(_:)`.
   private var liveActivities: [String: Any] = [:]
+
+  // MARK: - APNs push (Phase E)
+
+  /// Channel for forwarding the APNs device token to Dart, where
+  /// `apps/mobile/lib/services/push_registration_service.dart` POSTs it to the
+  /// Phase D server endpoint `POST /api/push/register-token` (platform=apns).
+  /// Channel + method names MUST match that Dart service.
+  private var pushChannel: FlutterMethodChannel?
+
+  /// The most recently received APNs device token, as a lowercase hex string.
+  /// Cached so Dart can pull it on demand (`getApnsToken`) even if it called
+  /// after `didRegisterForRemoteNotificationsWithDeviceToken` already fired —
+  /// the registration callback and the Dart channel listener race at launch.
+  private var apnsDeviceTokenHex: String?
 
   override func application(
     _ application: UIApplication,
@@ -83,9 +98,136 @@ import WidgetKit
         }
         self.handleWatchComplicationCall(call, result: result)
       }
+
+      // Phase E — APNs push channel.
+      //
+      // The Dart side (push_registration_service.dart) calls
+      // `registerForRemoteNotifications` once the device is paired, then either
+      // receives the token via the `onApnsToken` invokeMethod push from the
+      // didRegister callback below, or pulls the cached token synchronously via
+      // `getApnsToken`. It POSTs the hex token to the desktop's
+      // `/api/push/register-token` so cellular/APNs critical alerts can reach a
+      // backgrounded phone.
+      let pushChannel = FlutterMethodChannel(
+        name: "nightshade/push",
+        binaryMessenger: controller.binaryMessenger
+      )
+      pushChannel.setMethodCallHandler { [weak self] call, result in
+        guard let self = self else {
+          result(
+            FlutterError(
+              code: "host_deallocated",
+              message: "AppDelegate was released before push.\(call.method) completed",
+              details: nil
+            )
+          )
+          return
+        }
+        self.handlePushCall(call, result: result)
+      }
+      self.pushChannel = pushChannel
     }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  // MARK: - APNs registration (Phase E)
+
+  /// Handles `nightshade/push` MethodChannel calls from Dart.
+  ///
+  /// Methods:
+  ///   * `registerForRemoteNotifications` — ask iOS to (re)issue an APNs token.
+  ///     Returns immediately; the token arrives asynchronously on
+  ///     `didRegisterForRemoteNotificationsWithDeviceToken` and is pushed back
+  ///     to Dart via `onApnsToken`. Returns `false` only when the OS API is
+  ///     unavailable (it isn't, on any supported iOS), else `true`.
+  ///   * `getApnsToken` — returns the cached hex token (or nil if registration
+  ///     has not completed yet). Lets Dart recover the token if it attached its
+  ///     handler after the OS callback already fired.
+  private func handlePushCall(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    switch call.method {
+    case "registerForRemoteNotifications":
+      // Must run on the main thread per UIApplication contract.
+      DispatchQueue.main.async {
+        UIApplication.shared.registerForRemoteNotifications()
+      }
+      result(true)
+    case "getApnsToken":
+      result(apnsDeviceTokenHex)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  /// APNs issued (or refreshed) the device token. Encode it as lowercase hex —
+  /// the exact wire form the server stores and APNs expects — cache it, and
+  /// forward it to Dart so it can be registered with the desktop server.
+  override func application(
+    _ application: UIApplication,
+    didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data
+  ) {
+    let hex = deviceToken.map { String(format: "%02x", $0) }.joined()
+    apnsDeviceTokenHex = hex
+    pushChannel?.invokeMethod("onApnsToken", arguments: hex)
+    // Preserve any plugin-side handling (e.g. flutter_local_notifications).
+    super.application(
+      application,
+      didRegisterForRemoteNotificationsWithDeviceToken: deviceToken
+    )
+  }
+
+  /// APNs registration failed (no network, no entitlement on the profile, an
+  /// APNs outage, or the Simulator which has no APNs). Surface the cause to
+  /// Dart (repo policy: errors are a feature) so the UI can show that cellular
+  /// alerts are unavailable rather than silently believing they work.
+  override func application(
+    _ application: UIApplication,
+    didFailToRegisterForRemoteNotificationsWithError error: Error
+  ) {
+    apnsDeviceTokenHex = nil
+    pushChannel?.invokeMethod(
+      "onApnsRegistrationError",
+      arguments: error.localizedDescription
+    )
+    super.application(
+      application,
+      didFailToRegisterForRemoteNotificationsWithError: error
+    )
+  }
+
+  // MARK: - Foreground critical-alert presentation (Phase E)
+
+  /// Present notifications while the app is foregrounded.
+  ///
+  /// Without this, iOS suppresses banners/sound for a notification that
+  /// arrives while the app is open — exactly when an operator is staring at the
+  /// live view and a safety alert fires. Critical alerts (weather unsafe, mount
+  /// runaway, guiding lost, equipment disconnect — see CRITICAL_ALERTS_SETUP.md)
+  /// must surface with sound even in the foreground, so we always request
+  /// `.sound` alongside the banner/list presentation.
+  ///
+  /// Delegate ownership note: `flutter_local_notifications` (v18) installs its
+  /// OWN `UNUserNotificationCenter.current().delegate` during Dart
+  /// `initialize()`, and that delegate honours the per-notification
+  /// `DarwinNotificationDetails(presentAlert/presentSound/...)` flags the Dart
+  /// side already sets. This override is the host-level safety net that governs
+  /// (a) the launch window before Dart `initialize()` runs and (b) any
+  /// REMOTE (APNs) notification, which the local-notifications plugin does not
+  /// own. For remote critical alerts we force `.sound`. The two paths agree:
+  /// the Dart safety notifications also request foreground sound.
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler:
+      @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    let options: UNNotificationPresentationOptions
+    if #available(iOS 14.0, *) {
+      options = [.banner, .list, .sound]
+    } else {
+      options = [.alert, .sound]
+    }
+    completionHandler(options)
   }
 
   // MARK: - Watch complication (Wave 7D)

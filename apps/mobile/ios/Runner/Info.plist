@@ -76,5 +76,25 @@
 	<true/>
 	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
 	<true/>
+	<!-- Phase E: background execution modes.
+	     * remote-notification — lets APNs wake the app in the background so a
+	       Phase D critical alert (weather unsafe, mount runaway, guiding lost,
+	       equipment disconnect) is processed even while the phone is asleep and
+	       out of LAN-UDP push range. Pairs with the `aps-environment`
+	       entitlement and the APNs registration in AppDelegate.swift /
+	       push_registration_service.dart.
+	     * fetch — opportunistic background refresh so the companion can pull the
+	       latest sequence/weather snapshot when iOS grants a background window,
+	       keeping the Live Activity / watch complication from going stale during
+	       a long overnight run.
+	     NOTE: the LAN UDP push receiver (lan_push_notification_receiver.dart) is
+	     pure dart:io and is suspended by iOS in the background regardless of
+	     these modes — APNs is the OS-sanctioned wake path, which is why
+	     remote-notification is declared here. -->
+	<key>UIBackgroundModes</key>
+	<array>
+		<string>remote-notification</string>
+		<string>fetch</string>
+	</array>
 </dict>
 </plist>

@@ -19,5 +19,37 @@
 	-->
 	<key>com.apple.developer.usernotifications.critical-alerts</key>
 	<true/>
+	<!--
+	  APNs environment. Enables remote (push) notifications so the Phase D
+	  desktop server can deliver a critical alert over cellular/APNs when the
+	  phone is asleep and out of LAN-UDP range (see
+	  apps/mobile/lib/services/push_registration_service.dart and the server's
+	  POST /api/push/register-token, platform=apns).
+
+	  The value is `development` here so local device builds and TestFlight
+	  internal builds work without manual flips. Xcode/`flutter build ios`
+	  AUTOMATICALLY rewrites this to `production` for an App Store / release
+	  archive when the chosen provisioning profile is a distribution profile —
+	  the embedded entitlements are taken from the profile, not this file, for
+	  signed Release archives. Do NOT hard-code `production`: that would break
+	  development device installs. See docs/ios-release-setup.md §APNs.
+	-->
+	<key>aps-environment</key>
+	<string>development</string>
+	<!--
+	  App Group. Shared UserDefaults container used by:
+	    * AppDelegate.swift watch-complication snapshot publisher
+	      (UserDefaults(suiteName: "group.com.nightshade.app")), and
+	    * the NightshadeAppIntents / voice-control snapshot.
+	  AppDelegate.swift fails loudly with `app_group_unavailable` if this
+	  entitlement is absent, so it must be present on the Runner target AND on
+	  every extension target that reads the suite. The App Group itself must be
+	  created in the Apple Developer portal and enabled on the App ID — see
+	  docs/ios-release-setup.md and NightshadeWatchComplication/SETUP.md.
+	-->
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.nightshade.app</string>
+	</array>
 </dict>
 </plist>

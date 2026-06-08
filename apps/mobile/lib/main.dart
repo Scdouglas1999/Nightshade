@@ -25,6 +25,7 @@ import 'services/mobile_sequence_hooks.dart';
 import 'services/battery_service.dart';
 import 'services/network_service.dart';
 import 'services/notification_service.dart';
+import 'services/push_registration_service.dart';
 import 'utils/error_snackbar.dart';
 import 'widgets/checkpoint_resume_dialog.dart';
 import 'widgets/tailscale_setup_sheet.dart';
@@ -266,6 +267,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _stopConnectionMonitor();
+    _pushRegistration?.dispose();
     _ipController.dispose();
     _accessTokenController.dispose();
     super.dispose();

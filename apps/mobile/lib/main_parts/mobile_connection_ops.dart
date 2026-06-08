@@ -31,6 +31,12 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
   Timer? _disconnectGraceTimer;
   bool _connectionStale = false;
 
+  /// Phase E (iOS): registers this device's APNs token with the paired desktop
+  /// for cellular critical-alert delivery. Lazily created on first use so the
+  /// MethodChannel handler is only attached when we actually have a session to
+  /// register against. Inert on non-iOS.
+  PushRegistrationService? _pushRegistration;
+
   /// How long the WebSocket can stay disconnected before we declare the
   /// session dead and route the user back to the connection screen. The
   /// backend's own reconnector backs off up to 30 s; we wait the full
@@ -69,6 +75,31 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
     } else {
       backend.resumeWebSocketHeartbeatForAppLifecycle();
     }
+  }
+
+  /// Phase E (iOS): register this device's APNs token with the now-connected
+  /// desktop so cellular critical alerts can reach a backgrounded phone.
+  ///
+  /// Gated three ways so it no-ops cleanly off the happy path:
+  ///   * non-iOS — `PushRegistrationService` short-circuits internally
+  ///     (Platform.isIOS guard), so the channel is never touched and no
+  ///     MissingPluginException can fire;
+  ///   * not a [NetworkBackend] — local/FFI session, nothing to register with;
+  ///   * not paired — empty deviceId, the service skips the POST.
+  ///
+  /// Best-effort: the service swallows and logs all network/host errors, so a
+  /// failure here never disturbs the live session.
+  Future<void> _registerPushTokenIfIos() async {
+    if (!Platform.isIOS) {
+      return;
+    }
+    final backend = ref.read(backendProvider);
+    if (backend is! NetworkBackend) {
+      return;
+    }
+    final deviceId = await MobilePairingService.deviceId();
+    final service = _pushRegistration ??= PushRegistrationService();
+    await service.ensureRegistered(backend: backend, deviceId: deviceId);
   }
 
   void _startConnectionMonitor() {
@@ -473,6 +504,12 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
 
         // Start monitoring the WS heartbeat (audit §3.6)
         _startConnectionMonitor();
+
+        // Phase E (iOS): register this device's APNs token with the desktop so
+        // it can deliver cellular critical alerts when the phone is asleep and
+        // out of LAN-UDP push range. No-op on non-iOS and best-effort (never
+        // throws) — a registration failure must not affect the live session.
+        unawaited(_registerPushTokenIfIos());
 
         // Reload host-backed providers now that NetworkBackend is live.
         WidgetsBinding.instance.addPostFrameCallback((_) {
