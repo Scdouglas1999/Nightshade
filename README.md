@@ -12,7 +12,7 @@
 
 [**Download**](https://github.com/Scdouglas1999/Nightshade/releases/latest) · [**Documentation**](docs/index.md) · [**Changelog**](CHANGELOG.md) · [**Release notes (3.1.0)**](docs/releases/3.1.0.md)
 
-<img src="assets/screenshots/desktop-dashboard.png" width="860" alt="Nightshade live dashboard with preview, equipment, guiding, and weather tiles">
+<img src="assets/screenshots/desktop-dashboard.png?v=20260608" width="860" alt="Nightshade live dashboard with preview, equipment, guiding, and weather tiles">
 
 </div>
 
@@ -32,40 +32,40 @@ Nightshade runs the whole night from a single program. Connect the rig, plan tar
 - A customizable tile dashboard shows live frames, HFR/FWHM/eccentricity, equipment telemetry, guiding, and weather. The Android companion and the web dashboard drive the full unattended-night control set over the LAN.
 
 <div align="center">
-<img src="assets/screenshots/sequencer.png" width="420" alt="Sequence builder with draggable instruction nodes on a canvas">
-<img src="assets/screenshots/imaging.png" width="420" alt="Imaging workspace with capture controls, histogram, and frame stats">
+<img src="assets/screenshots/sequencer.png?v=20260608" width="420" alt="Sequence builder with draggable instruction nodes on a canvas">
+<img src="assets/screenshots/imaging.png?v=20260608" width="420" alt="Imaging workspace with capture controls, histogram, and frame stats">
 </div>
 
 ## A night with Nightshade
 
 <table>
 <tr>
-<td width="50%"><img src="assets/screenshots/equipment.png" alt="Equipment discovery"></td>
-<td width="50%"><img src="assets/screenshots/planetarium.png" alt="Sky map with FOV rings"></td>
+<td width="50%"><img src="assets/screenshots/equipment.png?v=20260608" alt="Equipment discovery"></td>
+<td width="50%"><img src="assets/screenshots/planetarium.png?v=20260608" alt="Sky map with FOV rings"></td>
 </tr>
 <tr>
 <td>Discover and connect cameras, mounts, focusers, and wheels over ASCOM, Alpaca, INDI, or native SDKs. Save one profile that every screen shares.</td>
 <td>Pan a GPU-rendered sky map with equipment FOV rings and a red night-vision mode to pick fields before committing time.</td>
 </tr>
 <tr>
-<td><img src="assets/screenshots/plan-tonight.png" alt="Plan Tonight target scoring"></td>
-<td><img src="assets/screenshots/framing.png" alt="Framing over a survey image"></td>
+<td><img src="assets/screenshots/plan-tonight.png?v=20260608" alt="Plan Tonight target scoring"></td>
+<td><img src="assets/screenshots/framing.png?v=20260608" alt="Framing over a survey image"></td>
 </tr>
 <tr>
 <td>Read the live autopilot's scored target list and altitude windows. Send any candidate straight to the sequencer.</td>
 <td>Register a plate-solved survey overlay to real sky coordinates so rotation and offset match the plan.</td>
 </tr>
 <tr>
-<td><img src="assets/screenshots/guiding.png" alt="PHD2 guiding with RMS graph"></td>
-<td><img src="assets/screenshots/weather.png" alt="Weather radar overlay with cloud motion"></td>
+<td><img src="assets/screenshots/guiding.png?v=20260608" alt="PHD2 guiding with RMS graph"></td>
+<td><img src="assets/screenshots/weather.png?v=20260608" alt="Weather radar overlay with cloud motion"></td>
 </tr>
 <tr>
 <td>Run PHD2 inside Nightshade with RMS trends and dither-settle waits, while sequencer triggers watch tracking quality.</td>
 <td>Read per-cell radar cloud-motion, with stated reasons when data is missing, feeding a single fail-closed safety verdict that can pause and park.</td>
 </tr>
 <tr>
-<td><img src="assets/screenshots/analytics.png" alt="Session analytics"></td>
-<td><img src="assets/screenshots/flat-wizard.png" alt="Flat wizard with ADU target"></td>
+<td><img src="assets/screenshots/analytics.png?v=20260608" alt="Session analytics"></td>
+<td><img src="assets/screenshots/flat-wizard.png?v=20260608" alt="Flat wizard with ADU target"></td>
 </tr>
 <tr>
 <td>See frame-quality, HFR, and eccentricity trends plus per-target integration totals, computed from real metrics with rejected subs excluded.</td>
@@ -77,8 +77,8 @@ Then step away. Supervise or drive the same live session from a LAN browser or t
 
 <table>
 <tr>
-<td width="50%"><img src="assets/screenshots/settings-equipment-profiles.png" alt="Equipment profile settings"></td>
-<td width="50%"><img src="assets/screenshots/web-dashboard.png" alt="Browser dashboard controlling camera, mount, focuser, and sequencer"></td>
+<td width="50%"><img src="assets/screenshots/settings-equipment-profiles.png?v=20260608" alt="Equipment profile settings"></td>
+<td width="50%"><img src="assets/screenshots/web-dashboard.png?v=20260608" alt="Browser dashboard controlling camera, mount, focuser, and sequencer"></td>
 </tr>
 <tr>
 <td>Keep optics, camera defaults, filters, solver settings, and device assignments in one shared equipment profile.</td>
