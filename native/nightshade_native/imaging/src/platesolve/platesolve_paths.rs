@@ -458,6 +458,13 @@ mod tests {
         assert_eq!(first_existing(&fs, &candidates), Some(opt));
     }
 
+    // Windows-only: this exercises exe-path `.parent()` resolution on backslash
+    // paths, which Rust's `Path` only splits on Windows hosts (on Unix a
+    // backslash path is a single opaque component, so `.parent()` cannot yield
+    // `C:\Program Files\astap`). The production `catalog_dir_candidates` logic is
+    // host-agnostic via `OsFamily`; only this assertion depends on host path
+    // semantics, so it is gated rather than weakened.
+    #[cfg(windows)]
     #[test]
     fn catalog_dirs_include_exe_parent_and_home_dot_astap() {
         let exe = PathBuf::from(r"C:\Program Files\astap\astap.exe");

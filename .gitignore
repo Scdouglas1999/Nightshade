@@ -296,3 +296,6 @@ dist-release/
 
 # Flutter Rust Bridge ephemeral env (generated per machine)
 **/Flutter/ephemeral/flutter_native_integration.env
+
+# Workflow scratch build-briefs (not source)
+.briefs/

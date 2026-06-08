@@ -287,11 +287,7 @@ fn interpolate_cross(pixels: &[u16], w: usize, h: usize, x: usize, y: usize) -> 
         count += 1;
     }
 
-    if count > 0 {
-        (sum / count) as u16
-    } else {
-        0
-    }
+    sum.checked_div(count).map_or(0, |q| q as u16)
 }
 
 /// Interpolate from 4 diagonal pixels
@@ -316,11 +312,7 @@ fn interpolate_diagonal(pixels: &[u16], w: usize, h: usize, x: usize, y: usize) 
         count += 1;
     }
 
-    if count > 0 {
-        (sum / count) as u16
-    } else {
-        0
-    }
+    sum.checked_div(count).map_or(0, |q| q as u16)
 }
 
 /// Interpolate from horizontal neighbors
@@ -337,11 +329,7 @@ fn interpolate_horizontal(pixels: &[u16], w: usize, _h: usize, x: usize, y: usiz
         count += 1;
     }
 
-    if count > 0 {
-        (sum / count) as u16
-    } else {
-        0
-    }
+    sum.checked_div(count).map_or(0, |q| q as u16)
 }
 
 /// Interpolate from vertical neighbors
@@ -358,11 +346,7 @@ fn interpolate_vertical(pixels: &[u16], w: usize, h: usize, x: usize, y: usize) 
         count += 1;
     }
 
-    if count > 0 {
-        (sum / count) as u16
-    } else {
-        0
-    }
+    sum.checked_div(count).map_or(0, |q| q as u16)
 }
 
 /// VNG (Variable Number of Gradients) debayering

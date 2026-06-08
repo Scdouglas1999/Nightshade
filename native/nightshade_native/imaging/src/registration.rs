@@ -607,7 +607,7 @@ fn correspondences_from_stars(
         }
     }
 
-    candidates.sort_by(|a, b| b.0.cmp(&a.0));
+    candidates.sort_by_key(|c| std::cmp::Reverse(c.0));
 
     let mut used_frame = vec![false; n_frame];
     let mut correspondences = Vec::new();

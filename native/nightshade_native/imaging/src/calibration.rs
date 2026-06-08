@@ -288,11 +288,10 @@ pub fn calibrate_frame(
     };
 
     // Step 3: Start with the light frame, apply bias if no dark already absorbed it
-    let mut result = if bias.is_some() && dark.is_none() {
+    let mut result = match bias {
         // Bias without dark: subtract bias directly from light
-        subtract_bias(light, bias.unwrap())?
-    } else {
-        light.clone()
+        Some(b) if dark.is_none() => subtract_bias(light, b)?,
+        _ => light.clone(),
     };
 
     // Step 4: Subtract dark from light
