@@ -9,6 +9,48 @@ Engineering cross-references in the form `(§N.M)` point at the
 `docs/plans/2026-05-09-v250-audit-fixes.md` v2.5.0 pre-release audit and are
 intended for code reviewers rather than end users.
 
+## [4.0.0] — From your couch. Wake up to a finished image. (beta, build 15)
+
+The headline release: run your whole rig from your phone like an ASIAIR — but
+with any gear, a real autopilot, a built-in planetarium, and a master that's
+finished, diagnosed, and labelled by morning. See
+`docs/4.0-activation-checklist.md` for the three external steps (iOS publish,
+cellular-push keys, on-sky tuning) that flip the gated bits live.
+
+### Smart Morning Report & finishing
+- **Night Doctor** — a plain-language, evidence-backed diagnosis of the night
+  (focus drift, cloud/transparency loss, guiding-correlated trailing, dew/HFR
+  collapse, moon gradient) with a 0–100 score and "next time" advice.
+- **Marginal-SNR optimizer** — the integration-improvement curve that *proves*
+  the cull ("use best 46 of 64, +4.2% SNR") with the cut marked.
+- **Catalog-powered finishing** — the master is plate-solved, **photometrically
+  colour-calibrated** and **auto-annotated** from the built-in HYG + OpenNGC
+  catalogs (no external downloads), and background-extracted.
+- **Algorithm muscle wired end-to-end** — drizzle (+ Bayer), Richardson-Lucy
+  deconvolution, star reduction, and SHO/HOO narrowband palette mixing.
+- **Living multi-night project** — growth curve, best-night, a durable campaign
+  table, and a target-SNR deficit fed back into tonight's plan.
+- Layered **narrative + workbench** Session Review; a real progress bar.
+
+### Couch-grade control
+- **One-tap "Tonight"** — pick the best target, frame, plan and GO in a single
+  action; the deep sequencer stays one tap away.
+- **Cellular push (FCM + APNs)** — "guiding lost / master ready / clouds rolled
+  in — and here's what I did" reaches your phone anywhere (server-side complete;
+  needs cloud keys to go live). **iOS companion build-ready.**
+- Built-in multi-star **guider UI** (per-star list), capture filter-wheel
+  control, guide-star finder overlay, web-dashboard light/dark + layout.
+
+### Autopilot & safety (unattended-night)
+- Adaptive **target swapping** on by default; in-sequence horizon mask.
+- Residual hardware-safety hardening: ASCOM exposure-param apply, real **Pause**
+  for parallel/target-header subtrees, disconnect-retry, reject-storm → pause,
+  meridian-flip dry-run. Manual **OTA rollback**.
+
+> Honest scope: every native algorithm is synthetic-tested; the first clear
+> night is a tuning pass (all finishing steps are fail-soft). iOS build/publish
+> and live cellular push require an Apple Developer account + Firebase/APNs keys.
+
 ## [Unreleased] — Code-Quality Hardening (2026-05-09 to 2026-05-16)
 
 A 14-wave code-quality cycle following the v2.5.0 release. ~84 commits drove
