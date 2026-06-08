@@ -51,6 +51,7 @@ part 'database/migration_v18_to_v22.dart';
 part 'database/migration_v23_to_v31.dart';
 part 'database/migration_v32_to_v40.dart';
 part 'database/migration_v41.dart';
+part 'database/migration_v42.dart';
 part 'database/schema_helpers.dart';
 part 'database/default_settings.dart';
 part 'database/connection.dart';
@@ -118,7 +119,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 41;
+  int get schemaVersion => 42;
 
   @override
   MigrationStrategy get migration => _buildMigrationStrategy();

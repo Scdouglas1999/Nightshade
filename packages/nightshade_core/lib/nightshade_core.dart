@@ -52,6 +52,16 @@ export 'src/models/imaging/stack_and_share_models.dart';
 // Post-session integration: advanced settings model + integrated-master models.
 export 'src/models/imaging/integration_settings.dart';
 export 'src/models/imaging/integrated_master.dart';
+// Smart Morning Report (v42): Night Doctor report + finding value types.
+export 'src/models/imaging/night_report.dart';
+// Smart Morning Report (v42): marginal-SNR integration curve + subset
+// recommendation (api_analyze_night), and the catalog-powered finishing value
+// types — star photometry (api_detect_stars_photometry), colour calibration
+// (api_color_calibrate), and the annotation layer.
+export 'src/models/imaging/integration_curve.dart';
+export 'src/models/imaging/star_photometry.dart';
+export 'src/models/imaging/color_calibration_result.dart';
+export 'src/models/imaging/annotation.dart';
 // Wave 6E — push-based live-view streaming over WebSocket.
 export 'src/models/live_view/live_view_frame.dart';
 export 'src/models/calibration/dark_library_match_tolerances.dart';
@@ -479,6 +489,8 @@ export 'src/services/master_accumulation_service.dart';
 export 'src/services/flat_library_service.dart';
 export 'src/database/daos/integrated_masters_dao.dart';
 export 'src/database/daos/flat_library_dao.dart';
+// Smart Morning Report (v42): Night Doctor report persistence.
+export 'src/database/daos/night_reports_dao.dart';
 export 'src/services/project_tracking_service.dart';
 export 'src/services/calibration/defect_map_service.dart';
 export 'src/services/disk_space_service.dart';

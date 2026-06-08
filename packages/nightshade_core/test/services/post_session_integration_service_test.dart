@@ -6,8 +6,11 @@ import 'package:nightshade_core/src/database/daos/flat_library_dao.dart';
 import 'package:nightshade_core/src/database/daos/images_dao.dart';
 import 'package:nightshade_core/src/database/daos/integrated_masters_dao.dart';
 import 'package:nightshade_core/src/database/database.dart';
+import 'package:nightshade_core/src/models/imaging/color_calibration_result.dart';
 import 'package:nightshade_core/src/models/imaging/integrated_master.dart';
+import 'package:nightshade_core/src/models/imaging/integration_curve.dart';
 import 'package:nightshade_core/src/models/imaging/integration_settings.dart';
+import 'package:nightshade_core/src/models/imaging/star_photometry.dart';
 import 'package:nightshade_core/src/services/dark_library_service.dart';
 import 'package:nightshade_core/src/services/flat_library_service.dart';
 import 'package:nightshade_core/src/services/post_session_integration_service.dart';
@@ -110,6 +113,80 @@ class FakePostSessionSeam implements PostSessionSeam {
       pixelType: args['pixelType'] as String? ?? 'f32',
     );
   }
+
+  // --- Smart Morning Report finishing seam (scriptable) ---------------------
+
+  /// Scripted [analyzeNight] result; defaults to an empty curve.
+  IntegrationCurve analyzeResult = IntegrationCurve.empty;
+
+  /// Scripted [detectStarsPhotometry] result; defaults to an empty result.
+  StarPhotometryResult photometryResult = StarPhotometryResult.empty;
+
+  /// Scripted [colorCalibrate] result; defaults to an identity calibration that
+  /// echoes the requested output path.
+  ColorCalibrationResult? colorResult;
+
+  /// Synthetic progress events the fake [integrationProgress] stream replays.
+  List<({String phase, double fraction})> progressEvents = const [];
+
+  @override
+  Future<IntegrationCurve> analyzeNight({
+    required List<Map<String, dynamic>> qualities,
+    required List<double> weights,
+    required List<double> exposuresS,
+    double? aggressiveness,
+    int? minKeep,
+  }) async =>
+      analyzeResult;
+
+  @override
+  Future<StarPhotometryResult> detectStarsPhotometry({
+    required String inputFits,
+    int? maxStars,
+    int? aperture,
+  }) async =>
+      photometryResult;
+
+  @override
+  Future<ColorCalibrationResult> colorCalibrate({
+    required String inputFits,
+    required String outputFits,
+    required int channels,
+    double? whiteRefBv,
+    required List<Map<String, dynamic>> matchedStars,
+  }) async =>
+      colorResult ??
+      ColorCalibrationResult(
+        outputPath: outputFits,
+        channelScale: List<double>.filled(channels, 1.0),
+        matched: matchedStars.length,
+        residual: 0.0,
+      );
+
+  @override
+  Future<String> extractBackground(Map<String, dynamic> args) async =>
+      args['outputFits'] as String? ?? args['outputPath'] as String? ?? '';
+
+  @override
+  Future<String> deconvolvePreview(Map<String, dynamic> args) async =>
+      args['outputFits'] as String? ?? args['outputPath'] as String? ?? '';
+
+  @override
+  Future<String> reduceStarsPreview(Map<String, dynamic> args) async =>
+      args['outputFits'] as String? ?? args['outputPath'] as String? ?? '';
+
+  @override
+  Future<Map<String, dynamic>> drizzleIntegrate(
+          Map<String, dynamic> args) async =>
+      {'outputPath': args['outputFits'] as String? ?? ''};
+
+  @override
+  Future<String> combineChannels(Map<String, dynamic> args) async =>
+      args['outputFits'] as String? ?? args['outputPath'] as String? ?? '';
+
+  @override
+  Stream<({String phase, double fraction})> integrationProgress() =>
+      Stream.fromIterable(progressEvents);
 }
 
 void main() {

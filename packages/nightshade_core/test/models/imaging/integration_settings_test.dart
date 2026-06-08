@@ -143,6 +143,43 @@ void main() {
       expect(restored, s);
     });
 
+    test('toJson / fromJson round-trips every v42 finishing knob', () {
+      // Drive every Smart-Morning-Report / algorithm-depth knob away from its
+      // default so the v42 additions are actually exercised by the round-trip
+      // (the broad round-trip above leaves them all at their defaults).
+      const s = IntegrationSettings(
+        drizzle: true,
+        drizzleScale: 3.0,
+        drizzlePixfrac: 0.7,
+        drizzleKernel: DrizzleKernel.gaussian,
+        bayerDrizzle: true,
+        deconvolve: true,
+        deconIterations: 50,
+        deconRegularization: 0.05,
+        psfKind: PsfKind.moffat,
+        reduceStars: true,
+        starReductionStrength: 0.8,
+        starReduceMethod: StarReduceMethod.morphologicalErosion,
+        extractBackground: true,
+        backgroundPolyDegree: 6,
+        backgroundPreserveMean: false,
+        colorCalibrate: true,
+        whiteRefBv: 0.4,
+        narrowbandPalette: NarrowbandPalette.custom,
+        customWeights: [
+          [1.0, 0.0, 0.0],
+          [0.0, 0.5, 0.5],
+        ],
+      );
+      final restored = IntegrationSettings.fromJson(s.toJson());
+      expect(restored, s);
+      // Spot-check the custom narrowband weight table survived the trip.
+      expect(restored.customWeights, [
+        [1.0, 0.0, 0.0],
+        [0.0, 0.5, 0.5],
+      ]);
+    });
+
     test('fromJsonStringOrDefault returns defaults for null/blank/corrupt', () {
       expect(IntegrationSettings.fromJsonStringOrDefault(null),
           IntegrationSettings.defaults);
@@ -203,6 +240,128 @@ void main() {
       // cosmeticCorrection rides on the native calibration block, NOT here.
       expect(integ.containsKey('cosmeticCorrection'), isFalse);
       expect(weighting.containsKey('cosmeticCorrection'), isFalse);
+    });
+
+    test('emits the v42 finishing block with camelCase native field names', () {
+      const s = IntegrationSettings(
+        drizzle: true,
+        drizzleScale: 2.5,
+        drizzlePixfrac: 0.8,
+        drizzleKernel: DrizzleKernel.point,
+        bayerDrizzle: true,
+        deconvolve: true,
+        deconIterations: 40,
+        deconRegularization: 0.02,
+        psfKind: PsfKind.gaussian,
+        reduceStars: true,
+        starReductionStrength: 0.6,
+        starReduceMethod: StarReduceMethod.screenedResidual,
+        extractBackground: true,
+        backgroundPolyDegree: 5,
+        backgroundPreserveMean: false,
+        colorCalibrate: true,
+        whiteRefBv: 0.55,
+        narrowbandPalette: NarrowbandPalette.sho,
+      );
+      final finishing =
+          s.toBridgeSettings()['finishing'] as Map<String, dynamic>;
+
+      final drizzle = finishing['drizzle'] as Map<String, dynamic>;
+      expect(drizzle['enabled'], isTrue);
+      expect(drizzle['scale'], 2.5);
+      expect(drizzle['pixfrac'], 0.8);
+      expect(drizzle['kernel'], 'point');
+      expect(drizzle['bayer'], isTrue);
+
+      // Deconvolution mirrors native DeconvolvePreviewArgs: top-level
+      // estimatePsf + nested psf.kind + nested config.{iterations,
+      // regularization}. psfKind == gaussian is analytic, so estimatePsf
+      // is false and the kind routes through psf.kind.
+      final decon = finishing['deconvolution'] as Map<String, dynamic>;
+      expect(decon['enabled'], isTrue);
+      expect(decon['estimatePsf'], isFalse);
+      expect((decon['psf'] as Map<String, dynamic>)['kind'], 'gaussian');
+      final deconConfig = decon['config'] as Map<String, dynamic>;
+      expect(deconConfig['iterations'], 40);
+      expect(deconConfig['regularization'], 0.02);
+      // The flat shape the native side never read must be gone.
+      expect(decon.containsKey('psfKind'), isFalse);
+      expect(decon.containsKey('iterations'), isFalse);
+
+      final starReduction = finishing['starReduction'] as Map<String, dynamic>;
+      expect(starReduction['enabled'], isTrue);
+      expect(starReduction['strength'], 0.6);
+      expect(starReduction['method'], 'screened_residual');
+
+      final bg = finishing['backgroundExtraction'] as Map<String, dynamic>;
+      expect(bg['enabled'], isTrue);
+      expect(bg['polyDegree'], 5);
+      expect(bg['preserveMean'], isFalse);
+
+      final color = finishing['colorCalibration'] as Map<String, dynamic>;
+      expect(color['enabled'], isTrue);
+      expect(color['whiteRefBv'], 0.55);
+
+      // sho is a named palette: the parser accepts it and weights are absent.
+      final narrowband = finishing['narrowband'] as Map<String, dynamic>;
+      expect(narrowband['palette'], 'sho');
+      expect(narrowband.containsKey('weights'), isFalse);
+    });
+
+    test(
+        'deconvolution with empirical psfKind routes through the '
+        'estimate-from-stars path', () {
+      const s = IntegrationSettings(
+        deconvolve: true,
+        deconIterations: 25,
+        deconRegularization: 0.03,
+        // psfKind defaults to empirical.
+      );
+      final decon = (s.toBridgeSettings()['finishing']
+          as Map<String, dynamic>)['deconvolution'] as Map<String, dynamic>;
+      // Empirical is unreachable analytically, so it must request estimation.
+      expect(decon['estimatePsf'], isTrue);
+      expect((decon['psf'] as Map<String, dynamic>)['kind'], 'empirical');
+      final config = decon['config'] as Map<String, dynamic>;
+      expect(config['iterations'], 25);
+      expect(config['regularization'], 0.03);
+    });
+
+    test('narrowband omits the palette key for none and custom', () {
+      // none: the native parser rejects a 'none' token, so the combine step is
+      // skipped entirely — no palette, no weights.
+      const none = IntegrationSettings();
+      final noneNb = (none.toBridgeSettings()['finishing']
+          as Map<String, dynamic>)['narrowband'] as Map<String, dynamic>;
+      expect(noneNb.containsKey('palette'), isFalse);
+      expect(noneNb.containsKey('weights'), isFalse);
+
+      // custom: the native two-mode contract requires palette ABSENT with a
+      // non-empty weights table.
+      const custom = IntegrationSettings(
+        narrowbandPalette: NarrowbandPalette.custom,
+        customWeights: [
+          [1.0, 0.0, 0.0],
+          [0.0, 1.0, 0.0],
+          [0.0, 0.0, 1.0],
+        ],
+      );
+      final customNb = (custom.toBridgeSettings()['finishing']
+          as Map<String, dynamic>)['narrowband'] as Map<String, dynamic>;
+      expect(customNb.containsKey('palette'), isFalse);
+      final weights = customNb['weights'] as List;
+      expect(weights, isNotEmpty);
+      expect(weights.first, [1.0, 0.0, 0.0]);
+    });
+
+    test('narrowband hoo emits the hoo palette token', () {
+      const s = IntegrationSettings(
+        narrowbandPalette: NarrowbandPalette.hoo,
+      );
+      final nb = (s.toBridgeSettings()['finishing']
+          as Map<String, dynamic>)['narrowband'] as Map<String, dynamic>;
+      expect(nb['palette'], 'hoo');
+      expect(nb.containsKey('weights'), isFalse);
     });
   });
 

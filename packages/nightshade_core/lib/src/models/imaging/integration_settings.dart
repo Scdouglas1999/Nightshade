@@ -257,6 +257,166 @@ enum OutputBitDepth {
   }
 }
 
+/// Drizzle drop-deposition kernel. Mirrors native `drizzle::DrizzleKernel`
+/// (the `DrizzleConfigArgs.kernel` wire token `"square"` / `"gaussian"` /
+/// `"point"`).
+enum DrizzleKernel {
+  /// Square drop footprint (the native default).
+  square,
+
+  /// Gaussian-weighted drop — smoother, slightly softer reconstruction.
+  gaussian,
+
+  /// Point (delta) drop — sharpest, noisiest. For very high sub counts.
+  point;
+
+  String get wire {
+    switch (this) {
+      case DrizzleKernel.square:
+        return 'square';
+      case DrizzleKernel.gaussian:
+        return 'gaussian';
+      case DrizzleKernel.point:
+        return 'point';
+    }
+  }
+
+  static DrizzleKernel fromWire(String value) {
+    switch (value) {
+      case 'square':
+        return DrizzleKernel.square;
+      case 'gaussian':
+        return DrizzleKernel.gaussian;
+      case 'point':
+        return DrizzleKernel.point;
+      default:
+        throw ArgumentError.value(value, 'value', 'unknown DrizzleKernel');
+    }
+  }
+}
+
+/// Point-spread-function family used by the deconvolution preview. Mirrors
+/// native `deconvolution::PsfKind` (the `PsfArgs.kind` / `PsfReport.kind` wire
+/// token `"empirical"` / `"moffat"` / `"gaussian"`).
+enum PsfKind {
+  /// PSF stacked from the frame's own stars (the native default; only available
+  /// when `estimatePsf` is true).
+  empirical,
+
+  /// Analytic Moffat profile (heavier wings — closer to real seeing).
+  moffat,
+
+  /// Analytic Gaussian profile.
+  gaussian;
+
+  String get wire {
+    switch (this) {
+      case PsfKind.empirical:
+        return 'empirical';
+      case PsfKind.moffat:
+        return 'moffat';
+      case PsfKind.gaussian:
+        return 'gaussian';
+    }
+  }
+
+  static PsfKind fromWire(String value) {
+    switch (value) {
+      case 'empirical':
+        return PsfKind.empirical;
+      case 'moffat':
+        return PsfKind.moffat;
+      case 'gaussian':
+        return PsfKind.gaussian;
+      default:
+        throw ArgumentError.value(value, 'value', 'unknown PsfKind');
+    }
+  }
+}
+
+/// Star-size-reduction algorithm. Mirrors native
+/// `star_reduction::StarReduceMethod` (the `ReduceStarsConfigArgs.method` wire
+/// token — the native side accepts both the snake_case `"screened_residual"` /
+/// `"morphological_erosion"` and their collapsed forms).
+enum StarReduceMethod {
+  /// Greyscale morphological erosion confined to the star mask.
+  morphologicalErosion,
+
+  /// Screened residual subtraction (the native default — gentler on faint
+  /// stars).
+  screenedResidual;
+
+  String get wire {
+    switch (this) {
+      case StarReduceMethod.morphologicalErosion:
+        return 'morphological_erosion';
+      case StarReduceMethod.screenedResidual:
+        return 'screened_residual';
+    }
+  }
+
+  static StarReduceMethod fromWire(String value) {
+    switch (value) {
+      // Accept the canonical snake_case and the collapsed/camel forms the
+      // native parser also tolerates.
+      case 'morphological_erosion':
+      case 'morphologicalErosion':
+        return StarReduceMethod.morphologicalErosion;
+      case 'screened_residual':
+      case 'screenedResidual':
+        return StarReduceMethod.screenedResidual;
+      default:
+        throw ArgumentError.value(value, 'value', 'unknown StarReduceMethod');
+    }
+  }
+}
+
+/// Narrowband palette mix. `sho` / `hoo` mirror the native canonical weight
+/// tables (`channel_combine::{sho_palette, hoo_palette}` via the
+/// `CombineChannelsArgs.palette` wire token); `custom` carries explicit
+/// per-channel weights, and `none` leaves the master in its native colour.
+enum NarrowbandPalette {
+  /// No palette mix (default — broadband / OSC colour).
+  none,
+
+  /// SHO (Hubble): S II→R, Hα→G, O III→B.
+  sho,
+
+  /// HOO (bicolour): Hα→R, O III→G+B.
+  hoo,
+
+  /// Caller-supplied per-input `[r, g, b]` weight triples ([customWeights]).
+  custom;
+
+  String get wire {
+    switch (this) {
+      case NarrowbandPalette.none:
+        return 'none';
+      case NarrowbandPalette.sho:
+        return 'sho';
+      case NarrowbandPalette.hoo:
+        return 'hoo';
+      case NarrowbandPalette.custom:
+        return 'custom';
+    }
+  }
+
+  static NarrowbandPalette fromWire(String value) {
+    switch (value) {
+      case 'none':
+        return NarrowbandPalette.none;
+      case 'sho':
+        return NarrowbandPalette.sho;
+      case 'hoo':
+        return NarrowbandPalette.hoo;
+      case 'custom':
+        return NarrowbandPalette.custom;
+      default:
+        throw ArgumentError.value(value, 'value', 'unknown NarrowbandPalette');
+    }
+  }
+}
+
 /// Named smart-default presets for [IntegrationSettings].
 ///
 /// Each preset is a curated point in the (speed ↔ quality) tradeoff space; the
@@ -422,6 +582,83 @@ class IntegrationSettings {
   /// hand-edited away from any preset. Persisted for UI round-trip only.
   final IntegrationPreset? sourcePreset;
 
+  // --- Drizzle (variable-pixel reconstruction; off by default — heavy) ---
+  /// Whether to drizzle-integrate instead of plain resample-and-combine.
+  /// Default false. Routes through native `api_drizzle_integrate`.
+  final bool drizzle;
+
+  /// Linear output/input scale factor for drizzle. Default 2.0.
+  final double drizzleScale;
+
+  /// Drop-shrink fraction in (0, 1]. Default 0.9.
+  final double drizzlePixfrac;
+
+  /// Drizzle drop-deposition kernel. Default [DrizzleKernel.square].
+  final DrizzleKernel drizzleKernel;
+
+  /// Bayer-CFA drizzle (drizzle the raw mosaic into RGB, no debayer interp).
+  /// Default false.
+  final bool bayerDrizzle;
+
+  // --- Deconvolution (preview finishing pass; off by default — heavy) ---
+  /// Whether to run a Richardson–Lucy deconvolution finishing pass. Default
+  /// false. Routes through native `api_deconvolve_preview`.
+  final bool deconvolve;
+
+  /// Richardson–Lucy iteration count. Default 30.
+  final int deconIterations;
+
+  /// Total-variation regularization strength λ. Default 0.01 (small).
+  final double deconRegularization;
+
+  /// PSF family used by the deconvolution. Default [PsfKind.empirical] (the
+  /// PSF is estimated from the frame's own stars).
+  final PsfKind psfKind;
+
+  // --- Star reduction (preview finishing pass; off by default) ---
+  /// Whether to run a star-size-reduction finishing pass. Default false.
+  /// Routes through native `api_reduce_stars_preview`.
+  final bool reduceStars;
+
+  /// Star-reduction strength in [0, 1]. Default 0.5 (0 is identity).
+  final double starReductionStrength;
+
+  /// Star-reduction algorithm. Default [StarReduceMethod.screenedResidual].
+  final StarReduceMethod starReduceMethod;
+
+  // --- Background extraction (gradient removal; ON by smart default) ---
+  /// Whether to fit + subtract a star-masked low-order polynomial background.
+  /// Default false on the bare model; [smartDefaults] turns it ON. Routes
+  /// through native `api_extract_background`.
+  final bool extractBackground;
+
+  /// Fitted background polynomial degree (0..6). Default 4.
+  final int backgroundPolyDegree;
+
+  /// Add the model's mean back on subtraction (remove gradient only, keep the
+  /// pedestal). Default true.
+  final bool backgroundPreserveMean;
+
+  // --- Colour calibration (photometric white balance; off by default) ---
+  /// Whether to solve + apply a catalogue-referenced per-channel white balance.
+  /// Default false. Routes through native `api_color_calibrate`.
+  final bool colorCalibrate;
+
+  /// White-reference B–V colour index the SPCC fit balances to. Default 0.65
+  /// (a G2V / sun-like reference).
+  final double whiteRefBv;
+
+  // --- Narrowband palette (channel combine; off by default) ---
+  /// Narrowband palette mix. Default [NarrowbandPalette.none]. When `custom`,
+  /// [customWeights] supplies the per-input `[r, g, b]` triples. Routes through
+  /// native `api_combine_channels`.
+  final NarrowbandPalette narrowbandPalette;
+
+  /// Optional per-input `[r, g, b]` weight triples used only when
+  /// [narrowbandPalette] == [NarrowbandPalette.custom]. Placeholder for the
+  /// custom-mix UI; null when unused.
+  final List<List<double>>? customWeights;
+
   const IntegrationSettings({
     this.model = TransformModel.affine,
     this.resampler = Resampler.lanczos3,
@@ -448,6 +685,25 @@ class IntegrationSettings {
     this.autoCull = true,
     this.cullPercentile = 0.10,
     this.sourcePreset,
+    this.drizzle = false,
+    this.drizzleScale = 2.0,
+    this.drizzlePixfrac = 0.9,
+    this.drizzleKernel = DrizzleKernel.square,
+    this.bayerDrizzle = false,
+    this.deconvolve = false,
+    this.deconIterations = 30,
+    this.deconRegularization = 0.01,
+    this.psfKind = PsfKind.empirical,
+    this.reduceStars = false,
+    this.starReductionStrength = 0.5,
+    this.starReduceMethod = StarReduceMethod.screenedResidual,
+    this.extractBackground = false,
+    this.backgroundPolyDegree = 4,
+    this.backgroundPreserveMean = true,
+    this.colorCalibrate = false,
+    this.whiteRefBv = 0.65,
+    this.narrowbandPalette = NarrowbandPalette.none,
+    this.customWeights,
   });
 
   /// The app-wide default (== [IntegrationPreset.balanced]).
@@ -510,25 +766,42 @@ class IntegrationSettings {
   /// - **Resampler** drops to bilinear only when [preferSpeed] is set (e.g. a
   ///   very large sub count where the user opted for the Fast preset).
   ///
-  /// Distortion correction and drizzle stay OFF: they are algorithmically sound
-  /// but need real-data tuning (see the design doc), so smart defaults never
+  /// **Background extraction** is turned ON: a star-masked low-order polynomial
+  /// gradient subtraction is a safe, near-universal improvement, so the smart
+  /// path enables it by default (the bare model leaves it off).
+  ///
+  /// **Drizzle** is enabled ONLY when the data actually warrants it — i.e. the
+  /// session was [dithered] *and* the field is [underSampled] (so there is
+  /// genuine sub-pixel information to recover). Otherwise it stays OFF, as do
+  /// the remaining heavy/optional finishing passes (deconvolution, star
+  /// reduction, colour calibration, narrowband palette): they are
+  /// algorithmically sound but need per-target tuning, so smart defaults never
   /// silently enable them.
   factory IntegrationSettings.smartDefaults({
     required int subCount,
     bool longNight = false,
     bool preferSpeed = false,
+    bool dithered = false,
+    bool underSampled = false,
   }) {
     final base = preferSpeed
         ? IntegrationSettings.preset(IntegrationPreset.fast)
         : IntegrationSettings.preset(IntegrationPreset.balanced);
 
     final wantsPercentile = subCount < 8;
+    // Drizzle only pays off with real sub-pixel coverage: dithered AND
+    // under-sampled. Anything else and it just amplifies noise.
+    final wantsDrizzle = dithered && underSampled;
     return base.copyWith(
       reject: RejectAlgorithm.auto,
       rejectLow: wantsPercentile ? 0.2 : base.rejectLow,
       rejectHigh: wantsPercentile ? 0.1 : base.rejectHigh,
       normalization:
           longNight ? NormalizationMode.local : base.normalization,
+      // Background extraction is a safe near-universal win — on by default.
+      extractBackground: true,
+      // Drizzle only when the data supports it; heavy options stay off.
+      drizzle: wantsDrizzle,
       // A hand-tuned smart config is no longer tied to a single named preset.
       clearSourcePreset: true,
     );
@@ -570,6 +843,26 @@ class IntegrationSettings {
     double? cullPercentile,
     IntegrationPreset? sourcePreset,
     bool clearSourcePreset = false,
+    bool? drizzle,
+    double? drizzleScale,
+    double? drizzlePixfrac,
+    DrizzleKernel? drizzleKernel,
+    bool? bayerDrizzle,
+    bool? deconvolve,
+    int? deconIterations,
+    double? deconRegularization,
+    PsfKind? psfKind,
+    bool? reduceStars,
+    double? starReductionStrength,
+    StarReduceMethod? starReduceMethod,
+    bool? extractBackground,
+    int? backgroundPolyDegree,
+    bool? backgroundPreserveMean,
+    bool? colorCalibrate,
+    double? whiteRefBv,
+    NarrowbandPalette? narrowbandPalette,
+    List<List<double>>? customWeights,
+    bool clearCustomWeights = false,
   }) {
     return IntegrationSettings(
       model: model ?? this.model,
@@ -598,6 +891,28 @@ class IntegrationSettings {
       cullPercentile: cullPercentile ?? this.cullPercentile,
       sourcePreset:
           clearSourcePreset ? null : (sourcePreset ?? this.sourcePreset),
+      drizzle: drizzle ?? this.drizzle,
+      drizzleScale: drizzleScale ?? this.drizzleScale,
+      drizzlePixfrac: drizzlePixfrac ?? this.drizzlePixfrac,
+      drizzleKernel: drizzleKernel ?? this.drizzleKernel,
+      bayerDrizzle: bayerDrizzle ?? this.bayerDrizzle,
+      deconvolve: deconvolve ?? this.deconvolve,
+      deconIterations: deconIterations ?? this.deconIterations,
+      deconRegularization: deconRegularization ?? this.deconRegularization,
+      psfKind: psfKind ?? this.psfKind,
+      reduceStars: reduceStars ?? this.reduceStars,
+      starReductionStrength:
+          starReductionStrength ?? this.starReductionStrength,
+      starReduceMethod: starReduceMethod ?? this.starReduceMethod,
+      extractBackground: extractBackground ?? this.extractBackground,
+      backgroundPolyDegree: backgroundPolyDegree ?? this.backgroundPolyDegree,
+      backgroundPreserveMean:
+          backgroundPreserveMean ?? this.backgroundPreserveMean,
+      colorCalibrate: colorCalibrate ?? this.colorCalibrate,
+      whiteRefBv: whiteRefBv ?? this.whiteRefBv,
+      narrowbandPalette: narrowbandPalette ?? this.narrowbandPalette,
+      customWeights:
+          clearCustomWeights ? null : (customWeights ?? this.customWeights),
     );
   }
 
@@ -639,6 +954,71 @@ class IntegrationSettings {
         'generateRejectionMap': generateRejectionMap,
         'outputBitDepth': outputBitDepth.wire,
       },
+      // Post-integration finishing knobs. Each sub-block carries the
+      // enabled flag plus the native config field names (camelCase, matching
+      // the `#[serde(rename_all = "camelCase")]` *Args DTOs in
+      // bridge/src/api/finishing_*.rs). They ride inside the integration JSON
+      // so a new knob never needs an FFI regen.
+      'finishing': {
+        // Drizzle config mirrors DrizzleConfigArgs (+ top-level `bayer`).
+        'drizzle': {
+          'enabled': drizzle,
+          'scale': drizzleScale,
+          'pixfrac': drizzlePixfrac,
+          'kernel': drizzleKernel.wire,
+          'bayer': bayerDrizzle,
+        },
+        // Deconvolution mirrors the native DeconvolvePreviewArgs shape
+        // (finishing_enhance.rs): a top-level `estimatePsf` bool, a nested
+        // `psf` (PsfArgs.kind) used only when estimatePsf is false, and a
+        // nested `config` (DeconvConfigArgs.iterations/regularization). The
+        // empirical PSF can only be produced by the estimate-from-stars path,
+        // so psfKind == empirical maps to estimatePsf: true; the analytic
+        // kinds (gaussian/moffat) map to estimatePsf: false and route the kind
+        // through psf.kind.
+        'deconvolution': {
+          'enabled': deconvolve,
+          'estimatePsf': psfKind == PsfKind.empirical,
+          'psf': {
+            'kind': psfKind.wire,
+          },
+          'config': {
+            'iterations': deconIterations,
+            'regularization': deconRegularization,
+          },
+        },
+        // Star reduction mirrors ReduceStarsConfigArgs.
+        'starReduction': {
+          'enabled': reduceStars,
+          'strength': starReductionStrength,
+          'method': starReduceMethod.wire,
+        },
+        // Background extraction mirrors BackgroundConfigArgs.
+        'backgroundExtraction': {
+          'enabled': extractBackground,
+          'polyDegree': backgroundPolyDegree,
+          'preserveMean': backgroundPreserveMean,
+        },
+        // Colour calibration (the catalogue match is Dart-side; whiteRefBv is
+        // the photometric white reference the native solve balances to).
+        'colorCalibration': {
+          'enabled': colorCalibrate,
+          'whiteRefBv': whiteRefBv,
+        },
+        // Narrowband mirrors the native CombineChannelsArgs two-mode contract
+        // (finishing_combine.rs): `palette` is an Option<String> that the
+        // native parser accepts ONLY as "sho" or "hoo"; the custom path
+        // requires `palette` ABSENT with a non-empty `weights` table. So the
+        // 'palette' key is emitted only for the sho/hoo presets. `none` means
+        // the narrowband combine step is skipped entirely (no palette, no
+        // weights), and `custom` carries explicit weights with no palette.
+        'narrowband': {
+          if (narrowbandPalette == NarrowbandPalette.sho ||
+              narrowbandPalette == NarrowbandPalette.hoo)
+            'palette': narrowbandPalette.wire,
+          if (customWeights != null) 'weights': customWeights,
+        },
+      },
     };
   }
 
@@ -672,6 +1052,25 @@ class IntegrationSettings {
       'autoCull': autoCull,
       'cullPercentile': cullPercentile,
       if (sourcePreset != null) 'sourcePreset': sourcePreset!.wire,
+      'drizzle': drizzle,
+      'drizzleScale': drizzleScale,
+      'drizzlePixfrac': drizzlePixfrac,
+      'drizzleKernel': drizzleKernel.wire,
+      'bayerDrizzle': bayerDrizzle,
+      'deconvolve': deconvolve,
+      'deconIterations': deconIterations,
+      'deconRegularization': deconRegularization,
+      'psfKind': psfKind.wire,
+      'reduceStars': reduceStars,
+      'starReductionStrength': starReductionStrength,
+      'starReduceMethod': starReduceMethod.wire,
+      'extractBackground': extractBackground,
+      'backgroundPolyDegree': backgroundPolyDegree,
+      'backgroundPreserveMean': backgroundPreserveMean,
+      'colorCalibrate': colorCalibrate,
+      'whiteRefBv': whiteRefBv,
+      'narrowbandPalette': narrowbandPalette.wire,
+      if (customWeights != null) 'customWeights': customWeights,
     };
   }
 
@@ -733,7 +1132,55 @@ class IntegrationSettings {
       cullPercentile: pickNum('cullPercentile', d.cullPercentile),
       sourcePreset:
           presetWire is String ? IntegrationPreset.fromWire(presetWire) : null,
+      drizzle: pick<bool>('drizzle', d.drizzle),
+      drizzleScale: pickNum('drizzleScale', d.drizzleScale),
+      drizzlePixfrac: pickNum('drizzlePixfrac', d.drizzlePixfrac),
+      drizzleKernel: json.containsKey('drizzleKernel')
+          ? DrizzleKernel.fromWire(json['drizzleKernel'] as String)
+          : d.drizzleKernel,
+      bayerDrizzle: pick<bool>('bayerDrizzle', d.bayerDrizzle),
+      deconvolve: pick<bool>('deconvolve', d.deconvolve),
+      deconIterations: pick<int>('deconIterations', d.deconIterations),
+      deconRegularization:
+          pickNum('deconRegularization', d.deconRegularization),
+      psfKind: json.containsKey('psfKind')
+          ? PsfKind.fromWire(json['psfKind'] as String)
+          : d.psfKind,
+      reduceStars: pick<bool>('reduceStars', d.reduceStars),
+      starReductionStrength:
+          pickNum('starReductionStrength', d.starReductionStrength),
+      starReduceMethod: json.containsKey('starReduceMethod')
+          ? StarReduceMethod.fromWire(json['starReduceMethod'] as String)
+          : d.starReduceMethod,
+      extractBackground: pick<bool>('extractBackground', d.extractBackground),
+      backgroundPolyDegree:
+          pick<int>('backgroundPolyDegree', d.backgroundPolyDegree),
+      backgroundPreserveMean:
+          pick<bool>('backgroundPreserveMean', d.backgroundPreserveMean),
+      colorCalibrate: pick<bool>('colorCalibrate', d.colorCalibrate),
+      whiteRefBv: pickNum('whiteRefBv', d.whiteRefBv),
+      narrowbandPalette: json.containsKey('narrowbandPalette')
+          ? NarrowbandPalette.fromWire(json['narrowbandPalette'] as String)
+          : d.narrowbandPalette,
+      customWeights: _decodeCustomWeights(json['customWeights']),
     );
+  }
+
+  /// Decode the optional `[[r,g,b], ...]` custom narrowband weight table,
+  /// tolerating ragged / non-numeric rows (returns null when absent or
+  /// unusable rather than throwing).
+  static List<List<double>>? _decodeCustomWeights(Object? raw) {
+    if (raw is! List) return null;
+    final out = <List<double>>[];
+    for (final row in raw) {
+      if (row is List) {
+        out.add([
+          for (final v in row)
+            if (v is num) v.toDouble(),
+        ]);
+      }
+    }
+    return out.isEmpty ? null : out;
   }
 
   /// JSON string form (for the `settings_json` DB column / app-settings value).
@@ -783,7 +1230,26 @@ class IntegrationSettings {
           outputBitDepth == other.outputBitDepth &&
           autoCull == other.autoCull &&
           cullPercentile == other.cullPercentile &&
-          sourcePreset == other.sourcePreset;
+          sourcePreset == other.sourcePreset &&
+          drizzle == other.drizzle &&
+          drizzleScale == other.drizzleScale &&
+          drizzlePixfrac == other.drizzlePixfrac &&
+          drizzleKernel == other.drizzleKernel &&
+          bayerDrizzle == other.bayerDrizzle &&
+          deconvolve == other.deconvolve &&
+          deconIterations == other.deconIterations &&
+          deconRegularization == other.deconRegularization &&
+          psfKind == other.psfKind &&
+          reduceStars == other.reduceStars &&
+          starReductionStrength == other.starReductionStrength &&
+          starReduceMethod == other.starReduceMethod &&
+          extractBackground == other.extractBackground &&
+          backgroundPolyDegree == other.backgroundPolyDegree &&
+          backgroundPreserveMean == other.backgroundPreserveMean &&
+          colorCalibrate == other.colorCalibrate &&
+          whiteRefBv == other.whiteRefBv &&
+          narrowbandPalette == other.narrowbandPalette &&
+          _customWeightsEqual(customWeights, other.customWeights);
 
   @override
   int get hashCode => Object.hashAll([
@@ -812,5 +1278,46 @@ class IntegrationSettings {
         autoCull,
         cullPercentile,
         sourcePreset,
+        drizzle,
+        drizzleScale,
+        drizzlePixfrac,
+        drizzleKernel,
+        bayerDrizzle,
+        deconvolve,
+        deconIterations,
+        deconRegularization,
+        psfKind,
+        reduceStars,
+        starReductionStrength,
+        starReduceMethod,
+        extractBackground,
+        backgroundPolyDegree,
+        backgroundPreserveMean,
+        colorCalibrate,
+        whiteRefBv,
+        narrowbandPalette,
+        _customWeightsHash(customWeights),
       ]);
+
+  /// Order-sensitive deep equality for the optional custom-weight table.
+  static bool _customWeightsEqual(
+      List<List<double>>? a, List<List<double>>? b) {
+    if (identical(a, b)) return true;
+    if (a == null || b == null || a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      final ra = a[i];
+      final rb = b[i];
+      if (ra.length != rb.length) return false;
+      for (var j = 0; j < ra.length; j++) {
+        if (ra[j] != rb[j]) return false;
+      }
+    }
+    return true;
+  }
+
+  /// Order-sensitive hash for the optional custom-weight table (null ⇒ 0).
+  static int _customWeightsHash(List<List<double>>? weights) {
+    if (weights == null) return 0;
+    return Object.hashAll(weights.map((row) => Object.hashAll(row)));
+  }
 }

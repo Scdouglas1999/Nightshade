@@ -87,4 +87,41 @@
 ///   created_at          INTEGER NOT NULL  (unix seconds, UTC)
 ///
 /// Indexes: filter, equipment_profile_id, (filter, gain, bin_x, bin_y).
+///
+/// ---------------------------------------------------------------------------
+/// v42 (Smart Morning Report / "Night Doctor"): the `night_reports` table plus
+/// additive columns on `integrated_masters` and `integrated_master_frames`.
+///
+/// Same raw-DDL idiom (see `database.dart` migration v42 —
+/// `_createNightReportsTable()` + `_ensureIntegratedMastersV42Columns()`);
+/// `night_reports` is accessed via the plain `NightReportsDao`.
+///
+/// `night_reports` — one Night Doctor report per session (and/or target). The
+/// `findings_json` array holds the serialized `NightFinding`s; `headline` is the
+/// one-line verdict and `score` is the 0..100 overall quality grade.
+///
+/// Columns:
+///   id            INTEGER PRIMARY KEY AUTOINCREMENT
+///   session_id    INTEGER            (FK imaging_sessions.id, ON DELETE CASCADE)
+///   target_id     INTEGER            (FK targets.id,          ON DELETE SET NULL)
+///   score         INTEGER NOT NULL DEFAULT 0      (0..100 overall quality)
+///   headline      TEXT    NOT NULL DEFAULT ''     (one-line verdict)
+///   findings_json TEXT    NOT NULL DEFAULT '[]'   (JSON array of NightFinding)
+///   created_at    INTEGER NOT NULL               (unix seconds, UTC)
+///
+/// Indexes: session_id, target_id, created_at.
+///
+/// Additive `integrated_masters` columns (all nullable except
+/// `background_extracted`):
+///   color_calibrated_path   TEXT                 (SPCC-calibrated FITS/preview)
+///   annotated_preview_path  TEXT                 (catalog-annotated preview)
+///   background_extracted    INTEGER NOT NULL DEFAULT 0  (0/1)
+///   target_snr              REAL                 (per-master SNR goal)
+///   target_integration_s    REAL                 (per-master integration goal, s)
+///   improvement_curve_json  TEXT                 (serialized IntegrationCurve)
+///
+/// Additive `integrated_master_frames` columns (per-sub science, all nullable):
+///   snr           REAL
+///   fwhm          REAL
+///   eccentricity  REAL
 library;

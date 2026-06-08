@@ -294,6 +294,107 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     );
   }
 
+  /// Create the v42 `night_reports` table — one Night Doctor report per session
+  /// (and/or target) produced by the Smart Morning Report pipeline — plus its
+  /// lookup indexes.
+  ///
+  /// Called from both `onCreate` (fresh installs) and the `if (from < 42)`
+  /// `onUpgrade` branch. Every statement is `CREATE ... IF NOT EXISTS` so the
+  /// helper is idempotent and re-runnable. This is a raw-DDL table (the dominant
+  /// v27+ convention) accessed via `NightReportsDao`; see
+  /// `tables/post_session_tables.dart` for the canonical schema documentation.
+  /// FK columns mirror `stacked_results`: `session_id` and `target_id` are both
+  /// nullable so a report can attach to a session, a target, or both. FK
+  /// enforcement is already enabled in `beforeOpen`.
+  Future<void> _createNightReportsTable() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS night_reports('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'session_id INTEGER REFERENCES imaging_sessions(id) ON DELETE CASCADE,'
+      'target_id INTEGER REFERENCES targets(id) ON DELETE SET NULL,'
+      'score INTEGER NOT NULL DEFAULT 0,'
+      "headline TEXT NOT NULL DEFAULT '',"
+      "findings_json TEXT NOT NULL DEFAULT '[]',"
+      'created_at INTEGER NOT NULL)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_night_reports_session '
+      'ON night_reports (session_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_night_reports_target '
+      'ON night_reports (target_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_night_reports_created '
+      'ON night_reports (created_at)',
+    );
+  }
+
+  /// Add the v42 additive Smart-Morning-Report columns to the raw-DDL
+  /// `integrated_masters` and `integrated_master_frames` tables.
+  ///
+  /// Because both tables are raw-DDL (not Drift `Table` classes), additive
+  /// nullable columns are retrofitted with guarded `ALTER TABLE ... ADD COLUMN`
+  /// — the exact pattern of `_ensureCapturedImagesProducingNodeColumns`. Every
+  /// ALTER is guarded by `_columnExists` so the helper is idempotent and runs
+  /// safely from both `onCreate` (fresh installs — the columns are NOT in
+  /// `_createPostSessionTables`, so a fresh install needs this too) and the
+  /// `if (from < 42)` `onUpgrade` branch.
+  Future<void> _ensureIntegratedMastersV42Columns() async {
+    // integrated_masters: finishing artifacts + target SNR/time goals + the
+    // marginal-SNR improvement curve.
+    if (!await _columnExists('integrated_masters', 'color_calibrated_path')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters ADD COLUMN color_calibrated_path TEXT',
+      );
+    }
+    if (!await _columnExists('integrated_masters', 'annotated_preview_path')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters ADD COLUMN annotated_preview_path TEXT',
+      );
+    }
+    if (!await _columnExists('integrated_masters', 'background_extracted')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters '
+        'ADD COLUMN background_extracted INTEGER NOT NULL DEFAULT 0',
+      );
+    }
+    if (!await _columnExists('integrated_masters', 'target_snr')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters ADD COLUMN target_snr REAL',
+      );
+    }
+    if (!await _columnExists('integrated_masters', 'target_integration_s')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters ADD COLUMN target_integration_s REAL',
+      );
+    }
+    if (!await _columnExists('integrated_masters', 'improvement_curve_json')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters ADD COLUMN improvement_curve_json TEXT',
+      );
+    }
+
+    // integrated_master_frames: per-sub science data the Night Doctor reads
+    // after a morning integration (snr / fwhm / eccentricity).
+    if (!await _columnExists('integrated_master_frames', 'snr')) {
+      await customStatement(
+        'ALTER TABLE integrated_master_frames ADD COLUMN snr REAL',
+      );
+    }
+    if (!await _columnExists('integrated_master_frames', 'fwhm')) {
+      await customStatement(
+        'ALTER TABLE integrated_master_frames ADD COLUMN fwhm REAL',
+      );
+    }
+    if (!await _columnExists('integrated_master_frames', 'eccentricity')) {
+      await customStatement(
+        'ALTER TABLE integrated_master_frames ADD COLUMN eccentricity REAL',
+      );
+    }
+  }
+
   Future<void> _createGuideRmsHistoryTable() async {
     await customStatement('''
       CREATE TABLE IF NOT EXISTS guide_rms_history (

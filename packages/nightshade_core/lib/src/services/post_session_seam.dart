@@ -3,6 +3,12 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 
+import '../backend/nightshade_backend.dart';
+import '../models/imaging/color_calibration_result.dart';
+import '../models/imaging/integration_curve.dart';
+import '../models/imaging/star_photometry.dart';
+import '../providers/backend_provider.dart';
+
 /// Injectable seam over the four post-session batch-processing FFI functions
 /// (`apiIntegrateSession`, `apiMasterAccumulate`, `apiBuildMasterFlat`,
 /// `apiSaveFitsMaster`).
@@ -40,12 +46,92 @@ abstract class PostSessionSeam {
   /// Re-export an in-memory pixel buffer as a FITS master. [args] is the
   /// `SaveFitsMasterArgs` JSON shape.
   Future<SaveFitsMasterResult> saveFitsMaster(Map<String, dynamic> args);
+
+  // ---------------------------------------------------------------------------
+  // Smart Morning Report — Pillar 2 (optimizer) + Pillar 3 (finishing) +
+  // algorithm-depth (drizzle / deconvolution / star reduction / narrowband).
+  //
+  // These wrap the `finishing_*` FFI functions. Each is JSON-in/typed-out, the
+  // same thin-envelope contract as the four batch functions above.
+  // ---------------------------------------------------------------------------
+
+  /// Predict the marginal-SNR integration curve + keep/cull recommendation from
+  /// per-sub quality descriptors, weights, and exposures. Wraps
+  /// `apiAnalyzeNight`; a pure analytic predictor (no pixels integrated).
+  ///
+  /// [qualities] are per-sub `{noise, background, snr, fwhm, eccentricity?,
+  /// starCount}` maps, aligned to [weights] and [exposuresS].
+  Future<IntegrationCurve> analyzeNight({
+    required List<Map<String, dynamic>> qualities,
+    required List<double> weights,
+    required List<double> exposuresS,
+    double? aggressiveness,
+    int? minKeep,
+  });
+
+  /// Detect stars on a master and measure each one's per-channel
+  /// background-subtracted aperture flux. Wraps `apiDetectStarsPhotometry`.
+  Future<StarPhotometryResult> detectStarsPhotometry({
+    required String inputFits,
+    int? maxStars,
+    int? aperture,
+  });
+
+  /// Solve a per-channel white balance from the Dart-matched colour-indexed
+  /// stars and apply it, writing the rebalanced master. Wraps
+  /// `apiColorCalibrate`.
+  ///
+  /// [matchedStars] are `{channelFlux: [...], catalogBv: ...}` maps.
+  Future<ColorCalibrationResult> colorCalibrate({
+    required String inputFits,
+    required String outputFits,
+    required int channels,
+    double? whiteRefBv,
+    required List<Map<String, dynamic>> matchedStars,
+  });
+
+  /// Fit + subtract a low-order background model, writing the flattened master.
+  /// Wraps `apiExtractBackground`; returns the written master's `outputPath`.
+  Future<String> extractBackground(Map<String, dynamic> args);
+
+  /// Bounded Richardson–Lucy deconvolution preview. Wraps
+  /// `apiDeconvolvePreview`; returns the written frame's `outputPath`.
+  Future<String> deconvolvePreview(Map<String, dynamic> args);
+
+  /// Mask-confined star-size reduction preview. Wraps `apiReduceStarsPreview`;
+  /// returns the written frame's `outputPath`.
+  Future<String> reduceStarsPreview(Map<String, dynamic> args);
+
+  /// Drizzle (variable-pixel linear reconstruction) onto a scaled output grid.
+  /// Wraps `apiDrizzleIntegrate`; returns the decoded result map
+  /// (`{outputPath, coveragePath?, outWidth, outHeight, channels}`).
+  Future<Map<String, dynamic>> drizzleIntegrate(Map<String, dynamic> args);
+
+  /// Linearly combine single-channel narrowband masters into an RGB composite.
+  /// Wraps `apiCombineChannels`; returns the written composite's `outputPath`.
+  Future<String> combineChannels(Map<String, dynamic> args);
+
+  /// Live post-session integration progress.
+  ///
+  /// Yields `(phase, fraction)` records derived from the native
+  /// `IntegrationProgress` imaging events as `api_integrate_session` runs its
+  /// phases (calibrate → register → weight → normalize → integrate → write →
+  /// preview), `fraction` rising 0.0 → 1.0. The production seam filters the
+  /// backend event stream; fakes return a synthetic / empty stream.
+  Stream<({String phase, double fraction})> integrationProgress();
 }
 
 /// Production [PostSessionSeam] that encodes each request to JSON, forwards to
 /// the native bridge, and decodes the JSON result.
 class BridgePostSessionSeam implements PostSessionSeam {
-  const BridgePostSessionSeam();
+  /// Backend handle whose [NightshadeBackend.eventStream] supplies the
+  /// `IntegrationProgress` events surfaced by [integrationProgress]. The request
+  /// /response methods do not need it (they call the bridge free functions
+  /// directly), so it stays optional — a seam constructed without a backend
+  /// simply yields an empty progress stream.
+  final NightshadeBackend? _backend;
+
+  const BridgePostSessionSeam([this._backend]);
 
   @override
   Future<IntegrateSessionResult> integrateSession(
@@ -75,6 +161,120 @@ class BridgePostSessionSeam implements PostSessionSeam {
       Map<String, dynamic> args) async {
     final out = await bridge.apiSaveFitsMaster(argsJson: jsonEncode(args));
     return SaveFitsMasterResult.fromJson(_decodeObject(out));
+  }
+
+  @override
+  Future<IntegrationCurve> analyzeNight({
+    required List<Map<String, dynamic>> qualities,
+    required List<double> weights,
+    required List<double> exposuresS,
+    double? aggressiveness,
+    int? minKeep,
+  }) async {
+    final args = <String, dynamic>{
+      'qualities': qualities,
+      'weights': weights,
+      'exposuresS': exposuresS,
+      'optimizer': <String, dynamic>{
+        if (aggressiveness != null) 'aggressiveness': aggressiveness,
+        if (minKeep != null) 'minKeep': minKeep,
+      },
+    };
+    final out = await bridge.apiAnalyzeNight(argsJson: jsonEncode(args));
+    return IntegrationCurve.fromJson(_decodeObject(out));
+  }
+
+  @override
+  Future<StarPhotometryResult> detectStarsPhotometry({
+    required String inputFits,
+    int? maxStars,
+    int? aperture,
+  }) async {
+    final args = <String, dynamic>{
+      'inputFits': inputFits,
+      if (maxStars != null) 'maxStars': maxStars,
+      if (aperture != null) 'aperture': aperture,
+    };
+    final out =
+        await bridge.apiDetectStarsPhotometry(argsJson: jsonEncode(args));
+    return StarPhotometryResult.fromJson(_decodeObject(out));
+  }
+
+  @override
+  Future<ColorCalibrationResult> colorCalibrate({
+    required String inputFits,
+    required String outputFits,
+    required int channels,
+    double? whiteRefBv,
+    required List<Map<String, dynamic>> matchedStars,
+  }) async {
+    final args = <String, dynamic>{
+      'inputFits': inputFits,
+      'outputFits': outputFits,
+      'channels': channels,
+      if (whiteRefBv != null) 'whiteRefBv': whiteRefBv,
+      'matchedStars': matchedStars,
+    };
+    final out = await bridge.apiColorCalibrate(argsJson: jsonEncode(args));
+    return ColorCalibrationResult.fromJson(_decodeObject(out));
+  }
+
+  @override
+  Future<String> extractBackground(Map<String, dynamic> args) async {
+    final out = await bridge.apiExtractBackground(argsJson: jsonEncode(args));
+    return _decodeOutputPath(out);
+  }
+
+  @override
+  Future<String> deconvolvePreview(Map<String, dynamic> args) async {
+    final out = await bridge.apiDeconvolvePreview(argsJson: jsonEncode(args));
+    return _decodeOutputPath(out);
+  }
+
+  @override
+  Future<String> reduceStarsPreview(Map<String, dynamic> args) async {
+    final out = await bridge.apiReduceStarsPreview(argsJson: jsonEncode(args));
+    return _decodeOutputPath(out);
+  }
+
+  @override
+  Future<Map<String, dynamic>> drizzleIntegrate(
+      Map<String, dynamic> args) async {
+    final out = await bridge.apiDrizzleIntegrate(argsJson: jsonEncode(args));
+    return _decodeObject(out);
+  }
+
+  @override
+  Future<String> combineChannels(Map<String, dynamic> args) async {
+    final out = await bridge.apiCombineChannels(argsJson: jsonEncode(args));
+    return _decodeOutputPath(out);
+  }
+
+  @override
+  Stream<({String phase, double fraction})> integrationProgress() {
+    final backend = _backend;
+    if (backend == null) return const Stream.empty();
+    return backend.eventStream
+        .where((e) =>
+            e.category == EventCategory.imaging &&
+            e.eventType == 'IntegrationProgress')
+        .map((e) => (
+              phase: e.data['phase'] as String? ?? '',
+              fraction: (e.data['fraction'] as num?)?.toDouble() ?? 0.0,
+            ));
+  }
+
+  /// Decode a `{outputPath}` envelope to its path string. Throws a
+  /// [FormatException] when the native call returned a non-object or omitted the
+  /// path, mirroring [_decodeObject]'s contract (errors are a feature).
+  String _decodeOutputPath(String json) {
+    final obj = _decodeObject(json);
+    final path = obj['outputPath'];
+    if (path is String) return path;
+    throw FormatException(
+      'post-session native call returned no outputPath',
+      json,
+    );
   }
 
   Map<String, dynamic> _decodeObject(String json) {
@@ -299,6 +499,9 @@ class SaveFitsMasterResult {
 
 /// Provider for the production [PostSessionSeam]. Tests override this with a
 /// fake so the orchestration services run end-to-end without native code.
+///
+/// The active backend is passed so [PostSessionSeam.integrationProgress] can
+/// filter its event stream for the native `IntegrationProgress` events.
 final postSessionSeamProvider = Provider<PostSessionSeam>((ref) {
-  return const BridgePostSessionSeam();
+  return BridgePostSessionSeam(ref.watch(backendProvider));
 });

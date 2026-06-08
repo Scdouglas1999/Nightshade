@@ -191,6 +191,61 @@ class IntegratedMastersDao {
     );
   }
 
+  /// Apply the v42 Smart-Morning-Report fields to a master. Only the supplied
+  /// fields are written; `updated_at` is always bumped to now. Mirrors
+  /// [updateBookkeeping] but targets the additive v42 columns
+  /// (`_ensureIntegratedMastersV42Columns`):
+  ///
+  ///  * [colorCalibratedPath] / [annotatedPreviewPath] — catalog-powered
+  ///    finishing artifacts.
+  ///  * [backgroundExtracted] — whether background extraction has been applied.
+  ///  * [targetSnr] / [targetIntegrationS] — the per-master SNR/time goals the
+  ///    "how much more?" loop reads.
+  ///  * [improvementCurveJson] — a serialized [IntegrationCurve]
+  ///    (`IntegrationCurve.toJson` → `jsonEncode`); pass the encoded string.
+  Future<int> updateSmartFields(
+    int id, {
+    String? colorCalibratedPath,
+    String? annotatedPreviewPath,
+    bool? backgroundExtracted,
+    double? targetSnr,
+    double? targetIntegrationS,
+    String? improvementCurveJson,
+  }) {
+    final sets = <String>['updated_at = ?'];
+    final vars = <Variable<Object>>[
+      Variable<int>(_toEpochSeconds(DateTime.now().toUtc())),
+    ];
+    void put(String col, Variable<Object> v) {
+      sets.add('$col = ?');
+      vars.add(v);
+    }
+
+    if (colorCalibratedPath != null) {
+      put('color_calibrated_path', Variable<String>(colorCalibratedPath));
+    }
+    if (annotatedPreviewPath != null) {
+      put('annotated_preview_path', Variable<String>(annotatedPreviewPath));
+    }
+    if (backgroundExtracted != null) {
+      put('background_extracted', Variable<int>(backgroundExtracted ? 1 : 0));
+    }
+    if (targetSnr != null) put('target_snr', Variable<double>(targetSnr));
+    if (targetIntegrationS != null) {
+      put('target_integration_s', Variable<double>(targetIntegrationS));
+    }
+    if (improvementCurveJson != null) {
+      put('improvement_curve_json', Variable<String>(improvementCurveJson));
+    }
+
+    vars.add(Variable<int>(id));
+    return _db.customUpdate(
+      'UPDATE integrated_masters SET ${sets.join(', ')} WHERE id = ?',
+      variables: vars,
+      updateKind: UpdateKind.update,
+    );
+  }
+
   /// Delete a master (cascades to its `integrated_master_frames` rows via the FK).
   Future<int> deleteMaster(int id) {
     return _db.customUpdate(
@@ -208,6 +263,11 @@ class IntegratedMastersDao {
   /// `(master_id, image_id)` UNIQUE constraint means a re-fold is an
   /// `INSERT OR REPLACE` that refreshes the weight/residual rather than
   /// duplicating the row. Returns the affected row id.
+  ///
+  /// [snr] / [fwhm] / [eccentricity] are the v42 per-sub science metrics the
+  /// Night Doctor reads after a morning integration (`integrated_master_frames`
+  /// additive columns). All three are nullable and default to null so existing
+  /// callers stay source-compatible.
   Future<int> recordFoldedFrame({
     required int masterId,
     required int imageId,
@@ -216,12 +276,15 @@ class IntegratedMastersDao {
     bool accepted = true,
     String? rejectionReason,
     DateTime? foldedAt,
+    double? snr,
+    double? fwhm,
+    double? eccentricity,
   }) {
     return _db.customInsert(
       'INSERT OR REPLACE INTO integrated_master_frames('
       'master_id, image_id, weight, alignment_residual_px, accepted, '
-      'rejection_reason, folded_at'
-      ') VALUES (?, ?, ?, ?, ?, ?, ?)',
+      'rejection_reason, folded_at, snr, fwhm, eccentricity'
+      ') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       variables: [
         Variable<int>(masterId),
         Variable<int>(imageId),
@@ -231,6 +294,9 @@ class IntegratedMastersDao {
         Variable<String>(rejectionReason),
         Variable<int>(
             _toEpochSeconds((foldedAt ?? DateTime.now()).toUtc())),
+        Variable<double>(snr),
+        Variable<double>(fwhm),
+        Variable<double>(eccentricity),
       ],
     );
   }

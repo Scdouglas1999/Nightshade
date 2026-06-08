@@ -803,6 +803,22 @@ extension _FfiBackendEventMapping on _FfiBackendBase {
           'reason': imagingEvent.reason,
         }
       );
+    } else if (imagingEvent is bridge.ImagingEvent_IntegrationProgress) {
+      // Post-session integration progress. The post-session seam filters these
+      // by category == Imaging + eventType == 'IntegrationProgress' and reads
+      // data['phase'] / data['fraction'] (see post_session_seam.dart) — the
+      // 'phase' and 'fraction' keys must be spelled exactly as below.
+      return (
+        'IntegrationProgress',
+        {
+          'phase': imagingEvent.phase,
+          'fraction': imagingEvent.fraction,
+          if (imagingEvent.framesDone != null)
+            'frames_done': imagingEvent.framesDone,
+          if (imagingEvent.framesTotal != null)
+            'frames_total': imagingEvent.framesTotal,
+        }
+      );
     }
     return ('UnknownImagingEvent', {'event': imagingEvent.toString()});
   }

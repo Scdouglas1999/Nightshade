@@ -1,0 +1,34 @@
+part of '../database.dart';
+
+extension _NightshadeDatabaseMigrationV42 on NightshadeDatabase {
+  /// Version 42 (Smart Morning Report / "Night Doctor"): the `night_reports`
+  /// table plus additive Smart-Morning-Report columns on the v41 raw-DDL
+  /// `integrated_masters` and `integrated_master_frames` tables.
+  ///
+  /// `night_reports` is the persisted Night Doctor verdict — one row per session
+  /// (and/or target) carrying an overall quality `score`, a one-line `headline`,
+  /// and a `findings_json` array of [NightFinding]s. It is read/written via the
+  /// plain [NightReportsDao] (`customSelect`/`customInsert`), mirroring
+  /// [IntegratedMastersDao].
+  ///
+  /// The additive `integrated_masters` columns hold the catalog-powered
+  /// finishing artifacts (`color_calibrated_path`, `annotated_preview_path`,
+  /// `background_extracted`), the per-master target SNR/time goals
+  /// (`target_snr`, `target_integration_s`) the "how much more?" loop reads, and
+  /// the serialized marginal-SNR curve (`improvement_curve_json`). The additive
+  /// `integrated_master_frames` columns (`snr`, `fwhm`, `eccentricity`) give the
+  /// Night Doctor per-sub science data after a morning integration.
+  ///
+  /// Like v41 these are raw-DDL changes (the dominant v27+ convention) and do
+  /// NOT require a Drift codegen pass. `_createNightReportsTable()` uses
+  /// `IF NOT EXISTS` and `_ensureIntegratedMastersV42Columns()` guards every
+  /// `ALTER TABLE ... ADD COLUMN` with `_columnExists`, so both helpers are
+  /// idempotent and also run from `onCreate` (fresh installs) so a fresh DB gets
+  /// the table and columns too.
+  Future<void> _upgradeSchemaV42(Migrator m, int from) async {
+    if (from < 42) {
+      await _createNightReportsTable();
+      await _ensureIntegratedMastersV42Columns();
+    }
+  }
+}
