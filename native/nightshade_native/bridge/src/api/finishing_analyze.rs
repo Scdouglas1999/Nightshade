@@ -676,7 +676,7 @@ fn aperture_flux_per_channel(
     let reach = (r_out.ceil() as i64) + 1;
 
     let mut out = vec![0.0f64; channels];
-    for ch in 0..channels {
+    for (ch, out_ch) in out.iter_mut().enumerate() {
         let mut aperture_sum = 0.0f64;
         let mut aperture_pixels = 0usize;
         let mut annulus: Vec<f64> = Vec::new();
@@ -714,7 +714,7 @@ fn aperture_flux_per_channel(
         };
 
         let flux = aperture_sum - bg_per_pixel * aperture_pixels as f64;
-        out[ch] = flux.max(0.0);
+        *out_ch = flux.max(0.0);
     }
     out
 }

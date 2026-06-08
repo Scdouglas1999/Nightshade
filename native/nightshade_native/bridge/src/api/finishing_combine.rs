@@ -523,3 +523,379 @@ fn ensure_parent_dir(path: &Path) -> Result<(), String> {
     }
     Ok(())
 }
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    /// Deterministic temp path derived from the calling test's name (NO rng): the
+    /// per-test name plus the process id keeps parallel runs from colliding while
+    /// staying fully reproducible.
+    fn temp_path(name: &str, ext: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("ns_fc_{name}_{}.{ext}", std::process::id()))
+    }
+
+    /// A row-major 3x3 translation `[1,0,tx, 0,1,ty, 0,0,1]`, flattened to 9
+    /// elements — a simple dither offset (source → reference).
+    fn translate(tx: f64, ty: f64) -> Vec<f64> {
+        vec![1.0, 0.0, tx, 0.0, 1.0, ty, 0.0, 0.0, 1.0]
+    }
+
+    /// Render a synthetic mono `F32` frame: a flat sky with a few injected
+    /// Gaussian stars (so drizzle has structure, not just noise, to reconstruct).
+    fn render_mono_f32(size: u32, stars: &[(f64, f64, f64)], background: f64) -> ImageData {
+        let w = size as usize;
+        let h = size as usize;
+        let mut pixels = vec![background as f32; w * h];
+        let sigma = 1.8f64;
+        let two_sigma_sq = 2.0 * sigma * sigma;
+        let radius = (sigma * 4.0).ceil() as i64;
+        for &(sx, sy, peak) in stars {
+            let cx = sx.round() as i64;
+            let cy = sy.round() as i64;
+            for dy in -radius..=radius {
+                for dx in -radius..=radius {
+                    let x = cx + dx;
+                    let y = cy + dy;
+                    if x < 0 || y < 0 || x as usize >= w || y as usize >= h {
+                        continue;
+                    }
+                    let ddx = x as f64 - sx;
+                    let ddy = y as f64 - sy;
+                    let g = peak * (-(ddx * ddx + ddy * ddy) / two_sigma_sq).exp();
+                    pixels[y as usize * w + x as usize] += g as f32;
+                }
+            }
+        }
+        ImageData::from_f32(size, size, 1, &pixels)
+    }
+
+    /// A handful of bright stars positioned for a `size`x`size` frame.
+    fn drizzle_stars(size: f64) -> Vec<(f64, f64, f64)> {
+        vec![
+            (size * 0.25, size * 0.30, 12000.0),
+            (size * 0.65, size * 0.25, 11000.0),
+            (size * 0.45, size * 0.65, 13000.0),
+            (size * 0.78, size * 0.70, 9000.0),
+        ]
+    }
+
+    fn write_master(path: &Path, image: &ImageData) {
+        let mut h = FitsHeader::new();
+        h.set_string("IMAGETYP", "MASTER_LIGHT");
+        write_fits(path, image, &h).expect("write synthetic master");
+    }
+
+    /// Write a synthetic single-channel CFA mosaic carrying a `BAYERPAT` header,
+    /// so the Bayer-drizzle path can read its pattern back off disk.
+    fn write_bayer_mosaic(path: &Path, image: &ImageData, pattern: &str) {
+        let mut h = FitsHeader::new();
+        h.set_string("IMAGETYP", "LIGHT");
+        h.set_string("BAYERPAT", pattern);
+        h.set_int("XBAYROFF", 0);
+        h.set_int("YBAYROFF", 0);
+        write_fits(path, image, &h).expect("write synthetic CFA mosaic");
+    }
+
+    // -------------------------------------------------------------------------
+    // api_drizzle_integrate — RGB/mono warp path
+    // -------------------------------------------------------------------------
+
+    /// Two dithered mono frames drizzle onto a 2x grid: the output dims are
+    /// `ceil(ref * scale)`, an `F32` master + coverage map land on disk, and the
+    /// coverage is single-channel.
+    #[test]
+    fn drizzle_integrate_mono_round_trip() {
+        let size = 64u32;
+        let ref_w = size;
+        let ref_h = size;
+        let stars = drizzle_stars(size as f64);
+
+        let f0 = render_mono_f32(size, &stars, 200.0);
+        // Second frame physically shifted; its transform maps it back to the ref.
+        let shifted: Vec<(f64, f64, f64)> = stars.iter().map(|&(x, y, p)| (x + 2.0, y - 1.0, p)).collect();
+        let f1 = render_mono_f32(size, &shifted, 200.0);
+
+        let p0 = temp_path("drizzle_integrate_mono_round_trip_f0", "fits");
+        let p1 = temp_path("drizzle_integrate_mono_round_trip_f1", "fits");
+        write_master(&p0, &f0);
+        write_master(&p1, &f1);
+
+        let out_path = temp_path("drizzle_integrate_mono_round_trip_out", "fits");
+        let cov_path = temp_path("drizzle_integrate_mono_round_trip_cov", "fits");
+
+        let scale = 2.0;
+        let args = serde_json::json!({
+            "frames": [
+                { "fitsPath": p0.to_string_lossy(), "transform": translate(0.0, 0.0), "weight": 1.0 },
+                // Source→reference transform undoes the +2,-1 dither.
+                { "fitsPath": p1.to_string_lossy(), "transform": translate(-2.0, 1.0), "weight": 1.0 }
+            ],
+            "refW": ref_w,
+            "refH": ref_h,
+            "config": { "scale": scale, "pixfrac": 0.9, "kernel": "square" },
+            "outputFits": out_path.to_string_lossy(),
+            "coverageFits": cov_path.to_string_lossy()
+        });
+
+        let resp = api_drizzle_integrate(args.to_string()).expect("drizzle");
+        let result: DrizzleIntegrateResult = serde_json::from_str(&resp).unwrap();
+
+        // Output dims ~= ref * scale (ceil).
+        assert_eq!(result.out_width, (ref_w as f64 * scale).ceil() as u32);
+        assert_eq!(result.out_height, (ref_h as f64 * scale).ceil() as u32);
+        assert_eq!(result.channels, 1, "mono warp stays single-channel");
+        assert_eq!(result.coverage_path.as_deref(), Some(cov_path.to_string_lossy().as_ref()));
+        assert!(out_path.exists(), "drizzle master must be on disk");
+        assert!(cov_path.exists(), "coverage map must be on disk");
+
+        let (master, _h) = read_fits(out_path.as_path()).expect("read drizzle master");
+        assert_eq!(master.pixel_type, PixelType::F32);
+        assert_eq!(master.width, result.out_width);
+        assert_eq!(master.channels, 1);
+        let (cov, _hc) = read_fits(cov_path.as_path()).expect("read coverage map");
+        assert_eq!(cov.channels, 1, "coverage is a single-channel map");
+
+        let _ = std::fs::remove_file(&p0);
+        let _ = std::fs::remove_file(&p1);
+        let _ = std::fs::remove_file(&out_path);
+        let _ = std::fs::remove_file(&cov_path);
+    }
+
+    // -------------------------------------------------------------------------
+    // api_drizzle_integrate — Bayer (CFA) path
+    // -------------------------------------------------------------------------
+
+    /// Two dithered raw single-channel CFA mosaics (with `BAYERPAT` headers)
+    /// Bayer-drizzle into a 3-channel RGB master of the scaled dimensions.
+    #[test]
+    fn drizzle_integrate_bayer_round_trip() {
+        let size = 64u32;
+        let w = size as usize;
+        let h = size as usize;
+        let ref_w = size;
+        let ref_h = size;
+
+        // A plain gradient mosaic — Bayer drizzle bins by CFA colour, so any
+        // non-degenerate single-channel buffer exercises the path.
+        let mosaic = |shift: f32| -> ImageData {
+            let mut px = vec![0f32; w * h];
+            for y in 0..h {
+                for x in 0..w {
+                    px[y * w + x] = 1000.0 + 3.0 * x as f32 + 2.0 * y as f32 + shift;
+                }
+            }
+            ImageData::from_f32(size, size, 1, &px)
+        };
+
+        let p0 = temp_path("drizzle_integrate_bayer_round_trip_f0", "fits");
+        let p1 = temp_path("drizzle_integrate_bayer_round_trip_f1", "fits");
+        write_bayer_mosaic(&p0, &mosaic(0.0), "RGGB");
+        write_bayer_mosaic(&p1, &mosaic(5.0), "RGGB");
+
+        let out_path = temp_path("drizzle_integrate_bayer_round_trip_out", "fits");
+        let scale = 2.0;
+        let args = serde_json::json!({
+            "frames": [
+                { "fitsPath": p0.to_string_lossy(), "transform": translate(0.0, 0.0), "weight": 1.0 },
+                { "fitsPath": p1.to_string_lossy(), "transform": translate(2.0, 2.0), "weight": 1.0 }
+            ],
+            "refW": ref_w,
+            "refH": ref_h,
+            "bayer": true,
+            "config": { "scale": scale },
+            "outputFits": out_path.to_string_lossy()
+        });
+
+        let resp = api_drizzle_integrate(args.to_string()).expect("bayer drizzle");
+        let result: DrizzleIntegrateResult = serde_json::from_str(&resp).unwrap();
+
+        assert_eq!(result.channels, 3, "Bayer drizzle always yields a 3-channel RGB master");
+        assert_eq!(result.out_width, (ref_w as f64 * scale).ceil() as u32);
+        assert_eq!(result.out_height, (ref_h as f64 * scale).ceil() as u32);
+        assert!(result.coverage_path.is_none(), "no coverage requested");
+
+        let (master, _h) = read_fits(out_path.as_path()).expect("read bayer drizzle master");
+        assert_eq!(master.pixel_type, PixelType::F32);
+        assert_eq!(master.channels, 3);
+
+        let _ = std::fs::remove_file(&p0);
+        let _ = std::fs::remove_file(&p1);
+        let _ = std::fs::remove_file(&out_path);
+    }
+
+    // -------------------------------------------------------------------------
+    // api_combine_channels
+    // -------------------------------------------------------------------------
+
+    /// Three single-channel masters combine through the SHO palette into a
+    /// 3-channel `F32` composite of the shared geometry.
+    #[test]
+    fn combine_channels_sho_round_trip() {
+        let size = 32u32;
+        let len = (size * size) as usize;
+        // Distinct flat single-channel masters so each output channel is traceable.
+        let make = |level: f32| -> ImageData {
+            let data: Vec<f32> = (0..len).map(|i| level + (i % 5) as f32 * 0.5).collect();
+            ImageData::from_f32(size, size, 1, &data)
+        };
+        let s_path = temp_path("combine_channels_sho_round_trip_s", "fits");
+        let ha_path = temp_path("combine_channels_sho_round_trip_ha", "fits");
+        let o_path = temp_path("combine_channels_sho_round_trip_o", "fits");
+        write_master(&s_path, &make(100.0));
+        write_master(&ha_path, &make(200.0));
+        write_master(&o_path, &make(300.0));
+
+        let out_path = temp_path("combine_channels_sho_round_trip_out", "fits");
+        let args = serde_json::json!({
+            "inputs": [
+                s_path.to_string_lossy(),
+                ha_path.to_string_lossy(),
+                o_path.to_string_lossy()
+            ],
+            "palette": "sho",
+            "outputFits": out_path.to_string_lossy()
+        });
+
+        let resp = api_combine_channels(args.to_string()).expect("combine sho");
+        let result: CombineChannelsResult = serde_json::from_str(&resp).unwrap();
+        assert_eq!(result.width, size);
+        assert_eq!(result.height, size);
+        assert!(out_path.exists(), "composite must be on disk");
+
+        // The composite is a real, readable 3-channel F32 FITS of the same geometry.
+        let (img, _h) = read_fits(out_path.as_path()).expect("read composite");
+        assert_eq!(img.pixel_type, PixelType::F32);
+        assert_eq!(img.width, size);
+        assert_eq!(img.height, size);
+        assert_eq!(img.channels, 3, "narrowband composite has three channels");
+
+        let _ = std::fs::remove_file(&s_path);
+        let _ = std::fs::remove_file(&ha_path);
+        let _ = std::fs::remove_file(&o_path);
+        let _ = std::fs::remove_file(&out_path);
+    }
+
+    /// Explicit per-input `[r,g,b]` weights also produce a 3-channel composite.
+    #[test]
+    fn combine_channels_explicit_weights_round_trip() {
+        let size = 24u32;
+        let len = (size * size) as usize;
+        let data: Vec<f32> = (0..len).map(|i| 50.0 + i as f32 * 0.1).collect();
+        let a = ImageData::from_f32(size, size, 1, &data);
+        let b = ImageData::from_f32(size, size, 1, &data);
+        let a_path = temp_path("combine_channels_explicit_weights_round_trip_a", "fits");
+        let b_path = temp_path("combine_channels_explicit_weights_round_trip_b", "fits");
+        write_master(&a_path, &a);
+        write_master(&b_path, &b);
+
+        let out_path = temp_path("combine_channels_explicit_weights_round_trip_out", "fits");
+        let args = serde_json::json!({
+            "inputs": [a_path.to_string_lossy(), b_path.to_string_lossy()],
+            "weights": [[1.0, 0.0, 0.0], [0.0, 1.0, 1.0]],
+            "outputFits": out_path.to_string_lossy()
+        });
+        let resp = api_combine_channels(args.to_string()).expect("combine explicit");
+        let result: CombineChannelsResult = serde_json::from_str(&resp).unwrap();
+        assert_eq!(result.width, size);
+        let (img, _h) = read_fits(out_path.as_path()).expect("read composite");
+        assert_eq!(img.channels, 3);
+
+        let _ = std::fs::remove_file(&a_path);
+        let _ = std::fs::remove_file(&b_path);
+        let _ = std::fs::remove_file(&out_path);
+    }
+
+    // -------------------------------------------------------------------------
+    // Error paths
+    // -------------------------------------------------------------------------
+
+    /// Malformed JSON, empty populations, a nonexistent input frame, a bad
+    /// transform, a missing Bayer header, and mismatched combine geometry all
+    /// surface as `Err` — never a silent partial stack.
+    #[test]
+    fn combine_error_paths() {
+        // Malformed JSON.
+        assert!(api_drizzle_integrate("not json".to_string()).is_err());
+        assert!(api_combine_channels("not json".to_string()).is_err());
+
+        // Empty frame population / no inputs.
+        assert!(api_drizzle_integrate(
+            r#"{"frames":[],"refW":10,"refH":10,"outputFits":"x.fits"}"#.to_string()
+        )
+        .is_err());
+        assert!(
+            api_combine_channels(r#"{"inputs":[],"palette":"sho","outputFits":"x.fits"}"#.to_string())
+                .is_err()
+        );
+
+        // Nonexistent input frame to drizzle.
+        let missing = temp_path("combine_error_paths_missing", "fits");
+        let out = temp_path("combine_error_paths_out", "fits");
+        let nonexistent = serde_json::json!({
+            "frames": [
+                { "fitsPath": missing.to_string_lossy(), "transform": translate(0.0, 0.0), "weight": 1.0 }
+            ],
+            "refW": 16,
+            "refH": 16,
+            "outputFits": out.to_string_lossy()
+        });
+        assert!(
+            api_drizzle_integrate(nonexistent.to_string()).is_err(),
+            "a nonexistent drizzle frame must error"
+        );
+
+        // A real frame but a malformed (non-9-element) transform.
+        let size = 16u32;
+        let frame = render_mono_f32(size, &drizzle_stars(size as f64), 100.0);
+        let fp = temp_path("combine_error_paths_frame", "fits");
+        write_master(&fp, &frame);
+        let bad_transform = serde_json::json!({
+            "frames": [ { "fitsPath": fp.to_string_lossy(), "transform": [1.0, 0.0, 0.0], "weight": 1.0 } ],
+            "refW": size, "refH": size,
+            "outputFits": out.to_string_lossy()
+        });
+        assert!(
+            api_drizzle_integrate(bad_transform.to_string()).is_err(),
+            "a non-9-element transform must error"
+        );
+
+        // Bayer mode against a frame with NO BAYERPAT header is rejected.
+        let no_bayer = serde_json::json!({
+            "frames": [ { "fitsPath": fp.to_string_lossy(), "transform": translate(0.0, 0.0), "weight": 1.0 } ],
+            "refW": size, "refH": size, "bayer": true,
+            "outputFits": out.to_string_lossy()
+        });
+        assert!(
+            api_drizzle_integrate(no_bayer.to_string()).is_err(),
+            "Bayer mode without a CFA header must error"
+        );
+
+        // combine_channels with mismatched input geometry is rejected.
+        let big = ImageData::from_f32(8, 8, 1, &[1.0f32; 64]);
+        let small = ImageData::from_f32(4, 4, 1, &[1.0f32; 16]);
+        let big_path = temp_path("combine_error_paths_big", "fits");
+        let small_path = temp_path("combine_error_paths_small", "fits");
+        write_master(&big_path, &big);
+        write_master(&small_path, &small);
+        let mismatch = serde_json::json!({
+            "inputs": [big_path.to_string_lossy(), small_path.to_string_lossy()],
+            "weights": [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]],
+            "outputFits": out.to_string_lossy()
+        });
+        assert!(
+            api_combine_channels(mismatch.to_string()).is_err(),
+            "mismatched combine geometry must error"
+        );
+
+        let _ = std::fs::remove_file(&fp);
+        let _ = std::fs::remove_file(&big_path);
+        let _ = std::fs::remove_file(&small_path);
+        let _ = std::fs::remove_file(&out);
+    }
+}

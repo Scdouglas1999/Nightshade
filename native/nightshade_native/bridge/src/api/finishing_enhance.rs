@@ -590,3 +590,279 @@ fn ensure_parent_dir(path: &Path) -> Result<(), String> {
     }
     Ok(())
 }
+
+// =============================================================================
+// Tests
+// =============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nightshade_imaging::read_fits;
+    use std::path::PathBuf;
+
+    /// Deterministic temp path derived from the calling test's name (NO rng): the
+    /// per-test name plus the process id keeps parallel runs from colliding while
+    /// staying fully reproducible.
+    fn temp_path(name: &str, ext: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("ns_fe_{name}_{}.{ext}", std::process::id()))
+    }
+
+    /// Render a synthetic mono `F32` star field: a smooth two-axis gradient sky
+    /// with a handful of injected Gaussian "stars". The gradient gives the
+    /// background extractor a real surface to fit, and the wide PSFs (σ ≈ 2.4,
+    /// FWHM ≈ 5.6 px) are accepted by the deconvolution PSF sampler.
+    fn render_field_f32(size: u32, stars: &[(f64, f64, f64)], background: f64) -> ImageData {
+        let w = size as usize;
+        let h = size as usize;
+        let mut pixels = vec![0f32; w * h];
+        for y in 0..h {
+            for x in 0..w {
+                // Gentle planar gradient + a tiny deterministic dither.
+                let grad = background + 0.6 * x as f64 + 0.4 * y as f64;
+                let n = ((((y * w + x).wrapping_mul(2654435761)) >> 8) % 1000) as f64 / 1000.0;
+                pixels[y * w + x] = (grad + (n - 0.5) * 4.0) as f32;
+            }
+        }
+        let sigma = 2.4f64;
+        let two_sigma_sq = 2.0 * sigma * sigma;
+        let radius = (sigma * 4.0).ceil() as i64;
+        for &(sx, sy, peak) in stars {
+            let cx = sx.round() as i64;
+            let cy = sy.round() as i64;
+            for dy in -radius..=radius {
+                for dx in -radius..=radius {
+                    let x = cx + dx;
+                    let y = cy + dy;
+                    if x < 0 || y < 0 || x as usize >= w || y as usize >= h {
+                        continue;
+                    }
+                    let ddx = x as f64 - sx;
+                    let ddy = y as f64 - sy;
+                    let g = peak * (-(ddx * ddx + ddy * ddy) / two_sigma_sq).exp();
+                    pixels[y as usize * w + x as usize] += g as f32;
+                }
+            }
+        }
+        ImageData::from_f32(size, size, 1, &pixels)
+    }
+
+    /// A spread of bright, well-separated stars for a `size`x`size` frame.
+    fn field_stars(size: f64) -> Vec<(f64, f64, f64)> {
+        vec![
+            (size * 0.20, size * 0.25, 18000.0),
+            (size * 0.70, size * 0.18, 16000.0),
+            (size * 0.40, size * 0.60, 20000.0),
+            (size * 0.82, size * 0.62, 14000.0),
+            (size * 0.28, size * 0.80, 17000.0),
+            (size * 0.62, size * 0.83, 15000.0),
+        ]
+    }
+
+    fn write_master(path: &Path, image: &ImageData) {
+        let mut h = FitsHeader::new();
+        h.set_string("IMAGETYP", "MASTER_LIGHT");
+        write_fits(path, image, &h).expect("write synthetic master");
+    }
+
+    // -------------------------------------------------------------------------
+    // api_extract_background
+    // -------------------------------------------------------------------------
+
+    /// A gradient sky with a few stars flattens to a readable `F32` master of the
+    /// same geometry, and the result reports the fitted degree + per-channel mean.
+    #[test]
+    fn extract_background_round_trip() {
+        let size = 256u32;
+        let field = render_field_f32(size, &field_stars(size as f64), 800.0);
+        let in_path = temp_path("extract_background_round_trip_in", "fits");
+        let out_path = temp_path("extract_background_round_trip_out", "fits");
+        write_master(&in_path, &field);
+
+        let args = serde_json::json!({
+            "inputFits": in_path.to_string_lossy(),
+            "outputFits": out_path.to_string_lossy(),
+            // A low-order surface the synthetic planar gradient is well within.
+            "config": { "polyDegree": 2 }
+        });
+        let resp = api_extract_background(args.to_string()).expect("extract background");
+        let result: ExtractBackgroundResult = serde_json::from_str(&resp).unwrap();
+
+        assert_eq!(result.degree, 2);
+        assert_eq!(result.channels, 1, "mono master flattens to one channel");
+        assert_eq!(
+            result.mean_level.len(),
+            result.channels as usize,
+            "one mean level per channel"
+        );
+        assert!(out_path.exists(), "flattened FITS must be on disk");
+
+        // The flattened frame is a real, readable F32 master of the same geometry.
+        let (img, _h) = read_fits(out_path.as_path()).expect("read flattened master");
+        assert_eq!(img.pixel_type, PixelType::F32);
+        assert_eq!(img.width, size);
+        assert_eq!(img.height, size);
+        assert_eq!(img.channels, 1);
+
+        let _ = std::fs::remove_file(&in_path);
+        let _ = std::fs::remove_file(&out_path);
+    }
+
+    // -------------------------------------------------------------------------
+    // api_deconvolve_preview
+    // -------------------------------------------------------------------------
+
+    /// Deconvolution with an explicitly supplied Moffat PSF restores a readable
+    /// frame and echoes the PSF actually used.
+    #[test]
+    fn deconvolve_preview_explicit_psf_round_trip() {
+        let size = 96u32;
+        let field = render_field_f32(size, &field_stars(size as f64), 600.0);
+        let in_path = temp_path("deconvolve_preview_explicit_psf_round_trip_in", "fits");
+        let out_path = temp_path("deconvolve_preview_explicit_psf_round_trip_out", "fits");
+        write_master(&in_path, &field);
+
+        let args = serde_json::json!({
+            "inputFits": in_path.to_string_lossy(),
+            "outputFits": out_path.to_string_lossy(),
+            "estimatePsf": false,
+            "psf": { "kind": "moffat", "fwhm": 3.0, "beta": 2.5, "size": 15 },
+            // Keep the preview cheap and deterministic.
+            "config": { "iterations": 5 }
+        });
+        let resp = api_deconvolve_preview(args.to_string()).expect("deconvolve");
+        let result: DeconvolvePreviewResult = serde_json::from_str(&resp).unwrap();
+
+        assert_eq!(result.psf.kind, "moffat");
+        assert!((result.psf.fwhm - 3.0).abs() < 1e-9);
+        assert!(result.psf.size >= 5 && result.psf.size % 2 == 1);
+        assert!(out_path.exists(), "restored FITS must be on disk");
+
+        // The restored frame preserves the source pixel type + geometry.
+        let (img, _h) = read_fits(out_path.as_path()).expect("read restored frame");
+        assert_eq!(img.pixel_type, PixelType::F32);
+        assert_eq!(img.width, size);
+        assert_eq!(img.height, size);
+
+        let _ = std::fs::remove_file(&in_path);
+        let _ = std::fs::remove_file(&out_path);
+    }
+
+    /// The PSF-estimation path samples the frame's own injected stars and runs to
+    /// a readable restored frame, reporting the estimated PSF FWHM.
+    #[test]
+    fn deconvolve_preview_estimated_psf_round_trip() {
+        let size = 192u32;
+        // A dense, bright, well-separated field so the PSF sampler clears its
+        // minimum-stars gate on synthetic data.
+        let mut stars = field_stars(size as f64);
+        stars.extend_from_slice(&[
+            (size as f64 * 0.50, size as f64 * 0.30, 19000.0),
+            (size as f64 * 0.15, size as f64 * 0.55, 16000.0),
+            (size as f64 * 0.88, size as f64 * 0.40, 15000.0),
+        ]);
+        let field = render_field_f32(size, &stars, 500.0);
+        let in_path = temp_path("deconvolve_preview_estimated_psf_round_trip_in", "fits");
+        let out_path = temp_path("deconvolve_preview_estimated_psf_round_trip_out", "fits");
+        write_master(&in_path, &field);
+
+        let args = serde_json::json!({
+            "inputFits": in_path.to_string_lossy(),
+            "outputFits": out_path.to_string_lossy(),
+            "estimatePsf": true,
+            "config": { "iterations": 5 }
+        });
+        let resp = api_deconvolve_preview(args.to_string()).expect("deconvolve (estimate)");
+        let result: DeconvolvePreviewResult = serde_json::from_str(&resp).unwrap();
+
+        assert!(result.psf.fwhm.is_finite() && result.psf.fwhm > 0.0);
+        assert!(result.psf.size >= 5 && result.psf.size % 2 == 1);
+        let (img, _h) = read_fits(out_path.as_path()).expect("read restored frame");
+        assert_eq!(img.pixel_type, PixelType::F32);
+        assert_eq!(img.width, size);
+
+        let _ = std::fs::remove_file(&in_path);
+        let _ = std::fs::remove_file(&out_path);
+    }
+
+    // -------------------------------------------------------------------------
+    // api_reduce_stars_preview
+    // -------------------------------------------------------------------------
+
+    /// Star reduction writes a same-geometry reduced frame preserving pixel type.
+    #[test]
+    fn reduce_stars_preview_round_trip() {
+        let size = 128u32;
+        let field = render_field_f32(size, &field_stars(size as f64), 700.0);
+        let in_path = temp_path("reduce_stars_preview_round_trip_in", "fits");
+        let out_path = temp_path("reduce_stars_preview_round_trip_out", "fits");
+        write_master(&in_path, &field);
+
+        let args = serde_json::json!({
+            "inputFits": in_path.to_string_lossy(),
+            "outputFits": out_path.to_string_lossy(),
+            "config": { "strength": 0.4, "method": "screened_residual" }
+        });
+        let resp = api_reduce_stars_preview(args.to_string()).expect("reduce stars");
+        let result: ReduceStarsPreviewResult = serde_json::from_str(&resp).unwrap();
+        assert_eq!(result.output_path, out_path.to_string_lossy());
+        assert!(out_path.exists(), "reduced FITS must be on disk");
+
+        let (img, _h) = read_fits(out_path.as_path()).expect("read reduced frame");
+        assert_eq!(img.pixel_type, PixelType::F32);
+        assert_eq!(img.width, size);
+        assert_eq!(img.height, size);
+
+        let _ = std::fs::remove_file(&in_path);
+        let _ = std::fs::remove_file(&out_path);
+    }
+
+    // -------------------------------------------------------------------------
+    // Error paths
+    // -------------------------------------------------------------------------
+
+    /// Bad JSON, a missing required path, and a nonexistent input FITS all surface
+    /// as `Err` — never a silent degraded preview — across all three entry points.
+    #[test]
+    fn enhance_error_paths() {
+        // Malformed JSON.
+        assert!(api_extract_background("not json".to_string()).is_err());
+        assert!(api_deconvolve_preview("not json".to_string()).is_err());
+        assert!(api_reduce_stars_preview("not json".to_string()).is_err());
+
+        // Empty required paths.
+        assert!(api_extract_background(r#"{"inputFits":"","outputFits":""}"#.to_string()).is_err());
+
+        // Nonexistent input FITS.
+        let missing = temp_path("enhance_error_paths_missing", "fits");
+        let out = temp_path("enhance_error_paths_out", "fits");
+        let args = serde_json::json!({
+            "inputFits": missing.to_string_lossy(),
+            "outputFits": out.to_string_lossy()
+        });
+        assert!(
+            api_extract_background(args.to_string()).is_err(),
+            "a nonexistent input FITS must error"
+        );
+        assert!(api_reduce_stars_preview(args.to_string()).is_err());
+
+        // An unknown deconvolution PSF kind (estimatePsf off) is rejected.
+        let size = 32u32;
+        let field = render_field_f32(size, &field_stars(size as f64), 400.0);
+        let in_path = temp_path("enhance_error_paths_psf_in", "fits");
+        write_master(&in_path, &field);
+        let bad_psf = serde_json::json!({
+            "inputFits": in_path.to_string_lossy(),
+            "outputFits": out.to_string_lossy(),
+            "estimatePsf": false,
+            "psf": { "kind": "bananas", "fwhm": 3.0, "size": 9 }
+        });
+        assert!(
+            api_deconvolve_preview(bad_psf.to_string()).is_err(),
+            "an unknown PSF kind must error"
+        );
+
+        let _ = std::fs::remove_file(&in_path);
+        let _ = std::fs::remove_file(&out);
+    }
+}
