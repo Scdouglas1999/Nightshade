@@ -116,8 +116,10 @@
 ///   color_calibrated_path   TEXT                 (SPCC-calibrated FITS/preview)
 ///   annotated_preview_path  TEXT                 (catalog-annotated preview)
 ///   background_extracted    INTEGER NOT NULL DEFAULT 0  (0/1)
-///   target_snr              REAL                 (per-master SNR goal)
-///   target_integration_s    REAL                 (per-master integration goal, s)
+///   target_snr              REAL                 (achieved-anchor SNR; the SNR
+///                                                 reached at target_integration_s)
+///   target_integration_s    REAL                 (achieved-anchor integration, s;
+///                                                 the cumulative time at target_snr)
 ///   improvement_curve_json  TEXT                 (serialized IntegrationCurve)
 ///
 /// Additive `integrated_master_frames` columns (per-sub science, all nullable):

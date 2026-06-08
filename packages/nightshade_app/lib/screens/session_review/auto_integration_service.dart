@@ -89,6 +89,14 @@ class AutoIntegrationService {
                     label: DateTime.now().toIso8601String().split('T').first,
                     settings: settings,
                   );
+          await _afterSuccess(
+            sessionId: sessionId,
+            targetId: targetId,
+            targetName: targetName ?? master.name,
+            integrationSeconds: result.totalIntegrationSec,
+            framesKept: result.framesAdded,
+            framesRejected: result.rejected,
+          );
           return AutoIntegrationResult(
             ran: true,
             message: 'Added ${result.framesAdded} subs to ${master.name} '
@@ -129,6 +137,18 @@ class AutoIntegrationService {
         );
       }
       final total = outcomes.fold<int>(0, (a, o) => a + o.result.framesIntegrated);
+      final rejected =
+          outcomes.fold<int>(0, (a, o) => a + o.result.framesRejected);
+      final integrationSeconds =
+          outcomes.fold<double>(0, (a, o) => a + o.result.totalIntegrationSec);
+      await _afterSuccess(
+        sessionId: sessionId,
+        targetId: targetId,
+        targetName: targetName,
+        integrationSeconds: integrationSeconds,
+        framesKept: total,
+        framesRejected: rejected,
+      );
       return AutoIntegrationResult(
         ran: true,
         masterId: outcomes.first.masterId,
@@ -138,6 +158,97 @@ class AutoIntegrationService {
     } catch (e) {
       return AutoIntegrationResult(ran: false, message: 'Auto-integrate failed: $e');
     }
+  }
+
+  /// Fail-soft post-success hook fired after a master grows (accumulate) or is
+  /// freshly integrated (batch). Two side effects, both individually guarded so
+  /// neither can break the run-completion path:
+  ///
+  ///  (a) compute + persist the Night Doctor report for [sessionId]
+  ///      ([NightAnalysisService.computeReport]), and
+  ///  (b) enqueue a "master ready" phone push
+  ///      (`Your TARGET master is ready — Hh Mm, +x% from culling`).
+  ///
+  /// Any failure in either is swallowed (logged via the result is not possible
+  /// here — this runs after the result is decided) so an unattended morning
+  /// still has its master even if reporting / push fails.
+  Future<void> _afterSuccess({
+    required int sessionId,
+    int? targetId,
+    String? targetName,
+    required double integrationSeconds,
+    required int framesKept,
+    required int framesRejected,
+  }) async {
+    // (a) Night Doctor report. Best-effort: a reporting failure must never
+    // sink the integration run.
+    try {
+      await _ref.read(nightAnalysisServiceProvider).computeReport(
+            sessionId: sessionId,
+            targetId: targetId,
+          );
+    } catch (_) {
+      // Swallow — the master is already produced; a missing report is benign.
+    }
+
+    // (b) "Master ready" push. Independently guarded from (a).
+    try {
+      final body = _masterReadyBody(
+        targetName: targetName,
+        integrationSeconds: integrationSeconds,
+        framesKept: framesKept,
+        framesRejected: framesRejected,
+      );
+      _ref.read(pushNotificationServiceProvider).enqueue(
+            PushNotification(
+              title: 'Master ready',
+              body: body,
+              priority: PushNotificationPriority.normal,
+              eventType: 'PostSessionMasterReady',
+              category: EventCategory.imaging,
+              timestamp: DateTime.now(),
+            ),
+          );
+    } catch (_) {
+      // Swallow — push is a courtesy, not part of the integration contract.
+    }
+  }
+
+  /// Build the "master ready" push body, of the form
+  /// `Your TARGET master is ready — Hh Mm, +x% from culling`.
+  ///
+  /// The "+x% from culling" is the predicted SNR uplift from dropping the
+  /// rejected subs, approximated by the rejected-frame fraction (a conservative
+  /// stand-in for the optimizer's gain until the marginal-SNR curve is wired
+  /// through this path). It is omitted when nothing was culled.
+  static String _masterReadyBody({
+    required String? targetName,
+    required double integrationSeconds,
+    required int framesKept,
+    required int framesRejected,
+  }) {
+    final who = (targetName != null && targetName.trim().isNotEmpty)
+        ? '${targetName.trim()} '
+        : '';
+    final time = _formatIntegration(integrationSeconds);
+    final total = framesKept + framesRejected;
+    final buffer = StringBuffer('Your ${who}master is ready — $time');
+    if (framesRejected > 0 && total > 0) {
+      final pct = (framesRejected / total * 100).round();
+      if (pct > 0) buffer.write(', +$pct% from culling');
+    }
+    return buffer.toString();
+  }
+
+  /// Format integration seconds as `Hh Mm` (e.g. `3h 12m`), or `Mm` when under
+  /// an hour (e.g. `42m`), or `0m` when there is nothing to show.
+  static String _formatIntegration(double seconds) {
+    if (seconds <= 0) return '0m';
+    final totalMinutes = (seconds / 60).round();
+    final hours = totalMinutes ~/ 60;
+    final minutes = totalMinutes % 60;
+    if (hours <= 0) return '${minutes}m';
+    return '${hours}h ${minutes}m';
   }
 
   Future<bool> _isEnabled() async {

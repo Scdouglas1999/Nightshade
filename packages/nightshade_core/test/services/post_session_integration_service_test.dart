@@ -1,4 +1,6 @@
-import 'package:drift/drift.dart' show Value;
+import 'dart:convert';
+
+import 'package:drift/drift.dart' show Value, Variable;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/database/daos/dark_library_dao.dart';
@@ -119,6 +121,22 @@ class FakePostSessionSeam implements PostSessionSeam {
   /// Scripted [analyzeNight] result; defaults to an empty curve.
   IntegrationCurve analyzeResult = IntegrationCurve.empty;
 
+  /// Records every [analyzeNight] invocation's inputs.
+  final List<
+      ({
+        List<Map<String, dynamic>> qualities,
+        List<double> weights,
+        List<double> exposuresS,
+      })> analyzeCalls = [];
+
+  /// Records the args of every optional finishing-step call, keyed by step name.
+  final Map<String, List<Map<String, dynamic>>> finishingCalls = {
+    'extractBackground': [],
+    'reduceStarsPreview': [],
+    'deconvolvePreview': [],
+    'colorCalibrate': [],
+  };
+
   /// Scripted [detectStarsPhotometry] result; defaults to an empty result.
   StarPhotometryResult photometryResult = StarPhotometryResult.empty;
 
@@ -136,8 +154,14 @@ class FakePostSessionSeam implements PostSessionSeam {
     required List<double> exposuresS,
     double? aggressiveness,
     int? minKeep,
-  }) async =>
-      analyzeResult;
+  }) async {
+    analyzeCalls.add((
+      qualities: qualities,
+      weights: weights,
+      exposuresS: exposuresS,
+    ));
+    return analyzeResult;
+  }
 
   @override
   Future<StarPhotometryResult> detectStarsPhotometry({
@@ -154,26 +178,38 @@ class FakePostSessionSeam implements PostSessionSeam {
     required int channels,
     double? whiteRefBv,
     required List<Map<String, dynamic>> matchedStars,
-  }) async =>
-      colorResult ??
-      ColorCalibrationResult(
-        outputPath: outputFits,
-        channelScale: List<double>.filled(channels, 1.0),
-        matched: matchedStars.length,
-        residual: 0.0,
-      );
+  }) async {
+    finishingCalls['colorCalibrate']!.add(<String, dynamic>{
+      'inputFits': inputFits,
+      'outputFits': outputFits,
+      'channels': channels,
+    });
+    return colorResult ??
+        ColorCalibrationResult(
+          outputPath: outputFits,
+          channelScale: List<double>.filled(channels, 1.0),
+          matched: matchedStars.length,
+          residual: 0.0,
+        );
+  }
 
   @override
-  Future<String> extractBackground(Map<String, dynamic> args) async =>
-      args['outputFits'] as String? ?? args['outputPath'] as String? ?? '';
+  Future<String> extractBackground(Map<String, dynamic> args) async {
+    finishingCalls['extractBackground']!.add(args);
+    return args['outputFits'] as String? ?? args['outputPath'] as String? ?? '';
+  }
 
   @override
-  Future<String> deconvolvePreview(Map<String, dynamic> args) async =>
-      args['outputFits'] as String? ?? args['outputPath'] as String? ?? '';
+  Future<String> deconvolvePreview(Map<String, dynamic> args) async {
+    finishingCalls['deconvolvePreview']!.add(args);
+    return args['outputFits'] as String? ?? args['outputPath'] as String? ?? '';
+  }
 
   @override
-  Future<String> reduceStarsPreview(Map<String, dynamic> args) async =>
-      args['outputFits'] as String? ?? args['outputPath'] as String? ?? '';
+  Future<String> reduceStarsPreview(Map<String, dynamic> args) async {
+    finishingCalls['reduceStarsPreview']!.add(args);
+    return args['outputFits'] as String? ?? args['outputPath'] as String? ?? '';
+  }
 
   @override
   Future<Map<String, dynamic>> drizzleIntegrate(
@@ -364,6 +400,180 @@ void main() {
     expect(output['masterFitsPath'], '/out/master.fits');
     expect(output['previewPngPath'], '/out/master.png');
     expect(output['rejectionMapPath'], '/out/master_rejmap.fits');
+  });
+
+  // --- Smart Morning Report extensions --------------------------------------
+
+  /// An integrate builder that echoes the lights and stamps each accepted
+  /// per-frame record with synthetic per-sub science metrics.
+  void scriptMetrics() {
+    seam.integrateBuilder = (args) {
+      final lights = (args['lightPaths'] as List).cast<String>();
+      final output = args['output'] as Map<String, dynamic>;
+      return IntegrateSessionResult(
+        masterFitsPath: output['masterFitsPath'] as String,
+        previewPath: output['previewPngPath'] as String?,
+        rejectionMapPath: output['rejectionMapPath'] as String?,
+        framesIntegrated: lights.length,
+        framesRejected: 0,
+        totalIntegrationSec: 120.0 * lights.length,
+        rmsResidual: 0.42,
+        width: 100,
+        height: 80,
+        channels: 1,
+        perFrameStats: [
+          for (var i = 0; i < lights.length; i++)
+            PerFrameRecord(
+              path: lights[i],
+              weight: 1.0,
+              rmsResidualPx: 0.4,
+              accepted: true,
+              reason: null,
+              snr: 40.0 + i,
+              fwhm: 2.5 + i * 0.1,
+              eccentricity: 0.3,
+            ),
+        ],
+      );
+    };
+  }
+
+  test('per-sub snr/fwhm/eccentricity are persisted on the fold records',
+      () async {
+    scriptMetrics();
+    final subs = [
+      await insertSub(path: '/l/a.fits', filter: 'L'),
+      await insertSub(path: '/l/b.fits', filter: 'L'),
+    ];
+
+    final outcomes = await service.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults,
+      outputFitsPathBuilder: (_) => '/out/master.fits',
+    );
+    final masterId = outcomes.single.masterId;
+
+    // Read the v42 per-sub columns straight from integrated_master_frames.
+    final rows = await db.customSelect(
+      'SELECT image_id, snr, fwhm, eccentricity FROM integrated_master_frames '
+      'WHERE master_id = ? ORDER BY image_id ASC',
+      variables: [Variable<int>(masterId)],
+    ).get();
+    expect(rows, hasLength(2));
+    final byImage = {
+      for (final r in rows)
+        r.read<int>('image_id'): (
+          snr: r.readNullable<double>('snr'),
+          fwhm: r.readNullable<double>('fwhm'),
+          ecc: r.readNullable<double>('eccentricity'),
+        )
+    };
+    expect(byImage[subs[0].id]!.snr, 40.0);
+    expect(byImage[subs[0].id]!.fwhm, 2.5);
+    expect(byImage[subs[0].id]!.ecc, 0.3);
+    expect(byImage[subs[1].id]!.snr, 41.0);
+  });
+
+  test(
+      'analyzeNight is invoked and improvement_curve_json + target fields stored',
+      () async {
+    scriptMetrics();
+    seam.analyzeResult = const IntegrationCurve(
+      points: [
+        IntegrationCurvePoint(
+            n: 1, snr: 40.0, fwhm: 2.5, cumulativeIntegrationS: 120.0),
+        IntegrationCurvePoint(
+            n: 2, snr: 56.0, fwhm: 2.55, cumulativeIntegrationS: 240.0),
+      ],
+      recommendation: SubsetRecommendation(
+        keepN: 2,
+        keptIndices: [0, 1],
+        predictedSnrGainPct: 0.0,
+        reason: 'keep all',
+      ),
+    );
+
+    final subs = [
+      await insertSub(path: '/l/a.fits', filter: 'L'),
+      await insertSub(path: '/l/b.fits', filter: 'L'),
+    ];
+    final outcomes = await service.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults,
+      outputFitsPathBuilder: (_) => '/out/master.fits',
+    );
+    final masterId = outcomes.single.masterId;
+
+    // analyzeNight saw one call carrying the per-sub qualities + weights.
+    expect(seam.analyzeCalls, hasLength(1));
+    final call = seam.analyzeCalls.single;
+    expect(call.qualities, hasLength(2));
+    expect(call.qualities.first['snr'], 40.0);
+    expect(call.weights, [1.0, 1.0]);
+
+    // The curve + full-night anchor landed in the v42 smart columns.
+    final row = (await db.customSelect(
+      'SELECT improvement_curve_json, target_snr, target_integration_s '
+      'FROM integrated_masters WHERE id = ?',
+      variables: [Variable<int>(masterId)],
+    ).get())
+        .single;
+    final curveJson = row.read<String>('improvement_curve_json');
+    final decoded =
+        IntegrationCurve.fromJson(jsonDecode(curveJson) as Map<String, dynamic>);
+    expect(decoded.points, hasLength(2));
+    expect(decoded.recommendation.keepN, 2);
+    // target_snr / target_integration_s anchor to the full-night curve point.
+    expect(row.read<double>('target_snr'), 56.0);
+    expect(row.read<double>('target_integration_s'), 240.0);
+  });
+
+  test('optional finishing steps are gated by the settings knobs', () async {
+    scriptMetrics();
+    final subs = [await insertSub(path: '/l/a.fits', filter: 'L')];
+
+    // All optional knobs OFF: no finishing call fires.
+    await service.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults.copyWith(
+        extractBackground: false,
+        colorCalibrate: false,
+        reduceStars: false,
+        deconvolve: false,
+      ),
+      outputFitsPathBuilder: (_) => '/out/off.fits',
+    );
+    expect(seam.finishingCalls['extractBackground'], isEmpty);
+    expect(seam.finishingCalls['reduceStarsPreview'], isEmpty);
+    expect(seam.finishingCalls['deconvolvePreview'], isEmpty);
+
+    // Knobs ON: background + star-reduction + deconvolution each fire once
+    // against the master FITS. Colour calibration stays skipped (no
+    // ColorCalibrationService wired), so its seam method is never called.
+    final outcomes = await service.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults.copyWith(
+        extractBackground: true,
+        colorCalibrate: true,
+        reduceStars: true,
+        deconvolve: true,
+      ),
+      outputFitsPathBuilder: (_) => '/out/on.fits',
+    );
+    expect(seam.finishingCalls['extractBackground'], hasLength(1));
+    expect(seam.finishingCalls['extractBackground']!.single['inputFits'],
+        '/out/on.fits');
+    expect(seam.finishingCalls['reduceStarsPreview'], hasLength(1));
+    expect(seam.finishingCalls['deconvolvePreview'], hasLength(1));
+    expect(seam.finishingCalls['colorCalibrate'], isEmpty);
+
+    // background_extracted flips to 1 once extraction ran.
+    final bgx = (await db.customSelect(
+      'SELECT background_extracted FROM integrated_masters WHERE id = ?',
+      variables: [Variable<int>(outcomes.single.masterId)],
+    ).get())
+        .single;
+    expect(bgx.read<int>('background_extracted'), 1);
   });
 }
 

@@ -318,6 +318,17 @@ struct PerFrameRecord {
     accepted: bool,
     /// Human-readable reason when `accepted == false`.
     reason: Option<String>,
+    /// Per-sub signal-to-noise proxy from this sub's own [`FrameQuality`]
+    /// (measured on the aligned luminance plane), or null when the sub could
+    /// not be registered + measured. Persisted by the Dart side for the Night
+    /// Doctor after a morning integration.
+    snr: Option<f64>,
+    /// Per-sub median star FWHM in px (focus / seeing proxy), or null when not
+    /// measured.
+    fwhm: Option<f64>,
+    /// Per-sub median star eccentricity (0 = round, →1 = trailed), or null when
+    /// too few reliable stars were available to measure it honestly.
+    eccentricity: Option<f64>,
 }
 
 /// Response for [`api_integrate_session`].
@@ -736,12 +747,19 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
         } else {
             frames_rejected += 1;
         }
+        // Thread this sub's own measured FrameQuality into the record so the
+        // Dart side can persist per-sub snr/fwhm/eccentricity (the v42
+        // `integrated_master_frames` columns the Night Doctor reads). Quality is
+        // `None` only for subs that failed registration/measurement.
         per_frame_stats.push(PerFrameRecord {
             path: r.path.clone(),
             weight,
             rms_residual_px: r.rms_residual_px,
             accepted: r.accepted,
             reason: r.reason.clone(),
+            snr: r.quality.map(|q| q.snr),
+            fwhm: r.quality.map(|q| q.fwhm),
+            eccentricity: r.quality.and_then(|q| q.eccentricity),
         });
     }
     let rms_residual = if residual_n > 0 {
@@ -852,6 +870,12 @@ struct MasterAccumulateResult {
     frames_added: usize,
     /// Samples rejected by the online clip in this call.
     rejected: u64,
+    /// Per-frame integration weight for the frames folded in THIS `add` call, in
+    /// `lightPaths` order (empty for create/finalize/info). The Dart side
+    /// persists these so the multi-night growth/best-night intelligence has real
+    /// per-sub weights instead of nulls.
+    #[serde(default)]
+    frame_weights: Vec<f64>,
 }
 
 fn master_create(args_json: &str) -> Result<MasterAccumulateResult, String> {
@@ -906,6 +930,7 @@ fn master_create(args_json: &str) -> Result<MasterAccumulateResult, String> {
         channels: master.geometry.channels,
         frames_added: 0,
         rejected: 0,
+        frame_weights: Vec::new(),
     })
 }
 
@@ -1074,6 +1099,7 @@ fn master_add(args_json: &str) -> Result<MasterAccumulateResult, String> {
         channels,
         frames_added: report.frames_added,
         rejected: report.rejected,
+        frame_weights: weights,
     })
 }
 
@@ -1130,6 +1156,7 @@ fn master_finalize(args_json: &str) -> Result<MasterAccumulateResult, String> {
         channels: master.geometry.channels,
         frames_added: 0,
         rejected: 0,
+        frame_weights: Vec::new(),
     })
 }
 
@@ -1149,6 +1176,7 @@ fn master_info(args_json: &str) -> Result<MasterAccumulateResult, String> {
         channels: master.geometry.channels,
         frames_added: 0,
         rejected: 0,
+        frame_weights: Vec::new(),
     })
 }
 

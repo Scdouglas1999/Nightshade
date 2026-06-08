@@ -137,6 +137,8 @@ void main() {
         channels: 1,
         framesAdded: 2,
         rejected: 5,
+        // Native per-frame weights, in lightPaths order (= fresh-subs order).
+        frameWeights: [0.8, 1.0],
       ),
     ];
 
@@ -150,6 +152,13 @@ void main() {
 
     final folded = await mastersDao.getFoldedImageIds(masterId);
     expect(folded, night1.map((s) => s.id).toSet());
+
+    // The native per-frame weights were persisted onto the fold records (not
+    // nulled) so the multi-night growth/best-night intelligence has real data.
+    final frames = await mastersDao.getFramesForMaster(masterId);
+    final weightById = {for (final f in frames) f.imageId: f.weight};
+    expect(weightById[night1[0].id], 0.8);
+    expect(weightById[night1[1].id], 1.0);
 
     // The add call carried only the new lights + a label.
     final addCall =

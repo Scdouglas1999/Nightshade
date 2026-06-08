@@ -13,8 +13,10 @@ extension _NightshadeDatabaseMigrationV42 on NightshadeDatabase {
   ///
   /// The additive `integrated_masters` columns hold the catalog-powered
   /// finishing artifacts (`color_calibrated_path`, `annotated_preview_path`,
-  /// `background_extracted`), the per-master target SNR/time goals
-  /// (`target_snr`, `target_integration_s`) the "how much more?" loop reads, and
+  /// `background_extracted`), the per-master ACHIEVED SNR/time anchor
+  /// (`target_snr`, `target_integration_s` — the SNR reached at the accumulated
+  /// integration time, i.e. the last marginal-SNR curve point) the "how much
+  /// more?" loop scales from, and
   /// the serialized marginal-SNR curve (`improvement_curve_json`). The additive
   /// `integrated_master_frames` columns (`snr`, `fwhm`, `eccentricity`) give the
   /// Night Doctor per-sub science data after a morning integration.

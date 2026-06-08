@@ -199,8 +199,15 @@ class IntegratedMastersDao {
   ///  * [colorCalibratedPath] / [annotatedPreviewPath] — catalog-powered
   ///    finishing artifacts.
   ///  * [backgroundExtracted] — whether background extraction has been applied.
-  ///  * [targetSnr] / [targetIntegrationS] — the per-master SNR/time goals the
-  ///    "how much more?" loop reads.
+  ///  * [targetSnr] / [targetIntegrationS] — the master's **achieved anchor**:
+  ///    the SNR actually reached (`targetSnr`) at the cumulative integration time
+  ///    actually accumulated (`targetIntegrationS`), i.e. the last point of the
+  ///    night's marginal-SNR curve. The "how much more?" loop reads this as the
+  ///    point it scales by `SNR ∝ sqrt(time)` to project a *current* SNR; the
+  ///    user's desired SNR goal is supplied separately as the
+  ///    `pushDeficitToScheduler(targetSnr)` argument. (Despite the historical
+  ///    `target_` column prefix these are an achieved measurement, NOT a goal —
+  ///    do not write a desired-SNR goal here.)
   ///  * [improvementCurveJson] — a serialized [IntegrationCurve]
   ///    (`IntegrationCurve.toJson` → `jsonEncode`); pass the encoded string.
   Future<int> updateSmartFields(

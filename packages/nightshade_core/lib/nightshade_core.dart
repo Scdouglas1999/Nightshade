@@ -487,6 +487,16 @@ export 'src/services/post_session_seam.dart';
 export 'src/services/post_session_integration_service.dart';
 export 'src/services/master_accumulation_service.dart';
 export 'src/services/flat_library_service.dart';
+// Smart Morning Report (v42): multi-night project intelligence + scheduler
+// deficit loop.
+export 'src/services/smart_project_service.dart';
+// Smart Morning Report (v42): Night Doctor diagnostics + report computation.
+export 'src/services/night_analysis_service.dart'
+    show NightAnalysisService, nightAnalysisServiceProvider;
+// Smart Morning Report (v42): catalog-powered finishing — SPCC colour
+// calibration + the master annotation layer.
+export 'src/services/color_calibration_service.dart';
+export 'src/services/master_annotation_service.dart';
 export 'src/database/daos/integrated_masters_dao.dart';
 export 'src/database/daos/flat_library_dao.dart';
 // Smart Morning Report (v42): Night Doctor report persistence.

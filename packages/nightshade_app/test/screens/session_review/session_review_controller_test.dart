@@ -58,6 +58,63 @@ class _FakeSeam implements PostSessionSeam {
   Future<seam.SaveFitsMasterResult> saveFitsMaster(
           Map<String, dynamic> args) async =>
       throw UnimplementedError();
+
+  // --- Smart Morning Report seam surface (unused by these tests) ------------
+  // These controller tests only exercise integrateSession; the remaining nine
+  // PostSessionSeam members are stubbed to satisfy the interface.
+
+  @override
+  Future<IntegrationCurve> analyzeNight({
+    required List<Map<String, dynamic>> qualities,
+    required List<double> weights,
+    required List<double> exposuresS,
+    double? aggressiveness,
+    int? minKeep,
+  }) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<StarPhotometryResult> detectStarsPhotometry({
+    required String inputFits,
+    int? maxStars,
+    int? aperture,
+  }) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<ColorCalibrationResult> colorCalibrate({
+    required String inputFits,
+    required String outputFits,
+    required int channels,
+    double? whiteRefBv,
+    required List<Map<String, dynamic>> matchedStars,
+  }) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<String> extractBackground(Map<String, dynamic> args) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<String> deconvolvePreview(Map<String, dynamic> args) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<String> reduceStarsPreview(Map<String, dynamic> args) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<Map<String, dynamic>> drizzleIntegrate(
+          Map<String, dynamic> args) async =>
+      throw UnimplementedError();
+
+  @override
+  Future<String> combineChannels(Map<String, dynamic> args) async =>
+      throw UnimplementedError();
+
+  @override
+  Stream<({String phase, double fraction})> integrationProgress() =>
+      const Stream.empty();
 }
 
 void main() {

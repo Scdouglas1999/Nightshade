@@ -294,6 +294,11 @@ struct StarPhotometryDto {
     fwhm: f64,
     /// Eccentricity (0 = round, →1 = trailed).
     eccentricity: f64,
+    /// Peak ADU of the detection on the rescaled (0..65535) mono detection
+    /// plane. A detection whose peak sits at/near that ceiling is saturated and
+    /// its per-channel `channelFlux` ratios are unreliable for colour work, so
+    /// the Dart cross-matcher rejects it (SPCC saturation rejection).
+    peak: f64,
     /// Background-subtracted aperture flux per image channel, in channel order.
     channel_flux: Vec<f64>,
 }
@@ -395,6 +400,7 @@ fn detect_stars_photometry_impl(
                 hfr: s.hfr,
                 fwhm: s.fwhm,
                 eccentricity: s.eccentricity,
+                peak: s.peak,
                 channel_flux,
             }
         })

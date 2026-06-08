@@ -304,12 +304,30 @@ class PerFrameRecord {
   /// Human-readable reason when [accepted] is false.
   final String? reason;
 
+  /// Per-sub signal-to-noise proxy from this sub's own measured
+  /// [FrameQuality] (aligned luminance), or null when not measured. Mirrors the
+  /// native `PerFrameRecord.snr`; persisted to the v42
+  /// `integrated_master_frames.snr` column for the Night Doctor.
+  final double? snr;
+
+  /// Per-sub median star FWHM in px, or null when not measured. Mirrors the
+  /// native `PerFrameRecord.fwhm`.
+  final double? fwhm;
+
+  /// Per-sub median star eccentricity (0 = round, →1 = trailed), or null when
+  /// too few reliable stars were available. Mirrors the native
+  /// `PerFrameRecord.eccentricity`.
+  final double? eccentricity;
+
   const PerFrameRecord({
     required this.path,
     required this.weight,
     required this.rmsResidualPx,
     required this.accepted,
     required this.reason,
+    this.snr,
+    this.fwhm,
+    this.eccentricity,
   });
 
   factory PerFrameRecord.fromJson(Map<String, dynamic> json) {
@@ -319,6 +337,9 @@ class PerFrameRecord {
       rmsResidualPx: (json['rmsResidualPx'] as num?)?.toDouble(),
       accepted: json['accepted'] as bool? ?? false,
       reason: json['reason'] as String?,
+      snr: (json['snr'] as num?)?.toDouble(),
+      fwhm: (json['fwhm'] as num?)?.toDouble(),
+      eccentricity: (json['eccentricity'] as num?)?.toDouble(),
     );
   }
 
@@ -328,6 +349,9 @@ class PerFrameRecord {
         'rmsResidualPx': rmsResidualPx,
         'accepted': accepted,
         'reason': reason,
+        'snr': snr,
+        'fwhm': fwhm,
+        'eccentricity': eccentricity,
       };
 }
 
@@ -400,6 +424,11 @@ class MasterAccumulateResult {
   /// Samples rejected by the online clip in this call.
   final int rejected;
 
+  /// Per-frame integration weight for the frames folded in THIS `add` call, in
+  /// `lightPaths` order (empty for create/finalize/info). Persisted per sub so
+  /// the multi-night growth/best-night intelligence has real weights, not nulls.
+  final List<double> frameWeights;
+
   const MasterAccumulateResult({
     required this.sidecarPath,
     required this.masterPath,
@@ -411,6 +440,7 @@ class MasterAccumulateResult {
     required this.channels,
     required this.framesAdded,
     required this.rejected,
+    this.frameWeights = const [],
   });
 
   factory MasterAccumulateResult.fromJson(Map<String, dynamic> json) {
@@ -426,6 +456,10 @@ class MasterAccumulateResult {
       channels: (json['channels'] as num?)?.toInt() ?? 1,
       framesAdded: (json['framesAdded'] as num?)?.toInt() ?? 0,
       rejected: (json['rejected'] as num?)?.toInt() ?? 0,
+      frameWeights: [
+        for (final w in (json['frameWeights'] as List<dynamic>? ?? const []))
+          if (w is num) w.toDouble(),
+      ],
     );
   }
 }

@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../database/daos/integrated_masters_dao.dart';
 import '../database/database.dart';
 import '../models/imaging/integrated_master.dart';
+import '../models/imaging/integration_curve.dart';
 import '../models/imaging/integration_settings.dart';
 import '../providers/dark_library_provider.dart';
 import 'dark_library_service.dart';
@@ -168,6 +171,21 @@ class PostSessionIntegrationService {
         subs: groupSubs,
       );
 
+      // Smart Morning Report extensions: the marginal-SNR improvement curve and
+      // the optional catalog/finishing passes. Both are best-effort and never
+      // abort the (already-committed) master persist — a curve/finishing
+      // failure leaves a perfectly good master row, just without the extras.
+      await _analyzeAndStoreCurve(
+        masterId: masterId,
+        result: result,
+        settings: settings,
+      );
+      await _runOptionalFinishing(
+        masterId: masterId,
+        result: result,
+        settings: settings,
+      );
+
       outcomes.add(PostSessionIntegrationOutcome(
         masterId: masterId,
         filter: filterValue,
@@ -176,6 +194,163 @@ class PostSessionIntegrationService {
     }
 
     return outcomes;
+  }
+
+  /// Build the per-sub `analyzeNight` inputs from the accepted per-frame records,
+  /// invoke the seam, and persist the resulting [IntegrationCurve] (as
+  /// `improvement_curve_json`) plus the full-night SNR / integration-time anchor
+  /// (`target_snr` / `target_integration_s`) via [updateSmartFields].
+  ///
+  /// Fail-soft: any failure (no accepted/measured subs, seam error) logs and
+  /// returns without disturbing the committed master row.
+  Future<void> _analyzeAndStoreCurve({
+    required int masterId,
+    required IntegrateSessionResult result,
+    required IntegrationSettings settings,
+  }) async {
+    try {
+      final qualities = <Map<String, dynamic>>[];
+      final weights = <double>[];
+      final exposures = <double>[];
+      for (final record in result.perFrameStats) {
+        // Only accepted, measured subs carry honest quality descriptors; the
+        // optimizer ranks the population, so unmeasured/dropped subs are skipped.
+        if (!record.accepted || record.snr == null) continue;
+        qualities.add(<String, dynamic>{
+          'snr': record.snr,
+          if (record.fwhm != null) 'fwhm': record.fwhm,
+          if (record.eccentricity != null) 'eccentricity': record.eccentricity,
+        });
+        weights.add(record.weight);
+        // Per-sub exposure is not on the per-frame record; fall back to the
+        // night's mean exposure so the cumulative-time axis stays meaningful.
+        exposures.add(_meanExposurePerSub(result));
+      }
+      if (qualities.isEmpty) return;
+
+      final curve = await _seam.analyzeNight(
+        qualities: qualities,
+        weights: weights,
+        exposuresS: exposures,
+      );
+
+      final anchor = curve.points.isNotEmpty ? curve.points.last : null;
+      await _mastersDao.updateSmartFields(
+        masterId,
+        improvementCurveJson: jsonEncode(curve.toJson()),
+        targetSnr: anchor?.snr,
+        targetIntegrationS: anchor?.cumulativeIntegrationS,
+      );
+    } catch (e, st) {
+      _logSoftFailure('analyzeNight/improvementCurve', e, st);
+    }
+  }
+
+  /// Run the gated optional finishing passes on the master in place, each
+  /// fail-soft (log + continue): background extraction, colour calibration
+  /// (delegated to a [ColorCalibrationService] when present — none is wired yet,
+  /// so it is skipped gracefully), and the star-reduction / deconvolution
+  /// previews. Resulting artifact paths are recorded via [updateSmartFields].
+  Future<void> _runOptionalFinishing({
+    required int masterId,
+    required IntegrateSessionResult result,
+    required IntegrationSettings settings,
+  }) async {
+    final masterFits = result.masterFitsPath;
+
+    if (settings.extractBackground) {
+      await _softStep('extractBackground', () async {
+        final outPath = _suffixBeforeExtension(masterFits, '_bgx');
+        final written = await _seam.extractBackground(<String, dynamic>{
+          'inputFits': masterFits,
+          'outputFits': outPath,
+          'config': <String, dynamic>{
+            'polyDegree': settings.backgroundPolyDegree,
+            'preserveMean': settings.backgroundPreserveMean,
+          },
+        });
+        await _mastersDao.updateSmartFields(
+          masterId,
+          backgroundExtracted: true,
+        );
+        return written;
+      });
+    }
+
+    if (settings.colorCalibrate) {
+      // Colour calibration needs Dart-side star↔catalogue matching (B–V) before
+      // the seam can solve a white balance. That matching is the job of a
+      // ColorCalibrationService, which is not wired into this service yet — so
+      // we skip gracefully rather than fabricating matches. When the service is
+      // injected, delegate the match here and call `_seam.colorCalibrate(...)`.
+      _logSoftFailure(
+        'colorCalibrate',
+        StateError(
+          'colour calibration skipped: no ColorCalibrationService available '
+          'to match catalogue stars',
+        ),
+        StackTrace.current,
+      );
+    }
+
+    if (settings.reduceStars) {
+      await _softStep('reduceStarsPreview', () async {
+        final outPath = _suffixBeforeExtension(masterFits, '_starred');
+        return _seam.reduceStarsPreview(<String, dynamic>{
+          'inputFits': masterFits,
+          'outputFits': outPath,
+          'config': <String, dynamic>{
+            'strength': settings.starReductionStrength,
+            'method': settings.starReduceMethod.wire,
+          },
+        });
+      });
+    }
+
+    if (settings.deconvolve) {
+      await _softStep('deconvolvePreview', () async {
+        final outPath = _suffixBeforeExtension(masterFits, '_decon');
+        return _seam.deconvolvePreview(<String, dynamic>{
+          'inputFits': masterFits,
+          'outputFits': outPath,
+          'config': <String, dynamic>{
+            'iterations': settings.deconIterations,
+            'regularization': settings.deconRegularization,
+          },
+        });
+      });
+    }
+  }
+
+  /// Mean exposure per contributing sub: total integration time over the count
+  /// of integrated frames, or 0 when nothing integrated.
+  static double _meanExposurePerSub(IntegrateSessionResult result) {
+    final n = result.framesIntegrated;
+    if (n <= 0) return 0.0;
+    return result.totalIntegrationSec / n;
+  }
+
+  /// Run a fail-soft finishing step: log any throw and swallow it so the master
+  /// persist is never aborted by an optional pass.
+  Future<void> _softStep(
+    String name,
+    Future<String> Function() step,
+  ) async {
+    try {
+      await step();
+    } catch (e, st) {
+      _logSoftFailure(name, e, st);
+    }
+  }
+
+  void _logSoftFailure(String step, Object error, StackTrace stackTrace) {
+    developer.log(
+      'post-session optional step "$step" failed (continuing)',
+      name: 'PostSessionIntegrationService',
+      error: error,
+      stackTrace: stackTrace,
+      level: 900, // WARNING
+    );
   }
 
   /// Persist the master row + per-sub fold records, returning the new master id.
@@ -220,6 +395,11 @@ class PostSessionIntegrationService {
         alignmentResidualPx: record.rmsResidualPx,
         accepted: record.accepted,
         rejectionReason: record.reason,
+        // v42 per-sub science metrics from the native FrameQuality the
+        // integration already measured — the Night Doctor reads these.
+        snr: record.snr,
+        fwhm: record.fwhm,
+        eccentricity: record.eccentricity,
       );
     }
 

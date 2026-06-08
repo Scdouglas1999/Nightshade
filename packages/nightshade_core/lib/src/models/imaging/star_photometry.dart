@@ -33,6 +33,13 @@ class DetectedStarPhotometry {
   /// Eccentricity (0 = round, →1 = trailed).
   final double eccentricity;
 
+  /// Peak ADU of the detection on the rescaled (0..65535) mono detection plane.
+  /// A detection whose peak sits at/near that ceiling is saturated — its
+  /// per-channel [channelFlux] ratios clip at different ADU levels and give a
+  /// wrong colour, so the cross-matcher rejects it. Defaults to `0.0` when a
+  /// payload predates the field (then the saturation gate simply does not fire).
+  final double peak;
+
   /// Background-subtracted aperture flux per image channel, in channel order.
   final List<double> channelFlux;
 
@@ -45,6 +52,7 @@ class DetectedStarPhotometry {
     required this.fwhm,
     required this.eccentricity,
     required this.channelFlux,
+    this.peak = 0.0,
   });
 
   factory DetectedStarPhotometry.fromJson(Map<String, dynamic> json) {
@@ -56,6 +64,7 @@ class DetectedStarPhotometry {
       hfr: _asDouble(json['hfr']),
       fwhm: _asDouble(json['fwhm']),
       eccentricity: _asDouble(json['eccentricity']),
+      peak: _asDouble(json['peak']),
       channelFlux: _asDoubleList(json['channelFlux']),
     );
   }
@@ -68,6 +77,7 @@ class DetectedStarPhotometry {
         'hfr': hfr,
         'fwhm': fwhm,
         'eccentricity': eccentricity,
+        'peak': peak,
         'channelFlux': channelFlux,
       };
 
@@ -82,6 +92,7 @@ class DetectedStarPhotometry {
           other.hfr == hfr &&
           other.fwhm == fwhm &&
           other.eccentricity == eccentricity &&
+          other.peak == peak &&
           _listEquals(other.channelFlux, channelFlux);
 
   @override
@@ -93,6 +104,7 @@ class DetectedStarPhotometry {
         hfr,
         fwhm,
         eccentricity,
+        peak,
         Object.hashAll(channelFlux),
       );
 }

@@ -152,11 +152,18 @@ class MasterAccumulationService {
 
     // Record each freshly-folded sub. The native add path either folds a sub or
     // fails the whole call (it does not partially accept), so on success every
-    // `fresh` sub contributed.
-    for (final sub in fresh) {
+    // `fresh` sub contributed. The native result carries the per-frame
+    // integration weight in `lightPaths` order — which is `fresh` order — so we
+    // persist each sub's real weight (rather than null) to feed the multi-night
+    // growth / best-night intelligence. A weight that came back <= 0 (frame
+    // effectively dropped) is stored as null, matching the batch path.
+    final weights = result.frameWeights;
+    for (var i = 0; i < fresh.length; i++) {
+      final w = i < weights.length ? weights[i] : null;
       await _mastersDao.recordFoldedFrame(
         masterId: masterId,
-        imageId: sub.id,
+        imageId: fresh[i].id,
+        weight: (w != null && w > 0) ? w : null,
         accepted: true,
       );
     }
