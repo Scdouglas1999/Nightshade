@@ -75,9 +75,16 @@ Nightshade runs the whole night from a single program. Connect the rig, plan tar
 
 Then step away. Supervise or drive the same live session from a LAN browser or the paired Android companion.
 
-<div align="center">
-<img src="assets/screenshots/web-dashboard.png" width="700" alt="Browser dashboard controlling camera, mount, focuser, and sequencer">
-</div>
+<table>
+<tr>
+<td width="50%"><img src="assets/screenshots/settings-equipment-profiles.png" alt="Equipment profile settings"></td>
+<td width="50%"><img src="assets/screenshots/web-dashboard.png" alt="Browser dashboard controlling camera, mount, focuser, and sequencer"></td>
+</tr>
+<tr>
+<td>Keep optics, camera defaults, filters, solver settings, and device assignments in one shared equipment profile.</td>
+<td>Run the same unattended-night control surface from a LAN browser, with camera, mount, focuser, filter wheel, sequencer, guiding, and planetarium panels.</td>
+</tr>
+</table>
 
 ## What's new in 3.1.0
 
