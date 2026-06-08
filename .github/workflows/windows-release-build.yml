@@ -4,14 +4,11 @@ name: Windows Release Build
 # downloadable artifact. Runs on Windows runners because Flutter desktop for
 # Windows cannot be cross-compiled from Linux/macOS.
 #
-# Triggers:
-#   - manually via the Actions tab / `gh workflow run` (workflow_dispatch)
-#   - automatically on pushes to the active modernization branch
+# Trigger on demand only (Actions tab or `gh workflow run
+# windows-release-build.yml`). Windows release artifacts are produced when
+# needed rather than on every push.
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - roadmap/planetarium-atlas-and-perf
 
 jobs:
   windows-release-build:
