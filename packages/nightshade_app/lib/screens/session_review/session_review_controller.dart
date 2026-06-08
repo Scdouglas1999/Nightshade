@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:drift/drift.dart' show Variable;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart' hide BestNight;
 // The controller exposes its own UI-facing [BestNight] (hours-based) to the
 // panels; reach the core service type — also named `BestNight` — under a prefix
@@ -254,11 +256,27 @@ class SessionReviewState {
   /// True while a catalog colour-calibration re-integration is in flight.
   final bool calibrating;
 
-  /// True while a background-extraction re-integration is in flight.
+  /// True while a background-extraction finishing pass is in flight.
   final bool extractingBackground;
+
+  /// True while a deconvolution-preview finishing pass is in flight.
+  final bool deconvolving;
+
+  /// True while a star-reduction-preview finishing pass is in flight.
+  final bool reducingStars;
 
   /// True while a narrowband palette combine is in flight.
   final bool combiningNarrowband;
+
+  /// The most-recently applied narrowband palette composite (the persisted
+  /// `narrowband_composites` row written by [SessionReviewController.runNarrowband]),
+  /// or null when none has been produced this session. Drives the workbench's
+  /// composite result card.
+  final NarrowbandComposite? narrowbandComposite;
+
+  /// Every persisted narrowband composite in scope, newest first — the
+  /// "composites" list read from [NarrowbandCompositesDao]. Empty until loaded.
+  final List<NarrowbandComposite> narrowbandComposites;
 
   const SessionReviewState({
     this.subs = const [],
@@ -283,7 +301,11 @@ class SessionReviewState {
     this.loadingSmartData = false,
     this.calibrating = false,
     this.extractingBackground = false,
+    this.deconvolving = false,
+    this.reducingStars = false,
     this.combiningNarrowband = false,
+    this.narrowbandComposite,
+    this.narrowbandComposites = const [],
   });
 
   /// The newest persisted master in scope — the one the smart panels analyse
@@ -322,6 +344,8 @@ class SessionReviewState {
       integrating ||
       calibrating ||
       extractingBackground ||
+      deconvolving ||
+      reducingStars ||
       combiningNarrowband;
 
   /// Light subs only (the integration population is always lights).
@@ -365,7 +389,12 @@ class SessionReviewState {
     bool? loadingSmartData,
     bool? calibrating,
     bool? extractingBackground,
+    bool? deconvolving,
+    bool? reducingStars,
     bool? combiningNarrowband,
+    NarrowbandComposite? narrowbandComposite,
+    bool clearNarrowbandComposite = false,
+    List<NarrowbandComposite>? narrowbandComposites,
   }) {
     return SessionReviewState(
       subs: subs ?? this.subs,
@@ -397,7 +426,13 @@ class SessionReviewState {
       loadingSmartData: loadingSmartData ?? this.loadingSmartData,
       calibrating: calibrating ?? this.calibrating,
       extractingBackground: extractingBackground ?? this.extractingBackground,
+      deconvolving: deconvolving ?? this.deconvolving,
+      reducingStars: reducingStars ?? this.reducingStars,
       combiningNarrowband: combiningNarrowband ?? this.combiningNarrowband,
+      narrowbandComposite: clearNarrowbandComposite
+          ? null
+          : (narrowbandComposite ?? this.narrowbandComposite),
+      narrowbandComposites: narrowbandComposites ?? this.narrowbandComposites,
     );
   }
 }
@@ -429,6 +464,8 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
   ImagesDao get _images => _ref.read(imagesDaoProvider);
   IntegratedMastersDao get _mastersDao =>
       _ref.read(integratedMastersDaoProvider);
+  NarrowbandCompositesDao get _compositesDao =>
+      _ref.read(narrowbandCompositesDaoProvider);
 
   /// Bind [SessionReviewState.progress] to the seam's live integration-progress
   /// stream. Each native `IntegrationProgress` event maps straight to the
@@ -507,6 +544,17 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
     if (targetId == null) return (null, null);
     final t = await _ref.read(targetsDaoProvider).getTargetById(targetId);
     return (targetId, t?.name);
+  }
+
+  /// The reviewed target's catalog coordinates (RA in decimal hours, Dec in
+  /// decimal degrees) for hinting the master plate-solve, or `(null, null)` when
+  /// no target / coordinates are known (the solve then runs blind).
+  Future<(double?, double?)> _resolveTargetHint() async {
+    final id = state.targetId;
+    if (id == null) return (null, null);
+    final t = await _ref.read(targetsDaoProvider).getTargetById(id);
+    if (t == null) return (null, null);
+    return (t.ra, t.dec);
   }
 
   Future<String> _resolveTitle(String? targetName) async {
@@ -612,11 +660,16 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
     try {
       final service = _ref.read(postSessionIntegrationServiceProvider);
       final outDir = await _outputDir();
+      // Catalog coordinates (RA hours / Dec degrees) hint the master plate-solve
+      // so the WCS persist is fast/robust; null falls back to a blind solve.
+      final (hintRaHours, hintDecDegrees) = await _resolveTargetHint();
       final outcomes = await service.integrate(
         subs: accepted,
         settings: state.settings,
         targetId: state.targetId,
         targetName: state.targetName,
+        hintRaHours: hintRaHours,
+        hintDecDegrees: hintDecDegrees,
         outputFitsPathBuilder: (filterBucket) {
           final stamp = DateTime.now().millisecondsSinceEpoch;
           final base = _safeName(state.title);
@@ -795,12 +848,42 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
     }
   }
 
-  /// Resolve the reviewed master's solved WCS, or null when none is available.
+  /// Resolve the reviewed master's solved WCS, or null when none is persisted.
   ///
-  /// The post-session master row carries no solved WCS today; returning null is
-  /// the honest fail-soft until a per-master WCS is persisted. Centralised here
-  /// so the wiring is a one-line change when that source lands.
-  WcsOverlay? _resolveMasterWcs(IntegratedMaster master) => null;
+  /// The master row now carries its plate-solved WCS as the eight CD-matrix
+  /// scalars (v44), written by the post-session integration's fail-soft
+  /// plate-solve step. `WcsOverlay` consumes the cdelt/crota form, so this
+  /// derives them from the CD matrix using the inverse of the native sign
+  /// convention (`WcsInfo::from_plate_solve`, `imaging/src/fits.rs`):
+  /// `cd1_1 = -scale·cosθ`, `cd2_1 = scale·sinθ`, `cd2_2 = scale·cosθ`, hence
+  /// `cdelt1 = -‖(cd1_1, cd2_1)‖` (RA negative), `cdelt2 = ‖(cd1_2, cd2_2)‖`,
+  /// and `crota2 = atan2(cd2_1, cd2_2)`. Returns null (the honest fail-soft)
+  /// until a WCS is persisted, which keeps the annotation overlay + colour
+  /// calibration cleanly un-lit.
+  WcsOverlay? _resolveMasterWcs(IntegratedMaster master) {
+    if (!master.hasWcs) return null;
+    final cd11 = master.wcsCd1_1;
+    final cd12 = master.wcsCd1_2;
+    final cd21 = master.wcsCd2_1;
+    final cd22 = master.wcsCd2_2;
+    if (cd11 == null || cd12 == null || cd21 == null || cd22 == null) {
+      return null;
+    }
+
+    final cdelt1 = -math.sqrt(cd11 * cd11 + cd21 * cd21); // RA: negative.
+    final cdelt2 = math.sqrt(cd12 * cd12 + cd22 * cd22);
+    final crota2 = math.atan2(cd21, cd22) * 180.0 / math.pi;
+
+    return WcsOverlay(
+      crpix1: master.wcsCrpix1 ?? master.width / 2,
+      crpix2: master.wcsCrpix2 ?? master.height / 2,
+      crval1: master.wcsCrval1!,
+      crval2: master.wcsCrval2!,
+      cdelt1: cdelt1,
+      cdelt2: cdelt2,
+      crota2: crota2,
+    );
+  }
 
   /// Re-run the integration of the current accepted subs with [settings],
   /// producing a fresh master. The narrative/workbench finishing actions
@@ -849,25 +932,229 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
     }
   }
 
-  /// Re-integrate with catalog colour calibration enabled — the narrative
-  /// "calibrate colour" action. A no-op-safe wrapper over [reIntegrate].
-  Future<PostSessionIntegrationOutcome?> runColorCalibration() async {
+  /// Catalog colour-calibrate the **current reviewed master** as a
+  /// non-destructive post-step on its finished FITS — the narrative / workbench
+  /// "Calibrate color" action. Unlike a re-integration this never re-runs the
+  /// stack: it detects + photometers stars on the master, cross-matches them to
+  /// the catalog using the master's persisted WCS, solves the per-channel white
+  /// balance via [ColorCalibrationService], writes `<master>_color.fits`, renders
+  /// a sibling preview PNG, persists the path via the v42 `color_calibrated_path`
+  /// column, and refreshes the master list so the result survives reload.
+  ///
+  /// Needs a master with a solved WCS: without one the cross-match cannot place
+  /// detections on the sky, so the action surfaces an error rather than silently
+  /// producing an unchanged master. A solved-but-sparse field (too few catalog
+  /// cross-matches) also surfaces a "could not calibrate" message. Returns the
+  /// written calibrated FITS path, or null when there is no master / no WCS / the
+  /// pass skipped or failed.
+  Future<String?> runColorCalibration() async {
+    final master = state.reviewedMaster;
+    final inputFits = master?.masterFitsPath;
+    if (master == null || inputFits == null || inputFits.trim().isEmpty) {
+      state = state.copyWith(
+        error: 'Color calibration needs a finished master FITS — integrate '
+            'first.',
+      );
+      return null;
+    }
+    final wcs = _resolveMasterWcs(master);
+    if (wcs == null) {
+      state = state.copyWith(
+        error: 'Color calibration needs a plate-solved master (WCS) to match '
+            'catalog stars — none is available for this master.',
+      );
+      return null;
+    }
     state = state.copyWith(calibrating: true, clearError: true);
     try {
-      return await reIntegrate(state.settings.copyWith(colorCalibrate: true));
+      final service = _ref.read(colorCalibrationServiceProvider);
+      final output =
+          SessionReviewController._suffixBeforeExtension(inputFits, '_color');
+      final result = await service.calibrate(
+        masterFits: inputFits,
+        outputFits: output,
+        wcs: wcs,
+        channels: master.channels,
+        whiteRefBv: state.settings.whiteRefBv,
+      );
+      if (ColorCalibrationService.wasSkipped(result)) {
+        if (mounted) {
+          state = state.copyWith(
+            error: 'Color calibration found too few catalog cross-matches in '
+                'this field to solve a white balance.',
+          );
+        }
+        return null;
+      }
+      // Render a sibling preview PNG so the calibrated result is viewable;
+      // fail-soft so a render failure never sinks the written FITS or its path.
+      final previewPng =
+          SessionReviewController._swapExtension(result.outputPath, '.png');
+      try {
+        await _ref
+            .read(finishingPreviewRendererProvider)(result.outputPath, previewPng);
+      } catch (_) {
+        // Leave the FITS path persisted; the overlay simply shows no preview.
+      }
+      await _mastersDao.updateSmartFields(
+        master.id,
+        colorCalibratedPath: result.outputPath,
+      );
+      final masters = await _refreshMasters();
+      if (!mounted) return result.outputPath;
+      state = state.copyWith(masters: masters);
+      return result.outputPath;
+    } catch (e) {
+      if (mounted) state = state.copyWith(error: 'Color calibration failed: $e');
+      return null;
     } finally {
       if (mounted) state = state.copyWith(calibrating: false);
     }
   }
 
-  /// Re-integrate with background extraction enabled — the "flatten gradient"
-  /// action.
-  Future<PostSessionIntegrationOutcome?> runBackgroundExtraction() async {
-    state = state.copyWith(extractingBackground: true, clearError: true);
+  /// Background-extract (gradient-flatten) the **current reviewed master** as a
+  /// non-destructive post-step on its finished FITS — the workbench "Background
+  /// extract" action. Unlike a re-integration this never re-runs the stack: it
+  /// flattens the existing master FITS via the post-session seam
+  /// (`extractBackground`), writes `<master>_bgx.fits`, renders a sibling preview
+  /// PNG, persists the path via [IntegratedMastersDao.updateFinishingPaths] (the
+  /// v44 `background_extracted_path` column), and refreshes the master list so
+  /// the result round-trips on reload. Returns the written FITS path, or null
+  /// when there is no master / the pass fails.
+  Future<String?> runBackgroundExtraction() async {
+    return _runFinishingStep(
+      busy: (v) => state.copyWith(extractingBackground: v),
+      suffix: '_bgx',
+      label: 'Background extraction',
+      invoke: (seam, master, output) => seam.extractBackground(<String, dynamic>{
+        'inputFits': master.masterFitsPath,
+        'outputFits': output,
+        'config': <String, dynamic>{
+          'polyDegree': state.settings.backgroundPolyDegree,
+          'preserveMean': state.settings.backgroundPreserveMean,
+        },
+      }),
+      persist: (id, path) => _mastersDao.updateFinishingPaths(
+        id,
+        backgroundExtractedPath: path,
+      ),
+      alsoMark: (id) =>
+          _mastersDao.updateSmartFields(id, backgroundExtracted: true),
+    );
+  }
+
+  /// Deconvolve (Richardson–Lucy preview) the **current reviewed master** as a
+  /// non-destructive post-step on its finished FITS — the workbench "Deconvolve"
+  /// action. Writes `<master>_decon.fits`, renders a sibling preview PNG,
+  /// persists the path via the v44 `deconvolved_path` column, and refreshes so
+  /// the result survives reload. Returns the written FITS path, or null when
+  /// there is no master / the pass fails.
+  Future<String?> runDeconvolve() async {
+    return _runFinishingStep(
+      busy: (v) => state.copyWith(deconvolving: v),
+      suffix: '_decon',
+      label: 'Deconvolution',
+      invoke: (seam, master, output) => seam.deconvolvePreview(<String, dynamic>{
+        'inputFits': master.masterFitsPath,
+        'outputFits': output,
+        'config': <String, dynamic>{
+          'iterations': state.settings.deconIterations,
+          'regularization': state.settings.deconRegularization,
+        },
+      }),
+      persist: (id, path) =>
+          _mastersDao.updateFinishingPaths(id, deconvolvedPath: path),
+    );
+  }
+
+  /// Reduce stars (mask-confined preview) on the **current reviewed master** as
+  /// a non-destructive post-step on its finished FITS — the workbench "Reduce
+  /// stars" action. Writes `<master>_starred.fits`, renders a sibling preview
+  /// PNG, persists the path via the v44 `star_reduced_path` column, and
+  /// refreshes so the result survives reload. Returns the written FITS path, or
+  /// null when there is no master / the pass fails.
+  Future<String?> runStarReduction() async {
+    return _runFinishingStep(
+      busy: (v) => state.copyWith(reducingStars: v),
+      suffix: '_starred',
+      label: 'Star reduction',
+      invoke: (seam, master, output) =>
+          seam.reduceStarsPreview(<String, dynamic>{
+        'inputFits': master.masterFitsPath,
+        'outputFits': output,
+        'config': <String, dynamic>{
+          'strength': state.settings.starReductionStrength,
+          'method': state.settings.starReduceMethod.wire,
+        },
+      }),
+      persist: (id, path) =>
+          _mastersDao.updateFinishingPaths(id, starReducedPath: path),
+    );
+  }
+
+  /// Shared engine for the three workbench finishing actions (background
+  /// extraction / deconvolution / star reduction). Each operates on the current
+  /// reviewed master's finished FITS, never re-running the stack:
+  ///
+  ///  1. Guard a reviewed master that carries a `masterFitsPath` on disk.
+  ///  2. Flip the action's [busy] flag (via [SessionReviewController.state]).
+  ///  3. [invoke] the post-session seam, writing `<master><suffix>.fits`.
+  ///  4. Render a sibling preview PNG (`<master><suffix>.png`) via the injected
+  ///     [finishingPreviewRendererProvider] so `MasterOverlayView` can show the
+  ///     before/after — fail-soft: a render failure still keeps the FITS path.
+  ///  5. [persist] the written FITS path onto the row (and [alsoMark] any extra
+  ///     bookkeeping column, e.g. `background_extracted`).
+  ///  6. Refresh the master list so the new artifact path round-trips on reload.
+  ///
+  /// Returns the written FITS path, or null when no master is in scope or the
+  /// pass throws (the error surfaces on [SessionReviewState.error]).
+  Future<String?> _runFinishingStep({
+    required SessionReviewState Function(bool busy) busy,
+    required String suffix,
+    required String label,
+    required Future<String> Function(
+      PostSessionSeam seam,
+      IntegratedMaster master,
+      String output,
+    ) invoke,
+    required Future<void> Function(int masterId, String path) persist,
+    Future<void> Function(int masterId)? alsoMark,
+  }) async {
+    final master = state.reviewedMaster;
+    final inputFits = master?.masterFitsPath;
+    if (master == null || inputFits == null || inputFits.trim().isEmpty) {
+      state = state.copyWith(
+        error: '$label needs a finished master FITS — integrate first.',
+      );
+      return null;
+    }
+    state = busy(true).copyWith(clearError: true);
     try {
-      return await reIntegrate(state.settings.copyWith(extractBackground: true));
+      final seam = _ref.read(postSessionSeamProvider);
+      final output =
+          SessionReviewController._suffixBeforeExtension(inputFits, suffix);
+      final written = await invoke(seam, master, output);
+      // Render a sibling preview PNG so the result is viewable; fail-soft so a
+      // render failure (no native lib in a test, missing FITS) never sinks the
+      // already-written finishing FITS or its persisted path.
+      final previewPng =
+          SessionReviewController._swapExtension(written, '.png');
+      try {
+        await _ref.read(finishingPreviewRendererProvider)(written, previewPng);
+      } catch (_) {
+        // Leave the FITS path persisted; the overlay simply shows no preview.
+      }
+      await persist(master.id, written);
+      if (alsoMark != null) await alsoMark(master.id);
+      final masters = await _refreshMasters();
+      if (!mounted) return written;
+      state = state.copyWith(masters: masters);
+      return written;
+    } catch (e) {
+      if (mounted) state = state.copyWith(error: '$label failed: $e');
+      return null;
     } finally {
-      if (mounted) state = state.copyWith(extractingBackground: false);
+      if (mounted) state = busy(false);
     }
   }
 
@@ -886,10 +1173,14 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
     List<NarrowbandChannelRef>? channels,
   }) async {
     final refs = channels ?? state.narrowbandChannels;
-    final inputs = [
+    // Only the channels that resolve to an on-disk master FITS feed the combine;
+    // keep their master ids in lock-step so the persisted row records exactly the
+    // component masters the composite was built from, in channel order.
+    final fed = [
       for (final c in refs)
-        if (c.fitsPath != null) c.fitsPath!,
+        if (c.fitsPath != null) c,
     ];
+    final inputs = [for (final c in fed) c.fitsPath!];
     if (inputs.length < 2) {
       state = state.copyWith(
         error: 'Need at least two finalized narrowband masters to combine.',
@@ -910,6 +1201,37 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
         if (isCustom) 'weights': weights,
         'output': output,
       });
+
+      // Persist the composite as a `narrowband_composites` row so the SHO/HOO
+      // output survives the session and can be surfaced rather than orphaned on
+      // disk. Composite dimensions track the component masters (the combine is a
+      // per-pixel mix of identically-sized channels), so read them off the first
+      // fed master when available.
+      final firstMaster = _masterById(fed.first.masterId);
+      final id = await _compositesDao.insertComposite(
+        targetId: state.targetId,
+        palette: palette,
+        componentMasterIds: [for (final c in fed) c.masterId],
+        outputPath: outputPath,
+        width: firstMaster?.width ?? 0,
+        height: firstMaster?.height ?? 0,
+      );
+      final composite = NarrowbandComposite(
+        id: id,
+        targetId: state.targetId,
+        palette: palette,
+        componentMasterIds: [for (final c in fed) c.masterId],
+        outputPath: outputPath,
+        width: firstMaster?.width ?? 0,
+        height: firstMaster?.height ?? 0,
+        createdAt: DateTime.now().toUtc(),
+      );
+      if (mounted) {
+        state = state.copyWith(
+          narrowbandComposite: composite,
+          narrowbandComposites: [composite, ...state.narrowbandComposites],
+        );
+      }
       return outputPath;
     } catch (e) {
       if (mounted) state = state.copyWith(error: 'Narrowband combine failed: $e');
@@ -917,6 +1239,30 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
     } finally {
       if (mounted) state = state.copyWith(combiningNarrowband: false);
     }
+  }
+
+  /// Load the persisted narrowband composites in scope (target-scoped when a
+  /// target is resolved, otherwise all), newest first, onto
+  /// [SessionReviewState.narrowbandComposites] — the workbench "composites" list.
+  Future<void> loadComposites() async {
+    final tid = state.targetId;
+    final composites = tid != null
+        ? await _compositesDao.getForTarget(tid)
+        : await _compositesDao.getAll();
+    if (!mounted) return;
+    state = state.copyWith(
+      narrowbandComposites: composites,
+      narrowbandComposite:
+          state.narrowbandComposite ?? (composites.isNotEmpty ? composites.first : null),
+    );
+  }
+
+  /// The in-scope master with [id], or null when not loaded.
+  IntegratedMaster? _masterById(int id) {
+    for (final m in state.masters) {
+      if (m.id == id) return m;
+    }
+    return null;
   }
 
   /// The single-channel narrowband masters available to the mixer — a
@@ -1166,7 +1512,61 @@ class SessionReviewController extends StateNotifier<SessionReviewState> {
         .replaceAll(RegExp(r'\s+'), '_');
     return cleaned.isEmpty ? 'session' : cleaned;
   }
+
+  /// Insert [suffix] before the extension (`master.fits` →
+  /// `master_bgx.fits`). Mirrors the post-session service's path discipline so
+  /// the finishing artifacts land beside the master FITS with the same
+  /// `_bgx`/`_decon`/`_starred` tags the gated integration passes use.
+  static String _suffixBeforeExtension(String path, String suffix) {
+    final slash = path.lastIndexOf(RegExp(r'[\\/]'));
+    final dot = path.lastIndexOf('.');
+    if (dot <= slash) return '$path$suffix';
+    return '${path.substring(0, dot)}$suffix${path.substring(dot)}';
+  }
+
+  /// Replace the path's extension (`master_bgx.fits` → `master_bgx.png`). If the
+  /// file segment carries no `.`, the new extension is appended. Used to derive
+  /// the sibling preview PNG a finishing artifact renders into.
+  static String _swapExtension(String path, String newExt) {
+    final slash = path.lastIndexOf(RegExp(r'[\\/]'));
+    final dot = path.lastIndexOf('.');
+    if (dot <= slash) return '$path$newExt';
+    return '${path.substring(0, dot)}$newExt';
+  }
 }
+
+/// Renders a finishing-artifact FITS at [inputFits] into a viewable PNG at
+/// [outputPng] so the workbench can show a before/after of the
+/// background-extraction / deconvolution / star-reduction passes (those native
+/// passes write a linear FITS only — no preview). Injected via
+/// [finishingPreviewRendererProvider] so the controller stays testable without
+/// the native bridge: the production renderer auto-stretches the FITS exactly
+/// like every other on-disk master preview, while tests substitute a fake.
+typedef FinishingPreviewRenderer = Future<void> Function(
+  String inputFits,
+  String outputPng,
+);
+
+/// Production [FinishingPreviewRenderer] — reads the finishing FITS, computes
+/// its auto-stretch (the same MAD/STF stretch the integration preview uses),
+/// applies it to an 8-bit RGBA display buffer, and writes the sibling PNG. All
+/// four calls are native bridge functions; the controller's finishing actions
+/// wrap this in a fail-soft `try` so a render failure never drops the (already
+/// written + persisted) finishing FITS.
+final finishingPreviewRendererProvider =
+    Provider<FinishingPreviewRenderer>((ref) {
+  return (String inputFits, String outputPng) async {
+    final dims = await bridge.apiReadFitsLinearData(filePath: inputFits);
+    final params = await bridge.apiCalculateAutoStretch(filePath: inputFits);
+    final rgba = await bridge.apiApplyStretch(filePath: inputFits, params: params);
+    await bridge.apiSaveRgbaPngFile(
+      filePath: outputPng,
+      width: dims.width,
+      height: dims.height,
+      rgba: rgba,
+    );
+  };
+});
 
 /// Family provider keyed by the review scope so a session view and a target
 /// view are independent controllers.

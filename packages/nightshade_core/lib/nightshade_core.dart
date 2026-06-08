@@ -52,6 +52,7 @@ export 'src/models/imaging/stack_and_share_models.dart';
 // Post-session integration: advanced settings model + integrated-master models.
 export 'src/models/imaging/integration_settings.dart';
 export 'src/models/imaging/integrated_master.dart';
+export 'src/models/imaging/narrowband_composite.dart';
 // Smart Morning Report (v42): Night Doctor report + finding value types.
 export 'src/models/imaging/night_report.dart';
 // Smart Morning Report (v42): marginal-SNR integration curve + subset
@@ -505,6 +506,8 @@ export 'src/database/daos/flat_library_dao.dart';
 export 'src/database/daos/night_reports_dao.dart';
 // Durable multi-night campaign counter (Phase B, v43).
 export 'src/database/daos/campaigns_dao.dart';
+// Narrowband palette composites (Phase C, v44).
+export 'src/database/daos/narrowband_composites_dao.dart';
 export 'src/services/project_tracking_service.dart';
 export 'src/services/calibration/defect_map_service.dart';
 export 'src/services/disk_space_service.dart';

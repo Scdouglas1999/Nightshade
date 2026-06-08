@@ -431,6 +431,119 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     );
   }
 
+  /// Add the v44 additive Phase C "finishing foundation" columns to the
+  /// raw-DDL `integrated_masters` table — the per-master plate-solved WCS (eight
+  /// CD-matrix scalars) plus the finishing-artifact output paths.
+  ///
+  /// Because `integrated_masters` is a raw-DDL table (not a Drift `Table`
+  /// class), additive nullable columns are retrofitted with guarded
+  /// `ALTER TABLE ... ADD COLUMN` — the exact pattern of
+  /// `_ensureIntegratedMastersV42Columns`. Every ALTER is guarded by
+  /// `_columnExists` so the helper is idempotent and runs safely from both
+  /// `onCreate` (fresh installs — the columns are NOT in
+  /// `_createPostSessionTables`, so a fresh install needs this too) and the
+  /// `if (from < 44)` `onUpgrade` branch.
+  ///
+  /// The WCS columns store the eight scalars in the CD-matrix form ASTAP emits
+  /// (see `WcsInfo::from_plate_solve`, `imaging/src/fits.rs:1094`): reference
+  /// world coordinates, reference pixel, and the 2x2 CD matrix. The finishing
+  /// paths persist the gated post-step outputs (`<master>_bgx/_decon/_starred`).
+  Future<void> _ensureIntegratedMastersV44Columns() async {
+    // Plate-solved WCS — reference world coordinates (CRVAL1/2, degrees).
+    if (!await _columnExists('integrated_masters', 'wcs_crval1')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters ADD COLUMN wcs_crval1 REAL',
+      );
+    }
+    if (!await _columnExists('integrated_masters', 'wcs_crval2')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters ADD COLUMN wcs_crval2 REAL',
+      );
+    }
+    // Reference pixel (CRPIX1/2 — usually the image centre).
+    if (!await _columnExists('integrated_masters', 'wcs_crpix1')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters ADD COLUMN wcs_crpix1 REAL',
+      );
+    }
+    if (!await _columnExists('integrated_masters', 'wcs_crpix2')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters ADD COLUMN wcs_crpix2 REAL',
+      );
+    }
+    // CD matrix (scale + rotation), four scalars.
+    if (!await _columnExists('integrated_masters', 'wcs_cd1_1')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters ADD COLUMN wcs_cd1_1 REAL',
+      );
+    }
+    if (!await _columnExists('integrated_masters', 'wcs_cd1_2')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters ADD COLUMN wcs_cd1_2 REAL',
+      );
+    }
+    if (!await _columnExists('integrated_masters', 'wcs_cd2_1')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters ADD COLUMN wcs_cd2_1 REAL',
+      );
+    }
+    if (!await _columnExists('integrated_masters', 'wcs_cd2_2')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters ADD COLUMN wcs_cd2_2 REAL',
+      );
+    }
+
+    // Finishing-artifact output paths (previously written then discarded).
+    if (!await _columnExists('integrated_masters', 'background_extracted_path')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters '
+        'ADD COLUMN background_extracted_path TEXT',
+      );
+    }
+    if (!await _columnExists('integrated_masters', 'deconvolved_path')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters ADD COLUMN deconvolved_path TEXT',
+      );
+    }
+    if (!await _columnExists('integrated_masters', 'star_reduced_path')) {
+      await customStatement(
+        'ALTER TABLE integrated_masters ADD COLUMN star_reduced_path TEXT',
+      );
+    }
+  }
+
+  /// Create the v44 `narrowband_composites` table — one row per applied
+  /// SHO/HOO/etc. palette combine — plus its lookup index.
+  ///
+  /// Called from both `onCreate` (fresh installs) and the `if (from < 44)`
+  /// `onUpgrade` branch. The single statement is `CREATE TABLE IF NOT EXISTS`,
+  /// so the helper is idempotent and re-runnable. This is a raw-DDL table (the
+  /// dominant v27+ convention) accessed via [NarrowbandCompositesDao]. The
+  /// `ON DELETE SET NULL` foreign key mirrors `integrated_masters.target_id`;
+  /// FK enforcement is already enabled in `beforeOpen`
+  /// (`PRAGMA foreign_keys = ON`).
+  ///
+  /// `component_master_ids` is a JSON array of the `integrated_masters.id`
+  /// component channels the composite was built from (e.g. the Ha/OIII/SII
+  /// masters), and `palette` is the palette name (`SHO`, `HOO`, ...).
+  Future<void> _createNarrowbandCompositesTable() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS narrowband_composites('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'target_id INTEGER REFERENCES targets(id) ON DELETE SET NULL,'
+      "palette TEXT NOT NULL DEFAULT '',"
+      "component_master_ids TEXT NOT NULL DEFAULT '[]',"
+      'output_path TEXT NOT NULL,'
+      'width INTEGER NOT NULL DEFAULT 0,'
+      'height INTEGER NOT NULL DEFAULT 0,'
+      'created_at INTEGER NOT NULL)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_narrowband_composites_target '
+      'ON narrowband_composites (target_id)',
+    );
+  }
+
   Future<void> _createGuideRmsHistoryTable() async {
     await customStatement('''
       CREATE TABLE IF NOT EXISTS guide_rms_history (

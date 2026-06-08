@@ -28,7 +28,12 @@ class IntegratedMastersDao {
       'preview_png_path, sidecar_path, rejection_map_path, status, '
       'accumulation_mode, channels, width, height, frame_count, '
       'total_integration_seconds, filter, settings_json, stats_json, '
-      'created_at, updated_at';
+      'created_at, updated_at, '
+      // v44 (Phase C): per-master plate-solved WCS (CD-matrix) + finishing paths.
+      'wcs_crval1, wcs_crval2, wcs_crpix1, wcs_crpix2, '
+      'wcs_cd1_1, wcs_cd1_2, wcs_cd2_1, wcs_cd2_2, '
+      'background_extracted_path, deconvolved_path, star_reduced_path, '
+      'color_calibrated_path';
 
   // ---------------------------------------------------------------------------
   // integrated_masters
@@ -253,6 +258,85 @@ class IntegratedMastersDao {
     );
   }
 
+  /// Persist the master's plate-solved WCS (the v44 CD-matrix columns). Pass the
+  /// eight scalars ASTAP / `WcsInfo::from_plate_solve` emit; `updated_at` is
+  /// bumped to now. Mirrors [updateSmartFields] (only supplied fields written).
+  ///
+  /// The CRVAL/CRPIX/CD scalars are stored verbatim so the `WcsOverlay` reader
+  /// can derive cdelt/crota from the CD matrix using the same sign convention as
+  /// the native source of truth (`imaging/src/fits.rs`). Once written,
+  /// `IntegratedMaster.hasWcs` flips true and the annotation overlay + colour
+  /// calibration unblock.
+  Future<int> updateWcs(
+    int id, {
+    required double crval1,
+    required double crval2,
+    required double crpix1,
+    required double crpix2,
+    required double cd1_1,
+    required double cd1_2,
+    required double cd2_1,
+    required double cd2_2,
+  }) {
+    return _db.customUpdate(
+      'UPDATE integrated_masters SET '
+      'wcs_crval1 = ?, wcs_crval2 = ?, wcs_crpix1 = ?, wcs_crpix2 = ?, '
+      'wcs_cd1_1 = ?, wcs_cd1_2 = ?, wcs_cd2_1 = ?, wcs_cd2_2 = ?, '
+      'updated_at = ? WHERE id = ?',
+      variables: [
+        Variable<double>(crval1),
+        Variable<double>(crval2),
+        Variable<double>(crpix1),
+        Variable<double>(crpix2),
+        Variable<double>(cd1_1),
+        Variable<double>(cd1_2),
+        Variable<double>(cd2_1),
+        Variable<double>(cd2_2),
+        Variable<int>(_toEpochSeconds(DateTime.now().toUtc())),
+        Variable<int>(id),
+      ],
+      updateKind: UpdateKind.update,
+    );
+  }
+
+  /// Persist the v44 finishing-artifact output paths. Only the supplied fields
+  /// are written; `updated_at` is always bumped to now. Mirrors
+  /// [updateSmartFields] but targets the `_bgx`/`_decon`/`_starred` paths the
+  /// gated finishing passes write (previously discarded).
+  Future<int> updateFinishingPaths(
+    int id, {
+    String? backgroundExtractedPath,
+    String? deconvolvedPath,
+    String? starReducedPath,
+  }) {
+    final sets = <String>['updated_at = ?'];
+    final vars = <Variable<Object>>[
+      Variable<int>(_toEpochSeconds(DateTime.now().toUtc())),
+    ];
+    void put(String col, Variable<Object> v) {
+      sets.add('$col = ?');
+      vars.add(v);
+    }
+
+    if (backgroundExtractedPath != null) {
+      put('background_extracted_path',
+          Variable<String>(backgroundExtractedPath));
+    }
+    if (deconvolvedPath != null) {
+      put('deconvolved_path', Variable<String>(deconvolvedPath));
+    }
+    if (starReducedPath != null) {
+      put('star_reduced_path', Variable<String>(starReducedPath));
+    }
+
+    vars.add(Variable<int>(id));
+    return _db.customUpdate(
+      'UPDATE integrated_masters SET ${sets.join(', ')} WHERE id = ?',
+      variables: vars,
+      updateKind: UpdateKind.update,
+    );
+  }
+
   /// Delete a master (cascades to its `integrated_master_frames` rows via the FK).
   Future<int> deleteMaster(int id) {
     return _db.customUpdate(
@@ -364,6 +448,19 @@ class IntegratedMastersDao {
       statsJson: row.read<String>('stats_json'),
       createdAt: _fromEpochSeconds(row.read<int>('created_at')),
       updatedAt: _fromEpochSeconds(row.read<int>('updated_at')),
+      wcsCrval1: row.readNullable<double>('wcs_crval1'),
+      wcsCrval2: row.readNullable<double>('wcs_crval2'),
+      wcsCrpix1: row.readNullable<double>('wcs_crpix1'),
+      wcsCrpix2: row.readNullable<double>('wcs_crpix2'),
+      wcsCd1_1: row.readNullable<double>('wcs_cd1_1'),
+      wcsCd1_2: row.readNullable<double>('wcs_cd1_2'),
+      wcsCd2_1: row.readNullable<double>('wcs_cd2_1'),
+      wcsCd2_2: row.readNullable<double>('wcs_cd2_2'),
+      backgroundExtractedPath:
+          row.readNullable<String>('background_extracted_path'),
+      deconvolvedPath: row.readNullable<String>('deconvolved_path'),
+      starReducedPath: row.readNullable<String>('star_reduced_path'),
+      colorCalibratedPath: row.readNullable<String>('color_calibrated_path'),
     );
   }
 

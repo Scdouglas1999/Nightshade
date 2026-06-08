@@ -13,6 +13,8 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         await _createNightReportsTable();
         await _ensureIntegratedMastersV42Columns();
         await _createCampaignsTable();
+        await _ensureIntegratedMastersV44Columns();
+        await _createNarrowbandCompositesTable();
         await _createCustomIndexes();
         await _ensureDefaultSettings();
       },
@@ -57,6 +59,7 @@ extension _NightshadeDatabaseMigration on NightshadeDatabase {
         await _upgradeSchemaV41(m, from);
         await _upgradeSchemaV42(m, from);
         await _upgradeSchemaV43(m, from);
+        await _upgradeSchemaV44(m, from);
 
         await _ensureDefaultSettings();
         await _createCustomIndexes();

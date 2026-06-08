@@ -319,6 +319,19 @@ class PerFrameRecord {
   /// `PerFrameRecord.eccentricity`.
   final double? eccentricity;
 
+  /// The fitted **source→reference** registration transform, as the row-major
+  /// 3×3 homogeneous matrix flattened to 9 elements `[m00, m01, m02, m10, m11,
+  /// m12, m20, m21, m22]` — the exact wire shape `api_drizzle_integrate`'s
+  /// `DrizzleFrameArgs.transform` consumes. Null when the sub failed
+  /// registration (so it contributes nothing to a drizzle stack). Mirrors the
+  /// native `PerFrameRecord.transform`.
+  final List<double>? transform;
+
+  /// The transform family (`"similarity"` / `"affine"` / `"homography"`),
+  /// informational; null when [transform] is null. Mirrors the native
+  /// `PerFrameRecord.transformKind`.
+  final String? transformKind;
+
   const PerFrameRecord({
     required this.path,
     required this.weight,
@@ -328,9 +341,12 @@ class PerFrameRecord {
     this.snr,
     this.fwhm,
     this.eccentricity,
+    this.transform,
+    this.transformKind,
   });
 
   factory PerFrameRecord.fromJson(Map<String, dynamic> json) {
+    final rawTransform = json['transform'];
     return PerFrameRecord(
       path: json['path'] as String,
       weight: (json['weight'] as num?)?.toDouble() ?? 0.0,
@@ -340,6 +356,12 @@ class PerFrameRecord {
       snr: (json['snr'] as num?)?.toDouble(),
       fwhm: (json['fwhm'] as num?)?.toDouble(),
       eccentricity: (json['eccentricity'] as num?)?.toDouble(),
+      transform: rawTransform is List
+          ? rawTransform
+              .map((e) => (e as num).toDouble())
+              .toList(growable: false)
+          : null,
+      transformKind: json['transformKind'] as String?,
     );
   }
 
@@ -352,6 +374,8 @@ class PerFrameRecord {
         'snr': snr,
         'fwhm': fwhm,
         'eccentricity': eccentricity,
+        if (transform != null) 'transform': transform,
+        if (transformKind != null) 'transformKind': transformKind,
       };
 }
 

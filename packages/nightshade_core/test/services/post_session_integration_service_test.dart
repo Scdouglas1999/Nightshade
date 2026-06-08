@@ -17,6 +17,7 @@ import 'package:nightshade_core/src/services/dark_library_service.dart';
 import 'package:nightshade_core/src/services/flat_library_service.dart';
 import 'package:nightshade_core/src/services/post_session_integration_service.dart';
 import 'package:nightshade_core/src/services/post_session_seam.dart';
+import 'package:nightshade_core/src/services/wcs_overlay.dart';
 
 /// Records the args of every call and returns scriptable results, so the
 /// orchestration services run end-to-end without native code.
@@ -211,10 +212,25 @@ class FakePostSessionSeam implements PostSessionSeam {
     return args['outputFits'] as String? ?? args['outputPath'] as String? ?? '';
   }
 
+  /// Records every [drizzleIntegrate] invocation's args.
+  final List<Map<String, dynamic>> drizzleCalls = [];
+
   @override
   Future<Map<String, dynamic>> drizzleIntegrate(
-          Map<String, dynamic> args) async =>
-      {'outputPath': args['outputFits'] as String? ?? ''};
+      Map<String, dynamic> args) async {
+    drizzleCalls.add(args);
+    final scale = ((args['config'] as Map?)?['scale'] as num?)?.toDouble() ?? 2.0;
+    final refW = (args['refW'] as num?)?.toInt() ?? 0;
+    final refH = (args['refH'] as num?)?.toInt() ?? 0;
+    return <String, dynamic>{
+      'outputPath': args['outputFits'] as String? ?? '',
+      'coveragePath': args['coverageFits'],
+      'previewPngPath': args['previewPngPath'],
+      'outWidth': (refW * scale).ceil(),
+      'outHeight': (refH * scale).ceil(),
+      'channels': (args['bayer'] as bool? ?? false) ? 3 : 1,
+    };
+  }
 
   @override
   Future<String> combineChannels(Map<String, dynamic> args) async =>
@@ -568,12 +584,446 @@ void main() {
     expect(seam.finishingCalls['colorCalibrate'], isEmpty);
 
     // background_extracted flips to 1 once extraction ran.
-    final bgx = (await db.customSelect(
-      'SELECT background_extracted FROM integrated_masters WHERE id = ?',
+    final row = (await db.customSelect(
+      'SELECT background_extracted, background_extracted_path, '
+      'deconvolved_path, star_reduced_path '
+      'FROM integrated_masters WHERE id = ?',
       variables: [Variable<int>(outcomes.single.masterId)],
     ).get())
         .single;
-    expect(bgx.read<int>('background_extracted'), 1);
+    expect(row.read<int>('background_extracted'), 1);
+
+    // Each pass's written FITS path is persisted via updateFinishingPaths onto
+    // the v44 columns (previously discarded). The fake seam echoes `outputFits`,
+    // and the service suffixes the master path with _bgx/_decon/_starred.
+    expect(row.read<String>('background_extracted_path'), '/out/on_bgx.fits');
+    expect(row.read<String>('deconvolved_path'), '/out/on_decon.fits');
+    expect(row.read<String>('star_reduced_path'), '/out/on_starred.fits');
+
+    // The DAO mapper round-trips the same paths onto the typed model.
+    final master = await mastersDao.getById(outcomes.single.masterId);
+    expect(master!.backgroundExtractedPath, '/out/on_bgx.fits');
+    expect(master.deconvolvedPath, '/out/on_decon.fits');
+    expect(master.starReducedPath, '/out/on_starred.fits');
+  });
+
+  test('finishing paths stay null when their knobs are off', () async {
+    scriptMetrics();
+    final subs = [await insertSub(path: '/l/a.fits', filter: 'L')];
+    final outcomes = await service.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults.copyWith(
+        extractBackground: false,
+        reduceStars: false,
+        deconvolve: false,
+      ),
+      outputFitsPathBuilder: (_) => '/out/off.fits',
+    );
+    final master = await mastersDao.getById(outcomes.single.masterId);
+    expect(master!.backgroundExtractedPath, isNull);
+    expect(master.deconvolvedPath, isNull);
+    expect(master.starReducedPath, isNull);
+  });
+
+  // --- Drizzle branch -------------------------------------------------------
+
+  /// An integrate builder that echoes the lights and stamps each accepted
+  /// per-frame record with a (non-identity) source→reference registration
+  /// transform — the input the drizzle branch needs.
+  void scriptMetricsWithTransforms() {
+    seam.integrateBuilder = (args) {
+      final lights = (args['lightPaths'] as List).cast<String>();
+      final output = args['output'] as Map<String, dynamic>;
+      return IntegrateSessionResult(
+        masterFitsPath: output['masterFitsPath'] as String,
+        previewPath: output['previewPngPath'] as String?,
+        rejectionMapPath: output['rejectionMapPath'] as String?,
+        framesIntegrated: lights.length,
+        framesRejected: 0,
+        totalIntegrationSec: 120.0 * lights.length,
+        rmsResidual: 0.42,
+        width: 100,
+        height: 80,
+        channels: 1,
+        perFrameStats: [
+          for (var i = 0; i < lights.length; i++)
+            PerFrameRecord(
+              path: lights[i],
+              weight: 0.9 + i * 0.01,
+              rmsResidualPx: 0.4,
+              accepted: true,
+              reason: null,
+              snr: 40.0 + i,
+              fwhm: 2.5,
+              eccentricity: 0.3,
+              // A small translation per sub, identity rotation/scale.
+              transform: [1.0, 0.0, i.toDouble(), 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+              transformKind: 'similarity',
+            ),
+        ],
+      );
+    };
+  }
+
+  test('drizzle branch is NOT invoked when the knob is off', () async {
+    scriptMetricsWithTransforms();
+    final subs = [await insertSub(path: '/l/a.fits', filter: 'L')];
+
+    final outcomes = await service.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults.copyWith(drizzle: false),
+      outputFitsPathBuilder: (_) => '/out/master.fits',
+    );
+
+    expect(seam.drizzleCalls, isEmpty);
+    // The standard master FITS stays the master.
+    final master = await mastersDao.getById(outcomes.single.masterId);
+    expect(master!.masterFitsPath, '/out/master.fits');
+  });
+
+  test(
+      'drizzle branch is invoked when enabled, feeding per-sub transforms + '
+      'config, and swaps the drizzled FITS in as the master', () async {
+    scriptMetricsWithTransforms();
+    final subs = [
+      await insertSub(path: '/l/a.fits', filter: 'L'),
+      await insertSub(path: '/l/b.fits', filter: 'L'),
+    ];
+
+    final outcomes = await service.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults.copyWith(
+        drizzle: true,
+        drizzleScale: 2.0,
+        drizzlePixfrac: 0.8,
+        drizzleKernel: DrizzleKernel.gaussian,
+        bayerDrizzle: false,
+      ),
+      outputFitsPathBuilder: (_) => '/out/master.fits',
+    );
+
+    // The drizzle seam saw exactly one call.
+    expect(seam.drizzleCalls, hasLength(1));
+    final call = seam.drizzleCalls.single;
+
+    // Output derived from the master path; reference grid = the standard dims.
+    expect(call['outputFits'], '/out/master_drizzle.fits');
+    expect(call['refW'], 100);
+    expect(call['refH'], 80);
+    expect(call['bayer'], isFalse);
+    // A sibling preview PNG path for the drizzled master is requested.
+    expect(call['previewPngPath'], '/out/master_drizzle.png');
+
+    // Config mirrors the settings knobs.
+    final config = call['config'] as Map<String, dynamic>;
+    expect(config['scale'], 2.0);
+    expect(config['pixfrac'], 0.8);
+    expect(config['kernel'], 'gaussian');
+
+    // One frame per accepted sub, each carrying its 9-element transform + weight.
+    final frames = (call['frames'] as List).cast<Map<String, dynamic>>();
+    expect(frames, hasLength(2));
+    expect(frames[0]['fitsPath'], '/l/a.fits');
+    expect((frames[0]['transform'] as List), hasLength(9));
+    expect(frames[1]['fitsPath'], '/l/b.fits');
+    expect((frames[1]['transform'] as List)[2], 1.0); // per-sub translation.
+
+    // The drizzled FITS + its preview are swapped in as the persisted master,
+    // with the scaled (2×) dimensions.
+    final master = await mastersDao.getById(outcomes.single.masterId);
+    expect(master!.masterFitsPath, '/out/master_drizzle.fits');
+    expect(master.previewPngPath, '/out/master_drizzle.png');
+    expect(master.width, 200);
+    expect(master.height, 160);
+    // The returned outcome result reflects the drizzled master + preview too, so
+    // the immediate post-integrate hero shows the drizzled image, not the 1×.
+    expect(outcomes.single.result.masterFitsPath, '/out/master_drizzle.fits');
+    expect(outcomes.single.result.previewPath, '/out/master_drizzle.png');
+    expect(outcomes.single.result.width, 200);
+  });
+
+  test('Bayer drizzle sets the bayer flag and yields a 3-channel master',
+      () async {
+    scriptMetricsWithTransforms();
+    final subs = [await insertSub(path: '/l/a.fits', filter: 'L')];
+
+    final outcomes = await service.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults
+          .copyWith(drizzle: true, bayerDrizzle: true),
+      outputFitsPathBuilder: (_) => '/out/master.fits',
+    );
+
+    expect(seam.drizzleCalls.single['bayer'], isTrue);
+    final master = await mastersDao.getById(outcomes.single.masterId);
+    expect(master!.channels, 3);
+  });
+
+  test('drizzle is fail-soft when no accepted sub carries a transform',
+      () async {
+    // Default builder: accepted records but no transform field.
+    final subs = [await insertSub(path: '/l/a.fits', filter: 'L')];
+
+    final outcomes = await service.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults.copyWith(drizzle: true),
+      outputFitsPathBuilder: (_) => '/out/master.fits',
+    );
+
+    // No drizzle call fired (nothing to deposit); the standard master survives.
+    expect(seam.drizzleCalls, isEmpty);
+    final master = await mastersDao.getById(outcomes.single.masterId);
+    expect(master!.masterFitsPath, '/out/master.fits');
+  });
+
+  test('an injected plate-solver persists the master WCS (CD-matrix columns)',
+      () async {
+    final calls = <Map<String, dynamic>>[];
+    final solvingService = PostSessionIntegrationService(
+      mastersDao: mastersDao,
+      darkLibrary: darkLibrary,
+      flatLibrary: flatLibrary,
+      seam: seam,
+      plateSolver: ({
+        required String imagePath,
+        required int imageWidth,
+        required int imageHeight,
+        double? hintRaHours,
+        double? hintDecDegrees,
+      }) async {
+        calls.add(<String, dynamic>{
+          'imagePath': imagePath,
+          'imageWidth': imageWidth,
+          'imageHeight': imageHeight,
+          'hintRaHours': hintRaHours,
+          'hintDecDegrees': hintDecDegrees,
+        });
+        return const MasterWcsSolution(
+          crval1: 202.4696,
+          crval2: 47.1952,
+          crpix1: 50.0,
+          crpix2: 40.0,
+          cd1_1: -0.000352,
+          cd1_2: 0.0000061,
+          cd2_1: 0.0000061,
+          cd2_2: 0.000352,
+        );
+      },
+    );
+
+    final subs = [await insertSub(path: '/lights/a.fits', filter: 'L')];
+    final outcomes = await solvingService.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults,
+      targetName: 'M51',
+      hintRaHours: 13.498,
+      hintDecDegrees: 47.195,
+      outputFitsPathBuilder: (_) => '/out/master.fits',
+    );
+
+    // The solver was handed the finished master FITS, its dims, and the hint.
+    expect(calls, hasLength(1));
+    expect(calls.single['imagePath'], '/out/master.fits');
+    expect(calls.single['imageWidth'], 100); // fake seam echoes 100x80.
+    expect(calls.single['imageHeight'], 80);
+    expect(calls.single['hintRaHours'], 13.498);
+    expect(calls.single['hintDecDegrees'], 47.195);
+
+    // The eight CD-matrix scalars round-trip onto the row.
+    final master = await mastersDao.getById(outcomes.single.masterId);
+    expect(master, isNotNull);
+    expect(master!.hasWcs, isTrue);
+    expect(master.wcsCrval1, closeTo(202.4696, 1e-9));
+    expect(master.wcsCrval2, closeTo(47.1952, 1e-9));
+    expect(master.wcsCrpix1, closeTo(50.0, 1e-9));
+    expect(master.wcsCrpix2, closeTo(40.0, 1e-9));
+    expect(master.wcsCd1_1, closeTo(-0.000352, 1e-12));
+    expect(master.wcsCd2_2, closeTo(0.000352, 1e-12));
+  });
+
+  test('a null-returning solver leaves WCS unpersisted (fail-soft)', () async {
+    final solvingService = PostSessionIntegrationService(
+      mastersDao: mastersDao,
+      darkLibrary: darkLibrary,
+      flatLibrary: flatLibrary,
+      seam: seam,
+      // No solver installed / solve failed -> closure returns null.
+      plateSolver: ({
+        required String imagePath,
+        required int imageWidth,
+        required int imageHeight,
+        double? hintRaHours,
+        double? hintDecDegrees,
+      }) async =>
+          null,
+    );
+
+    final subs = [await insertSub(path: '/lights/a.fits', filter: 'L')];
+    final outcomes = await solvingService.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults,
+      outputFitsPathBuilder: (_) => '/out/master.fits',
+    );
+
+    // The master persisted fine; WCS stays null so annotation/colour-cal skip.
+    final master = await mastersDao.getById(outcomes.single.masterId);
+    expect(master, isNotNull);
+    expect(master!.hasWcs, isFalse);
+    expect(master.wcsCrval1, isNull);
+  });
+
+  test('no injected solver is a clean no-op (WCS stays null)', () async {
+    // `service` (the default harness) is built WITHOUT a plateSolver.
+    final subs = [await insertSub(path: '/lights/a.fits', filter: 'L')];
+    final outcomes = await service.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults,
+      outputFitsPathBuilder: (_) => '/out/master.fits',
+    );
+    final master = await mastersDao.getById(outcomes.single.masterId);
+    expect(master, isNotNull);
+    expect(master!.hasWcs, isFalse);
+  });
+
+  // --- Colour calibration (wired via MasterColorCalibrator) -----------------
+
+  /// A plate-solver returning a fixed CD-matrix WCS so the colour-calibration
+  /// gate has a master to project against.
+  MasterPlateSolver fixedSolver() => ({
+        required String imagePath,
+        required int imageWidth,
+        required int imageHeight,
+        double? hintRaHours,
+        double? hintDecDegrees,
+      }) async =>
+          const MasterWcsSolution(
+            crval1: 202.4696,
+            crval2: 47.1952,
+            crpix1: 50.0,
+            crpix2: 40.0,
+            cd1_1: -0.000352,
+            cd1_2: 0.0000061,
+            cd2_1: 0.0000061,
+            cd2_2: 0.000352,
+          );
+
+  test(
+      'colorCalibrate gate invokes the injected calibrator with the solved WCS '
+      'and persists color_calibrated_path', () async {
+    final calls = <Map<String, dynamic>>[];
+    final calibratingService = PostSessionIntegrationService(
+      mastersDao: mastersDao,
+      darkLibrary: darkLibrary,
+      flatLibrary: flatLibrary,
+      seam: seam,
+      plateSolver: fixedSolver(),
+      colorCalibrator: ({
+        required String masterFits,
+        required String outputFits,
+        required WcsOverlay wcs,
+        required int channels,
+      }) async {
+        calls.add(<String, dynamic>{
+          'masterFits': masterFits,
+          'outputFits': outputFits,
+          'channels': channels,
+          // The overlay must carry the solved reference, derived from the CD
+          // matrix (RA cdelt negative, |cd| magnitude).
+          'crval1': wcs.crval1,
+          'crval2': wcs.crval2,
+          'cdelt1': wcs.cdelt1,
+        });
+        return outputFits;
+      },
+    );
+
+    final subs = [await insertSub(path: '/lights/a.fits', filter: 'L')];
+    final outcomes = await calibratingService.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults.copyWith(colorCalibrate: true),
+      targetName: 'M51',
+      outputFitsPathBuilder: (_) => '/out/master.fits',
+    );
+
+    // The calibrator was invoked once against the master FITS, with the
+    // suffixed output path, the fake seam's channel count, and a WCS overlay
+    // reconstructed from the solved CD matrix.
+    expect(calls, hasLength(1));
+    final c = calls.single;
+    expect(c['masterFits'], '/out/master.fits');
+    expect(c['outputFits'], '/out/master_color.fits');
+    expect(c['channels'], 1);
+    expect(c['crval1'], closeTo(202.4696, 1e-9));
+    expect(c['crval2'], closeTo(47.1952, 1e-9));
+    expect(c['cdelt1'] as double, lessThan(0)); // RA cdelt is negative.
+
+    // The calibrated FITS path landed on the v42 color_calibrated_path column.
+    final master = await mastersDao.getById(outcomes.single.masterId);
+    expect(master!.colorCalibratedPath, '/out/master_color.fits');
+  });
+
+  test('colorCalibrate gate skips (persists nothing) when no WCS is solved',
+      () async {
+    var called = false;
+    final calibratingService = PostSessionIntegrationService(
+      mastersDao: mastersDao,
+      darkLibrary: darkLibrary,
+      flatLibrary: flatLibrary,
+      seam: seam,
+      // No plate-solver -> no WCS -> the colour gate has nothing to project.
+      colorCalibrator: ({
+        required String masterFits,
+        required String outputFits,
+        required WcsOverlay wcs,
+        required int channels,
+      }) async {
+        called = true;
+        return outputFits;
+      },
+    );
+
+    final subs = [await insertSub(path: '/lights/a.fits', filter: 'L')];
+    final outcomes = await calibratingService.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults.copyWith(colorCalibrate: true),
+      outputFitsPathBuilder: (_) => '/out/master.fits',
+    );
+
+    expect(called, isFalse, reason: 'no WCS -> calibrator never called');
+    final master = await mastersDao.getById(outcomes.single.masterId);
+    expect(master!.colorCalibratedPath, isNull);
+  });
+
+  test('colorCalibrate gate persists nothing when the calibrator skips (null)',
+      () async {
+    final calibratingService = PostSessionIntegrationService(
+      mastersDao: mastersDao,
+      darkLibrary: darkLibrary,
+      flatLibrary: flatLibrary,
+      seam: seam,
+      plateSolver: fixedSolver(),
+      // The field cross-matched too few catalog stars -> skipped (null).
+      colorCalibrator: ({
+        required String masterFits,
+        required String outputFits,
+        required WcsOverlay wcs,
+        required int channels,
+      }) async =>
+          null,
+    );
+
+    final subs = [await insertSub(path: '/lights/a.fits', filter: 'L')];
+    final outcomes = await calibratingService.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults.copyWith(colorCalibrate: true),
+      outputFitsPathBuilder: (_) => '/out/master.fits',
+    );
+
+    // A skipped calibration leaves the column null (no phantom path persisted).
+    final master = await mastersDao.getById(outcomes.single.masterId);
+    expect(master!.colorCalibratedPath, isNull);
+    // But the master + its WCS are unaffected.
+    expect(master.hasWcs, isTrue);
   });
 }
 

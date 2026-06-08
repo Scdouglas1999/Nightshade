@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart' hide ConnectionState;
 import 'package:nightshade_ui/nightshade_ui.dart';
+import 'package:path/path.dart' as p;
 
 import '../diagnostics/diagnostics_screen/psf_field_map_view.dart';
 import '../sequencer/widgets/run_dashboard/frame_detail_dialog.dart';
@@ -150,7 +153,9 @@ class _RightColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
     final outcome = state.lastOutcome;
-    final previewPath = outcome?.result.previewPath;
+    final master = state.reviewedMaster;
+    // Prefer the freshest run's preview; otherwise the persisted master's.
+    final previewPath = outcome?.result.previewPath ?? master?.previewPngPath;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -171,6 +176,7 @@ class _RightColumn extends StatelessWidget {
                 showAnnotations: true,
                 showRejection: false,
                 showCoverage: false,
+                finishingLayers: _finishingLayers(master),
               ),
             ),
           )
@@ -194,6 +200,10 @@ class _RightColumn extends StatelessWidget {
               ],
             ),
           ),
+        const SizedBox(height: NightshadeTokens.spaceMd),
+
+        // ── Finishing actions (non-destructive post-steps on the master). ─
+        _FinishingActions(state: state, controller: controller),
         const SizedBox(height: NightshadeTokens.spaceLg),
 
         // ── Per-sub field quality (PSF map). ─────────────────────────────
@@ -221,9 +231,16 @@ class _RightColumn extends StatelessWidget {
                 label: c.label,
               ),
           ],
-          onApply: (palette, weights) =>
-              controller.runNarrowband(palette, weights),
+          // Await the combine and surface the persisted composite path rather
+          // than discarding it: a failed combine sets `state.error`, a successful
+          // one pushes the `narrowband_composites` row onto state, which the
+          // `_NarrowbandCompositeCard` below renders.
+          onApply: (palette, weights) async {
+            await controller.runNarrowband(palette, weights);
+          },
         ),
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        _NarrowbandCompositeCard(composite: state.narrowbandComposite),
         const SizedBox(height: NightshadeTokens.spaceLg),
 
         // ── A/B compare two integration recipes. ─────────────────────────
@@ -253,6 +270,126 @@ class _RightColumn extends StatelessWidget {
               : () => controller.reIntegrate(state.settings),
         ),
       ],
+    );
+  }
+}
+
+/// The conventional sibling preview PNG for a finishing-artifact FITS at
+/// [fitsPath]: the same path with a `.png` extension — what the controller's
+/// finishing actions render beside each `_bgx`/`_decon`/`_starred` FITS.
+String _siblingPng(String fitsPath) {
+  final dir = p.dirname(fitsPath);
+  final stem = p.basenameWithoutExtension(fitsPath);
+  return p.join(dir, '$stem.png');
+}
+
+/// The finishing-result "after" layers for [master] that exist on disk — one
+/// per persisted finishing FITS path (background extraction / deconvolution /
+/// star reduction), pointing at its sibling preview PNG so [MasterOverlayView]
+/// can A/B each pass against the raw master. Empty when no master / no
+/// finishing artifacts have been produced.
+List<FinishingResultLayer> _finishingLayers(IntegratedMaster? master) {
+  if (master == null) return const [];
+  bool exists(String path) {
+    try {
+      return File(path).existsSync();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  final out = <FinishingResultLayer>[];
+  void add(String? fits, String label, IconData icon) {
+    if (fits == null || fits.trim().isEmpty) return;
+    final png = _siblingPng(fits);
+    if (!exists(png)) return;
+    out.add(FinishingResultLayer(label: label, pngPath: png, icon: icon));
+  }
+
+  add(master.backgroundExtractedPath, 'Background extract', NightshadeIcons.grid);
+  add(master.deconvolvedPath, 'Deconvolve', NightshadeIcons.sparkle);
+  add(master.starReducedPath, 'Reduce stars', NightshadeIcons.star);
+  add(master.colorCalibratedPath, 'Color calibrate', NightshadeIcons.star);
+  return out;
+}
+
+/// The non-destructive finishing-action row: "Background extract", "Deconvolve",
+/// and "Reduce stars" buttons that run the matching post-step on the current
+/// reviewed master's finished FITS (never re-integrating). Each writes its
+/// `_bgx`/`_decon`/`_starred` FITS + a sibling preview PNG, persists the path,
+/// and the result then surfaces as a toggleable "after" layer in the
+/// `MasterOverlayView` hero above. Disabled (with a calm hint) until a finished
+/// master exists or while any finishing pass is in flight.
+class _FinishingActions extends StatelessWidget {
+  final SessionReviewState state;
+  final SessionReviewController controller;
+
+  const _FinishingActions({required this.state, required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final master = state.reviewedMaster;
+    final hasMaster = master?.masterFitsPath != null &&
+        master!.masterFitsPath!.trim().isNotEmpty;
+    final busy = state.busy;
+
+    return NightshadeCard(
+      padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Icon(NightshadeIcons.sparkle,
+                  size: NightshadeTokens.iconSm, color: colors.primary),
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              Expanded(
+                child: Text(
+                  'Finishing (non-destructive previews)',
+                  style:
+                      NightshadeTypography.h5.copyWith(color: colors.textPrimary),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          if (!hasMaster)
+            Text(
+              'Integrate a master first — finishing runs on the finished FITS.',
+              style: NightshadeTypography.bodySm
+                  .copyWith(color: colors.textSecondary),
+            )
+          else
+            Wrap(
+              spacing: NightshadeTokens.spaceSm,
+              runSpacing: NightshadeTokens.spaceSm,
+              children: [
+                NightshadeButton(
+                  label: 'Background extract',
+                  icon: NightshadeIcons.grid,
+                  variant: ButtonVariant.outline,
+                  isLoading: state.extractingBackground,
+                  onPressed: busy ? null : controller.runBackgroundExtraction,
+                ),
+                NightshadeButton(
+                  label: 'Deconvolve',
+                  icon: NightshadeIcons.sparkle,
+                  variant: ButtonVariant.outline,
+                  isLoading: state.deconvolving,
+                  onPressed: busy ? null : controller.runDeconvolve,
+                ),
+                NightshadeButton(
+                  label: 'Reduce stars',
+                  icon: NightshadeIcons.star,
+                  variant: ButtonVariant.outline,
+                  isLoading: state.reducingStars,
+                  onPressed: busy ? null : controller.runStarReduction,
+                ),
+              ],
+            ),
+        ],
+      ),
     );
   }
 }
@@ -416,6 +553,125 @@ class _FieldQualityCardState extends ConsumerState<_FieldQualityCard> {
                   child: PsfFieldMapView(tiles: tiles),
                 );
               },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The applied narrowband composite result card.
+///
+/// Surfaces the persisted `narrowband_composites` row after a palette is applied
+/// — the SHO/HOO output is no longer an orphan FITS on disk. It shows the
+/// palette, the component master ids the composite was combined from, the output
+/// dimensions, and the on-disk path. When a stretched preview PNG sits alongside
+/// the composite FITS (same path, `.png` extension) it is rendered through the
+/// shared [MasterOverlayView] hero exactly like an integrated master; otherwise a
+/// calm "composite written" panel reports the artifact. Renders nothing until a
+/// composite exists.
+class _NarrowbandCompositeCard extends StatelessWidget {
+  final NarrowbandComposite? composite;
+
+  const _NarrowbandCompositeCard({required this.composite});
+
+  /// The conventional sibling preview PNG for a composite FITS at [fitsPath]:
+  /// the same path with a `.png` extension. The native combine writes only the
+  /// composite FITS today, so this is usually absent — but when a preview is
+  /// produced alongside it the hero lights up for free.
+  String _siblingPreviewPath(String fitsPath) {
+    final dir = p.dirname(fitsPath);
+    final stem = p.basenameWithoutExtension(fitsPath);
+    return p.join(dir, '$stem.png');
+  }
+
+  bool _exists(String path) {
+    try {
+      return File(path).existsSync();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = composite;
+    if (c == null) return const SizedBox.shrink();
+    final colors = NightshadeColors.of(context);
+    final previewPath = _siblingPreviewPath(c.outputPath);
+    final hasPreview = _exists(previewPath);
+
+    final components = c.componentMasterIds.isEmpty
+        ? '—'
+        : c.componentMasterIds.map((id) => '#$id').join(' · ');
+    final dims = (c.width > 0 && c.height > 0) ? '${c.width}×${c.height}' : null;
+
+    return NightshadeCard(
+      padding: EdgeInsets.zero,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+            child: Row(
+              children: [
+                Icon(NightshadeIcons.palette,
+                    size: NightshadeTokens.iconSm, color: colors.primary),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${c.palette.toUpperCase()} composite',
+                        style: NightshadeTypography.h5
+                            .copyWith(color: colors.textPrimary),
+                      ),
+                      const SizedBox(height: NightshadeTokens.spaceXs),
+                      Text(
+                        'Channels $components'
+                        '${dims != null ? '  ·  $dims' : ''}',
+                        style: NightshadeTypography.bodySm
+                            .copyWith(color: colors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (hasPreview)
+            SizedBox(
+              height: 360,
+              child: MasterOverlayView(
+                previewPngPath: previewPath,
+                showAnnotations: false,
+                showRejection: false,
+                showCoverage: false,
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                NightshadeTokens.spaceMd,
+                0,
+                NightshadeTokens.spaceMd,
+                NightshadeTokens.spaceMd,
+              ),
+              child: Row(
+                children: [
+                  Icon(NightshadeIcons.check,
+                      size: NightshadeTokens.iconSm, color: colors.success),
+                  const SizedBox(width: NightshadeTokens.spaceSm),
+                  Expanded(
+                    child: Text(
+                      'Composite written to\n${c.outputPath}',
+                      style: NightshadeTypography.bodySm
+                          .copyWith(color: colors.textSecondary),
+                    ),
+                  ),
+                ],
+              ),
             ),
         ],
       ),

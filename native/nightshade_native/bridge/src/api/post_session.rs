@@ -41,7 +41,7 @@ use nightshade_imaging::normalization::{
     apply_normalization, estimate_normalization, CoverageMask, NormMode, NormalizationConfig,
 };
 use nightshade_imaging::registration::{
-    register_frame, Interpolator, RegistrationConfig, TransformKind,
+    register_frame, Interpolator, RegistrationConfig, TransformKind, TransformModel,
 };
 use nightshade_imaging::stacking::{CombineMethod, MasterOutputType};
 use nightshade_imaging::{
@@ -329,6 +329,36 @@ struct PerFrameRecord {
     /// Per-sub median star eccentricity (0 = round, →1 = trailed), or null when
     /// too few reliable stars were available to measure it honestly.
     eccentricity: Option<f64>,
+    /// The fitted **source→reference** registration transform, as the row-major
+    /// 3×3 homogeneous matrix flattened to 9 elements `[m00, m01, m02, m10, m11,
+    /// m12, m20, m21, m22]` — the exact wire shape `DrizzleFrameArgs.transform`
+    /// (`finishing_combine.rs`) consumes. `null` only when the sub failed
+    /// registration (and so contributes nothing to a drizzle stack). Surfaced so
+    /// the Dart drizzle flow can feed each accepted sub's raw, un-resampled
+    /// pixels + its transform to `api_drizzle_integrate`.
+    transform: Option<Vec<f64>>,
+    /// The transform family (`"similarity"` / `"affine"` / `"homography"`),
+    /// purely informational; `null` when [`transform`] is `null`.
+    transform_kind: Option<String>,
+}
+
+/// Flatten a [`TransformModel`] into the row-major 9-element wire array the
+/// drizzle frame contract (`DrizzleFrameArgs.transform`) consumes.
+fn transform_to_row_major(t: &TransformModel) -> Vec<f64> {
+    let m = &t.matrix;
+    vec![
+        m[0][0], m[0][1], m[0][2], m[1][0], m[1][1], m[1][2], m[2][0], m[2][1], m[2][2],
+    ]
+}
+
+/// The wire token for a [`TransformKind`] (matches `build_alignment` parsing in
+/// `finishing_combine.rs`).
+fn transform_kind_wire(kind: TransformKind) -> &'static str {
+    match kind {
+        TransformKind::Similarity => "similarity",
+        TransformKind::Affine => "affine",
+        TransformKind::Homography => "homography",
+    }
 }
 
 /// Response for [`api_integrate_session`].
@@ -515,6 +545,11 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
         quality: Option<FrameQuality>,
         accepted: bool,
         reason: Option<String>,
+        // Source→reference homogeneous transform fitted during registration
+        // (identity for the reference). `None` only when registration failed.
+        // Surfaced to Dart so the drizzle flow can deposit each sub's raw,
+        // un-resampled pixels onto the finer output grid using this transform.
+        transform: Option<TransformModel>,
     }
 
     emit_integration_progress("registering", FRACTION_REGISTER, Some(0), Some(total_lights));
@@ -546,6 +581,7 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
                 quality,
                 accepted: true,
                 reason: None,
+                transform: Some(TransformModel::identity()),
             });
             continue;
         }
@@ -564,6 +600,7 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
                     quality,
                     accepted: true,
                     reason: None,
+                    transform: Some(reg.transform),
                 });
             }
             Err(e) => {
@@ -579,6 +616,7 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
                     quality: None,
                     accepted: false,
                     reason: Some(format!("registration failed: {e}")),
+                    transform: None,
                 });
             }
         }
@@ -760,6 +798,11 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
             snr: r.quality.map(|q| q.snr),
             fwhm: r.quality.map(|q| q.fwhm),
             eccentricity: r.quality.and_then(|q| q.eccentricity),
+            transform: r.transform.as_ref().map(transform_to_row_major),
+            transform_kind: r
+                .transform
+                .as_ref()
+                .map(|t| transform_kind_wire(t.kind).to_string()),
         });
     }
     let rms_residual = if residual_n > 0 {
@@ -1715,7 +1758,11 @@ fn build_master_header(sub_count: usize, int_args: &IntegrationArgs) -> FitsHead
 /// F32 masters are first rescaled into U16 (preserving relative tone) so the
 /// existing STF auto-stretch + `apply_stretch` path applies; the result is an
 /// 8-bit (mono) or interleaved-RGB PNG written via the `image` crate.
-fn write_preview_png(master: &ImageData, path: &Path) -> Result<(), String> {
+///
+/// `pub(crate)` so the sibling drizzle path ([`crate::api::finishing_combine`])
+/// can emit the same stretched preview alongside its drizzled master FITS rather
+/// than re-implementing the stretch.
+pub(crate) fn write_preview_png(master: &ImageData, path: &Path) -> Result<(), String> {
     ensure_parent_dir(path)?;
     let u16_master = to_u16_for_preview(master);
 

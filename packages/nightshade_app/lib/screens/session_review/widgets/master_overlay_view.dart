@@ -18,6 +18,27 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// viewer's child subtree — the viewer's single `Transform` moves it. A shared
 /// [TransformationController] drives a rebuild on zoom so stroke/label sizes can
 /// be damped by 1/zoom (positions are never re-transformed here).
+/// One finishing-result "after" layer for [MasterOverlayView]: a labelled,
+/// full-frame preview PNG of a non-destructive finishing pass (background
+/// extraction / deconvolution / star reduction) rendered beside its master.
+class FinishingResultLayer {
+  /// Chip label (e.g. `Background extract`, `Deconvolve`, `Reduce stars`).
+  final String label;
+
+  /// On-disk preview PNG of the finishing artifact (the sibling `.png` the
+  /// controller rendered next to the `_bgx`/`_decon`/`_starred` FITS).
+  final String pngPath;
+
+  /// Chip icon.
+  final IconData icon;
+
+  const FinishingResultLayer({
+    required this.label,
+    required this.pngPath,
+    required this.icon,
+  });
+}
+
 class MasterOverlayView extends StatefulWidget {
   /// Path to the stretched master preview PNG (the hero base layer).
   final String previewPngPath;
@@ -40,6 +61,14 @@ class MasterOverlayView extends StatefulWidget {
   /// Initial visibility of the coverage-map overlay.
   final bool showCoverage;
 
+  /// Optional finishing-result "after" layers — the background-extracted /
+  /// deconvolved / star-reduced master previews. Each is a full-frame PNG that,
+  /// when its chip is enabled, replaces the base preview at full opacity so the
+  /// operator can A/B the finishing pass against the raw master (only one
+  /// finishing layer shows at a time; toggling it off returns to the raw
+  /// master). Entries whose PNG is not on disk are dropped.
+  final List<FinishingResultLayer> finishingLayers;
+
   const MasterOverlayView({
     super.key,
     required this.previewPngPath,
@@ -49,6 +78,7 @@ class MasterOverlayView extends StatefulWidget {
     this.showAnnotations = true,
     this.showRejection = false,
     this.showCoverage = false,
+    this.finishingLayers = const [],
   });
 
   @override
@@ -59,6 +89,11 @@ class _MasterOverlayViewState extends State<MasterOverlayView> {
   late bool _showAnnotations = widget.showAnnotations;
   late bool _showRejection = widget.showRejection;
   late bool _showCoverage = widget.showCoverage;
+
+  /// The active finishing-result "after" layer (its preview replaces the base
+  /// at full opacity), or null when showing the raw master. At most one
+  /// finishing layer shows at a time so the operator A/Bs against the raw.
+  FinishingResultLayer? _activeFinishing;
 
   // Shared with the annotation painter so labels track zoom/pan.
   final TransformationController _transform = TransformationController();
@@ -87,6 +122,15 @@ class _MasterOverlayViewState extends State<MasterOverlayView> {
     final layer = widget.annotations;
     final hasAnnotations = layer != null && layer.items.isNotEmpty;
 
+    // Drop finishing layers whose preview PNG is no longer on disk, and forget
+    // an active selection that vanished (the chip would otherwise stick lit).
+    final finishing =
+        widget.finishingLayers.where((f) => _exists(f.pngPath)).toList();
+    final active = (_activeFinishing != null &&
+            finishing.any((f) => f.pngPath == _activeFinishing!.pngPath))
+        ? _activeFinishing
+        : null;
+
     if (!hasPreview) {
       return EmptyState(
         icon: NightshadeIcons.imageOff,
@@ -99,7 +143,7 @@ class _MasterOverlayViewState extends State<MasterOverlayView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (hasRejection || hasCoverage || hasAnnotations)
+        if (hasRejection || hasCoverage || hasAnnotations || finishing.isNotEmpty)
           Padding(
             padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
             child: Wrap(
@@ -128,6 +172,18 @@ class _MasterOverlayViewState extends State<MasterOverlayView> {
                     value: _showCoverage,
                     onChanged: (v) => setState(() => _showCoverage = v),
                   ),
+                // Finishing-result "after" layers: single-select (radio-like) so
+                // exactly one replaces the raw master at a time; re-tapping the
+                // lit chip returns to the raw master.
+                for (final f in finishing)
+                  _OverlayToggle(
+                    icon: f.icon,
+                    label: f.label,
+                    value: active?.pngPath == f.pngPath,
+                    onChanged: (v) => setState(
+                      () => _activeFinishing = v ? f : null,
+                    ),
+                  ),
               ],
             ),
           ),
@@ -154,6 +210,15 @@ class _MasterOverlayViewState extends State<MasterOverlayView> {
                               color: colors.textMuted),
                         ),
                       ),
+                      // The active finishing pass replaces the raw master at
+                      // full opacity (a true "after"); toggling the chip off
+                      // drops back to the raw "before".
+                      if (active != null)
+                        Image.file(
+                          File(active.pngPath),
+                          fit: BoxFit.contain,
+                          errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                        ),
                       if (_showCoverage && hasCoverage)
                         Opacity(
                           opacity: NightshadeTokens.opacityHalf,
@@ -189,6 +254,18 @@ class _MasterOverlayViewState extends State<MasterOverlayView> {
             ),
           ),
         ),
+        if (active != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: NightshadeTokens.spaceSm,
+              vertical: NightshadeTokens.spaceXs,
+            ),
+            child: Text(
+              'Showing ${active.label} preview — toggle off for the raw master',
+              style:
+                  NightshadeTypography.caption.copyWith(color: colors.textMuted),
+            ),
+          ),
         if (hasAnnotations && _showAnnotations)
           Padding(
             padding: const EdgeInsets.symmetric(

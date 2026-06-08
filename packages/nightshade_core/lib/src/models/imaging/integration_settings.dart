@@ -641,7 +641,15 @@ class IntegrationSettings {
 
   // --- Colour calibration (photometric white balance; off by default) ---
   /// Whether to solve + apply a catalogue-referenced per-channel white balance.
-  /// Default false. Routes through native `api_color_calibrate`.
+  /// Default false.
+  ///
+  /// Unlike the other finishing knobs this does **not** ride inside the
+  /// `api_integrate_session` settings block (the native integrate path ignores
+  /// it). It is consumed Dart-side by `ColorCalibrationService`, which detects +
+  /// photometers stars on the finished master, cross-matches catalogue B–V using
+  /// the master's solved WCS, then calls native `api_color_calibrate` to solve
+  /// and apply the per-channel balance. It is therefore a no-op until the master
+  /// has a plate-solved WCS.
   final bool colorCalibrate;
 
   /// White-reference B–V colour index the SPCC fit balances to. Default 0.65

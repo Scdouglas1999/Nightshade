@@ -89,6 +89,50 @@ class IntegratedMaster {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  // --- v44 (Phase C) per-master plate-solved WCS (CD-matrix form) ---
+  // The eight FITS scalars ASTAP / `WcsInfo::from_plate_solve` emit. All null
+  // until the master is plate-solved at integration time; when present they
+  // light up the catalog annotation overlay AND colour calibration (both need a
+  // `WcsOverlay`).
+  /// Reference RA in degrees (CRVAL1).
+  final double? wcsCrval1;
+
+  /// Reference Dec in degrees (CRVAL2).
+  final double? wcsCrval2;
+
+  /// Reference pixel X (CRPIX1) — usually the image centre.
+  final double? wcsCrpix1;
+
+  /// Reference pixel Y (CRPIX2) — usually the image centre.
+  final double? wcsCrpix2;
+
+  /// CD matrix element (1,1) — scale + rotation, degrees/pixel.
+  final double? wcsCd1_1;
+
+  /// CD matrix element (1,2).
+  final double? wcsCd1_2;
+
+  /// CD matrix element (2,1).
+  final double? wcsCd2_1;
+
+  /// CD matrix element (2,2).
+  final double? wcsCd2_2;
+
+  // --- v44 (Phase C) finishing-artifact output paths ---
+  /// `<master>_bgx.fits` — the background-extracted (gradient-flattened) master.
+  final String? backgroundExtractedPath;
+
+  /// `<master>_decon.fits` — the deconvolution preview.
+  final String? deconvolvedPath;
+
+  /// `<master>_starred.fits` — the star-reduction preview.
+  final String? starReducedPath;
+
+  /// `<master>_color.fits` — the SPCC-grade colour-calibrated master, written by
+  /// the catalog colour-calibration pass (`ColorCalibrationService`). Null until
+  /// a calibration has been applied (needs a solved WCS + enough catalog stars).
+  final String? colorCalibratedPath;
+
   const IntegratedMaster({
     required this.id,
     required this.targetId,
@@ -109,9 +153,26 @@ class IntegratedMaster {
     required this.statsJson,
     required this.createdAt,
     required this.updatedAt,
+    this.wcsCrval1,
+    this.wcsCrval2,
+    this.wcsCrpix1,
+    this.wcsCrpix2,
+    this.wcsCd1_1,
+    this.wcsCd1_2,
+    this.wcsCd2_1,
+    this.wcsCd2_2,
+    this.backgroundExtractedPath,
+    this.deconvolvedPath,
+    this.starReducedPath,
+    this.colorCalibratedPath,
   });
 
   bool get isColor => channels >= 3;
+
+  /// Whether a plate-solved WCS has been persisted on this master. When true the
+  /// catalog annotation overlay and colour calibration can both build a
+  /// `WcsOverlay` from the CD-matrix columns.
+  bool get hasWcs => wcsCrval1 != null && wcsCrval2 != null;
 
   IntegratedMaster copyWith({
     String? name,
@@ -130,6 +191,18 @@ class IntegratedMaster {
     String? settingsJson,
     String? statsJson,
     DateTime? updatedAt,
+    double? wcsCrval1,
+    double? wcsCrval2,
+    double? wcsCrpix1,
+    double? wcsCrpix2,
+    double? wcsCd1_1,
+    double? wcsCd1_2,
+    double? wcsCd2_1,
+    double? wcsCd2_2,
+    String? backgroundExtractedPath,
+    String? deconvolvedPath,
+    String? starReducedPath,
+    String? colorCalibratedPath,
   }) {
     return IntegratedMaster(
       id: id,
@@ -152,6 +225,19 @@ class IntegratedMaster {
       statsJson: statsJson ?? this.statsJson,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      wcsCrval1: wcsCrval1 ?? this.wcsCrval1,
+      wcsCrval2: wcsCrval2 ?? this.wcsCrval2,
+      wcsCrpix1: wcsCrpix1 ?? this.wcsCrpix1,
+      wcsCrpix2: wcsCrpix2 ?? this.wcsCrpix2,
+      wcsCd1_1: wcsCd1_1 ?? this.wcsCd1_1,
+      wcsCd1_2: wcsCd1_2 ?? this.wcsCd1_2,
+      wcsCd2_1: wcsCd2_1 ?? this.wcsCd2_1,
+      wcsCd2_2: wcsCd2_2 ?? this.wcsCd2_2,
+      backgroundExtractedPath:
+          backgroundExtractedPath ?? this.backgroundExtractedPath,
+      deconvolvedPath: deconvolvedPath ?? this.deconvolvedPath,
+      starReducedPath: starReducedPath ?? this.starReducedPath,
+      colorCalibratedPath: colorCalibratedPath ?? this.colorCalibratedPath,
     );
   }
 
@@ -177,7 +263,19 @@ class IntegratedMaster {
           other.settingsJson == settingsJson &&
           other.statsJson == statsJson &&
           other.createdAt == createdAt &&
-          other.updatedAt == updatedAt;
+          other.updatedAt == updatedAt &&
+          other.wcsCrval1 == wcsCrval1 &&
+          other.wcsCrval2 == wcsCrval2 &&
+          other.wcsCrpix1 == wcsCrpix1 &&
+          other.wcsCrpix2 == wcsCrpix2 &&
+          other.wcsCd1_1 == wcsCd1_1 &&
+          other.wcsCd1_2 == wcsCd1_2 &&
+          other.wcsCd2_1 == wcsCd2_1 &&
+          other.wcsCd2_2 == wcsCd2_2 &&
+          other.backgroundExtractedPath == backgroundExtractedPath &&
+          other.deconvolvedPath == deconvolvedPath &&
+          other.starReducedPath == starReducedPath &&
+          other.colorCalibratedPath == colorCalibratedPath;
 
   @override
   int get hashCode => Object.hashAll([
@@ -200,6 +298,18 @@ class IntegratedMaster {
         statsJson,
         createdAt,
         updatedAt,
+        wcsCrval1,
+        wcsCrval2,
+        wcsCrpix1,
+        wcsCrpix2,
+        wcsCd1_1,
+        wcsCd1_2,
+        wcsCd2_1,
+        wcsCd2_2,
+        backgroundExtractedPath,
+        deconvolvedPath,
+        starReducedPath,
+        colorCalibratedPath,
       ]);
 }
 

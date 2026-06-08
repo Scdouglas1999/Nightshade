@@ -95,4 +95,70 @@ void main() {
     expect(find.text('PIXEL REJECTION'), findsOneWidget);
     expect(find.text('Transform model'), findsOneWidget);
   });
+
+  testWidgets(
+      'drizzle toggle drives settings.drizzle and reveals its sub-knobs',
+      (tester) async {
+    IntegrationSettings? reported;
+    await tester.pumpWidget(_harness(
+      child: IntegrationSettingsPanel(
+        settings: IntegrationSettings.defaults,
+        subCount: 12,
+        onChanged: (s) => reported = s,
+      ),
+    ));
+    await tester.pump();
+
+    await tester.tap(find.text('Advanced settings'));
+    await tester.pumpAndSettle();
+
+    // The Drizzle group + toggle are present; sub-knobs hidden while off. The
+    // group sits at the bottom of a long panel, so bring it into view first.
+    await tester.ensureVisible(find.text('Drizzle integrate'));
+    await tester.pumpAndSettle();
+    expect(find.text('DRIZZLE'), findsOneWidget);
+    expect(find.text('Drizzle integrate'), findsOneWidget);
+    expect(find.text('Scale'), findsNothing);
+
+    // Flipping the toggle reports drizzle == true (defaults start off). The
+    // switch lives in the outermost `_RowShell` Row alongside the label, so
+    // scope to that Row (closest-first ⇒ `.last` is the row carrying both).
+    expect(IntegrationSettings.defaults.drizzle, isFalse);
+    final toggleSwitch = find.descendant(
+      of: find
+          .ancestor(
+            of: find.text('Drizzle integrate'),
+            matching: find.byType(Row),
+          )
+          .last,
+      matching: find.byType(NightshadeSwitch),
+    );
+    await tester.ensureVisible(toggleSwitch);
+    await tester.pumpAndSettle();
+    await tester.tap(toggleSwitch);
+    await tester.pump();
+
+    expect(reported, isNotNull);
+    expect(reported!.drizzle, isTrue);
+  });
+
+  testWidgets('with drizzle on, the scale/pixfrac/kernel/bayer knobs render',
+      (tester) async {
+    await tester.pumpWidget(_harness(
+      child: IntegrationSettingsPanel(
+        settings: IntegrationSettings.defaults.copyWith(drizzle: true),
+        subCount: 12,
+        onChanged: (_) {},
+      ),
+    ));
+    await tester.pump();
+
+    await tester.tap(find.text('Advanced settings'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Scale'), findsOneWidget);
+    expect(find.text('Pixfrac'), findsOneWidget);
+    expect(find.text('Kernel'), findsOneWidget);
+    expect(find.text('Bayer drizzle'), findsOneWidget);
+  });
 }

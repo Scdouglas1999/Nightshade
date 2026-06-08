@@ -289,11 +289,16 @@ class SeededReviewController extends SessionReviewController {
       null;
 
   @override
-  Future<PostSessionIntegrationOutcome?> runColorCalibration() async => null;
+  Future<String?> runColorCalibration() async => null;
 
   @override
-  Future<PostSessionIntegrationOutcome?> runBackgroundExtraction() async =>
-      null;
+  Future<String?> runBackgroundExtraction() async => null;
+
+  @override
+  Future<String?> runDeconvolve() async => null;
+
+  @override
+  Future<String?> runStarReduction() async => null;
 
   @override
   Future<String?> runNarrowband(

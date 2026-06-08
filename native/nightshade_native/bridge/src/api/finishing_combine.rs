@@ -98,6 +98,10 @@ struct DrizzleIntegrateArgs {
     output_fits: String,
     /// Optional output FITS path for the per-pixel coverage (drizzle weight) map.
     coverage_fits: Option<String>,
+    /// Optional stretched preview PNG path for the drizzled master, mirroring
+    /// `api_integrate_session`'s preview so the session-review hero can show the
+    /// (scaled) drizzled image rather than the standard 1× preview.
+    preview_png_path: Option<String>,
 }
 
 /// Response for [`api_drizzle_integrate`].
@@ -109,6 +113,8 @@ struct DrizzleIntegrateResult {
     output_path: String,
     /// Path the coverage map was written to, when requested.
     coverage_path: Option<String>,
+    /// Path the stretched preview PNG was written to, when requested.
+    preview_png_path: Option<String>,
     /// Output master width (`ceil(ref_w · scale)`).
     out_width: u32,
     /// Output master height (`ceil(ref_h · scale)`).
@@ -328,9 +334,23 @@ fn drizzle_integrate_impl(
         _ => None,
     };
 
+    // --- Optional stretched preview PNG of the drizzled master. ---
+    // Mirror `api_integrate_session`: emit a sibling 8-bit preview so the
+    // session-review hero shows the (scaled) drizzled image, not the standard
+    // 1× preview. Fail-soft is the caller's job — here a write failure is a hard
+    // error like the master/coverage writes.
+    let preview_png_path = match args.preview_png_path.as_ref() {
+        Some(p) if !p.trim().is_empty() => {
+            crate::api::post_session::write_preview_png(&output.master, Path::new(p))?;
+            Some(p.clone())
+        }
+        _ => None,
+    };
+
     Ok(DrizzleIntegrateResult {
         output_path: args.output_fits,
         coverage_path,
+        preview_png_path,
         out_width: output.master.width,
         out_height: output.master.height,
         channels: output.master.channels,
@@ -628,6 +648,7 @@ mod tests {
 
         let out_path = temp_path("drizzle_integrate_mono_round_trip_out", "fits");
         let cov_path = temp_path("drizzle_integrate_mono_round_trip_cov", "fits");
+        let png_path = temp_path("drizzle_integrate_mono_round_trip_prev", "png");
 
         let scale = 2.0;
         let args = serde_json::json!({
@@ -640,7 +661,8 @@ mod tests {
             "refH": ref_h,
             "config": { "scale": scale, "pixfrac": 0.9, "kernel": "square" },
             "outputFits": out_path.to_string_lossy(),
-            "coverageFits": cov_path.to_string_lossy()
+            "coverageFits": cov_path.to_string_lossy(),
+            "previewPngPath": png_path.to_string_lossy()
         });
 
         let resp = api_drizzle_integrate(args.to_string()).expect("drizzle");
@@ -651,8 +673,14 @@ mod tests {
         assert_eq!(result.out_height, (ref_h as f64 * scale).ceil() as u32);
         assert_eq!(result.channels, 1, "mono warp stays single-channel");
         assert_eq!(result.coverage_path.as_deref(), Some(cov_path.to_string_lossy().as_ref()));
+        // The drizzled master's stretched preview PNG was written and surfaced.
+        assert_eq!(
+            result.preview_png_path.as_deref(),
+            Some(png_path.to_string_lossy().as_ref())
+        );
         assert!(out_path.exists(), "drizzle master must be on disk");
         assert!(cov_path.exists(), "coverage map must be on disk");
+        assert!(png_path.exists(), "drizzle preview PNG must be on disk");
 
         let (master, _h) = read_fits(out_path.as_path()).expect("read drizzle master");
         assert_eq!(master.pixel_type, PixelType::F32);
@@ -660,11 +688,16 @@ mod tests {
         assert_eq!(master.channels, 1);
         let (cov, _hc) = read_fits(cov_path.as_path()).expect("read coverage map");
         assert_eq!(cov.channels, 1, "coverage is a single-channel map");
+        // The preview decodes as an 8-bit image of the scaled master geometry.
+        let preview = image::open(&png_path).expect("decode drizzle preview");
+        assert_eq!(preview.width(), result.out_width);
+        assert_eq!(preview.height(), result.out_height);
 
         let _ = std::fs::remove_file(&p0);
         let _ = std::fs::remove_file(&p1);
         let _ = std::fs::remove_file(&out_path);
         let _ = std::fs::remove_file(&cov_path);
+        let _ = std::fs::remove_file(&png_path);
     }
 
     // -------------------------------------------------------------------------
@@ -719,6 +752,7 @@ mod tests {
         assert_eq!(result.out_width, (ref_w as f64 * scale).ceil() as u32);
         assert_eq!(result.out_height, (ref_h as f64 * scale).ceil() as u32);
         assert!(result.coverage_path.is_none(), "no coverage requested");
+        assert!(result.preview_png_path.is_none(), "no preview requested");
 
         let (master, _h) = read_fits(out_path.as_path()).expect("read bayer drizzle master");
         assert_eq!(master.pixel_type, PixelType::F32);

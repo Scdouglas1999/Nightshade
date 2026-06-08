@@ -219,9 +219,68 @@ class _IntegrationSettingsPanelState extends State<IntegrationSettingsPanel> {
           onChanged: (v) => _emit(
               _s.copyWith(cosmeticCorrection: v, clearSourcePreset: true)),
         ),
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        const _GroupLabel('Drizzle'),
+        _SwitchRow(
+          label: 'Drizzle integrate',
+          tooltip:
+              'Variable-pixel reconstruction onto a finer grid instead of plain '
+              'resample-and-combine. Pays off only with dithered, undersampled '
+              'data — off by default.',
+          value: _s.drizzle,
+          onChanged: (v) =>
+              _emit(_s.copyWith(drizzle: v, clearSourcePreset: true)),
+        ),
+        if (_s.drizzle) ...[
+          _SliderRow(
+            label: 'Scale',
+            tooltip: 'Linear output/input scale factor (2× is typical).',
+            value: _s.drizzleScale,
+            min: 1.0,
+            max: 3.0,
+            divisions: 8,
+            suffix: '×',
+            onChanged: (v) =>
+                _emit(_s.copyWith(drizzleScale: v, clearSourcePreset: true)),
+          ),
+          _SliderRow(
+            label: 'Pixfrac',
+            tooltip: 'Drop-shrink fraction in (0, 1]. Smaller = sharper, noisier.',
+            value: _s.drizzlePixfrac,
+            min: 0.1,
+            max: 1.0,
+            divisions: 9,
+            onChanged: (v) =>
+                _emit(_s.copyWith(drizzlePixfrac: v, clearSourcePreset: true)),
+          ),
+          _DropdownRow<DrizzleKernel>(
+            label: 'Kernel',
+            tooltip: 'Drop-deposition footprint.',
+            value: _s.drizzleKernel,
+            values: DrizzleKernel.values,
+            labelOf: _drizzleKernelLabel,
+            onChanged: (v) =>
+                _emit(_s.copyWith(drizzleKernel: v, clearSourcePreset: true)),
+          ),
+          _SwitchRow(
+            label: 'Bayer drizzle',
+            tooltip:
+                'Drizzle the raw CFA mosaic directly into RGB (no debayer '
+                'interpolation). Only for one-shot-colour sensors.',
+            value: _s.bayerDrizzle,
+            onChanged: (v) =>
+                _emit(_s.copyWith(bayerDrizzle: v, clearSourcePreset: true)),
+          ),
+        ],
       ],
     );
   }
+
+  static String _drizzleKernelLabel(DrizzleKernel k) => switch (k) {
+        DrizzleKernel.square => 'Square',
+        DrizzleKernel.gaussian => 'Gaussian',
+        DrizzleKernel.point => 'Point',
+      };
 
   static String _transformLabel(TransformModel m) => switch (m) {
         TransformModel.similarity => 'Similarity',
