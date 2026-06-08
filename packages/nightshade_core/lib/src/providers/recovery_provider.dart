@@ -20,8 +20,10 @@
 ///     the platform alert sound on every recovery entry (gated by
 ///     `recoveryAudibleAlertWhenEntered`).
 ///   * `recoveryPushBridgeProvider` â€” side-effect provider that enqueues a
-///     critical push notification on every recovery entry/exit (gated by
-///     `pushCriticalAlerts`).
+///     critical push notification on every recovery entry AND exit
+///     (recovered / gave-up), gated by `pushCriticalAlerts`. The exit push
+///     carries the "here's what I did" closure so an operator on cellular
+///     learns the outcome, not just that something broke.
 library;
 
 import 'dart:developer' as developer;
@@ -465,29 +467,120 @@ final recoveryAudibleBridgeProvider = Provider<void>((ref) {
   );
 });
 
-/// Side-effect provider: forwards recovery entry events to paired mobile
-/// clients via the push-notification service. Honours
-/// [pushCriticalAlerts]; the per-event detail is the cause label.
+/// Side-effect provider: forwards recovery entry **and exit** events to
+/// paired mobile clients via the push-notification service. Honours
+/// [pushCriticalAlerts].
+///
+/// Two pushes per recovery loop, so the operator on cellular gets the full
+/// "something broke â€” and here's what I did" story:
+///   * **Entry** (this listens [currentRecoveryProvider] None->Some): the
+///     cause label + "entered recovery mode" + first attempt.
+///   * **Exit** (this listens [recoveryHistoryProvider] for each freshly
+///     appended [RecoveryHistoryEntry]): the *outcome* â€” re-acquired /
+///     parked / gave-up â€” with the recovery action so the alert closes the
+///     loop instead of leaving the operator wondering. Recovery exhaustion
+///     (`recovered == false`) is the most important escalation: the rig has
+///     stopped imaging and needs a human.
+///
+/// Both criticals flow through [PushNotificationService.enqueueCriticalNotification]
+/// -> the headless server's WebSocket fan-out -> the LAN broadcaster + the
+/// remote (FCM/APNs) delivery, so a phone hours from the rig wakes on them.
+/// Fail-soft: any error building/enqueueing a push is logged and swallowed so
+/// a notification failure never breaks the run.
 final recoveryPushBridgeProvider = Provider<void>((ref) {
+  void enqueue({
+    required String title,
+    required String body,
+    required String eventType,
+  }) {
+    final settings = ref.read(appSettingsProvider).valueOrNull;
+    if (settings == null) return;
+    if (!settings.pushCriticalAlerts) return;
+    try {
+      final pushService = ref.read(pushNotificationServiceProvider);
+      pushService.enqueueCriticalNotification(
+        title: title,
+        body: body,
+        eventType: eventType,
+        category: core_events.EventCategory.sequencer,
+      );
+    } catch (e, st) {
+      // Fail-soft: a push failure must never break the run.
+      developer.log(
+        'Recovery push enqueue failed: $e',
+        name: 'recovery_provider',
+        error: e,
+        stackTrace: st,
+      );
+    }
+  }
+
+  // Entry push â€” fires once on the None -> Some transition.
   ref.listen<RecoveryStatus?>(
     currentRecoveryProvider,
     (previous, next) {
       if (previous != null) return; // only on entry
       if (next == null) return;
-      final settings = ref.read(appSettingsProvider).valueOrNull;
-      if (settings == null) return;
-      if (!settings.pushCriticalAlerts) return;
-      final pushService = ref.read(pushNotificationServiceProvider);
-      pushService.enqueueCriticalNotification(
+      enqueue(
         title: 'Recovering â€” ${next.cause.displayLabel}',
         body:
             'Sequence entered recovery mode. Attempt 1 of ${next.maxAttempts}.',
         eventType: 'recovery_started_${next.cause.wireKey}',
-        category: core_events.EventCategory.sequencer,
       );
     },
   );
+
+  // Exit push â€” fires once per newly appended history entry. The history
+  // notifier appends exactly one entry on every completed/gaveUp transition
+  // (see [_applyRecoveryEvent]), and carries the cause + attempt count +
+  // recovered/abortedByUser flags needed for the "here's what I did" copy.
+  ref.listen<List<RecoveryHistoryEntry>>(
+    recoveryHistoryProvider,
+    (previous, next) {
+      final prevLen = previous?.length ?? 0;
+      if (next.length <= prevLen) return; // only on growth (a new exit)
+      for (final entry in next.sublist(prevLen)) {
+        enqueue(
+          title: _recoveryExitTitle(entry),
+          body: _recoveryExitBody(entry),
+          eventType:
+              'recovery_${entry.recovered ? 'recovered' : 'gave_up'}_${entry.cause.wireKey}',
+        );
+      }
+    },
+  );
 });
+
+/// Notification primary line for a recovery exit. Leads with the outcome so a
+/// glance at the lock screen tells the operator whether the rig is back to
+/// imaging or stopped and waiting on them.
+String _recoveryExitTitle(RecoveryHistoryEntry entry) {
+  if (entry.recovered) {
+    return 'Recovered - ${entry.cause.displayLabel}';
+  }
+  if (entry.abortedByUser) {
+    return 'Recovery aborted - ${entry.cause.displayLabel}';
+  }
+  return 'Recovery failed - ${entry.cause.displayLabel}';
+}
+
+/// "Here's what I did" body for a recovery exit â€” the cause, the action taken,
+/// and the attempt count, so the alert closes the loop the entry push opened.
+String _recoveryExitBody(RecoveryHistoryEntry entry) {
+  final attempts =
+      entry.attempts == 1 ? '1 attempt' : '${entry.attempts} attempts';
+  if (entry.recovered) {
+    return '${entry.cause.displayLabel} -> re-acquired after $attempts, '
+        'imaging resumed.';
+  }
+  if (entry.abortedByUser) {
+    return '${entry.cause.displayLabel} -> recovery aborted by operator after '
+        '$attempts.';
+  }
+  // Exhausted attempts/time budget - the rig has stopped and needs a human.
+  return '${entry.cause.displayLabel} -> gave up after $attempts; sequence '
+      'stopped, mount safe.';
+}
 
 /// Visibility shim so widget tests can drive the bridge from a synthetic
 /// event without reaching into the private helper. The shim is the same
