@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:nightshade_core/nightshade_core.dart' show IntegrationCurve;
@@ -53,9 +55,19 @@ class ImprovementCurvePanel extends StatelessWidget {
     final minSnr = snrValues.reduce((a, b) => a < b ? a : b);
     final maxSnr = snrValues.reduce((a, b) => a > b ? a : b);
     final snrRange = (maxSnr - minSnr).abs() < 1e-6 ? 1.0 : maxSnr - minSnr;
-    final yPad = snrRange * 0.12;
-    final minY = minSnr - yPad;
-    final maxY = maxSnr + yPad;
+
+    // Snap the Y axis to a "nice" interval so the left-axis labels are evenly
+    // spaced and never collide at the top: fl_chart draws a label at maxY *and*
+    // at every interval step, so an interval that doesn't divide the range
+    // lands a step-label fractionally below maxY (the original overlap bug).
+    // Rounding minY/maxY to multiples of a nice step makes the top step-label
+    // coincide exactly with maxY — one label, not two stacked.
+    final yInterval = _niceInterval(snrRange);
+    final minY = (minSnr / yInterval).floorToDouble() * yInterval;
+    var maxY = (maxSnr / yInterval).ceilToDouble() * yInterval;
+    // Guarantee a little headroom above the peak so the curve never touches the
+    // frame and the top label keeps clear air around it.
+    if (maxY - maxSnr < yInterval * 0.05) maxY += yInterval;
 
     final keptColor = colors.success;
     final tailColor = colors.warning;
@@ -79,7 +91,7 @@ class ImprovementCurvePanel extends StatelessWidget {
                   gridData: FlGridData(
                     show: true,
                     drawVerticalLine: true,
-                    horizontalInterval: snrRange / 4,
+                    horizontalInterval: yInterval,
                     getDrawingHorizontalLine: (_) => FlLine(
                       color: colors.border.withValues(alpha: 0.3),
                       strokeWidth: 1,
@@ -118,10 +130,10 @@ class ImprovementCurvePanel extends StatelessWidget {
                     leftTitles: AxisTitles(
                       sideTitles: SideTitles(
                         showTitles: true,
-                        reservedSize: 40,
-                        interval: snrRange / 4,
+                        reservedSize: 44,
+                        interval: yInterval,
                         getTitlesWidget: (value, meta) => Text(
-                          value.toStringAsFixed(1),
+                          value.toStringAsFixed(_yLabelDecimals(yInterval)),
                           style: NightshadeTypography.captionSm.copyWith(
                             color: colors.textSecondary,
                           ),
@@ -335,4 +347,30 @@ class ImprovementCurvePanel extends StatelessWidget {
     if (total <= 6) return 1;
     return (total / 6).ceilToDouble();
   }
+
+  /// A "nice" Y-axis step (1/2/2.5/5 × a power of ten) sized to yield ~5 evenly
+  /// spaced SNR labels across [range]. Snapping the axis to a multiple of this
+  /// keeps the labels collision-free at the top of the chart.
+  double _niceInterval(double range, {int targetTicks = 5}) {
+    final raw = range / targetTicks;
+    final magnitude = math.pow(10, (math.log(raw) / math.ln10).floor()) * 1.0;
+    final normalized = raw / magnitude; // in [1, 10)
+    final double step;
+    if (normalized <= 1) {
+      step = 1;
+    } else if (normalized <= 2) {
+      step = 2;
+    } else if (normalized <= 2.5) {
+      step = 2.5;
+    } else if (normalized <= 5) {
+      step = 5;
+    } else {
+      step = 10;
+    }
+    return step * magnitude;
+  }
+
+  /// One decimal place for sub-unit steps (e.g. 0.5), none for whole steps, so
+  /// labels read cleanly ("20", "40" not "20.0").
+  int _yLabelDecimals(double interval) => interval < 1 ? 1 : 0;
 }
