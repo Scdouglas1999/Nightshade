@@ -44,7 +44,7 @@ use serde::Serialize;
 use std::sync::Arc;
 use std::sync::OnceLock;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
+use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
 
 const BUILTIN_GUIDER_ID: &str = "native:builtin_guider:multi_star";
@@ -332,6 +332,22 @@ fn state() -> &'static Arc<RwLock<BuiltinGuiderState>> {
     BUILTIN_GUIDER.get_or_init(|| Arc::new(RwLock::new(BuiltinGuiderState::default())))
 }
 
+/// Serializes the loop-lifecycle entry points (`start_guiding`, `loop_exposures`,
+/// `stop`, `disconnect`) so a start and a concurrent stop can never interleave.
+///
+/// The per-operation `state()` write-lock is released between "set guiding=true"
+/// and "spawn the loop", so it alone cannot make start/stop atomic. Without this
+/// mutex a `stop()` landing in the window after the loop is spawned but before its
+/// `JoinHandle`/`stop_flag` is recorded would take `None`, signal nothing, return
+/// Ok, and orphan a mount-pulsing loop (v4 review blocker #7). Holding this mutex
+/// across the whole start (lock → spawn → record handle) and the whole stop
+/// guarantees stop always observes a live loop and cancels it.
+static GUIDER_OP_LOCK: OnceLock<Arc<Mutex<()>>> = OnceLock::new();
+
+fn op_lock() -> &'static Arc<Mutex<()>> {
+    GUIDER_OP_LOCK.get_or_init(|| Arc::new(Mutex::new(())))
+}
+
 /// Set the guider configuration. Must be called before `connect()` or will apply
 /// to subsequent operations. Calling while guiding is active will update the config
 /// for future frames.
@@ -359,7 +375,9 @@ pub async fn connect() -> Result<(), NightshadeError> {
 }
 
 pub async fn disconnect() -> Result<(), NightshadeError> {
-    stop().await?;
+    // Serialize against start/stop so disconnect cannot race a loop spawn.
+    let _op = op_lock().lock().await;
+    stop_locked().await?;
     let mut guard = state().write().await;
     *guard = BuiltinGuiderState::default();
     Ok(())
@@ -371,87 +389,159 @@ pub async fn start_guiding(
     settle_timeout: f64,
 ) -> Result<(), NightshadeError> {
     ensure_connected().await?;
-    stop().await?;
+    // Hold the op-lock across the ENTIRE start (stop-previous → set guiding=true
+    // → spawn loop → record handle). This is what makes start atomic with respect
+    // to a concurrent `stop()`: a stop cannot land in the window between the loop
+    // being spawned and its handle being recorded, so it can never observe `None`
+    // and orphan a live mount-pulsing loop (v4 review blocker #7).
+    let _op = op_lock().lock().await;
+    stop_locked().await?;
 
-    {
-        let mut guard = state().write().await;
-        guard.guiding = true;
-        guard.looping = false;
-        guard.calibrating = true;
-        guard.last_status.state = "Calibrating".to_string();
-        guard.last_status.connected = true;
-    }
-
-    get_state().publish_guiding_event(GuidingEvent::Calibrating, EventSeverity::Info);
-
-    let controller = state().clone();
-    let stop_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let stop_flag_for_task = stop_flag.clone();
-
-    let task = tokio::spawn(async move {
-        if let Err(error) = run_guiding_loop(
-            controller.clone(),
-            stop_flag_for_task,
-            settle_pixels,
-            settle_time,
-            settle_timeout,
-        )
-        .await
-        {
-            tracing::error!("Built-in guider task failed: {}", error);
-            let mut guard = controller.write().await;
-            guard.guiding = false;
+    begin_loop(
+        |guard| {
+            guard.guiding = true;
             guard.looping = false;
-            guard.calibrating = false;
-            guard.last_status.state = "Disconnected".to_string();
-            get_state().publish_guiding_event(GuidingEvent::Disconnected, EventSeverity::Warning);
-        }
-    });
-
-    let mut guard = state().write().await;
-    guard.stop_flag = Some(stop_flag);
-    guard.task = Some(task);
+            guard.calibrating = true;
+            guard.last_status.state = "Calibrating".to_string();
+            guard.last_status.connected = true;
+        },
+        GuidingEvent::Calibrating,
+        move |controller, stop_flag_for_task| async move {
+            if let Err(error) = run_guiding_loop(
+                controller.clone(),
+                stop_flag_for_task,
+                settle_pixels,
+                settle_time,
+                settle_timeout,
+            )
+            .await
+            {
+                tracing::error!("Built-in guider task failed: {}", error);
+                let mut guard = controller.write().await;
+                guard.guiding = false;
+                guard.looping = false;
+                guard.calibrating = false;
+                guard.last_status.state = "Disconnected".to_string();
+                get_state()
+                    .publish_guiding_event(GuidingEvent::Disconnected, EventSeverity::Warning);
+            }
+        },
+    )
+    .await;
     Ok(())
 }
 
 pub async fn loop_exposures() -> Result<(), NightshadeError> {
     ensure_connected().await?;
-    stop().await?;
+    // See `start_guiding` for why the op-lock is held across the whole operation.
+    let _op = op_lock().lock().await;
+    stop_locked().await?;
 
-    {
-        let mut guard = state().write().await;
-        guard.guiding = false;
-        guard.looping = true;
-        guard.calibrating = false;
-        guard.last_status.state = "Looping".to_string();
-        guard.last_status.connected = true;
-    }
-
-    get_state().publish_guiding_event(GuidingEvent::Looping, EventSeverity::Info);
-
-    let controller = state().clone();
-    let stop_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let stop_flag_for_task = stop_flag.clone();
-
-    let task = tokio::spawn(async move {
-        loop {
-            if stop_flag_for_task.load(std::sync::atomic::Ordering::Relaxed) {
-                break;
+    begin_loop(
+        |guard| {
+            guard.guiding = false;
+            guard.looping = true;
+            guard.calibrating = false;
+            guard.last_status.state = "Looping".to_string();
+            guard.last_status.connected = true;
+        },
+        GuidingEvent::Looping,
+        |controller, stop_flag_for_task| async move {
+            loop {
+                if stop_flag_for_task.load(std::sync::atomic::Ordering::Relaxed) {
+                    break;
+                }
+                if let Err(error) = capture_and_store_loop_frame(controller.clone()).await {
+                    tracing::warn!("Built-in guider looping frame failed: {}", error);
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                }
             }
-            if let Err(error) = capture_and_store_loop_frame(controller.clone()).await {
-                tracing::warn!("Built-in guider looping frame failed: {}", error);
-                tokio::time::sleep(Duration::from_millis(500)).await;
-            }
-        }
-    });
-
-    let mut guard = state().write().await;
-    guard.stop_flag = Some(stop_flag);
-    guard.task = Some(task);
+        },
+    )
+    .await;
     Ok(())
 }
 
+/// Shared start path for `start_guiding`/`loop_exposures`. The caller MUST already
+/// hold the [`op_lock`] and have torn down any previous loop via `stop_locked()`.
+///
+/// The atomicity guarantee for the start/stop race (v4 review blocker #7) lives
+/// here: the stop flag is created and stored into state inside the SAME write-lock
+/// critical section that flips `guiding`/`looping`, BEFORE the loop is spawned, so
+/// the invariant "an active loop always has a live `stop_flag` in state" holds for
+/// the entire lifetime of the loop. Because the caller holds the op-lock for the
+/// whole start, no `stop()` can interleave between spawning the loop and recording
+/// its `JoinHandle`.
+async fn begin_loop<S, F, Fut>(set_state: S, event: GuidingEvent, make_loop: F)
+where
+    S: FnOnce(&mut BuiltinGuiderState),
+    F: FnOnce(Arc<RwLock<BuiltinGuiderState>>, Arc<std::sync::atomic::AtomicBool>) -> Fut,
+    Fut: std::future::Future<Output = ()> + Send + 'static,
+{
+    let stop_flag = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let stop_flag_for_task = stop_flag.clone();
+    {
+        let mut guard = state().write().await;
+        set_state(&mut guard);
+        // Store the stop flag together with the run-state flip so `stop()` always
+        // observes a live flag for an active loop. The previous handle was already
+        // joined by the caller's `stop_locked()`.
+        guard.stop_flag = Some(stop_flag);
+        guard.task = None;
+    }
+
+    get_state().publish_guiding_event(event, EventSeverity::Info);
+
+    let controller = state().clone();
+    let task = tokio::spawn(make_loop(controller, stop_flag_for_task));
+
+    // Safe under the op-lock: no concurrent stop can have run since we set
+    // `stop_flag`, so recording the handle cannot resurrect a torn-down loop.
+    state().write().await.task = Some(task);
+}
+
+/// Test-only: start a synthetic loop through the real lifecycle machinery
+/// (`op_lock` + `stop_locked` + `begin_loop`). The loop holds no hardware. While
+/// alive it keeps `live_loops` incremented (decremented on exit), so a test can
+/// detect ANY orphaned loop — including one stranded when a later start overwrote
+/// its handle, which is exactly how the pre-fix race permanently lost the stop
+/// signal. Returns once the loop is registered, like the real `start_guiding`.
+#[cfg(test)]
+async fn start_synthetic_loop(live_loops: Arc<std::sync::atomic::AtomicUsize>) {
+    let _op = op_lock().lock().await;
+    let _ = stop_locked().await;
+    begin_loop(
+        |guard| {
+            guard.guiding = true;
+            guard.looping = false;
+            guard.calibrating = true;
+        },
+        GuidingEvent::Calibrating,
+        move |_controller, stop_flag_for_task| async move {
+            live_loops.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            // Mirror the real loops: exit only when the stop flag is set. An
+            // orphaned loop (stop signal lost / handle overwritten) keeps the
+            // live-loop count above zero forever.
+            while !stop_flag_for_task.load(std::sync::atomic::Ordering::Relaxed) {
+                tokio::time::sleep(Duration::from_millis(1)).await;
+            }
+            live_loops.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+        },
+    )
+    .await;
+}
+
 pub async fn stop() -> Result<(), NightshadeError> {
+    // Serialize against start so a stop landing mid-start still observes (and
+    // cancels) the live loop rather than racing the handle/flag bookkeeping.
+    let _op = op_lock().lock().await;
+    stop_locked().await
+}
+
+/// Stop the active loop. The caller MUST already hold the [`op_lock`]; this is the
+/// shared body used by `stop`, `start_guiding`, `loop_exposures`, and `disconnect`
+/// so the lifecycle entry points cannot interleave.
+async fn stop_locked() -> Result<(), NightshadeError> {
     let (stop_flag, task) = {
         let mut guard = state().write().await;
         guard.guiding = false;
@@ -1595,5 +1685,154 @@ mod tests {
         assert_eq!(crop.width, 2);
         assert_eq!(crop.height, 2);
         assert_eq!(crop.pixels.len(), 8);
+    }
+
+    // =========================================================================
+    // start/stop lifecycle race (v4 review blocker #7)
+    //
+    // The built-in guider stores the loop's `stop_flag`/`task` AFTER spawning the
+    // loop, so a concurrent `stop()` in that window found `None`, signalled
+    // nothing, and orphaned a mount-pulsing loop. The fix stores the stop flag in
+    // the same write-lock critical section that flips the run-state (before the
+    // spawn) and serializes every lifecycle entry point with `op_lock`, so a stop
+    // can never interleave a start and lose the cancel. These tests use a
+    // synthetic loop (no hardware) that reports liveness so an orphan is directly
+    // observable.
+    // =========================================================================
+
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    /// Serializes the lifecycle race tests, which all mutate the same
+    /// process-global guider singleton. Cargo runs tests in parallel by default;
+    /// without this, one test's `reset_guider_state` would wipe another's loop
+    /// mid-flight. (Distinct from the production `op_lock`, which serializes
+    /// lifecycle ops but does not stop one test from resetting another's state.)
+    static TEST_SERIAL: OnceLock<Arc<Mutex<()>>> = OnceLock::new();
+
+    fn test_serial() -> &'static Arc<Mutex<()>> {
+        TEST_SERIAL.get_or_init(|| Arc::new(Mutex::new(())))
+    }
+
+    /// Reset the shared guider state between race tests (they all touch the same
+    /// process-global singleton).
+    async fn reset_guider_state() {
+        let _op = op_lock().lock().await;
+        let _ = stop_locked().await;
+        *state().write().await = BuiltinGuiderState::default();
+    }
+
+    /// Spin until `cond()` is true or the deadline elapses; returns whether the
+    /// condition held.
+    async fn wait_until<F: Fn() -> bool>(cond: F, max: Duration) -> bool {
+        let deadline = Instant::now() + max;
+        while Instant::now() < deadline {
+            if cond() {
+                return true;
+            }
+            tokio::time::sleep(Duration::from_millis(1)).await;
+        }
+        cond()
+    }
+
+    #[tokio::test]
+    async fn start_then_immediate_stop_cancels_loop() {
+        let _serial = test_serial().lock().await;
+        reset_guider_state().await;
+        let live = Arc::new(AtomicUsize::new(0));
+
+        start_synthetic_loop(live.clone()).await;
+        // The loop is live (or about to be); `stop()` must cancel it regardless of
+        // exactly where it is between spawn and handle-record.
+        stop().await.expect("stop");
+
+        // After stop returns, the loop must be gone: its handle was joined, so the
+        // spinning task observed the flag and exited.
+        assert_eq!(
+            live.load(Ordering::SeqCst),
+            0,
+            "loop still alive after stop — orphaned mount-pulsing task"
+        );
+        let guard = state().read().await;
+        assert!(!guard.guiding, "guiding must be cleared by stop");
+        assert!(
+            guard.stop_flag.is_none(),
+            "stop must consume the stop_flag (no dead handle left behind)"
+        );
+        assert!(guard.task.is_none(), "stop must consume the task handle");
+    }
+
+    #[tokio::test]
+    async fn active_loop_always_has_a_live_stop_flag() {
+        let _serial = test_serial().lock().await;
+        // The invariant the old ordering violated: whenever the run-state says a
+        // loop is active, a `stop_flag` is present for `stop()` to signal. The old
+        // code set `guiding=true`, released the lock, spawned, and only THEN stored
+        // the flag — leaving a window where `guiding==true && stop_flag==None`.
+        reset_guider_state().await;
+        let live = Arc::new(AtomicUsize::new(0));
+        start_synthetic_loop(live.clone()).await;
+
+        {
+            let guard = state().read().await;
+            assert!(guard.guiding || guard.looping || guard.calibrating);
+            assert!(
+                guard.stop_flag.is_some(),
+                "active loop must always carry a live stop_flag"
+            );
+            assert!(
+                guard.task.is_some(),
+                "active loop must have its JoinHandle recorded"
+            );
+        }
+
+        stop().await.expect("stop");
+        assert_eq!(live.load(Ordering::SeqCst), 0, "loop must be cancelled");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn concurrent_start_stop_start_never_orphans_loop() {
+        let _serial = test_serial().lock().await;
+        // Reproduce the permanent-orphan window: two starts and a stop fired
+        // concurrently. With the pre-fix ordering, a stop landing in start1's
+        // spawn→record window dropped start1's cancel, then start2 OVERWROTE the
+        // stored flag/handle — stranding loop1 forever (its flag clone is no longer
+        // reachable from any future stop). `live` (loops currently running) must
+        // return to 0 after a final stop; a non-zero count is a leaked
+        // mount-pulsing loop. The op-lock makes start1/stop/start2 atomic, so each
+        // start's `stop_locked()` joins the prior loop and nothing leaks.
+        for round in 0..150 {
+            reset_guider_state().await;
+            let live = Arc::new(AtomicUsize::new(0));
+
+            let l1 = live.clone();
+            let l2 = live.clone();
+            let start1 = tokio::spawn(async move { start_synthetic_loop(l1).await });
+            let stopper = tokio::spawn(async move {
+                let _ = stop().await;
+            });
+            let start2 = tokio::spawn(async move { start_synthetic_loop(l2).await });
+            let _ = tokio::join!(start1, stopper, start2);
+
+            // A final stop must guarantee no loop is left running.
+            stop().await.expect("final stop");
+
+            let settled =
+                wait_until(|| live.load(Ordering::SeqCst) == 0, Duration::from_secs(2)).await;
+            assert!(
+                settled,
+                "round {round}: {} loop(s) survived a final stop() — orphaned mount-pulsing task",
+                live.load(Ordering::SeqCst)
+            );
+
+            let guard = state().read().await;
+            assert!(
+                !guard.guiding && !guard.looping && !guard.calibrating,
+                "round {round}: run-state still active after final stop"
+            );
+            assert!(
+                guard.stop_flag.is_none() && guard.task.is_none(),
+                "round {round}: dead handle/flag left in state after final stop"
+            );
+        }
     }
 }

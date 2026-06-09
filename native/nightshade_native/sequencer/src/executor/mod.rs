@@ -80,6 +80,291 @@ fn effective_weather_verdict_staleness_secs(value: u64) -> u64 {
     }
 }
 
+/// How a non-auto-recoverable recovery escalation (an `AttemptOutcome::
+/// PauseForOperator`, e.g. from a consecutive-reject storm) must be handled,
+/// derived purely from operator presence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EscalationDisposition {
+    /// UNATTENDED rig: drive the safe-state sweep (park mount + close cover +
+    /// close dome) and fail the run. Never freeze the rig dome-open with
+    /// safety triggers disabled until dawn.
+    SafeAbandon,
+    /// ATTENDED rig: passively pause and hand the run to the present operator
+    /// for inspection / resume (after restoring tracking).
+    PassivePause,
+}
+
+/// Decide how a `PauseForOperator` recovery escalation is handled, given
+/// whether an operator has declared presence.
+///
+/// This is the BLOCKER #1 safety decision factored out so it is unit-testable
+/// without spinning up the full executor task. The default — and the SAFE
+/// default — is "unattended" (`operator_present == false`), which must drive a
+/// safe abandonment rather than a passive, trigger-disabled, dome-open freeze.
+fn recovery_escalation_disposition(operator_present: bool) -> EscalationDisposition {
+    if operator_present {
+        EscalationDisposition::PassivePause
+    } else {
+        EscalationDisposition::SafeAbandon
+    }
+}
+
+/// Re-enable mount tracking after a recovery loop that stopped it
+/// (`stop_tracking_during_recovery`), emitting a LOUD error if it cannot be
+/// restored.
+///
+/// BLOCKER #2: recovery entry stops tracking by default. Any path that resumes
+/// or hands the run back to the operator MUST restore tracking first — the
+/// generic Resume command does not — otherwise the sequence exposes on a
+/// non-tracking mount and every frame trails while the UI reports "Running".
+/// Both the recovered-resume branch and the attended operator-Pause branch call
+/// this so neither can resume untracked. A failure is never silent: it logs at
+/// error level and forwards an `ExecutorEvent::Error`.
+///
+/// `context_label` distinguishes the wording ("after recovery" vs "before
+/// operator Pause") so the operator sees which path could not restore tracking.
+/// Returns `Some(message)` iff tracking restoration failed (also already
+/// emitted), so callers/tests can assert on it.
+async fn restore_tracking_after_recovery(
+    device_ops: &SharedDeviceOps,
+    mount_id: Option<&str>,
+    stop_tracking: bool,
+    context_label: &str,
+    event_tx: &broadcast::Sender<ExecutorEvent>,
+) -> Option<String> {
+    if !stop_tracking {
+        return None;
+    }
+    let mount_id = mount_id?;
+    match device_ops.mount_set_tracking(mount_id, true).await {
+        Ok(()) => {
+            tracing::info!(
+                "[RECOVERY] Re-enabled tracking on '{}' {}",
+                mount_id,
+                context_label
+            );
+            None
+        }
+        Err(e) => {
+            tracing::error!(
+                "[RECOVERY] Failed to re-enable tracking on '{}' {}: {}",
+                mount_id,
+                context_label,
+                e
+            );
+            let message = format!(
+                "Recovery {} but tracking could not be re-enabled on {}: {} — resumed frames may trail until tracking is restored.",
+                context_label, mount_id, e
+            );
+            let _ = event_tx.send(ExecutorEvent::Error {
+                message: message.clone(),
+            });
+            Some(message)
+        }
+    }
+}
+
+/// Shared state the recovery driver hands to [`apply_recovery_escalation`] so
+/// the escalation branch can be driven (and asserted on) without spinning up
+/// the whole 7000-line trigger-monitor closure.
+///
+/// All fields are borrows of the executor's live shared state — the same
+/// `Arc<…>` clones the inline driver captured — so the extracted function
+/// mutates exactly the production state and emits on the production event bus.
+pub(crate) struct RecoveryEscalationState<'a> {
+    pub device_ops: &'a SharedDeviceOps,
+    pub event_tx: &'a broadcast::Sender<ExecutorEvent>,
+    pub runtime_config: &'a Arc<StdRwLock<RuntimeConfig>>,
+    pub state: &'a Arc<RwLock<ExecutorState>>,
+    pub progress: &'a Arc<StdRwLock<SequenceProgress>>,
+    pub current_recovery: &'a Arc<StdRwLock<Option<crate::recovery::RecoveryContext>>>,
+    pub is_cancelled: &'a Arc<AtomicBool>,
+    pub gave_up: &'a Arc<AtomicBool>,
+    pub mount_id: Option<&'a str>,
+    pub cover_id: Option<&'a str>,
+    pub dome_id: Option<&'a str>,
+}
+
+/// Apply a `PauseForOperator` recovery escalation, exactly as the recovery
+/// driver loop does once an `AttemptOutcome::PauseForOperator` ends the retry
+/// loop. Factored out of the inline driver closure so the BLOCKER #1/#2 branch
+/// is reachable by an integration test that drives the real device-ops and
+/// asserts the call ORDER (BLOCKER #2: tracking restored BEFORE the Paused
+/// `StateChanged`) and the SafeAbandon path (BLOCKER #1: park+close → Failed,
+/// never a resumable Paused-untracked state).
+///
+/// The disposition is derived live from `operator_present`:
+///   * UNATTENDED (default) → SafeAbandon: park mount, close cover+dome, FAIL.
+///   * ATTENDED → PassivePause: restore tracking, then flip to Paused.
+async fn apply_recovery_escalation(
+    s: &RecoveryEscalationState<'_>,
+    ctx: &crate::recovery::RecoveryContext,
+    pause_message: String,
+    stop_tracking: bool,
+) {
+    // Read operator-presence live: an operator declaring presence mid-session
+    // must take effect on THIS escalation. Default is UNATTENDED (false) — the
+    // safe assumption, because the unattended path is the one that can lose
+    // optics.
+    let operator_present = s.runtime_config.read().operator_present;
+    let disposition = recovery_escalation_disposition(operator_present);
+
+    if disposition == EscalationDisposition::SafeAbandon {
+        // BLOCKER #1 — UNATTENDED reject-storm escalation.
+        //
+        // The old behaviour flipped to a passive Paused state. But the trigger
+        // monitor short-circuits on `state != Running` (it `continue`s), so the
+        // weather / altitude / dawn safety triggers STOP evaluating — and the
+        // node tree was never parked. On an unattended night that leaves the rig
+        // dome+cover OPEN with safety monitoring OFF until dawn: a rolling cloud
+        // / dew reject-storm can lose the optics, not just the night.
+        //
+        // So on an unattended rig a reject-storm escalation is a SAFE
+        // ABANDONMENT, identical to the give-up branch: park the mount (the OTA
+        // can't track into the Sun at dawn), close the cover, close the dome
+        // (verified — see `park_and_close_safe_state`), then FAIL the run (which
+        // cancels the node tree). The rig ends in the safe parked+closed
+        // end-state instead of frozen-open-and-unmonitored.
+        tracing::error!(
+            "[RECOVERY] Escalated {:?} to operator Pause after {} attempt(s) on an UNATTENDED rig: {} — abandoning safely (park + close cover + close dome)",
+            ctx.cause,
+            ctx.attempt_count,
+            pause_message
+        );
+        s.gave_up.store(true, Ordering::Relaxed);
+        *s.current_recovery.write() = None;
+
+        // Surface WHY first, so the operator / push channel sees the escalation
+        // reason even if a safe-state step then fails.
+        let _ = s.event_tx.send(ExecutorEvent::Error {
+            message: pause_message.clone(),
+        });
+
+        // Single source of truth for the park → close cover → close dome sweep.
+        // Mirror the give-up branch's retry tuning (2 park retries, 2s delay) so
+        // behaviour is identical.
+        let outcome = crate::device_ops::park_and_close_safe_state(
+            s.device_ops,
+            s.mount_id,
+            s.cover_id,
+            s.dome_id,
+            2,
+            2.0,
+        )
+        .await;
+
+        if let (Some(mount_id), Some(park)) = (s.mount_id, &outcome.park) {
+            if park.success {
+                tracing::info!(
+                    "[RECOVERY] Parked mount '{}' on unattended reject-storm abandonment ({} attempt(s))",
+                    mount_id,
+                    park.attempts_made
+                );
+            } else {
+                let msg = format!(
+                    "Reject-storm abandonment: the mount could not be parked ({}): {} — mount may be UNSAFE.",
+                    mount_id,
+                    park.last_error
+                        .clone()
+                        .unwrap_or_else(|| "unknown".to_string())
+                );
+                tracing::error!("[RECOVERY] {}", msg);
+                let _ = s.event_tx.send(ExecutorEvent::Error { message: msg });
+            }
+        }
+        if let (Some(cover_id), Some(e)) = (s.cover_id, &outcome.cover_close_error) {
+            let msg = format!(
+                "Reject-storm abandonment: failed to close cover '{}': {}",
+                cover_id, e
+            );
+            tracing::error!("[RECOVERY] {}", msg);
+            let _ = s.event_tx.send(ExecutorEvent::Error { message: msg });
+        }
+        if let (Some(dome_id), Some(e)) = (s.dome_id, &outcome.dome_close_error) {
+            let msg = format!(
+                "Reject-storm abandonment: failed to close dome '{}': {} — scope may be exposed.",
+                dome_id, e
+            );
+            tracing::error!("[RECOVERY] {}", msg);
+            let _ = s.event_tx.send(ExecutorEvent::Error { message: msg });
+        }
+
+        // Cancel the node tree and fail the run, exactly like the give-up
+        // branch. The safety triggers keep protecting the rig right up to this
+        // point (state was Recovering, never a passive Paused), and the rig now
+        // sits in the safe parked+closed end-state rather than dome-open and
+        // unmonitored.
+        s.is_cancelled.store(true, Ordering::Relaxed);
+        *s.state.write().await = ExecutorState::Failed;
+        {
+            let mut prog = s.progress.write();
+            prog.state = ExecutorState::Failed;
+            prog.message = Some(format!(
+                "Unattended reject-storm: abandoned safely after {} attempt(s)",
+                ctx.attempt_count
+            ));
+        }
+        let _ = s
+            .event_tx
+            .send(ExecutorEvent::StateChanged(ExecutorState::Failed));
+        let _ = s.event_tx.send(ExecutorEvent::RecoveryGaveUp {
+            context: Box::new(ctx.clone()),
+            aborted_by_user: false,
+        });
+    } else {
+        // ATTENDED rig — an operator has explicitly declared presence. Escalate
+        // to a real operator Pause: leave the node tree frozen (is_paused ==
+        // true from step 2) and flip to the same Paused state the operator's
+        // Pause command produces. This does NOT park-and-abort the rig (the
+        // present operator may want to inspect and resume) and does NOT
+        // auto-resume. The operator's Resume clears is_paused and flips back to
+        // Running.
+        tracing::warn!(
+            "[RECOVERY] Escalated {:?} to operator Pause after {} attempt(s) on an ATTENDED rig: {}",
+            ctx.cause,
+            ctx.attempt_count,
+            pause_message
+        );
+
+        // BLOCKER #2 — restore tracking BEFORE handing off to the operator
+        // Pause. Recovery entry stops tracking (the default); the generic Resume
+        // path does NOT re-enable it, so resuming from this Pause would expose
+        // on a non-tracking mount and every frame would trail with the UI saying
+        // "Running". Mirror the recovered branch (same shared helper): restore
+        // tracking for all causes, loud error on failure (never silently leave a
+        // resumable Pause that exposes untracked).
+        let _ = restore_tracking_after_recovery(
+            s.device_ops,
+            s.mount_id,
+            stop_tracking,
+            "paused for operator",
+            s.event_tx,
+        )
+        .await;
+
+        *s.state.write().await = ExecutorState::Paused;
+        {
+            let mut prog = s.progress.write();
+            prog.state = ExecutorState::Paused;
+            prog.message = Some(pause_message.clone());
+        }
+        *s.current_recovery.write() = None;
+        // Surface the reason as a critical-event banner so the operator (and any
+        // push channel) sees why the run stopped.
+        let _ = s.event_tx.send(ExecutorEvent::Error {
+            message: pause_message,
+        });
+        let _ = s
+            .event_tx
+            .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
+        // Close out the recovery banner — the loop ended, it did not give up (no
+        // park/fail), it handed off to a Pause.
+        let _ = s.event_tx.send(ExecutorEvent::RecoveryCompleted {
+            context: Box::new(ctx.clone()),
+        });
+    }
+}
+
 /// Subsystem 2 step 3 (stale-verdict observability): build the loud
 /// "verdict feed stale; holding paused fail-closed" warning that the safety
 /// poll emits when a `Some(true)`=UNSAFE Dart verdict has not been refreshed
@@ -334,6 +619,25 @@ pub struct RuntimeConfig {
     /// from the runtime config so a subsequent restart without an
     /// explicit re-seed runs without stale carry-over.
     pub pending_integration_carry_over: HashMap<String, HashMap<String, f64>>,
+    /// Whether a human operator is present and attending the rig.
+    ///
+    /// `false` (the `Default`) means UNATTENDED — the safe assumption, because
+    /// the unattended-night path is the one that can lose optics. This gates
+    /// how a non-auto-recoverable recovery escalation (e.g. a consecutive-
+    /// reject storm that resolves to `PauseForOperator`) is handled:
+    ///   * unattended (`false`) → the escalation is a SAFE ABANDONMENT: park
+    ///     the mount, close the cover, close the dome (the same sweep the
+    ///     give-up branch runs) and KEEP safety-class triggers protecting the
+    ///     rig. A frozen, dome-open, trigger-disabled rig is never left under
+    ///     the open sky until dawn.
+    ///   * attended (`true`) → the escalation is a passive operator Pause that
+    ///     leaves the rig in place so the present operator can inspect and
+    ///     resume.
+    ///
+    /// Read live on every recovery escalation so an operator declaring
+    /// presence mid-session takes effect on the next escalation without a
+    /// restart.
+    pub operator_present: bool,
 }
 
 /// Walk a runtime node tree (pre-order) and return the first Autofocus node's
@@ -3569,43 +3873,31 @@ impl SequenceExecutor {
                         }
 
                         if let Some(pause_message) = paused_for_operator {
-                            // Escalated to a real operator Pause. The node tree
-                            // is already frozen (is_paused == true from step 2);
-                            // leave it frozen and flip to the same Paused state
-                            // the operator's Pause command produces. This does
-                            // NOT park-and-abort the rig (the operator may want
-                            // to inspect and resume) and does NOT auto-resume.
-                            // The operator's Resume clears is_paused and flips
-                            // back to Running through the normal command path.
-                            tracing::warn!(
-                                "[RECOVERY] Escalated {:?} to operator Pause after {} attempt(s): {}",
-                                ctx.cause,
-                                ctx.attempt_count,
-                                pause_message
-                            );
-                            *recovery_driver_state.write().await = ExecutorState::Paused;
-                            {
-                                let mut prog = recovery_driver_progress.write();
-                                prog.state = ExecutorState::Paused;
-                                prog.message = Some(pause_message.clone());
-                            }
-                            *recovery_driver_current.write() = None;
-                            // Surface the reason as a critical-event banner so
-                            // the operator (and any push channel) sees why the
-                            // run stopped.
-                            let _ = recovery_driver_event_tx.send(ExecutorEvent::Error {
-                                message: pause_message,
-                            });
-                            let _ = recovery_driver_event_tx
-                                .send(ExecutorEvent::StateChanged(ExecutorState::Paused));
-                            // Close out the recovery banner — the loop ended,
-                            // it did not give up (no park/fail), it handed off
-                            // to a Pause.
-                            let _ = recovery_driver_event_tx.send(
-                                ExecutorEvent::RecoveryCompleted {
-                                    context: Box::new(ctx.clone()),
-                                },
-                            );
+                            // The PauseForOperator escalation handling lives in
+                            // `apply_recovery_escalation` so an integration test can drive
+                            // the exact BLOCKER #1/#2 branch (SafeAbandon vs PassivePause,
+                            // and the tracking-restore-before-Paused ordering) against real
+                            // device-ops without spinning up this whole closure.
+                            let escalation_state = RecoveryEscalationState {
+                                device_ops: &recovery_driver_device_ops,
+                                event_tx: &recovery_driver_event_tx,
+                                runtime_config: &recovery_driver_runtime,
+                                state: &recovery_driver_state,
+                                progress: &recovery_driver_progress,
+                                current_recovery: &recovery_driver_current,
+                                is_cancelled: &recovery_driver_is_cancelled,
+                                gave_up: &recovery_driver_gave_up,
+                                mount_id: recovery_driver_mount_id.as_deref(),
+                                cover_id: recovery_driver_cover_id.as_deref(),
+                                dome_id: recovery_driver_dome_id.as_deref(),
+                            };
+                            apply_recovery_escalation(
+                                &escalation_state,
+                                &ctx,
+                                pause_message,
+                                stop_tracking,
+                            )
+                            .await;
                         } else if recovered {
                             tracing::info!(
                                 "[RECOVERY] Loop succeeded after {} attempt(s); resuming sequence",
@@ -3628,34 +3920,14 @@ impl SequenceExecutor {
                             // UI reports "Recovered". Restore it here for all
                             // causes, and surface a loud error if it cannot be
                             // restored (never silently resume untracked).
-                            if stop_tracking {
-                                if let Some(mount_id) = &recovery_driver_mount_id {
-                                    match recovery_driver_device_ops
-                                        .mount_set_tracking(mount_id, true)
-                                        .await
-                                    {
-                                        Ok(()) => tracing::info!(
-                                            "[RECOVERY] Re-enabled tracking on '{}' after recovery",
-                                            mount_id
-                                        ),
-                                        Err(e) => {
-                                            tracing::error!(
-                                                "[RECOVERY] Failed to re-enable tracking on '{}' after recovery: {}",
-                                                mount_id,
-                                                e
-                                            );
-                                            let _ = recovery_driver_event_tx.send(
-                                                ExecutorEvent::Error {
-                                                    message: format!(
-                                                        "Recovery resumed but tracking could not be re-enabled on {}: {} — resumed frames may trail until tracking is restored.",
-                                                        mount_id, e
-                                                    ),
-                                                },
-                                            );
-                                        }
-                                    }
-                                }
-                            }
+                            let _ = restore_tracking_after_recovery(
+                                &recovery_driver_device_ops,
+                                recovery_driver_mount_id.as_deref(),
+                                stop_tracking,
+                                "after recovery",
+                                &recovery_driver_event_tx,
+                            )
+                            .await;
 
                             recovery_driver_is_paused.store(false, Ordering::Relaxed);
                             let _ = recovery_driver_event_tx
@@ -6674,6 +6946,117 @@ mod tests {
         }
     }
 
+    /// v4 BLOCKER #1 — the disposition that gates how a `PauseForOperator`
+    /// escalation is handled. The SAFE default is "unattended": a rig nobody is
+    /// watching MUST be abandoned safely (park + close), never passively frozen
+    /// dome-open with safety triggers disabled until dawn. Only an explicitly
+    /// present operator gets the passive Pause.
+    #[test]
+    fn recovery_escalation_unattended_is_safe_abandon_attended_is_passive_pause() {
+        // The default RuntimeConfig is unattended (the safe default).
+        assert!(
+            !RuntimeConfig::default().operator_present,
+            "RuntimeConfig must default to UNATTENDED (operator_present == false)"
+        );
+        assert_eq!(
+            recovery_escalation_disposition(false),
+            EscalationDisposition::SafeAbandon,
+            "an unattended reject-storm escalation must drive a safe abandonment, \
+             not a passive dome-open freeze"
+        );
+        assert_eq!(
+            recovery_escalation_disposition(true),
+            EscalationDisposition::PassivePause,
+            "an attended escalation passively pauses for the present operator"
+        );
+    }
+
+    /// v4 BLOCKER #2 — recovery entry stops tracking; any resume / operator-
+    /// handoff path must restore it. The shared helper both branches use must
+    /// command `mount_set_tracking(true)` and report no error on success.
+    #[tokio::test]
+    async fn restore_tracking_after_recovery_re_enables_tracking() {
+        let ops_concrete = std::sync::Arc::new(ReacquireGuiderOps::new(false, true));
+        let ops: SharedDeviceOps = ops_concrete.clone();
+        let (event_tx, _rx) = broadcast::channel(16);
+
+        let err = restore_tracking_after_recovery(
+            &ops,
+            Some("mount-1"),
+            true, // stop_tracking was true → must restore
+            "paused for operator",
+            &event_tx,
+        )
+        .await;
+
+        assert!(err.is_none(), "successful restore must not report an error");
+        assert_eq!(
+            ops_concrete.last_tracking_set(),
+            Some(true),
+            "tracking must be re-enabled before handing the run back"
+        );
+    }
+
+    /// When tracking cannot be restored, the failure is LOUD — an error event
+    /// is emitted and the message is returned — never a silent resume on a
+    /// non-tracking mount.
+    #[tokio::test]
+    async fn restore_tracking_after_recovery_failure_is_loud() {
+        let ops_concrete =
+            std::sync::Arc::new(ReacquireGuiderOps::new(false, true).with_tracking_failure());
+        let ops: SharedDeviceOps = ops_concrete.clone();
+        let (event_tx, mut rx) = broadcast::channel(16);
+
+        let err = restore_tracking_after_recovery(
+            &ops,
+            Some("mount-1"),
+            true,
+            "paused for operator",
+            &event_tx,
+        )
+        .await;
+
+        assert!(
+            err.is_some(),
+            "a tracking-restore failure must be surfaced, not swallowed"
+        );
+        let event = rx.try_recv().expect("a loud Error event must be emitted");
+        match event {
+            ExecutorEvent::Error { message } => {
+                assert!(
+                    message.contains("tracking could not be re-enabled"),
+                    "the error must explain tracking was not restored: {message}"
+                );
+            }
+            other => panic!("expected an Error event, got {other:?}"),
+        }
+    }
+
+    /// If recovery never stopped tracking (`stop_tracking == false`), the
+    /// helper is a no-op: it must not command tracking at all.
+    #[tokio::test]
+    async fn restore_tracking_after_recovery_noop_when_tracking_not_stopped() {
+        let ops_concrete = std::sync::Arc::new(ReacquireGuiderOps::new(false, true));
+        let ops: SharedDeviceOps = ops_concrete.clone();
+        let (event_tx, _rx) = broadcast::channel(16);
+
+        let err = restore_tracking_after_recovery(
+            &ops,
+            Some("mount-1"),
+            false, // tracking was never stopped
+            "after recovery",
+            &event_tx,
+        )
+        .await;
+
+        assert!(err.is_none());
+        assert_eq!(
+            ops_concrete.last_tracking_set(),
+            None,
+            "the helper must not touch tracking when recovery never stopped it"
+        );
+    }
+
     /// MountTrackingLost without a configured mount surfaces the
     /// "no mount" error rather than silently succeeding.
     #[test]
@@ -6852,6 +7235,12 @@ mod tests {
         started: std::sync::Arc<std::sync::atomic::AtomicBool>,
         start_should_fail: bool,
         relock_after_start: bool,
+        /// Records the last `mount_set_tracking(enabled)` value so a test can
+        /// assert tracking was restored. `None` => never called.
+        last_tracking_set: std::sync::Arc<std::sync::Mutex<Option<bool>>>,
+        /// When true, `mount_set_tracking(true)` returns Err so a test can
+        /// exercise the loud-error-on-failure path.
+        tracking_set_should_fail: bool,
     }
 
     impl ReacquireGuiderOps {
@@ -6861,12 +7250,31 @@ mod tests {
                 started: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
                 start_should_fail,
                 relock_after_start,
+                last_tracking_set: std::sync::Arc::new(std::sync::Mutex::new(None)),
+                tracking_set_should_fail: false,
             }
+        }
+
+        fn with_tracking_failure(mut self) -> Self {
+            self.tracking_set_should_fail = true;
+            self
+        }
+
+        fn last_tracking_set(&self) -> Option<bool> {
+            *self.last_tracking_set.lock().unwrap()
         }
     }
 
     #[async_trait::async_trait]
     impl DeviceOps for ReacquireGuiderOps {
+        async fn mount_set_tracking(&self, id: &str, enabled: bool) -> DeviceResult<()> {
+            *self.last_tracking_set.lock().unwrap() = Some(enabled);
+            if self.tracking_set_should_fail && enabled {
+                return Err(format!("simulated tracking-enable failure for {}", id));
+            }
+            Ok(())
+        }
+
         async fn guider_get_status(&self) -> DeviceResult<GuidingStatus> {
             // Guiding only once a (successful) re-acquire has been issued.
             let guiding = self.started.load(Ordering::Relaxed) && self.relock_after_start;
@@ -6924,9 +7332,6 @@ mod tests {
         }
         async fn mount_is_tracking(&self, id: &str) -> DeviceResult<bool> {
             self.inner.mount_is_tracking(id).await
-        }
-        async fn mount_set_tracking(&self, id: &str, enabled: bool) -> DeviceResult<()> {
-            self.inner.mount_set_tracking(id, enabled).await
         }
         async fn camera_start_exposure(
             &self,

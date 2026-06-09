@@ -1072,8 +1072,20 @@ pub async fn park_and_close_safe_state(
         None => None,
     };
 
+    // Closing the dome is the most safety-critical step of the sweep: it is the
+    // last barrier between the optics and the open sky. A fire-and-forget
+    // `dome_close` (the previous behaviour) accepts the command and reports the
+    // rig "safe" even when the shutter jams half-open — exactly the failure the
+    // unattended give-up path exists to guard against. So: issue the close, then
+    // VERIFY the shutter actually reached "Closed" by polling (bounded timeout,
+    // mirroring `instructions::wait_for_dome_shutter_state`). Any outcome that is
+    // not a confirmed Closed records a `dome_close_error`, which forces
+    // `fully_safe()` to false so the caller pages the operator.
     let dome_close_error = match dome_id {
-        Some(id) => device_ops.dome_close(id).await.err(),
+        Some(id) => match device_ops.dome_close(id).await {
+            Err(e) => Some(e),
+            Ok(()) => verify_dome_closed(device_ops, id).await.err(),
+        },
         None => None,
     };
 
@@ -1081,6 +1093,74 @@ pub async fn park_and_close_safe_state(
         park,
         cover_close_error,
         dome_close_error,
+    }
+}
+
+/// Maximum time to wait for the dome shutter to confirm `Closed` during the
+/// unattended safe-state sweep. Mirrors `DOME_SHUTTER_TIMEOUT_SECS` in
+/// `instructions.rs` (observatory shutters are slow: 30–90 s is typical).
+const SAFE_STATE_DOME_CLOSE_TIMEOUT_SECS: f64 = 120.0;
+
+/// Poll the dome shutter after a `dome_close` until it confirms `Closed`, or
+/// return `Err` describing why the close could NOT be confirmed.
+///
+/// This mirrors `instructions::wait_for_dome_shutter_state` but is intentionally
+/// STRICTER for the abandon-the-rig sweep: where the per-instruction path
+/// tolerates a roll-off roof that cannot report shutter position (it degrades
+/// loudly and proceeds), this path treats a never-confirmed close as unsafe.
+/// When the rig is being abandoned for the night, "the roof might be open" is
+/// not an acceptable end-state — the operator must be told.
+///
+/// * A read error (driver fault / disconnect) → unsafe (cannot verify).
+/// * A definite state that never reaches `Closed` within the timeout → a real
+///   motor/jam failure → unsafe.
+/// * The dome never reports a definite state (cannot report position) →
+///   unconfirmed → unsafe for this sweep.
+async fn verify_dome_closed(device_ops: &SharedDeviceOps, dome_id: &str) -> Result<(), String> {
+    const POLL_SECS: f64 = 2.0;
+    let mut elapsed = 0.0_f64;
+    let mut saw_definite_state = false;
+
+    loop {
+        match device_ops.dome_get_shutter_status(dome_id).await {
+            Ok(status) => {
+                if status == "Closed" {
+                    return Ok(());
+                }
+                if status == "Open"
+                    || status == "Closed"
+                    || status == "Opening"
+                    || status == "Closing"
+                {
+                    saw_definite_state = true;
+                }
+            }
+            Err(e) => {
+                return Err(format!(
+                    "could not read dome '{}' shutter status to confirm Closed: {} — \
+                     scope may be exposed",
+                    dome_id, e
+                ));
+            }
+        }
+
+        if elapsed >= SAFE_STATE_DOME_CLOSE_TIMEOUT_SECS {
+            if saw_definite_state {
+                return Err(format!(
+                    "dome '{}' shutter did not reach Closed within {:.0}s — \
+                     shutter may be jammed; scope may be exposed",
+                    dome_id, SAFE_STATE_DOME_CLOSE_TIMEOUT_SECS
+                ));
+            }
+            return Err(format!(
+                "dome '{}' shutter status never reported a definite state — \
+                 cannot confirm the roof is closed; scope may be exposed",
+                dome_id
+            ));
+        }
+
+        tokio::time::sleep(std::time::Duration::from_secs_f64(POLL_SECS)).await;
+        elapsed += POLL_SECS;
     }
 }
 
@@ -1337,6 +1417,347 @@ mod tests {
         async fn cover_calibrator_get_max_brightness(&self, id: &str) -> DeviceResult<i32> {
             self.inner.cover_calibrator_get_max_brightness(id).await
         }
+    }
+
+    /// A DeviceOps wrapper that accepts `dome_close` (returns Ok) but reports a
+    /// configurable shutter status forever — used to prove the safe-state sweep
+    /// VERIFIES the shutter actually reached Closed rather than trusting the
+    /// fire-and-forget close. `mount_park`, `dome_close`, and
+    /// `cover_calibrator_close_cover` all succeed so the dome step is the only
+    /// variable under test.
+    struct StuckShutterOps {
+        inner: StdArc<NullDeviceOps>,
+        /// Status returned by every `dome_get_shutter_status` poll. Set to
+        /// "Open" to simulate a jam (definite state, never Closed) or "Unknown"
+        /// to simulate a roof that cannot report position.
+        shutter_status: String,
+        /// When true, every `dome_get_shutter_status` poll returns Err to
+        /// simulate a driver fault / disconnect during verification.
+        read_fails: bool,
+    }
+
+    impl StuckShutterOps {
+        fn new(shutter_status: &str, read_fails: bool) -> Self {
+            Self {
+                inner: StdArc::new(NullDeviceOps),
+                shutter_status: shutter_status.to_string(),
+                read_fails,
+            }
+        }
+    }
+
+    #[async_trait]
+    impl DeviceOps for StuckShutterOps {
+        async fn dome_close(&self, _id: &str) -> DeviceResult<()> {
+            // The command is "accepted" — exactly the deceptive case: the
+            // driver says OK while the shutter never actually closes.
+            Ok(())
+        }
+        async fn dome_get_shutter_status(&self, _id: &str) -> DeviceResult<String> {
+            if self.read_fails {
+                return Err("simulated shutter-status read failure".to_string());
+            }
+            Ok(self.shutter_status.clone())
+        }
+        // Park + cover close cleanly so the dome is the only failing step.
+        async fn mount_park(&self, _id: &str) -> DeviceResult<()> {
+            Ok(())
+        }
+        async fn cover_calibrator_close_cover(&self, _id: &str) -> DeviceResult<()> {
+            Ok(())
+        }
+
+        // === delegating methods ===
+        async fn mount_slew_to_coordinates(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
+            self.inner.mount_slew_to_coordinates(id, ra, dec).await
+        }
+        async fn mount_abort_slew(&self, id: &str) -> DeviceResult<()> {
+            self.inner.mount_abort_slew(id).await
+        }
+        async fn mount_get_coordinates(&self, id: &str) -> DeviceResult<(f64, f64)> {
+            self.inner.mount_get_coordinates(id).await
+        }
+        async fn mount_sync(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
+            self.inner.mount_sync(id, ra, dec).await
+        }
+        async fn mount_unpark(&self, id: &str) -> DeviceResult<()> {
+            self.inner.mount_unpark(id).await
+        }
+        async fn mount_is_slewing(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_is_slewing(id).await
+        }
+        async fn mount_is_parked(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_is_parked(id).await
+        }
+        async fn mount_can_flip(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_can_flip(id).await
+        }
+        async fn mount_side_of_pier(&self, id: &str) -> DeviceResult<crate::meridian::PierSide> {
+            self.inner.mount_side_of_pier(id).await
+        }
+        async fn mount_is_tracking(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.mount_is_tracking(id).await
+        }
+        async fn mount_set_tracking(&self, id: &str, enabled: bool) -> DeviceResult<()> {
+            self.inner.mount_set_tracking(id, enabled).await
+        }
+        async fn camera_start_exposure(
+            &self,
+            id: &str,
+            d: f64,
+            g: Option<i32>,
+            o: Option<i32>,
+            bx: i32,
+            by: i32,
+        ) -> DeviceResult<ImageData> {
+            self.inner.camera_start_exposure(id, d, g, o, bx, by).await
+        }
+        async fn camera_abort_exposure(&self, id: &str) -> DeviceResult<()> {
+            self.inner.camera_abort_exposure(id).await
+        }
+        async fn camera_set_cooler(&self, id: &str, e: bool, t: f64) -> DeviceResult<()> {
+            self.inner.camera_set_cooler(id, e, t).await
+        }
+        async fn camera_get_temperature(&self, id: &str) -> DeviceResult<f64> {
+            self.inner.camera_get_temperature(id).await
+        }
+        async fn camera_get_cooler_power(&self, id: &str) -> DeviceResult<f64> {
+            self.inner.camera_get_cooler_power(id).await
+        }
+        async fn focuser_move_to(&self, id: &str, p: i32) -> DeviceResult<()> {
+            self.inner.focuser_move_to(id, p).await
+        }
+        async fn focuser_get_position(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.focuser_get_position(id).await
+        }
+        async fn focuser_is_moving(&self, id: &str) -> DeviceResult<bool> {
+            self.inner.focuser_is_moving(id).await
+        }
+        async fn focuser_get_temperature(&self, id: &str) -> DeviceResult<Option<f64>> {
+            self.inner.focuser_get_temperature(id).await
+        }
+        async fn focuser_halt(&self, id: &str) -> DeviceResult<()> {
+            self.inner.focuser_halt(id).await
+        }
+        async fn filterwheel_set_position(&self, id: &str, p: i32) -> DeviceResult<()> {
+            self.inner.filterwheel_set_position(id, p).await
+        }
+        async fn filterwheel_get_position(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.filterwheel_get_position(id).await
+        }
+        async fn filterwheel_get_names(&self, id: &str) -> DeviceResult<Vec<String>> {
+            self.inner.filterwheel_get_names(id).await
+        }
+        async fn filterwheel_set_filter_by_name(&self, id: &str, n: &str) -> DeviceResult<i32> {
+            self.inner.filterwheel_set_filter_by_name(id, n).await
+        }
+        async fn rotator_move_to(&self, id: &str, a: f64) -> DeviceResult<()> {
+            self.inner.rotator_move_to(id, a).await
+        }
+        async fn rotator_move_relative(&self, id: &str, d: f64) -> DeviceResult<()> {
+            self.inner.rotator_move_relative(id, d).await
+        }
+        async fn rotator_get_angle(&self, id: &str) -> DeviceResult<f64> {
+            self.inner.rotator_get_angle(id).await
+        }
+        async fn rotator_halt(&self, id: &str) -> DeviceResult<()> {
+            self.inner.rotator_halt(id).await
+        }
+        async fn guider_dither(
+            &self,
+            p: f64,
+            sp: f64,
+            st: f64,
+            sto: f64,
+            ra: bool,
+        ) -> DeviceResult<()> {
+            self.inner.guider_dither(p, sp, st, sto, ra).await
+        }
+        async fn guider_get_status(&self) -> DeviceResult<GuidingStatus> {
+            self.inner.guider_get_status().await
+        }
+        async fn guider_start(&self, sp: f64, st: f64, sto: f64) -> DeviceResult<()> {
+            self.inner.guider_start(sp, st, sto).await
+        }
+        async fn guider_stop(&self) -> DeviceResult<()> {
+            self.inner.guider_stop().await
+        }
+        async fn plate_solve(
+            &self,
+            d: &ImageData,
+            ra: Option<f64>,
+            dec: Option<f64>,
+            s: Option<f64>,
+        ) -> DeviceResult<PlateSolveResult> {
+            self.inner.plate_solve(d, ra, dec, s).await
+        }
+        async fn save_fits(
+            &self,
+            d: &ImageData,
+            f: &str,
+            ctx: &crate::scheduling::FrameContext,
+        ) -> DeviceResult<()> {
+            self.inner.save_fits(d, f, ctx).await
+        }
+        async fn send_notification(
+            &self,
+            l: &str,
+            t: &str,
+            m: &str,
+            x: Option<&[String]>,
+        ) -> DeviceResult<()> {
+            self.inner.send_notification(l, t, m, x).await
+        }
+        fn calculate_altitude(&self, r: f64, d: f64, la: f64, lo: f64) -> f64 {
+            self.inner.calculate_altitude(r, d, la, lo)
+        }
+        fn get_observer_location(&self) -> Option<(f64, f64)> {
+            self.inner.get_observer_location()
+        }
+        async fn polar_align_update(
+            &self,
+            r: &crate::polar_align::PolarAlignResult,
+        ) -> DeviceResult<()> {
+            self.inner.polar_align_update(r).await
+        }
+        async fn dome_open(&self, id: &str) -> DeviceResult<()> {
+            self.inner.dome_open(id).await
+        }
+        async fn dome_park(&self, id: &str) -> DeviceResult<()> {
+            self.inner.dome_park(id).await
+        }
+        async fn safety_is_safe(&self, id: Option<&str>) -> DeviceResult<bool> {
+            self.inner.safety_is_safe(id).await
+        }
+        async fn calculate_image_hfr(&self, d: &ImageData) -> DeviceResult<Option<f64>> {
+            self.inner.calculate_image_hfr(d).await
+        }
+        async fn detect_stars_in_image(&self, d: &ImageData) -> DeviceResult<Vec<(f64, f64, f64)>> {
+            self.inner.detect_stars_in_image(d).await
+        }
+        async fn measure_frame_eccentricity(&self, d: &ImageData) -> DeviceResult<Option<f64>> {
+            self.inner.measure_frame_eccentricity(d).await
+        }
+        async fn cover_calibrator_open_cover(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_open_cover(id).await
+        }
+        async fn cover_calibrator_halt_cover(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_halt_cover(id).await
+        }
+        async fn cover_calibrator_calibrator_on(&self, id: &str, b: i32) -> DeviceResult<()> {
+            self.inner.cover_calibrator_calibrator_on(id, b).await
+        }
+        async fn cover_calibrator_calibrator_off(&self, id: &str) -> DeviceResult<()> {
+            self.inner.cover_calibrator_calibrator_off(id).await
+        }
+        async fn cover_calibrator_get_cover_state(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_cover_state(id).await
+        }
+        async fn cover_calibrator_get_calibrator_state(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_calibrator_state(id).await
+        }
+        async fn cover_calibrator_get_brightness(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_brightness(id).await
+        }
+        async fn cover_calibrator_get_max_brightness(&self, id: &str) -> DeviceResult<i32> {
+            self.inner.cover_calibrator_get_max_brightness(id).await
+        }
+    }
+
+    /// v4 SHOULD-FIX — the unattended safe-state sweep must VERIFY the dome
+    /// shutter actually reached Closed. A shutter that accepts the close
+    /// command but jams half-open (reports "Open" forever) must record a
+    /// `dome_close_error` so `fully_safe()` is false. Without the fix the close
+    /// was fire-and-forget and `dome_close_error` was always `None` → the rig
+    /// was falsely reported safe while the scope sat under an open roof.
+    #[tokio::test(start_paused = true)]
+    async fn park_and_close_safe_state_reports_unsafe_on_jammed_shutter() {
+        let ops: SharedDeviceOps = Arc::new(StuckShutterOps::new("Open", false));
+        let outcome = park_and_close_safe_state(
+            &ops,
+            Some("mount-1"),
+            Some("cover-1"),
+            Some("dome-1"),
+            1,
+            0.0,
+        )
+        .await;
+        assert!(
+            outcome.dome_close_error.is_some(),
+            "a shutter that never reaches Closed must record a dome_close_error"
+        );
+        assert!(
+            outcome
+                .dome_close_error
+                .as_deref()
+                .unwrap()
+                .contains("jammed")
+                || outcome
+                    .dome_close_error
+                    .as_deref()
+                    .unwrap()
+                    .contains("did not reach Closed"),
+            "the error must explain the shutter never closed: {:?}",
+            outcome.dome_close_error
+        );
+        assert!(
+            !outcome.fully_safe(),
+            "a jammed shutter must make the sweep report NOT fully safe"
+        );
+        // The park + cover steps still succeeded — only the dome is unsafe.
+        assert!(outcome.park.as_ref().map(|p| p.success).unwrap_or(false));
+        assert!(outcome.cover_close_error.is_none());
+    }
+
+    /// A roof that can never report shutter position (every poll "Unknown")
+    /// is also reported unsafe by the sweep — for an abandoned rig, "the roof
+    /// might be open" is not an acceptable end-state. (The per-instruction
+    /// path tolerates this and proceeds; the abandon sweep is intentionally
+    /// stricter.)
+    #[tokio::test(start_paused = true)]
+    async fn park_and_close_safe_state_reports_unsafe_on_unconfirmable_shutter() {
+        let ops: SharedDeviceOps = Arc::new(StuckShutterOps::new("Unknown", false));
+        let outcome =
+            park_and_close_safe_state(&ops, None, None, Some("dome-1"), 1, 0.0).await;
+        assert!(
+            outcome.dome_close_error.is_some(),
+            "an unconfirmable shutter must record a dome_close_error"
+        );
+        assert!(!outcome.fully_safe());
+    }
+
+    /// A shutter-status read fault during verification is also unsafe — we
+    /// cannot confirm Closed, so we must not claim safety.
+    #[tokio::test(start_paused = true)]
+    async fn park_and_close_safe_state_reports_unsafe_when_shutter_read_fails() {
+        let ops: SharedDeviceOps = Arc::new(StuckShutterOps::new("", true));
+        let outcome =
+            park_and_close_safe_state(&ops, None, None, Some("dome-1"), 1, 0.0).await;
+        assert!(outcome.dome_close_error.is_some());
+        assert!(!outcome.fully_safe());
+    }
+
+    /// Control: a healthy shutter that reaches Closed reports fully safe and
+    /// records NO dome_close_error — the verification must not flag a working
+    /// dome.
+    #[tokio::test(start_paused = true)]
+    async fn park_and_close_safe_state_healthy_shutter_is_fully_safe() {
+        let ops: SharedDeviceOps = Arc::new(StuckShutterOps::new("Closed", false));
+        let outcome = park_and_close_safe_state(
+            &ops,
+            Some("mount-1"),
+            Some("cover-1"),
+            Some("dome-1"),
+            1,
+            0.0,
+        )
+        .await;
+        assert!(
+            outcome.dome_close_error.is_none(),
+            "a healthy shutter that reaches Closed must not record an error: {:?}",
+            outcome.dome_close_error
+        );
+        assert!(outcome.fully_safe());
     }
 
     #[tokio::test]

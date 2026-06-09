@@ -72,6 +72,12 @@ struct ScriptedDeviceOps {
     park_fails: Arc<AtomicBool>,
     /// When true, `cover_calibrator_close_cover` and `dome_close` fail.
     close_fails: Arc<AtomicBool>,
+    /// Simulated dome shutter position reported by `dome_get_shutter_status`.
+    /// Starts "Open"; a successful `dome_close` flips it to "Closed" (a faithful
+    /// dome). The hardened safe-state sweep VERIFIES this reaches "Closed", so a
+    /// fire-and-forget mock that never updated it would (correctly) be flagged
+    /// unsafe. When `close_fails` is set the shutter stays "Open" — the jam case.
+    shutter_state: Arc<Mutex<String>>,
 }
 
 impl ScriptedDeviceOps {
@@ -87,6 +93,7 @@ impl ScriptedDeviceOps {
             guider_start_count: Arc::new(AtomicU32::new(0)),
             park_fails: Arc::new(AtomicBool::new(false)),
             close_fails: Arc::new(AtomicBool::new(false)),
+            shutter_state: Arc::new(Mutex::new("Open".to_string())),
         }
     }
 
@@ -212,8 +219,12 @@ impl DeviceOps for ScriptedDeviceOps {
     async fn dome_close(&self, dome_id: &str) -> DeviceResult<()> {
         self.record(format!("dome_close:{dome_id}"));
         if self.close_fails.load(Ordering::SeqCst) {
+            // A jammed shutter: the close fails AND the shutter stays Open, so
+            // the safe-state sweep's verification will (correctly) flag it.
             Err(format!("simulated dome-close failure for {dome_id}"))
         } else {
+            // A healthy dome: the shutter actually reaches Closed.
+            *self.shutter_state.lock().unwrap() = "Closed".to_string();
             Ok(())
         }
     }
@@ -363,8 +374,8 @@ impl DeviceOps for ScriptedDeviceOps {
     async fn dome_park(&self, id: &str) -> DeviceResult<()> {
         self.inner.dome_park(id).await
     }
-    async fn dome_get_shutter_status(&self, id: &str) -> DeviceResult<String> {
-        self.inner.dome_get_shutter_status(id).await
+    async fn dome_get_shutter_status(&self, _id: &str) -> DeviceResult<String> {
+        Ok(self.shutter_state.lock().unwrap().clone())
     }
     async fn calculate_image_hfr(&self, d: &ImageData) -> DeviceResult<Option<f64>> {
         self.inner.calculate_image_hfr(d).await
@@ -941,4 +952,261 @@ async fn scenario6c_exhaustion_with_stuck_mount_still_closes_roof_and_reports_un
     assert!(ops_concrete.index_of("dome_close:dome-1").is_some());
     // The mount park was retried to exhaustion (2 retries -> 3 calls).
     assert_eq!(ops_concrete.call_count("mount_park:"), 3);
+}
+
+// =============================================================================
+// SCENARIO 7 — v4 BLOCKER #1/#2 INTEGRATION: drive the FULL recovery-escalation
+// branch (`apply_recovery_escalation`, the seam factored out of the inline
+// recovery-driver closure) to a `PauseForOperator` escalation and assert the
+// SAFETY behaviour the senior review pinned:
+//
+//   #2 (ATTENDED, operator_present == true): tracking MUST be re-enabled
+//      (`mount_set_tracking:mount-1:true`) BEFORE the run flips to Paused —
+//      otherwise a Resume exposes on a non-tracking mount while the UI says
+//      "Running". This drives the real branch (not the helper in isolation), so
+//      deleting the restore call from the branch makes the test FAIL.
+//
+//   #1 (UNATTENDED, operator_present == false, the SAFE default): the escalation
+//      is a SAFE ABANDONMENT — park mount + close cover + close dome, end state
+//      Failed — never a resumable Paused-untracked freeze.
+//
+// These use the same `ScriptedDeviceOps` (records `mount_set_tracking:id:enabled`,
+// `mount_park:id`, `cover_close:id`, `dome_close:id`) as the rest of this harness.
+// =============================================================================
+
+/// The live shared executor state the recovery driver passes to
+/// `apply_recovery_escalation`, plus an event receiver — the exact `Arc<…>`
+/// clones the inline driver captures, so the extracted function mutates the
+/// real state and emits on the real event bus.
+struct EscalationFixture {
+    runtime: Arc<super::StdRwLock<super::RuntimeConfig>>,
+    state: Arc<RwLock<super::ExecutorState>>,
+    progress: Arc<super::StdRwLock<super::SequenceProgress>>,
+    current: Arc<super::StdRwLock<Option<crate::recovery::RecoveryContext>>>,
+    is_cancelled: Arc<AtomicBool>,
+    gave_up: Arc<AtomicBool>,
+    tx: super::broadcast::Sender<super::ExecutorEvent>,
+    rx: super::broadcast::Receiver<super::ExecutorEvent>,
+}
+
+/// Build the fixture. `operator_present` chooses the disposition (false =
+/// unattended/SafeAbandon, true = attended/PassivePause).
+fn escalation_fixture(operator_present: bool) -> EscalationFixture {
+    let rc = super::RuntimeConfig {
+        operator_present,
+        // Recovery entry stops tracking by default — that is the precondition
+        // the restore exists to undo. Keep it on so `stop_tracking == true`.
+        recovery: crate::recovery::RecoveryRuntimeConfig {
+            stop_tracking_during_recovery: true,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    let (tx, rx) = super::broadcast::channel(64);
+    EscalationFixture {
+        runtime: Arc::new(super::StdRwLock::new(rc)),
+        state: Arc::new(RwLock::new(super::ExecutorState::Recovering)),
+        progress: Arc::new(super::StdRwLock::new(super::SequenceProgress::default())),
+        current: Arc::new(super::StdRwLock::new(None)),
+        is_cancelled: Arc::new(AtomicBool::new(false)),
+        gave_up: Arc::new(AtomicBool::new(false)),
+        tx,
+        rx,
+    }
+}
+
+#[tokio::test]
+async fn scenario7_attended_escalation_restores_tracking_before_pausing() {
+    // BLOCKER #2 — drive the ATTENDED escalation branch end to end. The branch
+    // MUST command `mount_set_tracking(true)` BEFORE it flips the run to Paused
+    // and emits `StateChanged(Paused)`. We record the Paused state-change event
+    // into the SAME ordered log the device ops write to (via a listener task), so
+    // the relative order of "tracking restored" vs "paused" is directly
+    // observable. Deleting the restore call from the branch removes the
+    // `mount_set_tracking:mount-1:true` record entirely and fails this test.
+    let ops_concrete = Arc::new(ScriptedDeviceOps::new());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+    let timeline = ops_concrete.calls.clone();
+
+    let EscalationFixture {
+        runtime,
+        state,
+        progress,
+        current,
+        is_cancelled,
+        gave_up,
+        tx,
+        mut rx,
+    } = escalation_fixture(true);
+
+    // Listener: append a marker to the SHARED device-call log the instant the
+    // Paused StateChanged lands. Because the branch awaits the tracking restore
+    // (which records `mount_set_tracking:...`) BEFORE it sends StateChanged, the
+    // tracking record is guaranteed to precede this marker in the log.
+    let timeline_for_listener = timeline.clone();
+    let listener = tokio::spawn(async move {
+        while let Ok(ev) = rx.recv().await {
+            if let super::ExecutorEvent::StateChanged(super::ExecutorState::Paused) = ev {
+                timeline_for_listener
+                    .lock()
+                    .unwrap()
+                    .push("EVENT:StateChanged(Paused)".to_string());
+                break;
+            }
+        }
+    });
+
+    let mut ctx =
+        crate::recovery::RecoveryContext::new(RecoveryCause::ConsecutiveRejectsExceeded, 30.0, 600.0);
+    ctx.attempt_count = 4;
+
+    let escalation_state = super::RecoveryEscalationState {
+        device_ops: &ops,
+        event_tx: &tx,
+        runtime_config: &runtime,
+        state: &state,
+        progress: &progress,
+        current_recovery: &current,
+        is_cancelled: &is_cancelled,
+        gave_up: &gave_up,
+        mount_id: Some("mount-1"),
+        cover_id: Some("cover-1"),
+        dome_id: Some("dome-1"),
+    };
+
+    super::apply_recovery_escalation(
+        &escalation_state,
+        &ctx,
+        "Consecutive-reject storm: paused for operator".to_string(),
+        true, // stop_tracking — recovery had stopped it
+    )
+    .await;
+
+    // Let the listener observe the already-sent Paused event and record its marker.
+    let _ = listener.await;
+
+    let calls = ops_concrete.calls();
+
+    // (1) The restore actually happened — tracking was re-enabled on the mount.
+    let tracking_idx = ops_concrete
+        .index_of("mount_set_tracking:mount-1:true")
+        .unwrap_or_else(|| {
+            panic!(
+                "attended escalation MUST re-enable tracking before pausing; calls={calls:?}"
+            )
+        });
+
+    // (2) It happened BEFORE the run was flipped to Paused (no untracked-exposed
+    // resumable Pause).
+    let paused_idx = calls
+        .iter()
+        .position(|c| c == "EVENT:StateChanged(Paused)")
+        .expect("the run must reach Paused (StateChanged event was emitted)");
+    assert!(
+        tracking_idx < paused_idx,
+        "tracking must be restored BEFORE the run flips to Paused: {calls:?}"
+    );
+
+    // (3) An attended escalation is a PASSIVE pause — it must NOT park or close.
+    assert_eq!(
+        ops_concrete.call_count("mount_park:"),
+        0,
+        "attended escalation must NOT park the mount (operator may resume): {calls:?}"
+    );
+    assert_eq!(ops_concrete.call_count("cover_close:"), 0);
+    assert_eq!(ops_concrete.call_count("dome_close:"), 0);
+
+    // (4) Final state is a resumable Paused (tracking already restored), NOT
+    // Failed, and the run was not cancelled/given-up.
+    assert_eq!(*state.read().await, super::ExecutorState::Paused);
+    assert!(!is_cancelled.load(Ordering::Relaxed));
+    assert!(!gave_up.load(Ordering::Relaxed));
+}
+
+#[tokio::test]
+async fn scenario7b_unattended_escalation_safe_abandons_no_resumable_paused() {
+    // BLOCKER #1 — drive the UNATTENDED escalation (the SAFE default,
+    // operator_present == false). It must NOT flip to a passive Paused freeze;
+    // it must run the safe-state sweep (park -> close cover -> close dome) and
+    // END the run as Failed, with the node tree cancelled. A resumable Paused
+    // here would leave the rig dome-open with safety triggers disabled until
+    // dawn.
+    let ops_concrete = Arc::new(ScriptedDeviceOps::new());
+    let ops: SharedDeviceOps = ops_concrete.clone();
+
+    let EscalationFixture {
+        runtime,
+        state,
+        progress,
+        current,
+        is_cancelled,
+        gave_up,
+        tx,
+        mut rx,
+    } = escalation_fixture(false);
+
+    // Drain events so the bounded channel never lags the sender.
+    let drainer = tokio::spawn(async move { while rx.recv().await.is_ok() {} });
+
+    let mut ctx =
+        crate::recovery::RecoveryContext::new(RecoveryCause::ConsecutiveRejectsExceeded, 30.0, 600.0);
+    ctx.attempt_count = 4;
+
+    let escalation_state = super::RecoveryEscalationState {
+        device_ops: &ops,
+        event_tx: &tx,
+        runtime_config: &runtime,
+        state: &state,
+        progress: &progress,
+        current_recovery: &current,
+        is_cancelled: &is_cancelled,
+        gave_up: &gave_up,
+        mount_id: Some("mount-1"),
+        cover_id: Some("cover-1"),
+        dome_id: Some("dome-1"),
+    };
+
+    super::apply_recovery_escalation(
+        &escalation_state,
+        &ctx,
+        "Consecutive-reject storm: unattended".to_string(),
+        true,
+    )
+    .await;
+
+    drop(tx);
+    let _ = drainer.await;
+
+    let calls = ops_concrete.calls();
+
+    // The safe-state sweep ran in order: park -> close cover -> close dome.
+    let park_idx = ops_concrete
+        .index_of("mount_park:mount-1")
+        .unwrap_or_else(|| panic!("unattended escalation MUST park the mount; calls={calls:?}"));
+    let cover_idx = ops_concrete
+        .index_of("cover_close:cover-1")
+        .unwrap_or_else(|| panic!("unattended escalation MUST close the cover; calls={calls:?}"));
+    let dome_idx = ops_concrete
+        .index_of("dome_close:dome-1")
+        .unwrap_or_else(|| panic!("unattended escalation MUST close the dome; calls={calls:?}"));
+    assert!(
+        park_idx < cover_idx && cover_idx < dome_idx,
+        "safe-state order must be park -> cover -> dome: {calls:?}"
+    );
+
+    // It must NOT have re-enabled tracking and parked into a resumable Paused —
+    // the run is being ABANDONED, not handed back.
+    assert_eq!(
+        *state.read().await,
+        super::ExecutorState::Failed,
+        "unattended escalation must FAIL the run, never leave a resumable Paused"
+    );
+    assert!(
+        is_cancelled.load(Ordering::Relaxed),
+        "unattended escalation must cancel the node tree"
+    );
+    assert!(
+        gave_up.load(Ordering::Relaxed),
+        "unattended escalation must record give-up"
+    );
 }

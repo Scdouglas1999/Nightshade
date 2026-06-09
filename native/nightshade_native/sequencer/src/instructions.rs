@@ -5032,6 +5032,22 @@ pub async fn execute_meridian_flip(
 /// source of truth for the dome-shutter wait.
 const DOME_SHUTTER_TIMEOUT_SECS: f64 = 120.0;
 
+/// Result of waiting on a dome shutter to reach a commanded state. The `Ok`
+/// arm distinguishes a *confirmed* arrival from a *degraded* one so callers
+/// that need a genuine guarantee (the unattended safe-state sweep) can treat
+/// the unconfirmed case as unsafe while the per-instruction path keeps its
+/// roll-off-roof tolerance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DomeShutterWaitOutcome {
+    /// The dome reported it reached the commanded state.
+    Confirmed,
+    /// The dome never reported a definite shutter state (e.g. an INDI
+    /// roll-off without a `DOME_SHUTTER` switch). The command was issued but
+    /// arrival could NOT be confirmed. Surfaced, never silently treated as a
+    /// clean success.
+    Unconfirmed,
+}
+
 /// Poll the dome shutter status until it reaches `target` ("Open" or
 /// "Closed"), or fail closed on timeout / a reported Error.
 ///
@@ -5044,15 +5060,16 @@ const DOME_SHUTTER_TIMEOUT_SECS: f64 = 120.0;
 /// switches) cannot report shutter state and the bridge returns
 /// Unknown/"Error" for them. We must not fail those — so if EVERY poll comes
 /// back Unknown/"Error" (the device never reports a real state), we degrade
-/// LOUDLY (warn + event) and proceed rather than blocking a working roll-off
-/// roof. If the dome ever reports a real state but never reaches `target`
-/// within the timeout, that is a genuine failure and we fail closed.
+/// LOUDLY (warn + event) and return [`DomeShutterWaitOutcome::Unconfirmed`]
+/// rather than blocking a working roll-off roof OR claiming a clean success.
+/// If the dome ever reports a real state but never reaches `target` within the
+/// timeout, that is a genuine failure and we fail closed (`Err`).
 async fn wait_for_dome_shutter_state(
     ctx: &InstructionContext,
     dome_id: &str,
     target: &str,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
-) -> Result<(), InstructionResult> {
+) -> Result<DomeShutterWaitOutcome, InstructionResult> {
     const POLL_SECS: f64 = 2.0;
     let mut elapsed = 0.0_f64;
     // Whether the dome ever reported a definite (non-Unknown) state. If it
@@ -5067,7 +5084,7 @@ async fn wait_for_dome_shutter_state(
         match ctx.device_ops.dome_get_shutter_status(dome_id).await {
             Ok(status) => {
                 if status == target {
-                    return Ok(());
+                    return Ok(DomeShutterWaitOutcome::Confirmed);
                 }
                 if status == "Open" || status == "Closed" || status == "Opening"
                     || status == "Closing"
@@ -5101,7 +5118,10 @@ async fn wait_for_dome_shutter_state(
                 )));
             }
             // The dome never reported a real state — it cannot report shutter
-            // position. Degrade loudly rather than failing a working dome.
+            // position. Degrade loudly rather than failing a working dome, but
+            // do NOT claim a clean success: return Unconfirmed so a caller that
+            // needs a genuine guarantee (the unattended safe-state sweep) can
+            // treat the never-confirmed close as unsafe.
             let msg = format!(
                 "Dome shutter status unavailable; cannot confirm {target} \
                  (proceeding after issuing the command)"
@@ -5112,7 +5132,7 @@ async fn wait_for_dome_shutter_state(
                     message: msg,
                 });
             }
-            return Ok(());
+            return Ok(DomeShutterWaitOutcome::Unconfirmed);
         }
 
         sleep(Duration::from_secs_f64(POLL_SECS)).await;
@@ -5159,18 +5179,25 @@ pub async fn execute_open_dome(
     // Wait for the shutter to actually reach Open before declaring success —
     // previously this returned immediately while the shutter was still
     // moving, so the next instruction could slew/expose against a closed roof.
-    if let Err(failure) =
-        wait_for_dome_shutter_state(ctx, &dome_id, "Open", progress_callback).await
-    {
-        return failure;
-    }
+    let open_outcome =
+        match wait_for_dome_shutter_state(ctx, &dome_id, "Open", progress_callback).await {
+            Ok(outcome) => outcome,
+            Err(failure) => return failure,
+        };
 
     // Report completion
     if let Some(cb) = progress_callback {
         cb(100.0, "Dome shutter open".to_string());
     }
 
-    InstructionResult::success_with_message("Dome shutter opened")
+    match open_outcome {
+        DomeShutterWaitOutcome::Confirmed => {
+            InstructionResult::success_with_message("Dome shutter opened")
+        }
+        DomeShutterWaitOutcome::Unconfirmed => InstructionResult::success_with_message(
+            "Dome open command issued; shutter position could not be confirmed",
+        ),
+    }
 }
 
 /// Execute close dome
@@ -5207,18 +5234,25 @@ pub async fn execute_close_dome(
     // Confirm the shutter actually reached Closed — a roof that reports
     // "command accepted" but jams half-open would otherwise leave the scope
     // exposed for the rest of the night.
-    if let Err(failure) =
-        wait_for_dome_shutter_state(ctx, &dome_id, "Closed", progress_callback).await
-    {
-        return failure;
-    }
+    let close_outcome =
+        match wait_for_dome_shutter_state(ctx, &dome_id, "Closed", progress_callback).await {
+            Ok(outcome) => outcome,
+            Err(failure) => return failure,
+        };
 
     // Report completion
     if let Some(cb) = progress_callback {
         cb(100.0, "Dome shutter closed".to_string());
     }
 
-    InstructionResult::success_with_message("Dome shutter closed")
+    match close_outcome {
+        DomeShutterWaitOutcome::Confirmed => {
+            InstructionResult::success_with_message("Dome shutter closed")
+        }
+        DomeShutterWaitOutcome::Unconfirmed => InstructionResult::success_with_message(
+            "Dome close command issued; shutter position could not be confirmed",
+        ),
+    }
 }
 
 /// Execute park dome
@@ -6465,6 +6499,66 @@ mod tests {
         assert!(
             ops.dome_shutter_status_calls.load(Ordering::SeqCst) >= 2,
             "the timeout must be reached by repeated shutter-status polls"
+        );
+    }
+
+    /// v4 SHOULD-FIX — `wait_for_dome_shutter_state` must NOT return a clean
+    /// "Dome shutter closed" success when the shutter state could never be
+    /// confirmed. A roof that can never report position ("Unknown" forever)
+    /// is tolerated (a working roll-off must not be failed), but the success
+    /// message MUST surface that arrival was unconfirmed — otherwise the
+    /// operator reads "closed" while the roof's true state is unknown.
+    ///
+    /// Fails WITHOUT the fix: the old code returned
+    /// `success_with_message("Dome shutter closed")` with no caveat.
+    #[tokio::test(start_paused = true)]
+    async fn test_close_dome_surfaces_unconfirmed_when_shutter_never_reports_state() {
+        // Never a definite state — the dome cannot report shutter position.
+        let ops = Arc::new(
+            ScriptedDomeRotatorOps::new().with_dome_shutter_states(&["Unknown"]),
+        );
+        let ctx = ctx_with_ops(ops.clone()).await;
+        let cfg = DomeConfig { shutter_only: true };
+
+        let result = execute_close_dome(&cfg, &ctx, None).await;
+
+        // We do NOT fail a roof that simply can't report position...
+        assert_eq!(
+            result.status,
+            NodeStatus::Success,
+            "a roll-off that cannot report shutter position must not be failed"
+        );
+        // ...but the message must say the position could not be confirmed,
+        // never a bare "Dome shutter closed".
+        let msg = result.message.unwrap_or_default();
+        assert!(
+            msg.contains("could not be confirmed"),
+            "close must surface the unconfirmed shutter position, got: {msg:?}"
+        );
+        assert!(
+            !msg.eq("Dome shutter closed"),
+            "an unconfirmed close must not claim a clean 'Dome shutter closed'"
+        );
+    }
+
+    /// Control: a healthy close that confirms Closed reports the plain
+    /// "Dome shutter closed" success (the verification must not add a caveat
+    /// to a genuinely-confirmed close).
+    #[tokio::test(start_paused = true)]
+    async fn test_close_dome_confirmed_reports_plain_success() {
+        let ops = Arc::new(
+            ScriptedDomeRotatorOps::new().with_dome_shutter_states(&["Closing", "Closed"]),
+        );
+        let ctx = ctx_with_ops(ops.clone()).await;
+        let cfg = DomeConfig { shutter_only: true };
+
+        let result = execute_close_dome(&cfg, &ctx, None).await;
+
+        assert_eq!(result.status, NodeStatus::Success);
+        assert_eq!(
+            result.message.as_deref(),
+            Some("Dome shutter closed"),
+            "a confirmed close reports the plain success message"
         );
     }
 }
