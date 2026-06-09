@@ -44,6 +44,17 @@ import WidgetKit
   /// the registration callback and the Dart channel listener race at launch.
   private var apnsDeviceTokenHex: String?
 
+  /// The `UNUserNotificationCenter` delegate that `flutter_local_notifications`
+  /// installs during Dart `initialize()`. We re-claim ownership of the center
+  /// delegate (see `reclaimNotificationCenterDelegate`) so this host's
+  /// `willPresent` governs REMOTE (APNs) notifications — the plugin only owns
+  /// the LOCAL notifications it scheduled and otherwise leaves remote pushes
+  /// silent in the foreground. For local notifications we forward both
+  /// `willPresent` and `didReceive` back to this captured delegate so the
+  /// plugin's per-notification `DarwinNotificationDetails` flags and tap
+  /// handling keep working unchanged.
+  private weak var flutterNotificationDelegate: UNUserNotificationCenterDelegate?
+
   override func application(
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
@@ -128,7 +139,40 @@ import WidgetKit
       self.pushChannel = pushChannel
     }
 
-    return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+    let didFinish = super.application(
+      application, didFinishLaunchingWithOptions: launchOptions)
+    // The plugin installs its center delegate during Dart `initialize()`, which
+    // runs after this method returns, so a single claim here is too early.
+    // `applicationDidBecomeActive` re-claims after the engine is up (and on
+    // every foreground), which is idempotent — see `reclaimNotificationCenterDelegate`.
+    reclaimNotificationCenterDelegate()
+    return didFinish
+  }
+
+  /// Re-assert this `AppDelegate` as the `UNUserNotificationCenter` delegate so
+  /// the host `willPresent` (which forces `.sound` for remote critical alerts)
+  /// is not shadowed by the delegate `flutter_local_notifications` installs.
+  ///
+  /// Idempotent: if the current delegate is already us, do nothing. If it is the
+  /// plugin's delegate, capture it (for local-notification forwarding) and take
+  /// over. Called after launch and on every `applicationDidBecomeActive`, so it
+  /// re-wins after the plugin's deferred Dart `initialize()` sets its own
+  /// delegate.
+  private func reclaimNotificationCenterDelegate() {
+    let center = UNUserNotificationCenter.current()
+    let current = center.delegate
+    if current === self {
+      return
+    }
+    if let current = current {
+      flutterNotificationDelegate = current
+    }
+    center.delegate = self
+  }
+
+  override func applicationDidBecomeActive(_ application: UIApplication) {
+    super.applicationDidBecomeActive(application)
+    reclaimNotificationCenterDelegate()
   }
 
   // MARK: - APNs registration (Phase E)
@@ -203,24 +247,44 @@ import WidgetKit
   /// arrives while the app is open — exactly when an operator is staring at the
   /// live view and a safety alert fires. Critical alerts (weather unsafe, mount
   /// runaway, guiding lost, equipment disconnect — see CRITICAL_ALERTS_SETUP.md)
-  /// must surface with sound even in the foreground, so we always request
-  /// `.sound` alongside the banner/list presentation.
+  /// must surface with sound even in the foreground.
   ///
-  /// Delegate ownership note: `flutter_local_notifications` (v18) installs its
-  /// OWN `UNUserNotificationCenter.current().delegate` during Dart
-  /// `initialize()`, and that delegate honours the per-notification
-  /// `DarwinNotificationDetails(presentAlert/presentSound/...)` flags the Dart
-  /// side already sets. This override is the host-level safety net that governs
-  /// (a) the launch window before Dart `initialize()` runs and (b) any
-  /// REMOTE (APNs) notification, which the local-notifications plugin does not
-  /// own. For remote critical alerts we force `.sound`. The two paths agree:
-  /// the Dart safety notifications also request foreground sound.
+  /// Delegate ownership: `flutter_local_notifications` (v18) installs its OWN
+  /// `UNUserNotificationCenter` delegate during Dart `initialize()`, which would
+  /// shadow this override entirely — including for REMOTE (APNs) pushes the
+  /// plugin does not own, leaving foreground critical alerts silent. We re-claim
+  /// the center delegate (`reclaimNotificationCenterDelegate`) so this method
+  /// governs presentation, then split by source:
+  ///   * REMOTE (APNs / `UNPushNotificationTrigger`): the plugin has no record
+  ///     of these, so WE force `.sound` for the foreground critical-alert path.
+  ///   * LOCAL: forward to the captured plugin delegate so its per-notification
+  ///     `DarwinNotificationDetails(presentAlert/presentSound/...)` flags (which
+  ///     already request foreground sound on the safety paths) stay authoritative.
+  /// If no plugin delegate was captured yet (launch window, before Dart
+  /// `initialize()`), we fall back to forcing sound — the safe default.
   override func userNotificationCenter(
     _ center: UNUserNotificationCenter,
     willPresent notification: UNNotification,
     withCompletionHandler completionHandler:
       @escaping (UNNotificationPresentationOptions) -> Void
   ) {
+    let isRemote = notification.request.trigger is UNPushNotificationTrigger
+    if !isRemote,
+      let plugin = flutterNotificationDelegate,
+      plugin.responds(
+        to: #selector(
+          UNUserNotificationCenterDelegate.userNotificationCenter(
+            _:willPresent:withCompletionHandler:)))
+    {
+      // Local notification owned by the plugin — let it decide presentation so
+      // its per-notification flags govern. (Forwarding keeps the plugin's
+      // contract intact even though we own the delegate slot.)
+      plugin.userNotificationCenter!(
+        center, willPresent: notification, withCompletionHandler: completionHandler)
+      return
+    }
+    // Remote push (or pre-initialize launch window): force sound so a
+    // foreground critical alert is never silently swallowed.
     let options: UNNotificationPresentationOptions
     if #available(iOS 14.0, *) {
       options = [.banner, .list, .sound]
@@ -228,6 +292,29 @@ import WidgetKit
       options = [.alert, .sound]
     }
     completionHandler(options)
+  }
+
+  /// Forward notification-tap responses to the plugin delegate so taps on LOCAL
+  /// notifications still reach Dart (`onDidReceiveNotificationResponse`). We own
+  /// the delegate slot for the `willPresent` safety net above, so without this
+  /// the plugin would never see taps. Remote-only responses with no plugin
+  /// delegate simply complete.
+  override func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
+  ) {
+    if let plugin = flutterNotificationDelegate,
+      plugin.responds(
+        to: #selector(
+          UNUserNotificationCenterDelegate.userNotificationCenter(
+            _:didReceive:withCompletionHandler:)))
+    {
+      plugin.userNotificationCenter!(
+        center, didReceive: response, withCompletionHandler: completionHandler)
+      return
+    }
+    completionHandler()
   }
 
   // MARK: - Watch complication (Wave 7D)

@@ -16,10 +16,15 @@ the build, sign it, and ship it.
 >   Live Activities keys, Bonjour, and usage strings were already present.
 > - `Runner/Runner.entitlements`: added `aps-environment = development`, the
 >   App Group `group.com.nightshade.app`, and kept the existing Critical Alerts
->   key.
-> - `project.pbxproj`: set `CODE_SIGN_ENTITLEMENTS = Runner/Runner.entitlements`
->   on all three Runner build configs (Debug/Release/Profile). This is the one
->   build-setting edit; it was verified to keep the pbxproj structurally intact.
+>   key. Used by the **Debug** and **Profile** configs.
+> - `Runner/RunnerRelease.entitlements`: a sibling file identical except
+>   `aps-environment = production`. Used by the **Release** config. iOS does NOT
+>   auto-rewrite `development`->`production`, so the production value must live
+>   in a real file that the Release config signs against (see §6).
+> - `project.pbxproj`: set `CODE_SIGN_ENTITLEMENTS` per Runner build config —
+>   `Runner/Runner.entitlements` for Debug + Profile,
+>   `Runner/RunnerRelease.entitlements` for Release. These are the only
+>   build-setting edits; the pbxproj stays structurally intact.
 > - `AppDelegate.swift`: APNs registration + token forwarding over the
 >   `nightshade/push` MethodChannel, plus foreground critical-alert
 >   presentation.
@@ -92,9 +97,20 @@ The **Critical Alerts** entitlement is special — see §5. It will show as
 present in the entitlements file but Apple must grant it before it does
 anything.
 
-After saving, re-open `Runner.entitlements` and confirm these keys survive:
+After saving, re-open BOTH `Runner.entitlements` and
+`RunnerRelease.entitlements` and confirm these keys survive in each:
 `aps-environment`, `com.apple.security.application-groups`,
-`com.apple.developer.usernotifications.critical-alerts`.
+`com.apple.developer.usernotifications.critical-alerts`. The only intended
+difference between the two files is `aps-environment` (`development` in
+`Runner.entitlements`, `production` in `RunnerRelease.entitlements`).
+
+> Capability edits in the GUI rewrite whichever entitlements file is bound to
+> the **currently selected scheme/configuration**. Adding a capability while the
+> active config is Debug touches `Runner.entitlements` only; switch the scheme
+> to Release (Edit Scheme → Run → Build Configuration → Release, or use the
+> Archive configuration) and add it again so `RunnerRelease.entitlements` gets
+> the same capability. Easiest: add every capability once per config, then
+> diff the two files — they must match except for the `aps-environment` value.
 
 ---
 
@@ -118,9 +134,13 @@ expects an APNs **token-based** auth key (`.p8`).
 
 > APNs environment: development tokens (from a development build) only work
 > against the APNs **sandbox** host; App Store / TestFlight builds use the
-> **production** host. The `aps-environment` value flips automatically with the
-> signing profile (see §6). The desktop delivery must target the host matching
-> the build that produced the token.
+> **production** host. The `aps-environment` value is fixed per build
+> configuration by the entitlements file that config signs against — Debug and
+> Profile ship `development` (`Runner.entitlements`), Release ships `production`
+> (`RunnerRelease.entitlements`). iOS does NOT auto-flip it from the
+> provisioning profile (see §6). The desktop delivery must target the APNs host
+> matching the build that produced the token (sandbox for dev/Profile builds,
+> production for Release/TestFlight/App Store builds).
 
 ---
 
@@ -221,10 +241,38 @@ Alerts grant) you must:
 3. Repeat for each extension's App ID (Live Activity, Watch, App Intents) — each
    gets its own App ID and profile.
 
-`aps-environment` resolves from the profile: a **development** profile embeds
-`development`, a **distribution** profile embeds `production`. Do not hard-code
-`production` in the entitlements file — it would break development device
-installs (the file ships `development` for exactly this reason).
+### `aps-environment`: per-configuration, NOT auto-rewritten
+
+A common myth is that Xcode rewrites `aps-environment` from `development` to
+`production` when you archive with a distribution profile. **It does not.** The
+embedded `aps-environment` entitlement is taken **verbatim** from the
+entitlements file that the active build configuration's `CODE_SIGN_ENTITLEMENTS`
+points at. The provisioning profile must *permit* the value (a distribution
+profile's `aps-environment` allows `production`), but it does not *change* the
+value your binary ships.
+
+This repo handles it with two entitlements files, bound per configuration in
+`project.pbxproj`:
+
+| Build configuration | `CODE_SIGN_ENTITLEMENTS` | `aps-environment` |
+| --- | --- | --- |
+| Debug | `Runner/Runner.entitlements` | `development` (sandbox) |
+| Profile | `Runner/Runner.entitlements` | `development` (sandbox) |
+| Release | `Runner/RunnerRelease.entitlements` | `production` |
+
+Consequences:
+
+- **Archive / TestFlight / App Store** builds use the **Release** configuration,
+  so they sign against `RunnerRelease.entitlements` and ship
+  `aps-environment=production`. The desktop must send those tokens via the APNs
+  **production** host. If a Release build shipped `development`, the production
+  host would reject every token with `BadDeviceToken` and all cellular safety
+  pushes would silently fail.
+- **`flutter run` / dev device installs** use the **Debug** configuration and
+  ship `development`, so they keep working against the APNs **sandbox** host.
+  This is why `Runner.entitlements` must NOT be hard-coded to `production`.
+- Do not collapse the two files back into one. A single `development` file
+  breaks production push; a single `production` file breaks dev installs.
 
 ---
 
@@ -245,7 +293,13 @@ entitlements):
   token with <host>:<port>`. Cross-check the desktop log for `registered apns
   token for device=<id>` from `PushHandlers`.
 - **Foreground critical alert:** with the app open, trigger a safety event on
-  the desktop; the banner + sound should present (the `willPresent` override).
+  the desktop; the banner + sound should present. The host `AppDelegate`
+  re-claims the `UNUserNotificationCenter` delegate (so the plugin's delegate
+  does not shadow it) and forces `.sound` for REMOTE/APNs pushes, while
+  forwarding LOCAL notifications back to `flutter_local_notifications`. Verify a
+  **remote** (cellular/APNs) critical alert plays sound while foregrounded, and
+  that tapping a **local** notification still routes into the app (the plugin's
+  tap handler must still fire — that path is forwarded, not stolen).
 - **Background/asleep critical alert:** lock the phone, take it off the LAN
   (cellular only), trigger a safety event; the APNs push should wake it (needs
   the Critical Alerts grant + the desktop APNs key from §3).
@@ -281,7 +335,8 @@ entitlements):
 | Dart token POST | `apps/mobile/lib/services/push_registration_service.dart` → `POST /api/push/register-token` body `{deviceId, platform:"apns", token}` |
 | Connect-flow wiring | `apps/mobile/lib/main_parts/mobile_connection_ops.dart` (`_registerPushTokenIfIos`) |
 | Server endpoint | `apps/desktop/lib/headless_api/handlers/push_handlers.dart` (`handleRegisterToken`; accepts `platform ∈ {fcm, apns}`) |
-| Entitlements | `apps/mobile/ios/Runner/Runner.entitlements` |
+| Entitlements (Debug/Profile, `aps-environment=development`) | `apps/mobile/ios/Runner/Runner.entitlements` |
+| Entitlements (Release, `aps-environment=production`) | `apps/mobile/ios/Runner/RunnerRelease.entitlements` |
 | Background modes | `apps/mobile/ios/Runner/Info.plist` (`UIBackgroundModes`) |
 | Critical Alerts runbook | `apps/mobile/ios/CRITICAL_ALERTS_SETUP.md` |
 | Watch setup | `apps/mobile/ios/NightshadeWatchComplication/SETUP.md` |

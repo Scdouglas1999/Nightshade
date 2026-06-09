@@ -967,7 +967,7 @@ packages:
       path: "../desktop"
       relative: true
     source: path
-    version: "3.1.0+14"
+    version: "4.0.0+15"
   nightshade_planetarium:
     dependency: "direct main"
     description:

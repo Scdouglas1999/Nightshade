@@ -71,9 +71,17 @@ class PushRegistrationService {
   /// can still be registered against the right host without re-plumbing.
   _RegistrationTarget? _target;
 
-  /// The last token we successfully POSTed, to suppress redundant re-posts on
-  /// every foreground (APNs hands back the same token unless it rotated).
-  String? _lastRegisteredToken;
+  /// The last `(host:port + deviceId + token)` tuple we successfully POSTed,
+  /// to suppress redundant re-posts on every foreground (APNs hands back the
+  /// same token unless it rotated).
+  ///
+  /// CRITICAL: the gate keys on the *target* (host:port) and deviceId, not just
+  /// the token. APNs returns the SAME token across desktop servers, so gating
+  /// on the token alone would skip the POST after a re-pair/server-switch and
+  /// the new server would never learn the token — silently losing the cellular
+  /// safety-push path. Including the target forces a re-POST whenever we switch
+  /// or re-pair a server even when the token itself is unchanged.
+  String? _lastRegistered;
 
   /// Ensure this device's APNs token is registered with [backend] for the
   /// paired [deviceId].
@@ -83,7 +91,9 @@ class PushRegistrationService {
   ///   * asks the host to (re)register for remote notifications,
   ///   * pulls any already-cached token synchronously (covers the case where
   ///     the OS callback fired before this Dart object existed),
-  ///   * POSTs the token if we have one and it changed since last time.
+  ///   * POSTs the token if we have one and the
+  ///     `(host:port + deviceId + token)` tuple changed since last time (so a
+  ///     server switch re-POSTs even when APNs hands back the same token).
   ///
   /// Never throws to the caller — push registration is best-effort and must
   /// not break the connect path. Failures are logged.
@@ -138,11 +148,16 @@ class PushRegistrationService {
     }
   }
 
-  /// Forget the last-registered token so the next [ensureRegistered] re-POSTs
+  /// Forget the last-registered tuple so the next [ensureRegistered] re-POSTs
   /// even if the OS hands back the same token. Call on unpair / server switch
   /// so a token isn't assumed registered against a server it was never sent to.
+  ///
+  /// The target-keyed no-op gate ([_lastRegistered]) already forces a re-POST
+  /// on a server switch on its own; this stays as an explicit belt-and-braces
+  /// hook for disconnect/unpair where the caller wants to drop all cached
+  /// registration state.
   void reset() {
-    _lastRegisteredToken = null;
+    _lastRegistered = null;
     _target = null;
   }
 
@@ -197,7 +212,9 @@ class PushRegistrationService {
 
   /// POST the hex APNs token to the paired server's register-token endpoint.
   /// Idempotent server-side (upsert keyed on deviceId+platform); we additionally
-  /// suppress a re-POST of an unchanged token to save a round trip.
+  /// suppress a redundant re-POST when the `(host:port + deviceId + token)`
+  /// tuple is unchanged, to save a round trip — but a target/deviceId change
+  /// always re-POSTs even when APNs hands back the same token.
   Future<void> _postToken(String token) async {
     final target = _target;
     if (target == null) {
@@ -210,7 +227,15 @@ class PushRegistrationService {
       );
       return;
     }
-    if (token == _lastRegisteredToken) {
+    // Key the no-op gate on (host:port + deviceId + token), NOT the token
+    // alone. APNs hands back the same token across servers, so a token-only
+    // gate would skip this POST after a re-pair/server-switch and the new
+    // server would never learn the token. Folding the target in forces a
+    // re-POST whenever we point at a different host/port or pair as a
+    // different deviceId, even when the token itself is unchanged.
+    final registrationKey =
+        '${target.host}:${target.port}|${target.deviceId}|$token';
+    if (registrationKey == _lastRegistered) {
       return;
     }
 
@@ -238,7 +263,7 @@ class PushRegistrationService {
           .timeout(const Duration(seconds: 15));
 
       if (response.statusCode == 200) {
-        _lastRegisteredToken = token;
+        _lastRegistered = registrationKey;
         developer.log(
           'Registered APNs token with ${target.host}:${target.port}',
           name: 'PushRegistration',

@@ -170,6 +170,12 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
               level: 1000,
             );
             _stopConnectionMonitor();
+            // Drop cached APNs registration state: the next connect may land on
+            // a different desktop, and APNs hands back the same token across
+            // servers. Without this the target-keyed gate in the service is the
+            // only thing forcing a re-POST; resetting here is belt-and-braces so
+            // a re-pair can never be assumed already-registered. (Blocker #8.)
+            _pushRegistration?.reset();
             ref.read(backendProvider.notifier).disconnect();
             ref.read(connectionStaleProvider.notifier).state = false;
             // Audit P1-18: reset the once-per-lifetime checkpoint flag so
@@ -772,7 +778,10 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
       _isDiscovering = false;
       _error = null;
     });
-    // Ensure backend is disconnected
+    // Ensure backend is disconnected. Drop cached APNs registration so a later
+    // connect to a (possibly different) desktop re-POSTs the token rather than
+    // assuming it is already registered there (Blocker #8).
+    _pushRegistration?.reset();
     ref.read(backendProvider.notifier).disconnect();
   }
 

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  RELEASE / distribution entitlements.
+
+	  Identical to Runner/Runner.entitlements EXCEPT `aps-environment` is
+	  `production`. iOS does NOT auto-rewrite `development` -> `production` for
+	  a distribution archive: the embedded entitlement is taken verbatim from
+	  whichever file CODE_SIGN_ENTITLEMENTS points at for the active build
+	  configuration. The Release config points here (see project.pbxproj); the
+	  Debug/Profile configs keep Runner/Runner.entitlements (`development`).
+
+	  A development token only works against the APNs sandbox host; a build that
+	  ships `aps-environment=production` produces a token the desktop must send
+	  via the APNs production host. Shipping `development` in a TestFlight / App
+	  Store build yields a sandbox-only token that the production APNs host
+	  rejects with BadDeviceToken — silently losing every cellular safety push.
+	  See docs/ios-release-setup.md §APNs.
+	-->
+	<key>com.apple.developer.usernotifications.critical-alerts</key>
+	<true/>
+	<key>aps-environment</key>
+	<string>production</string>
+	<key>com.apple.security.application-groups</key>
+	<array>
+		<string>group.com.nightshade.app</string>
+	</array>
+</dict>
+</plist>

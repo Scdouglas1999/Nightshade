@@ -199,6 +199,73 @@ void main() {
       expect(httpCalls, 1, reason: 'same token must POST only once');
     });
 
+    test(
+        'switching server target re-POSTs the same token (Blocker #8: '
+        'APNs hands back the same token across servers)', () async {
+      final targets = <String>[];
+      final client = MockClient((req) async {
+        targets.add('${req.url.host}:${req.url.port}');
+        return http.Response('{}', 200);
+      });
+      final service = PushRegistrationService(
+        channel: channel,
+        httpClient: client,
+        isIosOverride: true,
+      );
+      addTearDown(service.dispose);
+
+      // Register with server A. getApnsToken returns the SAME 'a1b2c3d4' below
+      // regardless of which server we point at — exactly the production case
+      // where APNs reissues the identical device token on the next connect.
+      await service.ensureRegistered(
+        backend: buildBackend(host: 'serverA.local', port: 8080),
+        deviceId: 'mobile:x',
+      );
+      // Re-pair / switch to server B with the unchanged token. The pre-fix
+      // token-only gate suppressed this POST, so server B never learned the
+      // token and no cellular alerts could reach the phone.
+      await service.ensureRegistered(
+        backend: buildBackend(host: 'serverB.local', port: 9090),
+        deviceId: 'mobile:x',
+      );
+
+      // Uri lowercases the host on the wire; assert against that canonical form.
+      expect(
+        targets,
+        ['servera.local:8080', 'serverb.local:9090'],
+        reason: 'a target change must force a re-POST even when the APNs '
+            'token is unchanged',
+      );
+    });
+
+    test(
+        'switching deviceId (re-pair as a different device) re-POSTs the same '
+        'token', () async {
+      final deviceIds = <String>[];
+      final client = MockClient((req) async {
+        final body = jsonDecode(req.body) as Map<String, dynamic>;
+        deviceIds.add(body['deviceId'] as String);
+        return http.Response('{}', 200);
+      });
+      final service = PushRegistrationService(
+        channel: channel,
+        httpClient: client,
+        isIosOverride: true,
+      );
+      addTearDown(service.dispose);
+
+      final backend = buildBackend();
+      await service.ensureRegistered(backend: backend, deviceId: 'mobile:old');
+      await service.ensureRegistered(backend: backend, deviceId: 'mobile:new');
+
+      expect(
+        deviceIds,
+        ['mobile:old', 'mobile:new'],
+        reason: 'a deviceId change must force a re-POST even when the APNs '
+            'token and target host are unchanged',
+      );
+    });
+
     test('reset() forces a re-POST of the same token', () async {
       var httpCalls = 0;
       final client = MockClient((req) async {

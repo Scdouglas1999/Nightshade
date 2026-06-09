@@ -26,13 +26,21 @@
 	  apps/mobile/lib/services/push_registration_service.dart and the server's
 	  POST /api/push/register-token, platform=apns).
 
-	  The value is `development` here so local device builds and TestFlight
-	  internal builds work without manual flips. Xcode/`flutter build ios`
-	  AUTOMATICALLY rewrites this to `production` for an App Store / release
-	  archive when the chosen provisioning profile is a distribution profile —
-	  the embedded entitlements are taken from the profile, not this file, for
-	  signed Release archives. Do NOT hard-code `production`: that would break
-	  development device installs. See docs/ios-release-setup.md §APNs.
+	  This file ships `development` and is the entitlements file for the Debug
+	  and Profile build configurations only.
+
+	  IMPORTANT — iOS does NOT auto-rewrite `development` -> `production`. The
+	  embedded entitlement is taken VERBATIM from whichever entitlements file
+	  CODE_SIGN_ENTITLEMENTS points at for the active build configuration; it is
+	  NOT derived from the provisioning profile. So a Release archive that signs
+	  against THIS file would ship a sandbox-only APNs token and every cellular
+	  safety push would be rejected (BadDeviceToken) by the production APNs host.
+
+	  The real per-configuration handling: the Release build configuration points
+	  CODE_SIGN_ENTITLEMENTS at Runner/RunnerRelease.entitlements (which sets
+	  `aps-environment=production`); Debug/Profile keep THIS file. Do NOT
+	  hard-code `production` here — that would break development device installs
+	  (a dev build needs a sandbox token). See docs/ios-release-setup.md §APNs.
 	-->
 	<key>aps-environment</key>
 	<string>development</string>
