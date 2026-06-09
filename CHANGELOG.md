@@ -51,6 +51,29 @@ cellular-push keys, on-sky tuning) that flip the gated bits live.
 - Residual hardware-safety hardening: ASCOM exposure-param apply, real **Pause**
   for parallel/target-header subtrees, disconnect-retry, reject-storm → pause,
   meridian-flip dry-run. Manual **OTA rollback**.
+- **Structural daylight gate (W1 backstop)** — the native executor now refuses to
+  slew-to-target or expose a science frame while the Sun is above the darkness
+  limit, independent of the Dart autopilot. Defaults to −12° (nautical dark),
+  exactly the Dart scheduler's limit, so *any* executor-run sequence — including
+  raw, non-autopilot ones — inherits the no-daylight-imaging guarantee.
+
+### Automated mosaics (planner → capture → stitch)
+- **Plan a tiled panorama, capture it unattended, wake up to one seamless
+  master.** Lay out an N×M mosaic in the planner (panel grid, overlap, rotation)
+  and commit it to a durable **mosaic project** (DB v45). Each panel becomes its
+  own catalog target, so its subs are attributed and pooled **per panel** —
+  neighbours never cross-contaminate.
+- **Panels run under the full autopilot** — sequenced like any other target, under
+  the same W1 daylight gate, fail-closed weather gate, and park-at-dawn safety as
+  a single-target night.
+- **Per-panel pristine master → native WCS stitch** — each panel integrates to its
+  own unmodified linear master (WCS stamped from its reference frame); the native
+  stitcher then reprojects every panel onto a common gnomonic-TAN canvas with
+  global least-squares photometric normalization and feather blending, emitting a
+  single seamless **master + coverage map + preview**. Pristine by default — the
+  stitched output is linear, for your own processing; nothing destructive applied.
+- **Mosaic project review UI** — a live panel grid (per-panel capture progress and
+  integration state) plus the stitched result, reachable at `/mosaic`.
 
 > Honest scope: every native algorithm is synthetic-tested; the first clear
 > night is a tuning pass (all finishing steps are fail-soft). iOS build/publish
