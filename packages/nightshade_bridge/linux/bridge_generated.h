@@ -3193,6 +3193,9 @@ void frbgen_nightshade_bridge_wire__crate__api__session__api_start_session(int64
                                                                            double *ra,
                                                                            double *dec);
 
+void frbgen_nightshade_bridge_wire__crate__api__mosaic__api_stitch_mosaic(int64_t port_,
+                                                                          struct wire_cst_list_prim_u_8_strict *args_json);
+
 void frbgen_nightshade_bridge_wire__crate__api__heartbeat__api_stop_device_heartbeat(int64_t port_,
                                                                                      struct wire_cst_list_prim_u_8_strict *device_id);
 
@@ -3910,6 +3913,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__init__api_init_with_logging);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__init__api_list_log_files);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__init__api_read_log_file);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__mosaic__api_stitch_mosaic);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_builtin_guider_get_config);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_builtin_guider_get_tracked_stars_json);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_builtin_guider_set_config);

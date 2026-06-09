@@ -28,6 +28,7 @@ mod fits;
 pub mod frame_weighting; // NEW: Per-sub quality weighting for batch integration
 pub mod integration; // NEW: Advanced weighted batch integration + pixel rejection
 pub mod master_accumulation; // NEW: Multi-night accumulating master frame
+pub mod mosaic_stitch; // NEW: WCS-driven panel mosaic stitching
 mod naming;
 pub mod normalization; // NEW: Light-frame normalization to a reference (batch integration)
 pub mod optimizer; // NEW: Marginal-SNR integration optimizer (subset recommendation)
@@ -57,6 +58,7 @@ pub use fits::*;
 pub use frame_weighting::*; // NEW: Export frame-weighting types
 pub use integration::*; // NEW: Export batch-integration types
 pub use master_accumulation::*; // NEW: Export accumulating-master types
+pub use mosaic_stitch::*; // NEW: Export mosaic-stitching types
 pub use naming::*;
 pub use normalization::*; // NEW: Export normalization types
 pub use optimizer::*; // NEW: Export integration-optimizer types

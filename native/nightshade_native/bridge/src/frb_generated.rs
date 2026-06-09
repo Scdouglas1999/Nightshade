@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1424257048;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1528165636;
 
 // Section: executor
 
@@ -8145,6 +8145,27 @@ fn wire__crate__api__session__api_start_session_impl(
                     })()
                     .await,
                 )
+            }
+        },
+    )
+}
+fn wire__crate__api__mosaic__api_stitch_mosaic_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    args_json: impl CstDecode<String>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_stitch_mosaic",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_args_json = args_json.cst_decode();
+            move |context| {
+                transform_result_dco::<_, _, String>((move || {
+                    let output_ok = crate::api::mosaic::api_stitch_mosaic(api_args_json)?;
+                    Ok(output_ok)
+                })())
             }
         },
     )
@@ -30031,6 +30052,14 @@ mod io {
         dec: *mut f64,
     ) {
         wire__crate__api__session__api_start_session_impl(port_, target_name, ra, dec)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__mosaic__api_stitch_mosaic(
+        port_: i64,
+        args_json: *mut wire_cst_list_prim_u_8_strict,
+    ) {
+        wire__crate__api__mosaic__api_stitch_mosaic_impl(port_, args_json)
     }
 
     #[unsafe(no_mangle)]

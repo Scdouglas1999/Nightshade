@@ -26,6 +26,7 @@ import 'api/heartbeat.dart';
 import 'api/hotplug.dart';
 import 'api/imaging.dart';
 import 'api/init.dart';
+import 'api/mosaic.dart';
 import 'api/phd2.dart';
 import 'api/plate_solve.dart';
 import 'api/polar_alignment.dart';
@@ -16043,6 +16044,28 @@ class RustLibWire implements BaseWire {
               ffi.Pointer<ffi.Double>,
               ffi.Pointer<ffi.Double>,
             )
+          >();
+
+  void wire__crate__api__mosaic__api_stitch_mosaic(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> args_json,
+  ) {
+    return _wire__crate__api__mosaic__api_stitch_mosaic(port_, args_json);
+  }
+
+  late final _wire__crate__api__mosaic__api_stitch_mosaicPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )
+        >
+      >('frbgen_nightshade_bridge_wire__crate__api__mosaic__api_stitch_mosaic');
+  late final _wire__crate__api__mosaic__api_stitch_mosaic =
+      _wire__crate__api__mosaic__api_stitch_mosaicPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
           >();
 
   void wire__crate__api__heartbeat__api_stop_device_heartbeat(

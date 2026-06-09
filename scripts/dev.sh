@@ -53,8 +53,12 @@ if [[ $SKIP_FRB -eq 0 ]]; then
     # that PASS `flutter analyze` yet break the Dart VM kernel FFI transform at
     # runtime. Point CPATH at clang's own resource headers (mirrors dev.ps1's
     # CPATH on Windows). Derived from clang so it survives toolchain bumps.
+    # CC=clang is REQUIRED with that CPATH: codegen's `cargo expand` compiles the
+    # libraw C shim, and on a GCC-default box GCC reads clang's __clang__-guarded
+    # stddef.h ahead of glibc, leaving `size_t` undefined and aborting the regen.
+    # Forcing clang as the shim compiler makes the resource-dir headers match.
     _clang_res="$(clang -print-resource-dir 2>/dev/null)"
-    ( cd "$NATIVE_DIR" && CPATH="${_clang_res:+$_clang_res/include:}/usr/include${CPATH:+:$CPATH}" flutter_rust_bridge_codegen generate )
+    ( cd "$NATIVE_DIR" && CC=clang CPATH="${_clang_res:+$_clang_res/include:}/usr/include${CPATH:+:$CPATH}" flutter_rust_bridge_codegen generate )
     ok "FRB bindings regenerated"
   else
     echo "  flutter_rust_bridge_codegen not found; install with:" >&2

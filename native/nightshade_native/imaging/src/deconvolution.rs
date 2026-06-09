@@ -1439,7 +1439,7 @@ mod tests {
         assert_eq!(field.pixel_type, crate::PixelType::F32);
         // Sanity: this really is a low-amplitude [0,1] frame the old code broke on.
         let max_v = f32_data.iter().cloned().fold(0.0f32, f32::max);
-        assert!(max_v <= 1.0 && max_v < 256.0, "frame must be normalized, peak {max_v}");
+        assert!(max_v <= 1.0, "frame must be normalized, peak {max_v}");
 
         for kind in [PsfKind::Gaussian, PsfKind::Moffat, PsfKind::Empirical] {
             let cfg = PsfEstimateConfig { max_stars: 60, crop: 21, kind };

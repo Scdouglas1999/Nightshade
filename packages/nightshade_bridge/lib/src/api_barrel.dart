@@ -27,6 +27,7 @@ export 'api/heartbeat.dart';
 export 'api/hotplug.dart';
 export 'api/imaging.dart';
 export 'api/init.dart';
+export 'api/mosaic.dart';
 export 'api/phd2.dart';
 export 'api/plate_solve.dart';
 export 'api/polar_alignment.dart';

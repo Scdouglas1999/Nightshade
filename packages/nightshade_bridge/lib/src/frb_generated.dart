@@ -26,6 +26,7 @@ import 'api/heartbeat.dart';
 import 'api/hotplug.dart';
 import 'api/imaging.dart';
 import 'api/init.dart';
+import 'api/mosaic.dart';
 import 'api/phd2.dart';
 import 'api/plate_solve.dart';
 import 'api/polar_alignment.dart';
@@ -100,7 +101,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1424257048;
+  int get rustContentHash => -1528165636;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -1475,6 +1476,8 @@ abstract class RustLibApi extends BaseApi {
     double? ra,
     double? dec,
   });
+
+  Future<String> crateApiMosaicApiStitchMosaic({required String argsJson});
 
   Future<void> crateApiHeartbeatApiStopDeviceHeartbeat({
     required String deviceId,
@@ -11844,6 +11847,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "api_start_session",
         argNames: ["targetName", "ra", "dec"],
+      );
+
+  @override
+  Future<String> crateApiMosaicApiStitchMosaic({required String argsJson}) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(argsJson);
+          return wire.wire__crate__api__mosaic__api_stitch_mosaic(port_, arg0);
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_String,
+          decodeErrorData: dco_decode_String,
+        ),
+        constMeta: kCrateApiMosaicApiStitchMosaicConstMeta,
+        argValues: [argsJson],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiMosaicApiStitchMosaicConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_stitch_mosaic",
+        argNames: ["argsJson"],
       );
 
   @override
