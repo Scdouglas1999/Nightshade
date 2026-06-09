@@ -15,6 +15,101 @@ use std::time::Duration;
 use tokio::sync::mpsc;
 use tokio::time::sleep;
 
+/// Architecture-unification 2026-06-07 (W1 native daylight gate): the default
+/// maximum Sun altitude (degrees above the horizon) at which an on-sky LIGHT
+/// capture is permitted. Mirrors the Dart scheduler's `maxSunAltitudeDegrees`
+/// default (`SchedulerConfig.maxSunAltitudeDegrees = -12.0`, nautical
+/// darkness) so the structural native gate is NEVER weaker than the Dart W1
+/// twilight gate it backstops. The Sun a few degrees below the horizon (civil
+/// twilight) is still far too bright for science LIGHT frames, so the default
+/// is slightly negative — the gate blocks while the Sun is above this.
+///
+/// Remediation 2026-06-09 (finding #2): this was previously `0.0`, which left a
+/// TWILIGHT GAP — for a Sun altitude between the Dart threshold (-12°) and 0°
+/// the Dart autopilot rejected but the native gate ALLOWED. The Dart side can
+/// still push a tighter/looser value at session start via
+/// [`crate::executor::ExecutorCommand::UpdateMaxSunAltitude`] /
+/// `SequenceExecutor::update_max_sun_altitude`; this constant is the floor used
+/// when nothing was pushed (and when a non-finite value is seen), so the native
+/// gate matches the Dart W1 gate even with no explicit push.
+pub const DEFAULT_MAX_SUN_ALTITUDE_DEGREES: f64 = -12.0;
+
+/// W1 native daylight gate — recovery code stamped on a START rejection so the
+/// UI / recovery layer can distinguish a daylight block from other slew/expose
+/// failures.
+pub const DAYLIGHT_GATE_RECOVERY_CODE: &str = "DAYLIGHT_GATE_SUN_UP";
+
+/// W1 native daylight gate decision.
+///
+/// Structural START gate applied by `execute_slew` (when slewing to a
+/// sky/science target) and `execute_exposure` (when capturing a LIGHT frame on
+/// a science target). It enforces the W1 "no daylight imaging" invariant for
+/// EVERY executor-run sequence — including a raw sequence started via
+/// `api_sequencer_start` (e.g. a mosaic) — not just the autopilot path that
+/// `scheduler_engine.dart` already gates. The same Sun-position math behind
+/// `ExecutionContext::is_dark` is reused via
+/// `crate::node::context::current_sun_altitude_degrees`.
+///
+/// Returns `Some(reason)` to BLOCK, `None` to allow. It is fail-closed only for
+/// a genuine on-sky LIGHT capture: when the observer location is unknown the
+/// gate ABSTAINS (returns `None`) rather than blocking, because without a
+/// location the Sun altitude cannot be computed and blocking would break
+/// location-less rigs doing legitimate work — the Dart W1 gate remains the
+/// belt-and-suspenders for the autopilot path. Flats/darks/bias/park and a
+/// parked rig never reach this function (their callers pass nothing that looks
+/// like an on-sky LIGHT capture), so daytime calibration / testing is
+/// unaffected.
+pub(crate) fn daylight_gate_block_reason(
+    latitude: Option<f64>,
+    longitude: Option<f64>,
+    max_sun_altitude_degrees: f64,
+    what: &str,
+) -> Option<String> {
+    let (lat, lon) = match (latitude, longitude) {
+        (Some(lat), Some(lon)) => (lat, lon),
+        _ => {
+            // No location => cannot compute Sun altitude. Abstain (the Dart W1
+            // gate still protects the autopilot path); never fabricate a block
+            // that would wedge a location-less rig.
+            tracing::debug!(
+                "Daylight gate abstaining for {what}: observer location unset (lat/lon None)"
+            );
+            return None;
+        }
+    };
+
+    let sun_alt = crate::node::context::current_sun_altitude_degrees(lat, lon);
+    let max_alt = if max_sun_altitude_degrees.is_finite() {
+        max_sun_altitude_degrees
+    } else {
+        DEFAULT_MAX_SUN_ALTITUDE_DEGREES
+    };
+
+    if sun_alt > max_alt {
+        Some(format!(
+            "Daylight gate: refusing {what} — Sun altitude {sun_alt:.1}° is above the \
+             maximum {max_alt:.1}° for on-sky light imaging. Daytime flats/darks/bias and \
+             a parked rig are unaffected; this blocks only on-sky science captures."
+        ))
+    } else {
+        None
+    }
+}
+
+/// W1 native daylight gate — resolve the effective maximum Sun altitude for a
+/// running sequence. Reads the executor-seeded value from the shared trigger
+/// state (mirrors `RuntimeConfig::max_sun_altitude_degrees`), falling back to
+/// [`DEFAULT_MAX_SUN_ALTITUDE_DEGREES`] when no trigger state is wired (one-shot
+/// instruction sites / tests) or the value has not been seeded.
+async fn resolve_max_sun_altitude(ctx: &InstructionContext) -> f64 {
+    if let Some(lock) = &ctx.trigger_state {
+        if let Some(v) = lock.read().await.max_sun_altitude_degrees {
+            return v;
+        }
+    }
+    DEFAULT_MAX_SUN_ALTITUDE_DEGREES
+}
+
 /// Result of an instruction execution
 pub struct InstructionResult {
     pub status: NodeStatus,
@@ -506,6 +601,27 @@ pub async fn execute_slew(
             _ => return InstructionResult::failure("No custom coordinates specified"),
         }
     };
+
+    // W1 native daylight gate (structural). A slew that points the rig at the
+    // active sky/science target (`use_target_coords`) is the on-sky pointing
+    // step of a LIGHT-frame run; refuse it while the Sun is up so a raw
+    // sequence started via `api_sequencer_start` (including a mosaic) cannot
+    // slew + expose lights in full daylight. Slews to custom coordinates
+    // (park positions, flat-panel pointing, alignment moves) are NOT gated —
+    // only the science-target slew. Abstains when the observer location is
+    // unset (see `daylight_gate_block_reason`).
+    if config.use_target_coords {
+        let max_sun_alt = resolve_max_sun_altitude(ctx).await;
+        if let Some(reason) = daylight_gate_block_reason(
+            ctx.latitude,
+            ctx.longitude,
+            max_sun_alt,
+            "slew to target",
+        ) {
+            tracing::warn!("{reason}");
+            return InstructionResult::failure_with_recovery(reason, DAYLIGHT_GATE_RECOVERY_CODE);
+        }
+    }
 
     tracing::info!("Slewing to RA: {:.4}h, Dec: {:.4}°", ra, dec);
 
@@ -1354,6 +1470,53 @@ pub async fn execute_exposure_with_renderer(
         Ok(id) => id.to_string(),
         Err(e) => return e,
     };
+
+    // W1 native daylight gate (structural). The generic exposure path always
+    // produces LIGHT frames (`FrameContext::new_light`); a science target is
+    // active iff a TargetHeader has stamped `target_ra`/`target_dec` onto the
+    // context. That pairing — a real on-sky target + a LIGHT exposure — is
+    // exactly the daytime-imaging hazard W1 forbids, so refuse it while the Sun
+    // is up. Flats/darks/bias take this path only outside a TargetHeader (no
+    // target coords) OR with the mount parked, so they are NOT gated; the
+    // FlatWizard / cover-calibrator paths never reach here. We additionally
+    // require the mount to be NOT parked: a parked rig capturing inside a
+    // target subtree (e.g. building a dark library while parked) is not an
+    // on-sky light and must stay allowed.
+    if ctx.target_ra.is_some() && ctx.target_dec.is_some() {
+        let on_sky = match &ctx.mount_id {
+            // No mount configured: there is no rig to point at the sky, so this
+            // cannot be an on-sky light capture — abstain.
+            None => false,
+            Some(mount_id) => match ctx.device_ops.mount_is_parked(mount_id).await {
+                // Parked rig => calibration/darks, never on-sky lights.
+                Ok(true) => false,
+                Ok(false) => true,
+                // Park status unknown (old driver): treat as on-sky so the gate
+                // fails CLOSED on a genuine science-target light capture.
+                Err(e) => {
+                    tracing::debug!(
+                        "Daylight gate could not read mount park status ({e}); treating as on-sky (fail-closed)"
+                    );
+                    true
+                }
+            },
+        };
+        if on_sky {
+            let max_sun_alt = resolve_max_sun_altitude(ctx).await;
+            if let Some(reason) = daylight_gate_block_reason(
+                ctx.latitude,
+                ctx.longitude,
+                max_sun_alt,
+                "light-frame exposure",
+            ) {
+                tracing::warn!("{reason}");
+                return InstructionResult::failure_with_recovery(
+                    reason,
+                    DAYLIGHT_GATE_RECOVERY_CODE,
+                );
+            }
+        }
+    }
 
     // Audit §1.15: log "(no filter set)" instead of substituting a filter
     // name like "unfiltered". The substituted token used to look like a
@@ -6022,6 +6185,10 @@ mod tests {
         dome_park_calls: AtomicU32,
         /// When `Some`, `dome_close` fails with this message.
         dome_close_error: Option<String>,
+        /// W1 daylight gate — value returned by `mount_is_parked`. Defaults to
+        /// `false` (matching NullDeviceOps); the parked-rig gate test sets it
+        /// `true` to prove a parked exposure is never daylight-gated.
+        mount_parked: bool,
     }
 
     impl ScriptedDomeRotatorOps {
@@ -6036,7 +6203,13 @@ mod tests {
                 dome_close_calls: AtomicU32::new(0),
                 dome_park_calls: AtomicU32::new(0),
                 dome_close_error: None,
+                mount_parked: false,
             }
+        }
+
+        fn with_mount_parked(mut self, parked: bool) -> Self {
+            self.mount_parked = parked;
+            self
         }
 
         fn with_rotator_angles(mut self, angles: Vec<f64>) -> Self {
@@ -6119,8 +6292,8 @@ mod tests {
         async fn mount_is_slewing(&self, id: &str) -> DeviceResult<bool> {
             self.inner.mount_is_slewing(id).await
         }
-        async fn mount_is_parked(&self, id: &str) -> DeviceResult<bool> {
-            self.inner.mount_is_parked(id).await
+        async fn mount_is_parked(&self, _id: &str) -> DeviceResult<bool> {
+            Ok(self.mount_parked)
         }
         async fn mount_can_flip(&self, id: &str) -> DeviceResult<bool> {
             self.inner.mount_can_flip(id).await
@@ -6559,6 +6732,264 @@ mod tests {
             result.message.as_deref(),
             Some("Dome shutter closed"),
             "a confirmed close reports the plain success message"
+        );
+    }
+
+    // =====================================================================
+    // W1 native daylight gate (cluster: w1-daylight)
+    //
+    // The W1 "no daylight imaging" invariant was previously enforced ONLY in
+    // scheduler_engine.dart, so a raw sequence started via api_sequencer_start
+    // (including a mosaic) could slew + expose LIGHT frames in full daylight —
+    // the native executor had no Sun gate. These tests pin the structural
+    // native gate added to execute_slew / execute_exposure.
+    //
+    // Determinism: the Sun's real altitude depends on wall-clock + location,
+    // which we cannot pin here without a MockClock on the instruction layer.
+    // Instead we compute the live Sun altitude for a fixed observer and then
+    // drive the CONFIGURED threshold relative to it — `sun_alt - delta` is
+    // guaranteed "Sun up" (above max) and `sun_alt + delta` is guaranteed
+    // "Sun down" (below max), regardless of the date/time the test runs.
+    // =====================================================================
+
+    /// Fixed observer for the gate tests — a mid-northern-latitude site so the
+    /// Sun-altitude math is well-conditioned (away from the polar edge cases).
+    const TEST_LAT: f64 = 40.0;
+    const TEST_LON: f64 = -74.0;
+
+    fn live_sun_alt() -> f64 {
+        crate::node::context::current_sun_altitude_degrees(TEST_LAT, TEST_LON)
+    }
+
+    fn is_daylight_block(result: &InstructionResult) -> bool {
+        result.status == NodeStatus::Failure
+            && result
+                .message
+                .as_deref()
+                .is_some_and(|m| m.contains("Daylight gate"))
+    }
+
+    // --- pure helper: daylight_gate_block_reason ---
+
+    #[test]
+    fn daylight_gate_blocks_when_sun_above_max() {
+        let sun_alt = live_sun_alt();
+        // Threshold 5° BELOW the live Sun altitude => Sun is "up" relative to
+        // the configured max => must block.
+        let reason =
+            daylight_gate_block_reason(Some(TEST_LAT), Some(TEST_LON), sun_alt - 5.0, "test");
+        assert!(
+            reason.is_some(),
+            "Sun {sun_alt:.1}° above max {:.1}° must block",
+            sun_alt - 5.0
+        );
+    }
+
+    #[test]
+    fn daylight_gate_allows_when_sun_below_max() {
+        let sun_alt = live_sun_alt();
+        // Threshold 5° ABOVE the live Sun altitude => Sun is "down" relative to
+        // the configured max => must allow.
+        let reason =
+            daylight_gate_block_reason(Some(TEST_LAT), Some(TEST_LON), sun_alt + 5.0, "test");
+        assert!(
+            reason.is_none(),
+            "Sun {sun_alt:.1}° below max {:.1}° must NOT block",
+            sun_alt + 5.0
+        );
+    }
+
+    #[test]
+    fn daylight_gate_abstains_without_location() {
+        // No observer location => cannot compute Sun altitude => abstain
+        // (never fabricate a block that would wedge a location-less rig). Even
+        // with an absurdly low threshold the gate must NOT block here.
+        assert!(daylight_gate_block_reason(None, Some(TEST_LON), -90.0, "test").is_none());
+        assert!(daylight_gate_block_reason(Some(TEST_LAT), None, -90.0, "test").is_none());
+        assert!(daylight_gate_block_reason(None, None, -90.0, "test").is_none());
+    }
+
+    #[test]
+    fn daylight_gate_falls_back_to_default_on_non_finite_max() {
+        // A NaN threshold must not silently disable the gate: it falls back to
+        // DEFAULT_MAX_SUN_ALTITUDE_DEGREES. We can only assert the finite
+        // fallback path is taken consistently with the default comparison.
+        let sun_alt = live_sun_alt();
+        let nan_reason =
+            daylight_gate_block_reason(Some(TEST_LAT), Some(TEST_LON), f64::NAN, "test");
+        let default_reason = daylight_gate_block_reason(
+            Some(TEST_LAT),
+            Some(TEST_LON),
+            DEFAULT_MAX_SUN_ALTITUDE_DEGREES,
+            "test",
+        );
+        assert_eq!(
+            nan_reason.is_some(),
+            default_reason.is_some(),
+            "NaN max must behave exactly like the default ({sun_alt:.1}° vs {DEFAULT_MAX_SUN_ALTITUDE_DEGREES:.1}°)"
+        );
+    }
+
+    // --- execute_slew gate ---
+
+    async fn slew_ctx(max_sun_alt: f64) -> InstructionContext {
+        let mut ec = crate::node::context::ExecutionContext::new("test-node".to_string());
+        ec.device_ops = Arc::new(NullDeviceOps);
+        ec.mount_id = Some("mount-1".to_string());
+        ec.latitude = Some(TEST_LAT);
+        ec.longitude = Some(TEST_LON);
+        ec.target_ra = Some(5.5);
+        ec.target_dec = Some(22.0);
+        ec.max_sun_altitude_degrees = max_sun_alt;
+        // The gate reads the configured max through the InstructionContext's
+        // trigger-state handle (exactly as the live executor seeds it). Install
+        // a trigger state so the test exercises that same resolution path.
+        let mut ts = crate::triggers::TriggerState::new();
+        ts.set_max_sun_altitude_degrees(max_sun_alt);
+        ec.trigger_state = Some(std::sync::Arc::new(tokio::sync::RwLock::new(ts)));
+        ec.to_instruction_context().await
+    }
+
+    #[tokio::test]
+    async fn slew_to_target_rejected_when_sun_up() {
+        let sun_alt = live_sun_alt();
+        let ctx = slew_ctx(sun_alt - 5.0).await; // Sun above max → block
+        let cfg = SlewConfig {
+            use_target_coords: true,
+            ..SlewConfig::default()
+        };
+        let result = execute_slew(&cfg, &ctx, None).await;
+        assert!(
+            is_daylight_block(&result),
+            "slew to science target must be daylight-blocked when Sun is up; got {:?}",
+            result.message
+        );
+    }
+
+    #[tokio::test]
+    async fn slew_to_target_allowed_when_sun_down() {
+        let sun_alt = live_sun_alt();
+        let ctx = slew_ctx(sun_alt + 5.0).await; // Sun below max → allow
+        let cfg = SlewConfig {
+            use_target_coords: true,
+            ..SlewConfig::default()
+        };
+        let result = execute_slew(&cfg, &ctx, None).await;
+        // It may still fail downstream slew-position validation against the
+        // NullDeviceOps fixed coordinates, but it must NOT be a daylight block.
+        assert!(
+            !is_daylight_block(&result),
+            "slew must clear the daylight gate at night; got daylight block: {:?}",
+            result.message
+        );
+    }
+
+    #[tokio::test]
+    async fn slew_to_custom_coords_not_gated_in_daylight() {
+        // A park/flat-panel/alignment slew to CUSTOM coordinates is not an
+        // on-sky science pointing and must never be daylight-gated, even with
+        // a threshold far below the live Sun altitude.
+        let sun_alt = live_sun_alt();
+        let ctx = slew_ctx(sun_alt - 30.0).await;
+        let cfg = SlewConfig {
+            use_target_coords: false,
+            custom_ra: Some(12.0),
+            custom_dec: Some(45.0),
+        };
+        let result = execute_slew(&cfg, &ctx, None).await;
+        assert!(
+            !is_daylight_block(&result),
+            "custom-coordinate slew must never be daylight-gated; got {:?}",
+            result.message
+        );
+    }
+
+    // --- execute_exposure gate ---
+
+    async fn expose_ctx(
+        ops: Arc<dyn DeviceOps>,
+        target: Option<(f64, f64)>,
+        max_sun_alt: f64,
+    ) -> InstructionContext {
+        let mut ec = crate::node::context::ExecutionContext::new("test-node".to_string());
+        ec.device_ops = ops;
+        ec.camera_id = Some("cam-1".to_string());
+        ec.mount_id = Some("mount-1".to_string());
+        ec.latitude = Some(TEST_LAT);
+        ec.longitude = Some(TEST_LON);
+        if let Some((ra, dec)) = target {
+            ec.target_ra = Some(ra);
+            ec.target_dec = Some(dec);
+        }
+        ec.max_sun_altitude_degrees = max_sun_alt;
+        let mut ts = crate::triggers::TriggerState::new();
+        ts.set_max_sun_altitude_degrees(max_sun_alt);
+        ec.trigger_state = Some(std::sync::Arc::new(tokio::sync::RwLock::new(ts)));
+        ec.to_instruction_context().await
+    }
+
+    fn one_light() -> ExposureConfig {
+        ExposureConfig {
+            duration_secs: 0.01,
+            count: 1,
+            ..ExposureConfig::default()
+        }
+    }
+
+    #[tokio::test]
+    async fn light_exposure_on_target_rejected_when_sun_up() {
+        let sun_alt = live_sun_alt();
+        // Mount NOT parked + science target set + Sun up → on-sky light → block.
+        let ctx = expose_ctx(Arc::new(NullDeviceOps), Some((5.5, 22.0)), sun_alt - 5.0).await;
+        let result = execute_exposure(&one_light(), &ctx, |_, _| {}).await;
+        assert!(
+            is_daylight_block(&result),
+            "on-sky LIGHT exposure must be daylight-blocked when Sun is up; got {:?}",
+            result.message
+        );
+    }
+
+    #[tokio::test]
+    async fn exposure_without_target_not_gated_in_daylight() {
+        let sun_alt = live_sun_alt();
+        // No target coordinates (a flat/dark/bias burst) → not on-sky → allow,
+        // even with a daytime-blocking threshold.
+        let ops: Arc<dyn DeviceOps> = Arc::new(NullDeviceOps);
+        let ctx = expose_ctx(ops, None, sun_alt - 30.0).await;
+        let result = execute_exposure(&one_light(), &ctx, |_, _| {}).await;
+        assert!(
+            !is_daylight_block(&result),
+            "a no-target (flat/dark/bias) exposure must never be daylight-gated; got {:?}",
+            result.message
+        );
+    }
+
+    #[tokio::test]
+    async fn parked_rig_target_exposure_not_gated_in_daylight() {
+        let sun_alt = live_sun_alt();
+        // Target set BUT mount parked (e.g. a dark library built inside a
+        // target subtree while parked) → not on-sky → allow.
+        let ops: Arc<dyn DeviceOps> =
+            Arc::new(ScriptedDomeRotatorOps::new().with_mount_parked(true));
+        let ctx = expose_ctx(ops, Some((5.5, 22.0)), sun_alt - 30.0).await;
+        let result = execute_exposure(&one_light(), &ctx, |_, _| {}).await;
+        assert!(
+            !is_daylight_block(&result),
+            "a parked-rig exposure must never be daylight-gated; got {:?}",
+            result.message
+        );
+    }
+
+    #[tokio::test]
+    async fn light_exposure_on_target_allowed_when_sun_down() {
+        let sun_alt = live_sun_alt();
+        // Mount not parked + target set + Sun below max → allowed past the gate.
+        let ctx = expose_ctx(Arc::new(NullDeviceOps), Some((5.5, 22.0)), sun_alt + 5.0).await;
+        let result = execute_exposure(&one_light(), &ctx, |_, _| {}).await;
+        assert!(
+            !is_daylight_block(&result),
+            "on-sky LIGHT exposure must clear the daylight gate at night; got {:?}",
+            result.message
         );
     }
 }

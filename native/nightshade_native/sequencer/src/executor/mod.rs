@@ -546,6 +546,27 @@ pub struct RuntimeConfig {
     /// still ticks every second; only expensive safety/weather driver calls
     /// are throttled by this interval.
     pub safety_check_interval_secs: u64,
+    /// Architecture-unification 2026-06-07 (W1 native daylight gate): the
+    /// maximum Sun altitude (degrees above the horizon) at which an on-sky
+    /// LIGHT capture is permitted. Mirrors the Dart scheduler's
+    /// `maxSunAltitudeDegrees`. The structural native daylight START gate in
+    /// `instructions::execute_slew` / `execute_exposure` blocks a
+    /// slew-to-science-target or a LIGHT-frame exposure while the Sun is above
+    /// this altitude, so a raw sequence started via `api_sequencer_start`
+    /// (including a mosaic) cannot slew + expose lights in full daylight.
+    /// Flats/darks/bias/park and a parked rig are unaffected. Seeded into both
+    /// the `ExecutionContext` and the shared `TriggerState` at `start()`.
+    ///
+    /// Remediation 2026-06-09 (finding #2): this is now `Option<f64>` so the
+    /// `#[derive(Default)]` value is `None` ("never pushed") rather than a
+    /// fabricated `0.0`. The Dart side pushes its `SchedulerConfig
+    /// .maxSunAltitudeDegrees` via
+    /// [`SequenceExecutor::update_max_sun_altitude`]
+    /// ([`ExecutorCommand::UpdateMaxSunAltitude`]); when nothing was pushed the
+    /// seed at `start()` resolves `None` (and any non-finite value) to
+    /// [`crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES`] (-12°), so the
+    /// native gate is never weaker than the Dart W1 gate it backstops.
+    pub max_sun_altitude_degrees: Option<f64>,
     /// Architecture-unification 2026-06-05 (Subsystem 2 step 3 — stale-verdict
     /// observability): how long (seconds) a pushed `Some(true)` (UNSAFE) Dart
     /// weather verdict may go un-refreshed before the safety poll emits a loud
@@ -709,6 +730,15 @@ pub enum ExecutorCommand {
     UpdateLocation {
         latitude: Option<f64>,
         longitude: Option<f64>,
+    },
+    /// Remediation 2026-06-09 (finding #2) — push the W1 native daylight gate's
+    /// maximum Sun altitude (the Dart `SchedulerConfig.maxSunAltitudeDegrees`)
+    /// into the running executor so the native gate threshold equals the Dart
+    /// one. Writes `RuntimeConfig::max_sun_altitude_degrees` AND patches the
+    /// live trigger state so the gate (read through the trigger-state handle)
+    /// picks it up on the next slew / exposure without a sequence reload.
+    UpdateMaxSunAltitude {
+        degrees: Option<f64>,
     },
     /// Update filter focus offsets at runtime (e.g., when equipment profile changes)
     UpdateFilterOffsets {
@@ -2408,6 +2438,29 @@ impl SequenceExecutor {
                 // generated when this executor instance was first constructed,
                 // which could be hours / days ago).
                 context.session_id = uuid::Uuid::new_v4().to_string();
+                // W1 native daylight gate — copy the configured max Sun altitude
+                // out of the (non-Send) parking_lot guard so it can be seeded
+                // into the shared trigger state across an `.await` below.
+                // Remediation 2026-06-09 (finding #2): the field is `Option<f64>`;
+                // resolve a never-pushed (`None`) or non-finite value to the
+                // DEFAULT (-12°, nautical darkness) so the native gate is never
+                // weaker than the Dart W1 gate it backstops. When the Dart side
+                // pushed its `SchedulerConfig.maxSunAltitudeDegrees`, that exact
+                // value is used.
+                let max_sun_altitude_degrees = match runtime_config.read().max_sun_altitude_degrees {
+                    Some(v) if v.is_finite() => v,
+                    _ => crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES,
+                };
+                context.max_sun_altitude_degrees = max_sun_altitude_degrees;
+                if let Some(ts_lock) = &context.trigger_state {
+                    // Seed the trigger state so the gate (which reads through the
+                    // InstructionContext's trigger-state handle, not the
+                    // ExecutionContext) sees the configured threshold.
+                    ts_lock
+                        .write()
+                        .await
+                        .set_max_sun_altitude_degrees(max_sun_altitude_degrees);
+                }
                 {
                     let rc = runtime_config.read();
                     context.observer_name = rc.observer_profile.observer_name.clone();
@@ -2890,6 +2943,37 @@ impl SequenceExecutor {
                                 );
                                 let _ = event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
                                     what: "location".to_string(),
+                                });
+                            }
+                            ExecutorCommand::UpdateMaxSunAltitude { degrees } => {
+                                // Remediation 2026-06-09 (finding #2): write
+                                // through the Arc AND patch the live trigger
+                                // state so the W1 daylight gate (which reads the
+                                // threshold through the trigger-state handle)
+                                // honours the Dart-pushed value on the next slew /
+                                // exposure. A `None`/non-finite push resolves to
+                                // the DEFAULT (-12°) so the gate never weakens.
+                                {
+                                    let mut rc = runtime_config.write();
+                                    rc.max_sun_altitude_degrees = degrees;
+                                }
+                                let effective = match degrees {
+                                    Some(v) if v.is_finite() => v,
+                                    _ => crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES,
+                                };
+                                {
+                                    let manager = trigger_manager.read().await;
+                                    let state_lock = manager.state();
+                                    let mut state = state_lock.write().await;
+                                    state.set_max_sun_altitude_degrees(effective);
+                                }
+                                tracing::info!(
+                                    "Runtime max Sun altitude (W1 daylight gate) updated: {:?} -> effective {:.1}°",
+                                    degrees,
+                                    effective
+                                );
+                                let _ = event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
+                                    what: "max_sun_altitude".to_string(),
                                 });
                             }
                             ExecutorCommand::UpdateFilterOffsets { offsets } => {
@@ -6466,6 +6550,72 @@ mod tests {
         let rc = handle.read();
         assert_eq!(rc.latitude, Some(40.7));
         assert_eq!(rc.longitude, Some(-74.0));
+    }
+
+    /// Remediation 2026-06-09 (finding #2): the W1 daylight gate's max Sun
+    /// altitude was NEVER populated from Dart — there was no setter, so the
+    /// field held the derive-default and the native gate blocked only above the
+    /// geometric horizon (0°), opening a twilight gap vs the Dart -12° gate.
+    /// `update_max_sun_altitude` must now write the Dart value through
+    /// `runtime_config` AND patch the live trigger state so the gate honours it.
+    #[tokio::test]
+    async fn update_max_sun_altitude_writes_through_runtime_config_and_trigger_state() {
+        let mut executor = SequenceExecutor::new();
+
+        // A pushed value lands verbatim in the runtime config...
+        executor.update_max_sun_altitude(Some(-6.0)).await;
+        {
+            let handle = executor.runtime_config_handle();
+            let rc = handle.read();
+            assert_eq!(
+                rc.max_sun_altitude_degrees,
+                Some(-6.0),
+                "the pushed Dart threshold must be written through runtime_config"
+            );
+        }
+        // ...and is patched into the live trigger state so the gate (which reads
+        // through the trigger-state handle) sees it without a sequence reload.
+        {
+            let mgr = executor.trigger_manager.read().await;
+            let state = mgr.state();
+            let guard = state.read().await;
+            assert_eq!(
+                guard.max_sun_altitude_degrees,
+                Some(-6.0),
+                "the trigger state the gate reads must carry the pushed threshold"
+            );
+        }
+
+        // A None / non-finite push resolves to the DEFAULT (-12°) in the live
+        // trigger state so the gate is NEVER weaker than the Dart W1 gate, while
+        // the runtime config records the raw None (unset).
+        executor.update_max_sun_altitude(None).await;
+        {
+            let handle = executor.runtime_config_handle();
+            assert_eq!(handle.read().max_sun_altitude_degrees, None);
+        }
+        {
+            let mgr = executor.trigger_manager.read().await;
+            let state = mgr.state();
+            let guard = state.read().await;
+            assert_eq!(
+                guard.max_sun_altitude_degrees,
+                Some(crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES),
+                "a None push must resolve to the -12° default in the gate's state"
+            );
+        }
+    }
+
+    /// Remediation 2026-06-09 (finding #2): the native default must equal the
+    /// Dart `SchedulerConfig.maxSunAltitudeDegrees` default (-12°, nautical
+    /// darkness) so an un-pushed native gate is no weaker than the Dart W1 gate.
+    #[test]
+    fn default_max_sun_altitude_matches_dart_nautical_darkness() {
+        assert_eq!(
+            crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES, -12.0,
+            "native daylight-gate default must mirror the Dart scheduler's -12° \
+             default so the twilight gap is closed"
+        );
     }
 
     /// Audit §1.8: `update_filter_offsets` must propagate to runtime_config

@@ -122,6 +122,18 @@ pub struct ExecutionContext {
     pub trigger_state: Option<Arc<RwLock<crate::triggers::TriggerState>>>,
     /// Safety fail mode - determines behavior when safety devices fail or are unavailable
     pub safety_fail_mode: Arc<parking_lot::RwLock<SafetyFailMode>>,
+    /// Architecture-unification 2026-06-07 (W1 native daylight gate): the
+    /// maximum Sun altitude (degrees above the horizon) at which an on-sky
+    /// LIGHT capture is permitted. Mirrors the Dart scheduler's
+    /// `maxSunAltitudeDegrees` so the structural native gate
+    /// (`instructions::execute_slew` / `execute_exposure`) and the Dart W1
+    /// twilight gate agree on the threshold. The native gate blocks a
+    /// slew-to-science-target or a LIGHT-frame exposure while the Sun is above
+    /// this altitude; it deliberately does NOT block flats/darks/bias/park or a
+    /// parked rig (daytime calibration / testing stays usable). Seeded from
+    /// `RuntimeConfig::max_sun_altitude_degrees` at `start()`. Defaults to
+    /// [`crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES`].
+    pub max_sun_altitude_degrees: f64,
     /// Filter focus offsets from equipment profile (filter_name -> offset_steps)
     pub filter_focus_offsets: std::collections::HashMap<String, i32>,
     /// Optional broadcast handle so instruction code can emit ExecutorEvents
@@ -527,6 +539,10 @@ impl ExecutionContext {
             completed_integration_secs: Arc::new(RwLock::new(0.0)),
             trigger_state: None,
             safety_fail_mode: Arc::new(parking_lot::RwLock::new(SafetyFailMode::default())),
+            // W1 native daylight gate — default threshold mirrors the Dart
+            // scheduler's `maxSunAltitudeDegrees`; the executor overrides this
+            // from `RuntimeConfig::max_sun_altitude_degrees` at start.
+            max_sun_altitude_degrees: crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES,
             filter_focus_offsets: std::collections::HashMap::new(),
             event_tx: None,
             recovery_request_tx: None,
@@ -650,6 +666,20 @@ impl ExecutionContext {
 
     pub fn with_safety_fail_mode(mut self, mode: SafetyFailMode) -> Self {
         self.safety_fail_mode = Arc::new(parking_lot::RwLock::new(mode));
+        self
+    }
+
+    /// W1 native daylight gate — install the maximum permitted Sun altitude
+    /// (degrees) for on-sky LIGHT captures. Builder-style so the executor can
+    /// seed it from `RuntimeConfig::max_sun_altitude_degrees` alongside the
+    /// other `with_*` calls. A non-finite value falls back to the default so a
+    /// misconfiguration can never silently disable the gate.
+    pub fn with_max_sun_altitude(mut self, degrees: f64) -> Self {
+        self.max_sun_altitude_degrees = if degrees.is_finite() {
+            degrees
+        } else {
+            crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES
+        };
         self
     }
 
@@ -1014,22 +1044,7 @@ impl ExecutionContext {
         let lat = self.latitude?;
         let lon = self.longitude?;
 
-        let now = chrono::Utc::now();
-        let jd = crate::meridian::julian_day(&now);
-
-        let days_since_j2000 = jd - 2451545.0;
-        let (sun_ra, sun_dec) = approximate_sun_equatorial_coords(days_since_j2000);
-
-        let lst = crate::meridian::local_sidereal_time(jd, lon);
-        let ha = lst - sun_ra;
-        let ha_rad = (ha * 15.0).to_radians();
-        let dec_rad = sun_dec.to_radians();
-        let lat_rad = lat.to_radians();
-
-        let sun_alt = (lat_rad.sin() * dec_rad.sin()
-            + lat_rad.cos() * dec_rad.cos() * ha_rad.cos())
-        .asin()
-        .to_degrees();
+        let sun_alt = current_sun_altitude_degrees(lat, lon);
 
         // Astronomical twilight ends when the sun is more than 18° below the
         // horizon — the IAU-adopted definition; deep-sky imaging targets this
@@ -1125,6 +1140,37 @@ impl ExecutionContext {
             active_sequence_run_id: self.active_sequence_run_id.clone(),
         }
     }
+}
+
+/// Architecture-unification 2026-06-07 (W1 native daylight gate): compute the
+/// Sun's current altitude (degrees above the horizon) for an observer at
+/// `latitude` / `longitude` (degrees). Positive = Sun above the horizon.
+///
+/// This is the SAME low-precision solar-position math already used by
+/// [`ExecutionContext::is_dark`] (`approximate_sun_equatorial_coords` +
+/// `meridian::local_sidereal_time`); `is_dark` answers the binary
+/// astronomical-twilight question, whereas the native daylight START gate
+/// (`instructions::execute_slew` / `instructions::execute_exposure`) needs the
+/// continuous altitude so it can compare against a configurable
+/// `max_sun_altitude_degrees` that mirrors the Dart scheduler's
+/// `maxSunAltitudeDegrees`. Extracted as a free `pub(crate)` fn (rather than a
+/// method) so the instruction layer can call it without an `ExecutionContext`.
+pub(crate) fn current_sun_altitude_degrees(latitude: f64, longitude: f64) -> f64 {
+    let now = chrono::Utc::now();
+    let jd = crate::meridian::julian_day(&now);
+
+    let days_since_j2000 = jd - 2451545.0;
+    let (sun_ra, sun_dec) = approximate_sun_equatorial_coords(days_since_j2000);
+
+    let lst = crate::meridian::local_sidereal_time(jd, longitude);
+    let ha = lst - sun_ra;
+    let ha_rad = (ha * 15.0).to_radians();
+    let dec_rad = sun_dec.to_radians();
+    let lat_rad = latitude.to_radians();
+
+    (lat_rad.sin() * dec_rad.sin() + lat_rad.cos() * dec_rad.cos() * ha_rad.cos())
+        .asin()
+        .to_degrees()
 }
 
 fn approximate_sun_equatorial_coords(days_since_j2000: f64) -> (f64, f64) {

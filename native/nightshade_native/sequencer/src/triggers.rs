@@ -979,6 +979,25 @@ pub struct TriggerState {
     pub observer_latitude: Option<f64>,
     pub observer_longitude: Option<f64>,
 
+    /// Architecture-unification 2026-06-07 (W1 native daylight gate): the
+    /// maximum Sun altitude (degrees above the horizon) at which an on-sky
+    /// LIGHT capture is allowed. Seeded by the executor from
+    /// `RuntimeConfig::max_sun_altitude_degrees` so the structural native
+    /// daylight START gate in `instructions::execute_slew` / `execute_exposure`
+    /// can read the configured threshold through the shared trigger state.
+    ///
+    /// Remediation 2026-06-09 (finding #2): the Dart side now genuinely pushes
+    /// its `SchedulerConfig.maxSunAltitudeDegrees` here via
+    /// `SequenceExecutor::update_max_sun_altitude`
+    /// ([`crate::executor::ExecutorCommand::UpdateMaxSunAltitude`]), so this
+    /// value really does mirror the Dart scheduler's threshold. `None` until
+    /// seeded; the gate then falls back to
+    /// [`crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES`] (-12°, the Dart
+    /// default), so even an un-pushed gate is no weaker than the Dart W1 gate.
+    /// This value is NOT itself a trigger — it carries config to the
+    /// instruction-layer gate.
+    pub max_sun_altitude_degrees: Option<f64>,
+
     // Frame counting for periodic triggers
     pub completed_exposures: u32,
     pub last_autofocus_frame: u32,
@@ -1101,6 +1120,10 @@ impl Default for TriggerState {
             dawn_time: None,
             observer_latitude: None,
             observer_longitude: None,
+            // W1 native daylight gate — None until the executor seeds it from
+            // RuntimeConfig; the instruction-layer gate falls back to the
+            // default constant when unset.
+            max_sun_altitude_degrees: None,
             completed_exposures: 0,
             last_autofocus_frame: 0,
             last_dither_frame: 0,
@@ -1366,6 +1389,20 @@ impl TriggerState {
 
     pub fn update_humidity(&mut self, humidity: f64) {
         self.current_humidity = Some(humidity);
+    }
+
+    /// W1 native daylight gate — seed the configured maximum Sun altitude
+    /// (degrees) for on-sky LIGHT captures so the instruction-layer gate
+    /// (`instructions::execute_slew` / `execute_exposure`) can read it through
+    /// the shared trigger state. A non-finite value is rejected (stored as
+    /// `None`) so the gate falls back to its default rather than silently
+    /// disabling itself on a NaN/inf config push (CLAUDE.md "fail closed").
+    pub fn set_max_sun_altitude_degrees(&mut self, degrees: f64) {
+        self.max_sun_altitude_degrees = if degrees.is_finite() {
+            Some(degrees)
+        } else {
+            None
+        };
     }
 
     /// Defense-in-depth (full-night audit 2026-06-04): store the Dart-side
