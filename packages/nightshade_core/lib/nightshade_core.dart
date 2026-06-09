@@ -53,6 +53,10 @@ export 'src/models/imaging/stack_and_share_models.dart';
 export 'src/models/imaging/integration_settings.dart';
 export 'src/models/imaging/integrated_master.dart';
 export 'src/models/imaging/narrowband_composite.dart';
+// Durable mosaic projects + panels (Mosaic M2, v45). The DURABLE per-panel
+// record is MosaicProjectPanel — distinct from the capture-geometry MosaicPanel
+// value object in services/mosaic_service.dart (which keeps the bare name).
+export 'src/models/imaging/mosaic_project.dart';
 // Smart Morning Report (v42): Night Doctor report + finding value types.
 export 'src/models/imaging/night_report.dart';
 // Smart Morning Report (v42): marginal-SNR integration curve + subset
@@ -62,6 +66,8 @@ export 'src/models/imaging/night_report.dart';
 export 'src/models/imaging/integration_curve.dart';
 export 'src/models/imaging/star_photometry.dart';
 export 'src/models/imaging/color_calibration_result.dart';
+// Mosaic M2: panel-mosaic stitch result (api_stitch_mosaic).
+export 'src/models/imaging/mosaic_stitch_result.dart';
 export 'src/models/imaging/annotation.dart';
 // Wave 6E — push-based live-view streaming over WebSocket.
 export 'src/models/live_view/live_view_frame.dart';
@@ -416,6 +422,8 @@ export 'src/services/sequence_diff_service.dart';
 export 'src/providers/notes_provider.dart';
 export 'src/services/campaign_rollup_service.dart';
 export 'src/services/mosaic_service.dart';
+// Mosaic M2 — durable mosaic project orchestration (plan -> integrate -> stitch).
+export 'src/services/mosaic_project_service.dart';
 export 'src/services/framing_image_cache_service.dart';
 export 'src/services/session_service.dart';
 export 'src/services/quick_start_service.dart';
@@ -508,6 +516,9 @@ export 'src/database/daos/night_reports_dao.dart';
 export 'src/database/daos/campaigns_dao.dart';
 // Narrowband palette composites (Phase C, v44).
 export 'src/database/daos/narrowband_composites_dao.dart';
+// Durable mosaic projects + panels (Mosaic M2, v45).
+export 'src/database/daos/mosaic_projects_dao.dart';
+export 'src/database/daos/mosaic_panels_dao.dart';
 export 'src/services/project_tracking_service.dart';
 export 'src/services/calibration/defect_map_service.dart';
 export 'src/services/disk_space_service.dart';

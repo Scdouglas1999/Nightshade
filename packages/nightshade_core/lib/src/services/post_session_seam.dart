@@ -6,6 +6,7 @@ import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import '../backend/nightshade_backend.dart';
 import '../models/imaging/color_calibration_result.dart';
 import '../models/imaging/integration_curve.dart';
+import '../models/imaging/mosaic_stitch_result.dart';
 import '../models/imaging/star_photometry.dart';
 import '../providers/backend_provider.dart';
 
@@ -110,6 +111,22 @@ abstract class PostSessionSeam {
   /// Linearly combine single-channel narrowband masters into an RGB composite.
   /// Wraps `apiCombineChannels`; returns the written composite's `outputPath`.
   Future<String> combineChannels(Map<String, dynamic> args);
+
+  // ---------------------------------------------------------------------------
+  // Mosaic M2 — panel-mosaic stitching.
+  //
+  // Wraps the `api_stitch_mosaic` FFI. JSON-in / typed-out, the same thin
+  // envelope contract as the functions above.
+  // ---------------------------------------------------------------------------
+
+  /// Project N plate-solved panel masters onto a shared gnomonic canvas and
+  /// feather-blend them into one mosaic master. Wraps `apiStitchMosaic`.
+  ///
+  /// [args] is the `StitchMosaicArgs` JSON shape:
+  /// `{ panels: [{ fitsPath, wcs? }], config?, output: { mosaicFitsPath,
+  /// coverageFitsPath?, previewPngPath? } }`. Returns the written master path,
+  /// the output-canvas dimensions, and the stitch diagnostics.
+  Future<MosaicStitchResult> stitchMosaic(Map<String, dynamic> args);
 
   /// Live post-session integration progress.
   ///
@@ -248,6 +265,12 @@ class BridgePostSessionSeam implements PostSessionSeam {
   Future<String> combineChannels(Map<String, dynamic> args) async {
     final out = await bridge.apiCombineChannels(argsJson: jsonEncode(args));
     return _decodeOutputPath(out);
+  }
+
+  @override
+  Future<MosaicStitchResult> stitchMosaic(Map<String, dynamic> args) async {
+    final out = await bridge.apiStitchMosaic(argsJson: jsonEncode(args));
+    return MosaicStitchResult.fromJson(_decodeObject(out));
   }
 
   @override

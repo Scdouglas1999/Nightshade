@@ -13,6 +13,7 @@ import 'package:nightshade_core/src/models/imaging/color_calibration_result.dart
 import 'package:nightshade_core/src/models/imaging/integrated_master.dart';
 import 'package:nightshade_core/src/models/imaging/integration_curve.dart';
 import 'package:nightshade_core/src/models/imaging/integration_settings.dart';
+import 'package:nightshade_core/src/models/imaging/mosaic_stitch_result.dart';
 import 'package:nightshade_core/src/models/imaging/star_photometry.dart';
 import 'package:nightshade_core/src/services/dark_library_service.dart';
 import 'package:nightshade_core/src/services/flat_library_service.dart';
@@ -306,6 +307,31 @@ class FakePostSessionSeam implements PostSessionSeam {
   @override
   Future<String> combineChannels(Map<String, dynamic> args) async =>
       args['outputFits'] as String? ?? args['outputPath'] as String? ?? '';
+
+  /// Records every [stitchMosaic] invocation's args.
+  final List<Map<String, dynamic>> stitchCalls = [];
+
+  /// Scripted [stitchMosaic] result; when null the fake echoes the requested
+  /// output paths with a synthetic canvas size derived from the panel count.
+  MosaicStitchResult? stitchResult;
+
+  @override
+  Future<MosaicStitchResult> stitchMosaic(Map<String, dynamic> args) async {
+    stitchCalls.add(args);
+    if (stitchResult != null) return stitchResult!;
+    final output = (args['output'] as Map?)?.cast<String, dynamic>() ??
+        const <String, dynamic>{};
+    final panels = (args['panels'] as List?)?.length ?? 0;
+    return MosaicStitchResult(
+      outputPath: output['mosaicFitsPath'] as String? ?? '',
+      coveragePath: output['coverageFitsPath'] as String?,
+      previewPath: output['previewPngPath'] as String?,
+      outWidth: 100 * panels,
+      outHeight: 80,
+      overlapPairs: panels > 1 ? panels - 1 : 0,
+      meanPanelGain: 1.0,
+    );
+  }
 
   @override
   Stream<({String phase, double fraction})> integrationProgress() =>

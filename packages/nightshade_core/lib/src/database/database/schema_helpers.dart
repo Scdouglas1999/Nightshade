@@ -544,6 +544,80 @@ extension _NightshadeDatabaseSchemaHelpers on NightshadeDatabase {
     );
   }
 
+  /// Create the v45 `mosaic_projects` + `mosaic_panels` tables (Mosaic M2),
+  /// making a mosaic a first-class durable entity linking grid config → panel
+  /// targets → panel masters → the stitched output.
+  ///
+  /// Called from both `onCreate` (fresh installs) and the `if (from < 45)`
+  /// `onUpgrade` branch. Every statement is `CREATE TABLE/INDEX IF NOT EXISTS`,
+  /// so the helper is idempotent and re-runnable. These are raw-DDL tables (the
+  /// dominant v27+ convention) accessed via [MosaicProjectsDao] /
+  /// [MosaicPanelsDao], mirroring [CampaignsDao] / [NarrowbandCompositesDao].
+  ///
+  /// `mosaic_projects.target_id` and `output_master_id` use `ON DELETE SET NULL`
+  /// (a project survives its source target / stitched master being removed);
+  /// `mosaic_panels.project_id` uses `ON DELETE CASCADE` (panels are owned by
+  /// their project), while the per-panel `target_id` / `integrated_master_id`
+  /// use `ON DELETE SET NULL`. FK enforcement is already on in `beforeOpen`
+  /// (`PRAGMA foreign_keys = ON`).
+  ///
+  /// Each panel's plate-solved WCS rides on its `integrated_masters` row (v44
+  /// WCS columns) via `integrated_master_id` — there are no duplicate WCS
+  /// columns on `mosaic_panels`. The stitched output is itself an
+  /// `integrated_masters` row referenced by `mosaic_projects.output_master_id`,
+  /// so it flows into the existing master library + morning report unchanged.
+  /// `UNIQUE(project_id, panel_index)` makes `(project, panel)` the panel
+  /// identity (panel_index is 0-based, matching the FITS `NS-PIDX` provenance).
+  Future<void> _createMosaicTables() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS mosaic_projects('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'target_id INTEGER REFERENCES targets(id) ON DELETE SET NULL,'
+      'name TEXT NOT NULL,'
+      'rows INTEGER NOT NULL,'
+      'cols INTEGER NOT NULL,'
+      'overlap_pct REAL NOT NULL DEFAULT 15.0,'
+      'position_angle_deg REAL NOT NULL DEFAULT 0.0,'
+      "status TEXT NOT NULL DEFAULT 'planning',"
+      'output_master_id INTEGER '
+      'REFERENCES integrated_masters(id) ON DELETE SET NULL,'
+      'created_at INTEGER NOT NULL,'
+      'updated_at INTEGER NOT NULL)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_mosaic_projects_target '
+      'ON mosaic_projects (target_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_mosaic_projects_status '
+      'ON mosaic_projects (status)',
+    );
+
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS mosaic_panels('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'project_id INTEGER NOT NULL '
+      'REFERENCES mosaic_projects(id) ON DELETE CASCADE,'
+      'panel_index INTEGER NOT NULL,'
+      'center_ra REAL NOT NULL,'
+      'center_dec REAL NOT NULL,'
+      'target_id INTEGER REFERENCES targets(id) ON DELETE SET NULL,'
+      'integrated_master_id INTEGER '
+      'REFERENCES integrated_masters(id) ON DELETE SET NULL,'
+      'captured_count INTEGER NOT NULL DEFAULT 0,'
+      "status TEXT NOT NULL DEFAULT 'pending',"
+      'UNIQUE(project_id, panel_index))',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_mosaic_panels_project '
+      'ON mosaic_panels (project_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_mosaic_panels_master '
+      'ON mosaic_panels (integrated_master_id)',
+    );
+  }
+
   Future<void> _createGuideRmsHistoryTable() async {
     await customStatement('''
       CREATE TABLE IF NOT EXISTS guide_rms_history (
