@@ -162,6 +162,93 @@ void main() {
       final rows = await db.getPushTokensByPlatform('fcm');
       expect(rows.map((r) => r.deviceId), ['keep']);
     });
+
+    test(
+        'deletePairedDevice removes the device\'s push token + prefs rows '
+        '(no orphan re-attaches on re-pair)', () async {
+      await pair('gone');
+      await db.upsertPushToken(
+          deviceId: 'gone', platform: 'fcm', token: 'GONE');
+      await db.upsertPushPrefs(
+        deviceId: 'gone',
+        enabled: true,
+        // A muted safety category that MUST NOT survive a hard-delete: if it
+        // orphaned, a re-paired device re-assigned the same deviceId would
+        // silently inherit the mute and stop receiving the alert.
+        muteSequenceFailed: false,
+        muteWeatherUnsafe: true,
+        muteGuidingLost: false,
+        muteAutofocusFailed: false,
+        muteEquipmentDisconnected: false,
+      );
+      expect(await db.getPushTokensForDevice('gone'), hasLength(1));
+      expect(await db.getPushPrefs('gone'), isNotNull);
+
+      await db.deletePairedDevice('gone');
+
+      // Both push rows are gone — a fresh pairing under the same deviceId
+      // starts from the all-enabled default, not the deleted mute matrix.
+      expect(await db.getPushTokensForDevice('gone'), isEmpty);
+      expect(await db.getPushPrefs('gone'), isNull);
+    });
+  });
+
+  group('getActivePairedDeviceByFingerprint (caller resolution)', () {
+    test('resolves the device whose session token digests to the fingerprint',
+        () async {
+      await db.addPairedDevice(
+        deviceId: 'owner',
+        deviceName: 'Owner',
+        sessionToken: 'session-owner',
+        deviceType: 'mobile',
+      );
+      await db.addPairedDevice(
+        deviceId: 'other',
+        deviceName: 'Other',
+        sessionToken: 'session-other',
+        deviceType: 'mobile',
+      );
+
+      final resolved = await db.getActivePairedDeviceByFingerprint(
+        computeServerFingerprint('session-owner'),
+      );
+      expect(resolved, isNotNull);
+      expect(resolved!.deviceId, 'owner');
+    });
+
+    test('returns null for an unknown / non-matching fingerprint', () async {
+      await db.addPairedDevice(
+        deviceId: 'owner',
+        deviceName: 'Owner',
+        sessionToken: 'session-owner',
+        deviceType: 'mobile',
+      );
+      expect(
+        await db.getActivePairedDeviceByFingerprint(
+          computeServerFingerprint('not-a-real-session'),
+        ),
+        isNull,
+      );
+      expect(await db.getActivePairedDeviceByFingerprint(''), isNull);
+    });
+
+    test('excludes a revoked (inactive) device — stolen token resolves to none',
+        () async {
+      await db.addPairedDevice(
+        deviceId: 'revoked',
+        deviceName: 'Revoked',
+        sessionToken: 'session-revoked',
+        deviceType: 'mobile',
+      );
+      await db.revokeDevice('revoked');
+
+      expect(
+        await db.getActivePairedDeviceByFingerprint(
+          computeServerFingerprint('session-revoked'),
+        ),
+        isNull,
+      );
+    });
   });
 
   group('device_push_prefs', () {

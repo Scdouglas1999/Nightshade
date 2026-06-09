@@ -53,6 +53,71 @@ class PushHandlers {
   void _logWarning(String message) =>
       logger.warning(message, source: 'PushHandlers');
 
+  /// Resolve the deviceId of the ACTIVE paired device that owns the bearer
+  /// token which authenticated this request, or `null` if none does.
+  ///
+  /// The auth middleware never propagates the raw bearer — only its
+  /// `computeServerFingerprint` digest, stashed on the request context and
+  /// read here via [authIdentityFrom]. We map that digest back to the owning
+  /// `paired_devices` row (revoked rows excluded), which is the only
+  /// trustworthy "who is calling" signal available to a handler. The client-
+  /// supplied `deviceId` is NEVER trusted for authorization — it is compared
+  /// against this resolved value.
+  Future<String?> _callerDeviceId(Request request) async {
+    final identity = authIdentityFrom(request);
+    if (identity == null || identity.isEmpty) return null;
+    final db = ensurePairingService().database;
+    final device = await db.getActivePairedDeviceByFingerprint(identity);
+    return device?.deviceId;
+  }
+
+  /// Enforce that the request's target [targetDeviceId] is the caller's OWN
+  /// device. Returns a 403 [Response] to short-circuit on mismatch (or when
+  /// the caller cannot be resolved to an active device), or `null` to proceed.
+  ///
+  /// This is the fix for the cross-device IDOR: every `/api/push/*` mutation
+  /// is scoped to the caller's own push registration. A low-trust / guest /
+  /// stolen control token can no longer register, delete, or mute another
+  /// operator's safety-alert delivery. Resolving through the active-device
+  /// fingerprint lookup also rejects revoked/inactive callers for free.
+  Future<Response?> _requireOwnDevice(
+    Request request,
+    String targetDeviceId,
+    String requestId,
+  ) async {
+    final caller = await _callerDeviceId(request);
+    if (caller == null) {
+      _logWarning(
+        '[push][$requestId] rejected: caller is not an active paired device',
+      );
+      return jsonForbidden(
+        {
+          'error': 'forbidden',
+          'message': 'The authenticated session is not an active paired '
+              'device.',
+          'requestId': requestId,
+        },
+        headers: {requestIdHeader: requestId},
+      );
+    }
+    if (caller != targetDeviceId) {
+      _logWarning(
+        '[push][$requestId] rejected: caller=$caller may not act on '
+        'deviceId=$targetDeviceId',
+      );
+      return jsonForbidden(
+        {
+          'error': 'forbidden',
+          'message': 'deviceId does not match the authenticated device. A '
+              'device may only manage its own push registration.',
+          'requestId': requestId,
+        },
+        headers: {requestIdHeader: requestId},
+      );
+    }
+    return null;
+  }
+
   /// `POST /api/push/register-token` — body `{deviceId, platform, token}`.
   ///
   /// Upserts into `device_push_tokens` keyed on `(deviceId, platform)`, so a
@@ -73,6 +138,11 @@ class PushHandlers {
         message: "platform must be one of: ${_kPushPlatforms.join(', ')}",
       );
     }
+
+    // IDOR fix: a device may only register a token for ITSELF. Resolve the
+    // caller from the authenticated session and require deviceId == caller.
+    final ownership = await _requireOwnDevice(request, deviceId, requestId);
+    if (ownership != null) return ownership;
 
     final db = ensurePairingService().database;
     final device = await db.getPairedDevice(deviceId);
@@ -127,12 +197,57 @@ class PushHandlers {
       );
     }
 
+    // IDOR fix: a device may only delete ITS OWN tokens. Resolve the caller
+    // up front and scope every delete to it.
+    final caller = await _callerDeviceId(request);
+    if (caller == null) {
+      _logWarning(
+        '[push][$requestId] delete-token rejected: caller is not an active '
+        'paired device',
+      );
+      return jsonForbidden(
+        {
+          'error': 'forbidden',
+          'message': 'The authenticated session is not an active paired '
+              'device.',
+          'requestId': requestId,
+        },
+        headers: {requestIdHeader: requestId},
+      );
+    }
+
     final db = ensurePairingService().database;
+    if (deviceId != null && deviceId != caller) {
+      _logWarning(
+        '[push][$requestId] delete-token rejected: caller=$caller may not '
+        'delete tokens for deviceId=$deviceId',
+      );
+      return jsonForbidden(
+        {
+          'error': 'forbidden',
+          'message': 'deviceId does not match the authenticated device.',
+          'requestId': requestId,
+        },
+        headers: {requestIdHeader: requestId},
+      );
+    }
     if (deviceId != null) {
-      await db.deletePushTokensForDevice(deviceId);
+      await db.deletePushTokensForDevice(caller);
     }
     if (token != null) {
-      await db.deletePushToken(token);
+      // Only delete the token VALUE if it belongs to the caller's device;
+      // deleting another device's token by value would be a cross-device
+      // IDOR. Silent no-op (idempotent 200) when it isn't the caller's, so
+      // an attacker can't probe other devices' token values via the status.
+      final ownTokens = await db.getPushTokensForDevice(caller);
+      if (ownTokens.any((row) => row.token == token)) {
+        await db.deletePushToken(token);
+      } else {
+        _logWarning(
+          '[push][$requestId] delete-token by-value ignored: token not owned '
+          'by caller=$caller',
+        );
+      }
     }
     _logInfo(
       '[push][$requestId] deleted push token(s) '
@@ -157,6 +272,11 @@ class PushHandlers {
         message: 'deviceId query parameter is required',
       );
     }
+
+    // IDOR fix: a device may only read ITS OWN preferences (another device's
+    // mute matrix is private — and probing it leaks who is paired).
+    final ownership = await _requireOwnDevice(request, deviceId, requestId);
+    if (ownership != null) return ownership;
 
     final db = ensurePairingService().database;
     final prefs = await db.getPushPrefs(deviceId);
@@ -186,6 +306,12 @@ class PushHandlers {
     final requestId = requestIdFrom(request);
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId', maxLength: 128);
+
+    // IDOR fix: a device may only mutate ITS OWN preferences. Without this a
+    // low-trust token could mute weatherUnsafe/guidingLost for another
+    // operator's phone and silence their safety paging.
+    final ownership = await _requireOwnDevice(request, deviceId, requestId);
+    if (ownership != null) return ownership;
 
     final db = ensurePairingService().database;
     final device = await db.getPairedDevice(deviceId);

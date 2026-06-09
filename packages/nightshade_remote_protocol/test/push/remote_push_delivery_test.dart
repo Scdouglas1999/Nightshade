@@ -238,6 +238,41 @@ void main() {
       expect(store.removed, ['DEAD']);
     });
 
+    test('400 INVALID_ARGUMENT does NOT prune (payload bug, not a dead token)',
+        () async {
+      const account = FcmServiceAccount(
+        projectId: 'p',
+        clientEmail: 'svc@p.iam.gserviceaccount.com',
+        privateKeyPem: fcmTestPrivateKeyPem,
+        tokenUri: 'https://oauth2.googleapis.com/token',
+      );
+      final store = _RecordingStore(tokens: [
+        const RegisteredPushToken(
+            deviceId: 'd', platform: 'fcm', token: 'LIVE'),
+      ]);
+      final client = MockClient((req) async {
+        if (req.url.toString() == account.tokenUri) {
+          return http.Response(
+              jsonEncode({'access_token': 't', 'expires_in': 3600}), 200);
+        }
+        // A malformed payload is a 400 INVALID_ARGUMENT — a code bug, not a
+        // dead recipient. The token MUST survive so the live device keeps
+        // receiving safety alerts once the payload is fixed.
+        return http.Response(
+            '{"error":{"status":"INVALID_ARGUMENT"}}', 400);
+      });
+
+      await FcmRemotePushDelivery(
+        account: account,
+        store: store,
+        httpClient: client,
+      ).deliver(_frame());
+
+      expect(store.removed, isEmpty,
+          reason: 'a 400 must not prune a live token');
+      expect(store.tokens.map((t) => t.token), ['LIVE']);
+    });
+
     test('muted device is skipped (no send)', () async {
       const account = FcmServiceAccount(
         projectId: 'p',
@@ -335,6 +370,25 @@ void main() {
       ).deliver(_frame());
 
       expect(store.removed, ['GONE']);
+    });
+
+    test('400 does NOT prune an apns token (payload/config fault)', () async {
+      final transport =
+          _FakeApnsTransport(statusFor: (t) => t == 'BAD' ? 400 : 200);
+      final store = _RecordingStore(tokens: [
+        const RegisteredPushToken(
+            deviceId: 'i1', platform: 'apns', token: 'BAD'),
+      ]);
+
+      await ApnsRemotePushDelivery(
+        config: config(),
+        privateKeyPem: apnsTestPrivateKeyPem,
+        store: store,
+        transport: transport,
+      ).deliver(_frame());
+
+      expect(store.removed, isEmpty,
+          reason: 'a 400 must not prune a live apns token');
     });
   });
 

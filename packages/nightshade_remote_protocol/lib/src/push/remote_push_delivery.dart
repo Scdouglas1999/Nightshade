@@ -239,8 +239,11 @@ String buildFcmAssertionJwt(
 ///
 /// On each [deliver] it: refreshes a cached OAuth2 access token if needed,
 /// then POSTs one `messages:send` request per registered Android token.
-/// A `404 UNREGISTERED` / `400 INVALID_ARGUMENT` response prunes the stale
-/// token from the [PushTokenSource].
+/// A `404 NOT_FOUND` / `UNREGISTERED` response prunes the stale token from
+/// the [PushTokenSource]. A `400 INVALID_ARGUMENT` is deliberately NOT
+/// pruned: 400 signals a malformed *payload*, not a dead token, and dropping
+/// the recipient on a payload bug would silently and permanently delete a
+/// live device from the safety-alert fan-out.
 class FcmRemotePushDelivery implements RemotePushDelivery {
   final FcmServiceAccount account;
   final PushTokenStore store;
@@ -332,8 +335,12 @@ class FcmRemotePushDelivery implements RemotePushDelivery {
         },
         body: body,
       );
-      if (resp.statusCode == 404 || resp.statusCode == 400) {
-        // UNREGISTERED / INVALID_ARGUMENT => the token is dead.
+      if (resp.statusCode == 404) {
+        // NOT_FOUND / UNREGISTERED => the token is genuinely dead; prune it.
+        // A 400 INVALID_ARGUMENT is NOT pruned: it's a payload bug (bad
+        // message body), not a dead recipient. Pruning on 400 would silently
+        // and permanently remove a live device from the safety-alert fan-out
+        // every time a payload regression shipped.
         await _pruneIfStale(store, device.token);
       }
     }
@@ -442,8 +449,11 @@ class SecureSocketApnsTransport implements ApnsHttp2Transport {
 /// Apple Push Notification service delivery (token-based auth, HTTP/2).
 ///
 /// On each [deliver] it mints/reuses an ES256 provider JWT, then POSTs one
-/// request per registered APNs token. A `410 Gone` / `400 BadDeviceToken`
-/// prunes the stale token from the [PushTokenSource].
+/// request per registered APNs token. A `410 Gone` prunes the stale token
+/// from the [PushTokenSource]. A `400` is NOT pruned: APNs reuses 400 for
+/// several payload/config faults (DeviceTokenNotForTopic, BadCertificate-
+/// Environment, PayloadEmpty, …) that are not dead-recipient conditions, so
+/// pruning on 400 would silently drop live devices from the safety fan-out.
 class ApnsRemotePushDelivery implements RemotePushDelivery {
   final ApnsPushConfig config;
   final String privateKeyPem;
@@ -533,7 +543,10 @@ class ApnsRemotePushDelivery implements RemotePushDelivery {
         },
         body: body,
       );
-      if (status == 410 || status == 400) {
+      if (status == 410) {
+        // Gone => the token is genuinely unregistered; prune it. A 400 is
+        // NOT pruned (see class doc): it covers payload/config faults, not a
+        // dead recipient, so dropping the token would lose a live device.
         await _pruneIfStale(store, device.token);
       }
     }

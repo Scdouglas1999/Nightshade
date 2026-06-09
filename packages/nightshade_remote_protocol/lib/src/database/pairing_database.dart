@@ -4,6 +4,7 @@ import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
+import '../server_identity.dart';
 import 'device_push_tables.dart';
 import 'paired_devices_table.dart';
 
@@ -68,6 +69,35 @@ class PairingDatabase extends _$PairingDatabase {
         .getSingleOrNull();
   }
 
+  /// Resolve the ACTIVE paired device whose session token digests to
+  /// [fingerprint] (the `computeServerFingerprint(sessionToken)` value the
+  /// headless auth middleware stamps onto every authenticated request).
+  ///
+  /// This is the inverse of "which deviceId is the caller?": a handler holds
+  /// only the digest of the bearer that authenticated the request (never the
+  /// raw token), so it cannot trust a client-supplied `deviceId`. It must map
+  /// the authenticated session back to its owning device here and compare.
+  ///
+  /// Revoked devices (`is_active = false`) never match — a deauthorized
+  /// session token resolves to no device, so a stolen/revoked token cannot
+  /// pass the caller-ownership check. Returns `null` when no active device's
+  /// session token matches (anonymous, expired-from-map, or unknown caller).
+  Future<PairedDevice?> getActivePairedDeviceByFingerprint(
+    String fingerprint,
+  ) async {
+    if (fingerprint.isEmpty) return null;
+    final active = await getActivePairedDevices();
+    for (final device in active) {
+      // sessionToken is never empty for a real pairing; guard anyway so a
+      // malformed row can't throw inside computeServerFingerprint.
+      if (device.sessionToken.isEmpty) continue;
+      if (computeServerFingerprint(device.sessionToken) == fingerprint) {
+        return device;
+      }
+    }
+    return null;
+  }
+
   /// Add a new paired device
   ///
   /// [expiresAt] is the absolute moment after which the issued session token
@@ -123,11 +153,20 @@ class PairingDatabase extends _$PairingDatabase {
     await deletePushPrefsForDevice(deviceId);
   }
 
-  /// Delete a paired device completely
+  /// Delete a paired device completely.
+  ///
+  /// Also drops the device's cellular-push token + preference rows. Those are
+  /// keyed on `deviceId` but have no DB-level FK cascade onto `paired_devices`,
+  /// so leaving them behind would orphan the rows: a phone that re-pairs and is
+  /// re-assigned the same `deviceId` would silently inherit the deleted
+  /// device's stale mute preferences (suppressing safety alerts) and resurrect
+  /// a dead push token. Deleting them here keeps a hard-delete clean.
   Future<void> deletePairedDevice(String deviceId) async {
     await (delete(pairedDevices)
           ..where((tbl) => tbl.deviceId.equals(deviceId)))
         .go();
+    await deletePushTokensForDevice(deviceId);
+    await deletePushPrefsForDevice(deviceId);
   }
 
   // ============================================================================
