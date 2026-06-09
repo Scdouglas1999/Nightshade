@@ -45,8 +45,9 @@ use nightshade_imaging::registration::{
 };
 use nightshade_imaging::stacking::{CombineMethod, MasterOutputType};
 use nightshade_imaging::{
-    apply_stretch, apply_stretch_rgb_per_channel, auto_stretch_rgb_with_mode, auto_stretch_stf,
-    read_image, write_fits, FitsHeader, ImageData, PixelType, RgbStretchMode,
+    add_wcs_headers, apply_stretch, apply_stretch_rgb_per_channel, auto_stretch_rgb_with_mode,
+    auto_stretch_stf, read_fits, read_image, write_fits, FitsHeader, ImageData, PixelType,
+    RgbStretchMode, WcsInfo,
 };
 use serde::{Deserialize, Serialize};
 use std::path::Path;
@@ -739,7 +740,11 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
     emit_integration_progress("writing", FRACTION_WRITE, None, None);
     let master_path = Path::new(&args.output.master_fits_path);
     ensure_parent_dir(master_path)?;
-    let header = build_master_header(sub_count, &args.settings.integration);
+    // Carry the reference frame's plate-solved WCS into the master so the mosaic
+    // stitcher can place this panel without a post-hoc solve. Best-effort: a
+    // reference with no WCS leaves the master WCS-less (the stitch gates it out).
+    let reference_wcs = reference_wcs_from_fits(&loaded[ref_index].path);
+    let header = build_master_header(sub_count, &args.settings.integration, reference_wcs.as_ref());
     write_fits(master_path, &output.master, &header)
         .map_err(|e| format!("failed to write master FITS: {e:?}"))?;
 
@@ -1759,7 +1764,11 @@ fn auto_reject(sub_count: usize, low: f64, high: f64) -> Reject {
     }
 }
 
-fn build_master_header(sub_count: usize, int_args: &IntegrationArgs) -> FitsHeader {
+fn build_master_header(
+    sub_count: usize,
+    int_args: &IntegrationArgs,
+    reference_wcs: Option<&WcsInfo>,
+) -> FitsHeader {
     let mut header = FitsHeader::new();
     header.set_string("IMAGETYP", "MASTER_LIGHT");
     header.set_string("FRAMETYP", "MASTER");
@@ -1772,7 +1781,82 @@ fn build_master_header(sub_count: usize, int_args: &IntegrationArgs) -> FitsHead
         "Integrated {sub_count} subs (combine={}, reject={})",
         int_args.combine, int_args.reject
     ));
+    // Carry the registration reference's WCS into the master so the mosaic
+    // stitcher's `wcs_from_header` succeeds *without* a post-hoc plate solve. The
+    // integration output lives on the reference's pixel grid (every sub is
+    // resampled onto it), so the reference's CRVAL/CRPIX/CD matrix describes the
+    // master 1:1. Absent on the reference → left absent here; the project-service
+    // cluster gates WCS-less panels out of the stitch.
+    if let Some(wcs) = reference_wcs {
+        add_wcs_headers(&mut header, wcs);
+        header.add_history("WCS carried from registration reference frame");
+    }
     header
+}
+
+/// Read the **registration reference** frame's WCS straight from its FITS
+/// header, so the integrated master can carry it (see [`build_master_header`]).
+///
+/// Best-effort by construction: a reference that is not a FITS file, is
+/// unreadable, or simply carries no astrometry yields `None` — integration still
+/// produces a master, just without a stamped WCS (the stitcher then gates that
+/// panel out). Mirrors the stitcher's `mosaic::wcs_from_header`: prefer an
+/// explicit `CD1_1..CD2_2` matrix, fall back to the older `CDELT1/2` (+ optional
+/// `CROTA2`) convention, and default `CRPIX` to the geometric centre.
+fn reference_wcs_from_fits(path: &str) -> Option<WcsInfo> {
+    // Only FITS carries a typed WCS header through this reader path; other
+    // formats (XISF/RAW) flatten keywords lossily, so we don't attempt them.
+    let ext = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    if ext != "fits" && ext != "fit" && ext != "fts" {
+        return None;
+    }
+    let (_image, header) = read_fits(Path::new(path)).ok()?;
+
+    let crval1 = header.get_float("CRVAL1")?;
+    let crval2 = header.get_float("CRVAL2")?;
+    let naxis1 = header.get_int("NAXIS1").unwrap_or(0) as f64;
+    let naxis2 = header.get_int("NAXIS2").unwrap_or(0) as f64;
+    let crpix1 = header
+        .get_float("CRPIX1")
+        .unwrap_or_else(|| naxis1 / 2.0 + 0.5);
+    let crpix2 = header
+        .get_float("CRPIX2")
+        .unwrap_or_else(|| naxis2 / 2.0 + 0.5);
+
+    // --- Prefer an explicit CD matrix. ---
+    if let (Some(cd1_1), Some(cd2_2)) = (header.get_float("CD1_1"), header.get_float("CD2_2")) {
+        return Some(WcsInfo {
+            crval1,
+            crval2,
+            crpix1,
+            crpix2,
+            cd1_1,
+            cd1_2: header.get_float("CD1_2").unwrap_or(0.0),
+            cd2_1: header.get_float("CD2_1").unwrap_or(0.0),
+            cd2_2,
+        });
+    }
+
+    // --- Fall back to CDELT + CROTA2 (older WCS convention). ---
+    let cdelt1 = header.get_float("CDELT1")?;
+    let cdelt2 = header.get_float("CDELT2")?;
+    let crota2 = header.get_float("CROTA2").unwrap_or(0.0).to_radians();
+    let cos_r = crota2.cos();
+    let sin_r = crota2.sin();
+    Some(WcsInfo {
+        crval1,
+        crval2,
+        crpix1,
+        crpix2,
+        cd1_1: cdelt1 * cos_r,
+        cd1_2: -cdelt2 * sin_r,
+        cd2_1: cdelt1 * sin_r,
+        cd2_2: cdelt2 * cos_r,
+    })
 }
 
 /// Write a stretched 8-bit preview PNG of a (U16 or F32) master.
@@ -2011,6 +2095,128 @@ mod tests {
 
         let _ = std::fs::remove_file(&master_path);
         let _ = std::fs::remove_file(&preview_path);
+        for p in &light_paths {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+
+    /// Write a synthetic light whose FITS header carries a plate-solved WCS
+    /// (CRVAL/CRPIX + an explicit CD matrix), so the reference-WCS carry-over can
+    /// be exercised end-to-end.
+    fn write_field_fits_with_wcs(path: &Path, image: &ImageData, wcs: &WcsInfo) {
+        let mut h = FitsHeader::new();
+        h.set_string("IMAGETYP", "LIGHT");
+        add_wcs_headers(&mut h, wcs);
+        write_fits(path, image, &h).expect("write synthetic light with WCS");
+    }
+
+    /// The integrated master must carry the **registration reference**'s WCS in
+    /// its FITS header so the mosaic stitcher can place the panel without a
+    /// post-hoc plate solve. Without the carry-over the master has NO WCS and
+    /// `read_fits` finds no CRVAL/CD keywords — this test fails.
+    #[test]
+    fn integrate_session_stamps_reference_wcs_into_master() {
+        let size = 256u32;
+        let stars = base_stars(size as f64);
+        // A representative plate-solved panel WCS: ~1.5 arcsec/px, small rotation.
+        let ref_wcs = WcsInfo::from_plate_solve(83.822, -5.391, 12.0, 1.5, size, size);
+
+        let mut light_paths = Vec::new();
+        let shifts = [(0.0, 0.0), (3.0, -2.0), (-2.0, 4.0)];
+        for (i, (dx, dy)) in shifts.iter().enumerate() {
+            let field = render_field(size, &shift_stars(&stars, *dx, *dy), 200.0);
+            let p = temp_path(&format!("wcslight{i}"), "fits");
+            // Only the reference (sub 0, selected explicitly below) carries WCS.
+            if i == 0 {
+                write_field_fits_with_wcs(&p, &field, &ref_wcs);
+            } else {
+                write_field_fits(&p, &field);
+            }
+            light_paths.push(p.to_string_lossy().to_string());
+        }
+        let master_path = temp_path("wcsmaster", "fits");
+
+        let args = serde_json::json!({
+            "lightPaths": light_paths,
+            // Pin the reference to the WCS-bearing sub so the carry-over is
+            // deterministic regardless of measured quality.
+            "reference": light_paths[0],
+            "exposuresSec": [60.0, 60.0, 60.0],
+            "settings": {
+                "align": synthetic_align(),
+                "integration": { "reject": "auto", "outputBitDepth": "f32" }
+            },
+            "output": { "masterFitsPath": master_path.to_string_lossy() }
+        });
+
+        let resp = api_integrate_session(args.to_string()).expect("integration should succeed");
+        let result: IntegrateSessionResult = serde_json::from_str(&resp).unwrap();
+        assert_eq!(result.frames_integrated, 3);
+
+        // Read the master back: it must carry the reference's WCS, so the
+        // stitcher's `wcs_from_header` (CRVAL1/2 + CD matrix) succeeds. FITS cards
+        // serialize floats at finite precision, so compare with a tolerance tight
+        // enough to prove it's the reference's WCS (sub-arcsec on a ~1.5"/px CD,
+        // sub-µdeg on RA/Dec), not a default or invented one.
+        let (_master_img, h) = read_fits(master_path.as_path()).expect("read master");
+        let near = |key: &str, want: f64| {
+            let got = h
+                .get_float(key)
+                .unwrap_or_else(|| panic!("master is missing WCS keyword {key}"));
+            assert!(
+                (got - want).abs() <= want.abs() * 1e-9 + 1e-12,
+                "{key}: master {got} != reference {want}"
+            );
+        };
+        near("CRVAL1", ref_wcs.crval1);
+        near("CRVAL2", ref_wcs.crval2);
+        near("CRPIX1", ref_wcs.crpix1);
+        near("CRPIX2", ref_wcs.crpix2);
+        near("CD1_1", ref_wcs.cd1_1);
+        near("CD1_2", ref_wcs.cd1_2);
+        near("CD2_1", ref_wcs.cd2_1);
+        near("CD2_2", ref_wcs.cd2_2);
+        assert_eq!(h.get_string("CTYPE1"), Some("RA---TAN"));
+
+        let _ = std::fs::remove_file(&master_path);
+        for p in &light_paths {
+            let _ = std::fs::remove_file(p);
+        }
+    }
+
+    /// A reference frame with NO astrometry must leave the master WCS-less (the
+    /// project-service cluster gates such panels out of the stitch) — the
+    /// carry-over must never invent a WCS.
+    #[test]
+    fn integrate_session_leaves_master_wcs_absent_when_reference_has_none() {
+        let size = 256u32;
+        let stars = base_stars(size as f64);
+        let mut light_paths = Vec::new();
+        let shifts = [(0.0, 0.0), (3.0, -2.0), (-2.0, 4.0)];
+        for (i, (dx, dy)) in shifts.iter().enumerate() {
+            let field = render_field(size, &shift_stars(&stars, *dx, *dy), 200.0);
+            let p = temp_path(&format!("nowcslight{i}"), "fits");
+            write_field_fits(&p, &field); // no WCS on any sub
+            light_paths.push(p.to_string_lossy().to_string());
+        }
+        let master_path = temp_path("nowcsmaster", "fits");
+        let args = serde_json::json!({
+            "lightPaths": light_paths,
+            "reference": light_paths[0],
+            "exposuresSec": [60.0, 60.0, 60.0],
+            "settings": {
+                "align": synthetic_align(),
+                "integration": { "reject": "auto", "outputBitDepth": "f32" }
+            },
+            "output": { "masterFitsPath": master_path.to_string_lossy() }
+        });
+        api_integrate_session(args.to_string()).expect("integration should succeed");
+
+        let (_img, h) = read_fits(master_path.as_path()).expect("read master");
+        assert_eq!(h.get_float("CRVAL1"), None, "no WCS to carry → none stamped");
+        assert_eq!(h.get_float("CD1_1"), None);
+
+        let _ = std::fs::remove_file(&master_path);
         for p in &light_paths {
             let _ = std::fs::remove_file(p);
         }

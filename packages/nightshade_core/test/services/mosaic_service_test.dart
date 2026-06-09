@@ -718,4 +718,122 @@ void main() {
       expect(firstRowCount, equals(3));
     });
   });
+
+  group('MosaicService - Per-panel capture target (blocker a)', () {
+    const config = MosaicConfig(
+      centerRa: 12.0,
+      centerDec: 30.0,
+      panelWidthArcmin: 60.0,
+      panelHeightArcmin: 40.0,
+      panelsHorizontal: 3,
+      panelsVertical: 2,
+    );
+    const exposure = MosaicExposureSettings(
+      exposureSeconds: 60.0,
+      exposuresPerPanel: 1,
+    );
+
+    test('stamps a DISTINCT catalogTargetId per panel from the callback', () {
+      // The capture-collapse bug: every panel header carried a null
+      // catalogTargetId, so the frame-registration walk attributed every
+      // panel's subs to the SAME target and integratePanels pooled one field
+      // into all N panels. With the per-panel callback each header must carry
+      // its own id (panelIndex + 100), proving frames are attributable per
+      // panel. Without the fix every header's catalogTargetId is null and the
+      // distinct-id assertion below fails.
+      final nodes = service.createMosaicSequence(
+        mosaicName: 'Test Mosaic',
+        config: config,
+        exposure: exposure,
+        // serpentine off so orderIndex lines up with panelIndex for a clean
+        // assertion; the stamping keys off panel.panelIndex either way.
+        options: const MosaicSequenceOptions(serpentineOrdering: false),
+        panelTargetId: (panelIndex) => 100 + panelIndex,
+      );
+
+      final headers = nodes.values.whereType<TargetHeaderNode>().toList()
+        ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+      expect(headers, hasLength(6));
+
+      final ids = headers.map((h) => h.catalogTargetId).toList();
+      // Six panels -> six distinct, non-null capture targets.
+      expect(ids.whereType<int>(), hasLength(6),
+          reason: 'every panel header must carry a non-null catalogTargetId');
+      expect(ids.toSet(), hasLength(6),
+          reason: 'each panel must attribute to its OWN target (no pooling)');
+      // Each id resolves to its own panel index (header order == panel index
+      // with serpentine off).
+      expect(ids, equals(const [100, 101, 102, 103, 104, 105]));
+    });
+
+    test('leaves catalogTargetId null when no callback is supplied', () {
+      // The legacy/manual path (no durable per-panel targets) must be
+      // unchanged: headers stay null so manual mosaics keep their honest
+      // "unattributed" behaviour rather than silently pooling.
+      final nodes = service.createMosaicSequence(
+        mosaicName: 'Test Mosaic',
+        config: config,
+        exposure: exposure,
+      );
+      final headers = nodes.values.whereType<TargetHeaderNode>();
+      expect(headers, isNotEmpty);
+      expect(
+        headers.every((h) => h.catalogTargetId == null),
+        isTrue,
+        reason: 'no callback => every panel header keeps a null target id',
+      );
+    });
+
+    test('a callback returning null for a panel leaves that header null', () {
+      // A sparse map (only some panels have a durable target row yet) must not
+      // crash and must stamp only the panels the callback resolves.
+      final nodes = service.createMosaicSequence(
+        mosaicName: 'Test Mosaic',
+        config: config,
+        exposure: exposure,
+        options: const MosaicSequenceOptions(serpentineOrdering: false),
+        panelTargetId: (panelIndex) => panelIndex.isEven ? 200 + panelIndex : null,
+      );
+      final headers = nodes.values.whereType<TargetHeaderNode>().toList()
+        ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
+      expect(headers.map((h) => h.catalogTargetId).toList(),
+          equals(const [200, null, 202, null, 204, null]));
+    });
+  });
+
+  group('MosaicService - W1 altitude gate', () {
+    test('minAltitude option flows onto every panel TargetHeader', () {
+      // W1: when the wizard / framing call sites default minAltitude to the
+      // Smart Night floor, each panel header must carry that minAltitude so the
+      // serializer emits `min_altitude` and the executor installs a
+      // `start_when AltitudeAbove` wait. This pins the service contract the
+      // defaulted call sites rely on; with options.minAltitude null (the old
+      // behaviour) the assertion below fails.
+      const config = MosaicConfig(
+        centerRa: 12.0,
+        centerDec: 30.0,
+        panelWidthArcmin: 60.0,
+        panelHeightArcmin: 40.0,
+        panelsHorizontal: 2,
+        panelsVertical: 2,
+      );
+      const exposure = MosaicExposureSettings(
+        exposureSeconds: 60.0,
+        exposuresPerPanel: 1,
+      );
+
+      final nodes = service.createMosaicSequence(
+        mosaicName: 'Test Mosaic',
+        config: config,
+        exposure: exposure,
+        options: const MosaicSequenceOptions(minAltitude: 30.0),
+      );
+
+      final headers = nodes.values.whereType<TargetHeaderNode>().toList();
+      expect(headers, hasLength(4));
+      expect(headers.every((h) => h.minAltitude == 30.0), isTrue,
+          reason: 'every panel must gate on the configured altitude floor');
+      expect(headers.every((h) => h.hasAltitudeConstraints), isTrue);
+    });
+  });
 }

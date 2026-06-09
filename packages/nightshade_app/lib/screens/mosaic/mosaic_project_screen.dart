@@ -1,15 +1,25 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../session_review/widgets/master_overlay_view.dart';
 import '../session_review/widgets/master_preview_view.dart';
 import 'mosaic_project_controller.dart';
 import 'widgets/mosaic_panel_grid.dart';
+
+/// Resolves the DURABLE per-app base directory for mosaic artifacts —
+/// `<applicationSupport>/nightshade_mosaic`. Panel masters and the stitched
+/// mosaic FITS/PNG land under a per-project subfolder of this so they SURVIVE
+/// reboots and OS temp-dir sweeps (the old `Directory.systemTemp` default was a
+/// data-loss footgun: panel masters and the stitched mosaic could vanish the
+/// moment the OS cleaned temp).
+final mosaicArtifactsBaseDirProvider = FutureProvider<String>((ref) async {
+  final supportDir = await getApplicationSupportDirectory();
+  return p.join(supportDir.path, 'nightshade_mosaic');
+});
 
 /// The mosaic project review screen at `/mosaic/:id`.
 ///
@@ -26,12 +36,15 @@ class MosaicProjectScreen extends ConsumerWidget {
   /// The `mosaic_projects.id` to review.
   final int projectId;
 
-  /// Builds a panel's per-panel master FITS base path. Defaults to a temp-dir
-  /// stem under the system temp; the app/router can inject a real artifacts dir.
+  /// Builds a panel's per-panel master FITS base path. When omitted the screen
+  /// derives a DURABLE path under `<applicationSupport>/nightshade_mosaic`
+  /// (resolved via [mosaicArtifactsBaseDirProvider]); the app/router can inject
+  /// an explicit builder.
   final String Function(MosaicProjectPanel panel)? panelOutputPathBuilder;
 
-  /// Builds the directory the stitched mosaic artifacts land in. Defaults to a
-  /// per-project temp dir.
+  /// Builds the directory the stitched mosaic artifacts land in. When omitted
+  /// the screen derives a DURABLE per-project subfolder under
+  /// `<applicationSupport>/nightshade_mosaic`.
   final String Function(MosaicProject project)? stitchOutputDirectory;
 
   const MosaicProjectScreen({
@@ -43,16 +56,65 @@ class MosaicProjectScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+
+    // Resolve the DURABLE artifacts base before constructing the controller, so
+    // panel/stitch FITS never land in (and get swept from) the system temp dir.
+    // Explicit builders bypass the async resolution entirely.
+    final hasExplicitBuilders =
+        panelOutputPathBuilder != null && stitchOutputDirectory != null;
+    if (hasExplicitBuilders) {
+      return _scaffold(
+        context,
+        ref,
+        colors,
+        panelOutputPathBuilder!,
+        stitchOutputDirectory!,
+      );
+    }
+
+    final baseDir = ref.watch(mosaicArtifactsBaseDirProvider);
+    return baseDir.when(
+      loading: () => Scaffold(
+        backgroundColor: colors.background,
+        body: const SafeArea(
+          child: Center(child: CircularProgressIndicator()),
+        ),
+      ),
+      error: (e, _) => Scaffold(
+        backgroundColor: colors.background,
+        body: SafeArea(
+          child: EmptyState(
+            icon: NightshadeIcons.warning,
+            title: 'Mosaic storage unavailable',
+            body: 'Could not resolve a durable artifacts directory: $e',
+          ),
+        ),
+      ),
+      data: (base) => _scaffold(
+        context,
+        ref,
+        colors,
+        panelOutputPathBuilder ?? _durablePanelOutputPathBuilder(base),
+        stitchOutputDirectory ?? _durableStitchOutputDirectory(base),
+      ),
+    );
+  }
+
+  Widget _scaffold(
+    BuildContext context,
+    WidgetRef ref,
+    NightshadeColors colors,
+    String Function(MosaicProjectPanel panel) panelBuilder,
+    String Function(MosaicProject project) stitchBuilder,
+  ) {
     final args = MosaicProjectControllerArgs(
       projectId: projectId,
-      panelOutputPathBuilder:
-          panelOutputPathBuilder ?? _defaultPanelOutputPathBuilder,
-      stitchOutputDirectory:
-          stitchOutputDirectory ?? _defaultStitchOutputDirectory,
+      panelOutputPathBuilder: panelBuilder,
+      stitchOutputDirectory: stitchBuilder,
     );
     final state = ref.watch(mosaicProjectControllerProvider(args));
     final controller = ref.read(mosaicProjectControllerProvider(args).notifier);
-    final colors = NightshadeColors.of(context);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -120,19 +182,23 @@ class MosaicProjectScreen extends ConsumerWidget {
     );
   }
 
-  static String _defaultPanelOutputPathBuilder(MosaicProjectPanel panel) =>
-      p.join(
-        Directory.systemTemp.path,
-        'nightshade_mosaic',
-        'project_${panel.projectId}',
-        'panel_${panel.panelIndex}.fits',
-      );
+  /// Per-panel master FITS base path under the DURABLE [base] artifacts dir:
+  /// `<base>/project_<id>/panel_<index>.fits`.
+  static String Function(MosaicProjectPanel panel) _durablePanelOutputPathBuilder(
+    String base,
+  ) =>
+      (panel) => p.join(
+            base,
+            'project_${panel.projectId}',
+            'panel_${panel.panelIndex}.fits',
+          );
 
-  static String _defaultStitchOutputDirectory(MosaicProject project) => p.join(
-        Directory.systemTemp.path,
-        'nightshade_mosaic',
-        'project_${project.id}',
-      );
+  /// Per-project stitched-mosaic artifacts directory under the DURABLE [base]:
+  /// `<base>/project_<id>`.
+  static String Function(MosaicProject project) _durableStitchOutputDirectory(
+    String base,
+  ) =>
+      (project) => p.join(base, 'project_${project.id}');
 }
 
 /// The project header: name, target region (RA/Dec), NxM grid, and lifecycle
@@ -243,6 +309,14 @@ class MosaicProjectActions extends StatelessWidget {
             runSpacing: NightshadeTokens.spaceSm,
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
+              if (controller.canStartCapture)
+                NightshadeButton(
+                  label: 'Start capture',
+                  icon: NightshadeIcons.camera,
+                  isLoading: state.isStartingCapture,
+                  onPressed:
+                      state.isBusy ? null : () => controller.startCapture(),
+                ),
               NightshadeButton(
                 label: 'Integrate panels',
                 icon: NightshadeIcons.layers,
@@ -276,9 +350,11 @@ class MosaicProjectActions extends StatelessWidget {
             NightshadeProgressBar(
               value: 0,
               indeterminate: true,
-              label: state.isIntegrating
-                  ? 'Integrating panels…'
-                  : 'Stitching mosaic…',
+              label: state.isStartingCapture
+                  ? 'Launching capture…'
+                  : state.isIntegrating
+                      ? 'Integrating panels…'
+                      : 'Stitching mosaic…',
             ),
           ],
         ],

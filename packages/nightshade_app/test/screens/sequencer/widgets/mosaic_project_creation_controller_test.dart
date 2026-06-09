@@ -36,6 +36,7 @@ List<Map<String, Object?>> _recordCreateCalls(
         positionAngleDeg: any(named: 'positionAngleDeg'),
         panelWidthArcmin: any(named: 'panelWidthArcmin'),
         panelHeightArcmin: any(named: 'panelHeightArcmin'),
+        panelTargetId: any(named: 'panelTargetId'),
       )).thenAnswer((invocation) async {
     calls.add({
       for (final entry in invocation.namedArguments.entries)
@@ -114,5 +115,53 @@ void main() {
     await controller.createProject(adHoc);
 
     expect(calls.single['targetId'], isNull);
+  });
+
+  test('createProject forwards the design panelTargetId callback', () async {
+    // Capture-wiring remediation (blocker b): a durable mosaic must carry a
+    // DISTINCT capture target per panel so frames pool per panel, not all into
+    // one field. The wizard threads a panelIndex -> targets.id map through the
+    // design; the controller must hand it to the service verbatim. Without the
+    // forwarding this argument arrives null and every panel inherits the
+    // project target (the pooled-collapse bug). Reading the forwarded callback
+    // back and exercising it proves the exact mapping survives the glue.
+    final calls = _recordCreateCalls(service, returns: 5);
+    const panelToTarget = {0: 101, 1: 102, 2: 103, 3: 104, 4: 105, 5: 106};
+
+    final design = MosaicProjectDesign(
+      name: 'Mosaic 12.50h 30.0°',
+      centerRaHours: 12.5,
+      centerDecDegrees: 30.0,
+      rows: 2,
+      cols: 3,
+      overlapPercent: 12.0,
+      positionAngleDeg: 0.0,
+      panelWidthArcmin: 60.0,
+      panelHeightArcmin: 40.0,
+      panelTargetId: (panelIndex) => panelToTarget[panelIndex],
+    );
+
+    await controller.createProject(design);
+
+    final forwarded =
+        calls.single['panelTargetId'] as int? Function(int)?;
+    expect(forwarded, isNotNull,
+        reason: 'the per-panel target callback must reach the service');
+    // Each panel index resolves to its OWN distinct target id.
+    expect(forwarded!(0), 101);
+    expect(forwarded(3), 104);
+    expect(forwarded(5), 106);
+    // The six panels map to six DISTINCT capture targets (no pooling).
+    final ids = {for (var i = 0; i < 6; i++) forwarded(i)};
+    expect(ids, hasLength(6));
+  });
+
+  test('a null design panelTargetId is forwarded as null', () async {
+    final calls = _recordCreateCalls(service, returns: 2);
+
+    await controller.createProject(design);
+
+    expect(calls.single['panelTargetId'], isNull,
+        reason: 'ad-hoc designs leave per-panel targets to the service');
   });
 }

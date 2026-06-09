@@ -20,9 +20,11 @@ import 'package:nightshade_core/nightshade_core.dart';
 /// master onto each panel so the controller's reload reflects "integrated".
 class _SpyService extends MosaicProjectService {
   _SpyService({
+    required super.db,
     required this.panelsDao,
     required this.mastersDao,
     required this.projectsDao,
+    required super.targetsDao,
     required super.imagesDao,
     required super.integrationService,
     required super.seam,
@@ -37,6 +39,7 @@ class _SpyService extends MosaicProjectService {
 
   int integrateCalls = 0;
   int stitchCalls = 0;
+  int startCaptureCalls = 0;
 
   /// How many panels integrate should link a master onto (mirrors a partial
   /// capture: only the first [panelsToLink] panels produced subs).
@@ -63,7 +66,7 @@ class _SpyService extends MosaicProjectService {
         frameCount: 5,
       );
       await panelsDao.setMaster(panel.id!, masterId);
-      await panelsDao.incrementCaptured(panel.id!, delta: 5);
+      await panelsDao.setCaptured(panel.id!, 5);
       outcomes.add(MosaicPanelIntegrationOutcome(
         panelId: panel.id!,
         panelIndex: panel.panelIndex,
@@ -76,10 +79,32 @@ class _SpyService extends MosaicProjectService {
   }
 
   @override
+  Future<MosaicCaptureRequest> startCapture(
+    int projectId, {
+    required MosaicCaptureLauncher launcher,
+  }) async {
+    startCaptureCalls++;
+    final panels = await panelsDao.getForProject(projectId);
+    final project = await projectsDao.getById(projectId);
+    final request = MosaicCaptureRequest(
+      project: project!,
+      panels: panels,
+      panelTargetIds: {
+        for (final p in panels)
+          if (p.targetId != null) p.panelIndex: p.targetId!,
+      },
+    );
+    await launcher(request);
+    await projectsDao.updateStatus(projectId, MosaicProjectStatus.capturing);
+    return request;
+  }
+
+  @override
   Future<MosaicStitchOutcome> stitchProject(
     int projectId, {
     required String outputDirectory,
     Map<String, dynamic>? stitchConfig,
+    Future<bool> Function(String fitsPath)? fitsHasWcs,
   }) async {
     stitchCalls++;
     final masterId = await mastersDao.insertMaster(
@@ -123,9 +148,11 @@ void main() {
     // The spy never reaches imagesDao / integration / seam, but the super ctor
     // requires them — hand it the real DAO-backed instances.
     spy = _SpyService(
+      db: db,
       panelsDao: panelsDao,
       mastersDao: mastersDao,
       projectsDao: projectsDao,
+      targetsDao: TargetsDao(db),
       imagesDao: ImagesDao(db),
       integrationService: PostSessionIntegrationService(
         mastersDao: mastersDao,
@@ -162,13 +189,17 @@ void main() {
     return projectId;
   }
 
-  MosaicProjectController makeController(int projectId) {
+  MosaicProjectController makeController(
+    int projectId, {
+    MosaicCaptureLauncher? captureLauncher,
+  }) {
     return MosaicProjectController(
       projectId: projectId,
       projectsDao: projectsDao,
       panelsDao: panelsDao,
       mastersDao: mastersDao,
       service: spy,
+      captureLauncher: captureLauncher,
       panelOutputPathBuilder: (panel) =>
           '/tmp/mosaic/${panel.projectId}/panel_${panel.panelIndex}.fits',
       stitchOutputDirectory: (project) => '/tmp/mosaic/${project.id}',
@@ -253,6 +284,40 @@ void main() {
     expect(c.state.project!.status, MosaicProjectStatus.complete);
     expect(c.state.isStitching, isFalse);
     expect(c.state.error, isNull);
+    c.dispose();
+  });
+
+  test('startCapture drives the service + launcher and reloads as capturing',
+      () async {
+    final projectId = await seedProject(cols: 3);
+    final c = makeController(
+      projectId,
+      captureLauncher: (req) async {},
+    );
+    await waitForLoad(c);
+    expect(c.canStartCapture, isTrue);
+
+    await c.startCapture();
+
+    expect(spy.startCaptureCalls, 1);
+    expect(c.state.isStartingCapture, isFalse);
+    expect(c.state.error, isNull);
+    expect(c.state.project!.status, MosaicProjectStatus.capturing);
+    c.dispose();
+  });
+
+  test('startCapture is unavailable (clear error) without a launcher', () async {
+    final projectId = await seedProject(cols: 3);
+    final c = makeController(projectId); // no launcher injected
+    await waitForLoad(c);
+    expect(c.canStartCapture, isFalse);
+
+    await c.startCapture();
+
+    // The service was NOT called; a clear error explains capture is unavailable.
+    expect(spy.startCaptureCalls, 0);
+    expect(c.state.error, isNotNull);
+    expect(c.state.error, contains('unavailable'));
     c.dispose();
   });
 }

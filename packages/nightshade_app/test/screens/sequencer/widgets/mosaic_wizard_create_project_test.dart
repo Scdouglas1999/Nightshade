@@ -49,6 +49,7 @@ List<Map<String, Object?>> _recordCreateCalls(
         positionAngleDeg: any(named: 'positionAngleDeg'),
         panelWidthArcmin: any(named: 'panelWidthArcmin'),
         panelHeightArcmin: any(named: 'panelHeightArcmin'),
+        panelTargetId: any(named: 'panelTargetId'),
       )).thenAnswer((invocation) async {
     calls.add({
       for (final e in invocation.namedArguments.entries)
@@ -175,6 +176,17 @@ void main() {
     expect(args['positionAngleDeg'], 0.0);
     expect(args['panelWidthArcmin'], 60.0);
     expect(args['panelHeightArcmin'], 40.0);
+    // Capture-wiring (blocker b): the create-project path threads a
+    // panelTargetId callback end-to-end (wizard design -> controller ->
+    // service). For the wizard's ad-hoc centre it is null — the project-service
+    // assigns the distinct per-panel capture targets inside createProject — but
+    // the argument MUST be present in the call so the plumbing exists. Before
+    // the fix the controller dropped it entirely and the service signature had
+    // no such parameter.
+    expect(args.containsKey('panelTargetId'), isTrue,
+        reason: 'the per-panel target callback must be wired through createProject');
+    expect(args['panelTargetId'], isNull,
+        reason: 'ad-hoc wizard centre defers per-panel target assignment to the service');
 
     expect(routedId, '314',
         reason: 'routes to /mosaic/<new project id> after create');
@@ -197,5 +209,44 @@ void main() {
     );
     expect(calls, isEmpty,
         reason: 'merely opening the wizard creates no project');
+  });
+
+  testWidgets(
+      'W1: Load into Sequencer gives every panel a minAltitude altitude gate',
+      (tester) async {
+    // W1 no-daylight/altitude gate: the wizard's "Load into Sequencer" path
+    // must default MosaicSequenceOptions.minAltitude to the Smart Night floor
+    // so every panel TargetHeader carries a minAltitude (serialized as
+    // `min_altitude` => a `start_when AltitudeAbove` wait in the executor).
+    // Before the fix the wizard passed no minAltitude and every panel header's
+    // minAltitude was null — a panel could begin imaging below the horizon
+    // floor. This taps the real button and reads the generated sequence back.
+    final service = _MockService();
+    _recordCreateCalls(service, returns: 1);
+    await _pumpWizard(
+      tester,
+      service: service,
+      onMosaicRoute: (_) {},
+    );
+
+    await tester.tap(find.byKey(const ValueKey('mosaic_generate_sequence_btn')));
+    await tester.pumpAndSettle();
+
+    // Read the sequence the wizard loaded into the editor.
+    final context = tester.element(find.byType(MaterialApp));
+    final container = ProviderScope.containerOf(context);
+    final sequence = container.read(currentSequenceProvider);
+    expect(sequence, isNotNull,
+        reason: 'Load into Sequencer creates/populates the editor sequence');
+
+    final headers =
+        sequence!.nodes.values.whereType<TargetHeaderNode>().toList();
+    expect(headers, isNotEmpty, reason: '3x3 default => 9 panel headers');
+    expect(
+      headers.every((h) => h.minAltitude == const SmartNightSettings().minAltitudeDeg),
+      isTrue,
+      reason: 'every panel must gate on the Smart Night minimum altitude floor',
+    );
+    expect(headers.every((h) => h.hasAltitudeConstraints), isTrue);
   });
 }

@@ -31,6 +31,9 @@ class MosaicProjectState {
   /// True during the initial load (no project resolved yet).
   final bool isLoading;
 
+  /// True while [MosaicProjectController.startCapture] is running.
+  final bool isStartingCapture;
+
   /// True while [MosaicProjectController.integratePanels] is running.
   final bool isIntegrating;
 
@@ -47,13 +50,15 @@ class MosaicProjectState {
     this.panelMasters = const {},
     this.stitchedMaster,
     this.isLoading = true,
+    this.isStartingCapture = false,
     this.isIntegrating = false,
     this.isStitching = false,
     this.error,
   });
 
-  /// True while any long-running action (integrate or stitch) is in flight.
-  bool get isBusy => isIntegrating || isStitching;
+  /// True while any long-running action (start-capture, integrate, or stitch)
+  /// is in flight.
+  bool get isBusy => isStartingCapture || isIntegrating || isStitching;
 
   /// Number of panels that carry an integrated per-panel master — the
   /// population the stitcher consumes. Stitch is gated until this is >= 2 (one
@@ -79,6 +84,7 @@ class MosaicProjectState {
     IntegratedMaster? stitchedMaster,
     bool clearStitchedMaster = false,
     bool? isLoading,
+    bool? isStartingCapture,
     bool? isIntegrating,
     bool? isStitching,
     String? error,
@@ -91,6 +97,7 @@ class MosaicProjectState {
       stitchedMaster:
           clearStitchedMaster ? null : (stitchedMaster ?? this.stitchedMaster),
       isLoading: isLoading ?? this.isLoading,
+      isStartingCapture: isStartingCapture ?? this.isStartingCapture,
       isIntegrating: isIntegrating ?? this.isIntegrating,
       isStitching: isStitching ?? this.isStitching,
       error: clearError ? null : (error ?? this.error),
@@ -120,6 +127,7 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
     required MosaicProjectService service,
     required String Function(MosaicProjectPanel panel) panelOutputPathBuilder,
     required String Function(MosaicProject project) stitchOutputDirectory,
+    MosaicCaptureLauncher? captureLauncher,
     IntegrationSettings integrationSettings = IntegrationSettings.defaults,
   })  : _projectId = projectId,
         _projectsDao = projectsDao,
@@ -128,6 +136,7 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
         _service = service,
         _panelOutputPathBuilder = panelOutputPathBuilder,
         _stitchOutputDirectory = stitchOutputDirectory,
+        _captureLauncher = captureLauncher,
         _integrationSettings = integrationSettings,
         super(const MosaicProjectState()) {
     // Kick the first load; errors land on state.error rather than throwing into
@@ -142,6 +151,12 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
   final MosaicProjectService _service;
   final String Function(MosaicProjectPanel panel) _panelOutputPathBuilder;
   final String Function(MosaicProject project) _stitchOutputDirectory;
+
+  /// Builds the per-panel-target mosaic sequence and loads it into the executor.
+  /// Null when the screen was constructed without a launcher (capture is then
+  /// unavailable — the integrate/stitch review actions still work). Injected so
+  /// tests can drive [startCapture] without the real sequencer/executor.
+  final MosaicCaptureLauncher? _captureLauncher;
   final IntegrationSettings _integrationSettings;
 
   /// Load (or reload) the project, its panels, the per-panel masters, and the
@@ -187,12 +202,52 @@ class MosaicProjectController extends StateNotifier<MosaicProjectState> {
         panelMasters: masters,
         stitchedMaster: stitched,
         isLoading: false,
+        isStartingCapture: state.isStartingCapture,
         isIntegrating: state.isIntegrating,
         isStitching: state.isStitching,
       );
     } catch (e) {
       if (!mounted) return;
       state = state.copyWith(isLoading: false, error: 'Failed to load: $e');
+    }
+  }
+
+  /// Whether this controller can launch capture (a [MosaicCaptureLauncher] was
+  /// supplied). The screen hides/disables the "Start capture" action when false.
+  bool get canStartCapture => _captureLauncher != null;
+
+  /// LAUNCH capture of the durable project via
+  /// [MosaicProjectService.startCapture]: the service resolves each panel's
+  /// distinct capture target, the injected [MosaicCaptureLauncher] builds the
+  /// per-panel-target mosaic sequence and loads it into the executor, and the
+  /// project + panels move into the capturing state. Then reload so the header
+  /// reflects the new lifecycle.
+  ///
+  /// No-op (with a clear error) when no launcher was supplied. Busy/error are
+  /// reported on state; a thrown service/launcher error is caught and surfaced,
+  /// never rethrown into the widget tree.
+  Future<void> startCapture() async {
+    final project = state.project;
+    if (project == null || state.isBusy) return;
+    final launcher = _captureLauncher;
+    if (launcher == null) {
+      state = state.copyWith(
+        error: 'Capture is unavailable: no sequencer/executor wired for this '
+            'screen.',
+      );
+      return;
+    }
+    state = state.copyWith(isStartingCapture: true, clearError: true);
+    try {
+      await _service.startCapture(_projectId, launcher: launcher);
+      await load();
+      if (mounted) state = state.copyWith(isStartingCapture: false);
+    } catch (e) {
+      if (!mounted) return;
+      state = state.copyWith(
+        isStartingCapture: false,
+        error: 'Start capture failed: $e',
+      );
     }
   }
 
@@ -314,6 +369,7 @@ final mosaicProjectControllerProvider = StateNotifierProvider.family<
       service: ref.watch(mosaicProjectServiceProvider),
       panelOutputPathBuilder: args.panelOutputPathBuilder,
       stitchOutputDirectory: args.stitchOutputDirectory,
+      captureLauncher: buildMosaicCaptureLauncher(ref),
       integrationSettings: args.integrationSettings,
     );
   },
@@ -326,3 +382,114 @@ final mosaicProjectsListProvider =
     FutureProvider<List<MosaicProject>>((ref) async {
   return ref.watch(mosaicProjectsDaoProvider).listAll();
 });
+
+/// Build the real [MosaicCaptureLauncher] that
+/// [MosaicProjectService.startCapture] hands the resolved
+/// [MosaicCaptureRequest]: it rebuilds the project's mosaic sequence via the
+/// canonical [MosaicService.createMosaicSequence] (so per-panel FITS provenance
+/// matches the wizard / framing entry points), stamps each panel
+/// `TargetHeaderNode.catalogTargetId` from the request's per-panel target map
+/// (so a panel's subs attribute to that panel's distinct target), loads it into
+/// the editor, and starts the executor.
+///
+/// Returns null when no equipment FOV is resolvable — capture cannot be planned
+/// without the rig footprint, and surfacing "unavailable" beats building a
+/// geometrically wrong mosaic. The controller then reports a clear error rather
+/// than silently launching a bad run.
+MosaicCaptureLauncher buildMosaicCaptureLauncher(Ref ref) {
+  return (MosaicCaptureRequest request) async {
+    final panels = request.panels;
+    if (panels.isEmpty) {
+      throw StateError('mosaic capture has no panels');
+    }
+
+    // Per-panel rig footprint (arcmin) from the active equipment profile (or
+    // custom framing equipment). Without it the panel geometry is undefined.
+    final fov = await ref.read(framingFOVProvider.future);
+    final equipment = fov.equipment;
+    if (equipment == null) {
+      throw StateError(
+        'cannot launch mosaic capture: no equipment FOV available — configure '
+        'a camera + focal length in your active profile and try again',
+      );
+    }
+
+    // Project center = mean of the stored panel centers (the same point the
+    // grid was generated about), so regenerating the panels reproduces the
+    // exact per-panel centers already persisted.
+    var ra = 0.0;
+    var dec = 0.0;
+    for (final panel in panels) {
+      ra += panel.centerRa;
+      dec += panel.centerDec;
+    }
+    ra /= panels.length;
+    dec /= panels.length;
+
+    final project = request.project;
+    final config = MosaicConfig(
+      centerRa: ra,
+      centerDec: dec,
+      panelWidthArcmin: equipment.fovWidthDeg * 60.0,
+      panelHeightArcmin: equipment.fovHeightDeg * 60.0,
+      overlapPercent: project.overlapPct,
+      rotation: project.positionAngleDeg,
+      panelsHorizontal: project.cols,
+      panelsVertical: project.rows,
+    );
+
+    final exposure = smartNightMosaicExposureSettings(
+      ref.read(smartNightExposureContextProvider).valueOrNull,
+    );
+
+    final options = MosaicSequenceOptions(
+      serpentineOrdering: true,
+      centerAfterSlew: true,
+      autofocusPerPanel: false,
+      // W1 STRENGTHEN (never weaken): default each panel's minAltitude to the
+      // Smart Night floor so every panel TargetHeader carries an altitude gate
+      // — matching the wizard / headless mosaic paths. This ADDS the
+      // no-daylight/altitude gate to the durable-project capture sequence; it
+      // does not touch the live Dart Sun gate (W1) or the fail-closed weather
+      // gate (W5).
+      minAltitude: const SmartNightSettings().minAltitudeDeg,
+    );
+
+    final mosaicName = project.name.isEmpty
+        ? 'Mosaic ${ra.toStringAsFixed(2)}h ${dec.toStringAsFixed(1)}deg'
+        : project.name;
+
+    const service = MosaicService();
+    final nodes = service.createMosaicSequence(
+      mosaicName: mosaicName,
+      config: config,
+      exposure: exposure,
+      options: options,
+      // CONTRACT (capture-wiring <-> project-service): pass the per-panel target
+      // map so each panel's TargetHeaderNode is stamped with its DISTINCT
+      // catalogTargetId — a panel's captured subs then attribute to that panel's
+      // own target (the precise isolation per-panel integration relies on).
+      panelTargetId: (panelIndex) => request.panelTargetIds[panelIndex],
+    );
+
+    // Reuse the canonical "wrap nodes + load into editor" path so the durable
+    // project capture is byte-identical to the wizard/framing sequence shape.
+    final rootNode = nodes.values.firstWhere(
+      (n) => n is InstructionSetNode && n.parentId == null,
+      orElse: () => throw StateError(
+        'MosaicService.createMosaicSequence did not produce a root '
+        'InstructionSetNode — refusing to launch a malformed mosaic.',
+      ),
+    );
+    final sequence = Sequence.create(
+      name: mosaicName,
+      nodes: nodes,
+      rootNodeId: rootNode.id,
+    );
+
+    ref
+        .read(currentSequenceProvider.notifier)
+        .loadSequence(sequence, discardUnsaved: true);
+    await ref.read(sequenceExecutorProvider).start();
+  };
+}

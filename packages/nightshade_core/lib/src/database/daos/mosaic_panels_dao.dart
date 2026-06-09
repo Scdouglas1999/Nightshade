@@ -113,6 +113,18 @@ class MosaicPanelsDao {
     );
   }
 
+  /// Clear a panel's `integrated_master_id` link WITHOUT touching its status —
+  /// used when a re-integration of the panel failed, so the panel no longer
+  /// points at a stale/superseded master. The caller sets the terminal status
+  /// (e.g. [MosaicPanelStatus.failed]) separately. Returns rows changed.
+  Future<int> clearMaster(int panelId) {
+    return _db.customUpdate(
+      'UPDATE mosaic_panels SET integrated_master_id = NULL WHERE id = ?',
+      variables: [Variable<int>(panelId)],
+      updateKind: UpdateKind.update,
+    );
+  }
+
   /// Update a panel's lifecycle [status]. Returns the number of rows changed.
   Future<int> updateStatus(int panelId, MosaicPanelStatus status) {
     return _db.customUpdate(
@@ -125,15 +137,41 @@ class MosaicPanelsDao {
     );
   }
 
-  /// Credit [delta] accepted frames to a panel's running `captured_count`.
+  /// Add [delta] accepted frames to a panel's running `captured_count`.
   /// Returns the number of rows changed, or 0 when [delta] <= 0 (a rejected /
   /// no-op frame must never advance the counter).
+  ///
+  /// Prefer [setCaptured] for the integration path: the per-panel integration
+  /// always re-folds the *whole* accepted population, so an idempotent
+  /// assignment (not `+=`) is correct there — see [setCaptured]. This
+  /// accumulating form is retained for callers that genuinely credit a single
+  /// freshly-captured frame (e.g. a live capture tick), where each call is a
+  /// distinct new frame.
   Future<int> incrementCaptured(int panelId, {int delta = 1}) {
     if (delta <= 0) return Future.value(0);
     return _db.customUpdate(
       'UPDATE mosaic_panels SET captured_count = captured_count + ? '
       'WHERE id = ?',
       variables: [Variable<int>(delta), Variable<int>(panelId)],
+      updateKind: UpdateKind.update,
+    );
+  }
+
+  /// SET a panel's `captured_count` to the [count] freshly-accepted frames that
+  /// fed its latest integration.
+  ///
+  /// This is an idempotent assignment, NOT an accumulation: re-integrating a
+  /// panel (e.g. after grabbing more subs, or a re-run with the SAME subs) must
+  /// land the count at the current accepted population, never double it. The
+  /// per-panel integration always folds the *whole* accepted set for the panel's
+  /// target, so the accepted count IS the running total — `+=` would inflate it
+  /// on every re-run. Returns the number of rows changed, or 0 when [count] < 0
+  /// (a negative population is nonsense and must never touch the counter).
+  Future<int> setCaptured(int panelId, int count) {
+    if (count < 0) return Future.value(0);
+    return _db.customUpdate(
+      'UPDATE mosaic_panels SET captured_count = ? WHERE id = ?',
+      variables: [Variable<int>(count), Variable<int>(panelId)],
       updateKind: UpdateKind.update,
     );
   }

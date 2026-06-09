@@ -356,11 +356,25 @@ class MosaicService {
   /// mosaic-specific resume code path on the Dart side and there
   /// does not need to be one — the Wizard checkpoint slot
   /// `wizard_states["mosaic"]` is dormant under this path.
+  /// [panelTargetId] optionally maps a panel's 0-based row-major
+  /// [MosaicPanel.panelIndex] to the DB `targets.id` that the panel images,
+  /// which is stamped onto that panel's [TargetHeaderNode.catalogTargetId].
+  /// This is what makes a durable mosaic's frames attributable PER PANEL: the
+  /// frame-registration path walks to the header's `catalogTargetId`, so each
+  /// panel's subs pool into its own `targets` row instead of all panels
+  /// sharing one. Without it (the legacy/manual path) every panel carries a
+  /// null id, the project-service then pools every panel's subs under the
+  /// project target, and `integratePanels` integrates the same field N times.
+  /// The key matches [MosaicProjectService.createProject]'s `panelTargetId`
+  /// callback so the per-panel `mosaic_panels.target_id` and the per-panel
+  /// header `catalogTargetId` line up by index. `null` (or a callback that
+  /// returns null for a panel) leaves that header's id null.
   Map<String, SequenceNode> createMosaicSequence({
     required String mosaicName,
     required MosaicConfig config,
     required MosaicExposureSettings exposure,
     MosaicSequenceOptions options = const MosaicSequenceOptions(),
+    int? Function(int panelIndex)? panelTargetId,
   }) {
     final panels = generatePanels(config);
     final nodes = <String, SequenceNode>{};
@@ -473,6 +487,9 @@ class MosaicService {
         priority: i,
         minAltitude: options.minAltitude,
         maxAltitude: options.maxAltitude,
+        // Stamp the panel's own capture target so frames written under this
+        // header attribute to the per-panel `targets` row, not a shared one.
+        catalogTargetId: panelTargetId?.call(panel.panelIndex),
         childIds: childIds,
         orderIndex: i,
       );

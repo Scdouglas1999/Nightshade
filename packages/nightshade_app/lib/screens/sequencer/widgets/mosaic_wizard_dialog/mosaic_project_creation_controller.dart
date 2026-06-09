@@ -55,6 +55,15 @@ class MosaicProjectDesign {
   /// target; null for an ad-hoc centre.
   final int? targetId;
 
+  /// Optional map from a panel's 0-based row-major index to the DB `targets.id`
+  /// that panel should image. Forwarded to
+  /// [MosaicProjectService.createProject] so each `mosaic_panels` row carries
+  /// its OWN capture target (and so a launched capture sequence can stamp the
+  /// matching per-panel `TargetHeaderNode.catalogTargetId`). `null` => every
+  /// panel inherits the project [targetId] (the legacy pooled behaviour where
+  /// `integratePanels` would integrate the same field for every panel).
+  final int? Function(int panelIndex)? panelTargetId;
+
   const MosaicProjectDesign({
     required this.name,
     required this.centerRaHours,
@@ -66,6 +75,7 @@ class MosaicProjectDesign {
     required this.panelWidthArcmin,
     required this.panelHeightArcmin,
     this.targetId,
+    this.panelTargetId,
   });
 }
 
@@ -100,6 +110,7 @@ class MosaicProjectCreationController {
       positionAngleDeg: design.positionAngleDeg,
       panelWidthArcmin: design.panelWidthArcmin,
       panelHeightArcmin: design.panelHeightArcmin,
+      panelTargetId: design.panelTargetId,
     );
   }
 }

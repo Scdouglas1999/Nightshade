@@ -474,6 +474,14 @@ Future<bool> _addFramedMosaicToSequencer({
     serpentineOrdering: framingState.mosaicConfig.serpentine,
     centerAfterSlew: true,
     autofocusPerPanel: false,
+    // W1 no-daylight/altitude gate: default each panel's minAltitude to the
+    // Smart Night floor so every panel TargetHeader carries a
+    // `start_when AltitudeAbove` wait (serialized as `min_altitude`). Without
+    // this the headless mosaic path gated on altitude but the framing →
+    // sequencer path did not, so a panel could start imaging while still below
+    // the horizon floor. STRENGTHENS the gate; it never weakens the Dart Sun
+    // gate (W1) or the W5 weather gate.
+    minAltitude: const SmartNightSettings().minAltitudeDeg,
   );
 
   final mosaicName = framingMosaicNameFor(target);
