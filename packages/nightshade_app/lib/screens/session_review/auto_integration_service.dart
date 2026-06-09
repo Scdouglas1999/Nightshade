@@ -71,93 +71,162 @@ class AutoIntegrationService {
         ? (await _ref.read(targetsDaoProvider).getTargetById(targetId))?.name
         : null;
 
-    // Multi-night: if the target has an active accumulating master for the
-    // dominant filter, fold tonight's subs into it rather than starting fresh.
-    if (targetId != null) {
-      final filter = _dominantFilter(accepted);
-      final master = await _ref
-          .read(integratedMastersDaoProvider)
-          .getAccumulatingForTargetFilter(targetId: targetId, filter: filter);
-      if (master != null) {
-        try {
-          final group =
-              accepted.where((s) => (s.filter ?? '') == (filter ?? '')).toList();
-          final result =
-              await _ref.read(masterAccumulationServiceProvider).addNight(
-                    masterId: master.id,
-                    subs: group,
-                    label: DateTime.now().toIso8601String().split('T').first,
-                    settings: settings,
-                  );
-          await _afterSuccess(
-            sessionId: sessionId,
-            targetId: targetId,
-            targetName: targetName ?? master.name,
-            integrationSeconds: result.totalIntegrationSec,
-            framesKept: result.framesAdded,
-            framesRejected: result.rejected,
-          );
-          return AutoIntegrationResult(
-            ran: true,
-            message: 'Added ${result.framesAdded} subs to ${master.name} '
-                '(${result.frameCount} total).',
-          );
-        } catch (e) {
-          return AutoIntegrationResult(
-            ran: false,
-            message: 'Auto-accumulate failed: $e',
-          );
+    // Multi-night + multi-filter: split tonight's accepted subs by filter and
+    // route EACH bucket independently — fold into that filter's active
+    // accumulating master when one exists (multi-night growth), else collect it
+    // for a fresh batch integration. An LRGB / SHO night must never silently
+    // drop the subs of any non-dominant filter: every bucket is either folded or
+    // batch-integrated, and the toast reports the total across all of them.
+    final byFilter = _groupByFilter(accepted);
+
+    // Buckets without an accumulating master are batch-integrated together (the
+    // integrate service fans out per filter itself); buckets with one are folded.
+    final batchSubs = <DbCapturedImage>[];
+    var accumulatedSubs = 0;
+    var accumulatedRejected = 0;
+    var accumulatedSeconds = 0.0;
+    final accumulatedInto = <String>[];
+
+    try {
+      for (final bucket in byFilter.entries) {
+        final filter = bucket.key.isEmpty ? null : bucket.key;
+        final group = bucket.value;
+
+        final master = targetId == null
+            ? null
+            : await _ref
+                .read(integratedMastersDaoProvider)
+                .getAccumulatingForTargetFilter(
+                    targetId: targetId, filter: filter);
+        if (master == null) {
+          // No accumulating master for this filter — batch-integrate it.
+          batchSubs.addAll(group);
+          continue;
         }
+
+        final result =
+            await _ref.read(masterAccumulationServiceProvider).addNight(
+                  masterId: master.id,
+                  subs: group,
+                  label: DateTime.now().toIso8601String().split('T').first,
+                  settings: settings,
+                );
+        accumulatedSubs += result.framesAdded;
+        accumulatedRejected += result.rejected;
+        accumulatedSeconds += result.totalIntegrationSec;
+        accumulatedInto.add(master.name);
+      }
+    } catch (e) {
+      return AutoIntegrationResult(
+        ran: false,
+        message: 'Auto-accumulate failed: $e',
+      );
+    }
+
+    // One-shot batch integration of every filter bucket that had no accumulating
+    // master to grow.
+    var batchSubsIntegrated = 0;
+    var batchRejected = 0;
+    var batchSeconds = 0.0;
+    var batchMasters = 0;
+    int? firstBatchMasterId;
+    if (batchSubs.isNotEmpty) {
+      try {
+        final outDir = await _outputDir();
+        final outcomes =
+            await _ref.read(postSessionIntegrationServiceProvider).integrate(
+                  subs: batchSubs,
+                  settings: settings,
+                  targetId: targetId,
+                  targetName: targetName,
+                  outputFitsPathBuilder: (filterBucket) {
+                    final stamp = DateTime.now().millisecondsSinceEpoch;
+                    final base = _safeName(targetName ?? 'session');
+                    final tag = filterBucket ==
+                            PostSessionIntegrationService.noFilterBucket
+                        ? ''
+                        : '_${_safeName(filterBucket)}';
+                    return p.join(outDir, '$base${tag}_master_$stamp.fits');
+                  },
+                );
+        batchSubsIntegrated =
+            outcomes.fold<int>(0, (a, o) => a + o.result.framesIntegrated);
+        batchRejected =
+            outcomes.fold<int>(0, (a, o) => a + o.result.framesRejected);
+        batchSeconds =
+            outcomes.fold<double>(0, (a, o) => a + o.result.totalIntegrationSec);
+        batchMasters = outcomes.length;
+        firstBatchMasterId =
+            outcomes.isNotEmpty ? outcomes.first.masterId : null;
+      } catch (e) {
+        return AutoIntegrationResult(
+            ran: false, message: 'Auto-integrate failed: $e');
       }
     }
 
-    // One-shot batch integration of the night.
-    try {
-      final outDir = await _outputDir();
-      final outcomes =
-          await _ref.read(postSessionIntegrationServiceProvider).integrate(
-                subs: accepted,
-                settings: settings,
-                targetId: targetId,
-                targetName: targetName,
-                outputFitsPathBuilder: (filterBucket) {
-                  final stamp = DateTime.now().millisecondsSinceEpoch;
-                  final base = _safeName(targetName ?? 'session');
-                  final tag = filterBucket ==
-                          PostSessionIntegrationService.noFilterBucket
-                      ? ''
-                      : '_${_safeName(filterBucket)}';
-                  return p.join(outDir, '$base${tag}_master_$stamp.fits');
-                },
-              );
-      if (outcomes.isEmpty) {
-        return const AutoIntegrationResult(
-          ran: false,
-          message: 'Integration produced no master.',
-        );
-      }
-      final total = outcomes.fold<int>(0, (a, o) => a + o.result.framesIntegrated);
-      final rejected =
-          outcomes.fold<int>(0, (a, o) => a + o.result.framesRejected);
-      final integrationSeconds =
-          outcomes.fold<double>(0, (a, o) => a + o.result.totalIntegrationSec);
-      await _afterSuccess(
-        sessionId: sessionId,
-        targetId: targetId,
-        targetName: targetName,
-        integrationSeconds: integrationSeconds,
-        framesKept: total,
-        framesRejected: rejected,
+    final totalKept = accumulatedSubs + batchSubsIntegrated;
+    final totalRejected = accumulatedRejected + batchRejected;
+    if (totalKept == 0 && accumulatedInto.isEmpty) {
+      return const AutoIntegrationResult(
+        ran: false,
+        message: 'Integration produced no master.',
       );
-      return AutoIntegrationResult(
-        ran: true,
-        masterId: outcomes.first.masterId,
-        message: 'Your image is ready — integrated $total subs into '
-            '${outcomes.length} master${outcomes.length == 1 ? '' : 's'}.',
-      );
-    } catch (e) {
-      return AutoIntegrationResult(ran: false, message: 'Auto-integrate failed: $e');
     }
+
+    await _afterSuccess(
+      sessionId: sessionId,
+      targetId: targetId,
+      targetName: targetName,
+      integrationSeconds: accumulatedSeconds + batchSeconds,
+      framesKept: totalKept,
+      framesRejected: totalRejected,
+    );
+
+    return AutoIntegrationResult(
+      ran: true,
+      masterId: firstBatchMasterId,
+      message: _summaryMessage(
+        totalKept: totalKept,
+        batchMasters: batchMasters,
+        accumulatedInto: accumulatedInto,
+      ),
+    );
+  }
+
+  /// Build the run-completion toast covering BOTH paths: subs folded into
+  /// existing accumulating masters and subs freshly batch-integrated. Reports
+  /// the total subs across every filter so a multi-filter night never
+  /// under-reports.
+  static String _summaryMessage({
+    required int totalKept,
+    required int batchMasters,
+    required List<String> accumulatedInto,
+  }) {
+    final parts = <String>[];
+    if (batchMasters > 0) {
+      parts.add('$batchMasters master${batchMasters == 1 ? '' : 's'}');
+    }
+    if (accumulatedInto.isNotEmpty) {
+      parts.add(accumulatedInto.length == 1
+          ? '${accumulatedInto.single} (grown)'
+          : '${accumulatedInto.length} accumulating masters (grown)');
+    }
+    final into = parts.isEmpty ? 'your library' : parts.join(' + ');
+    return 'Your image is ready — integrated $totalKept subs into $into.';
+  }
+
+  /// Split accepted subs into filter buckets keyed by their trimmed filter name
+  /// (empty string for the no-filter bucket). The trim mirrors the
+  /// case-sensitive whitespace handling so a whitespace-padded filter name never
+  /// fragments a bucket or silently drops its subs.
+  Map<String, List<DbCapturedImage>> _groupByFilter(
+      List<DbCapturedImage> subs) {
+    final out = <String, List<DbCapturedImage>>{};
+    for (final s in subs) {
+      final key = (s.filter ?? '').trim();
+      out.putIfAbsent(key, () => <DbCapturedImage>[]).add(s);
+    }
+    return out;
   }
 
   /// Fail-soft post-success hook fired after a master grows (accumulate) or is
@@ -262,17 +331,6 @@ class AutoIntegrationService {
         .read(settingsDaoProvider)
         .getSetting('post_session.default_settings');
     return IntegrationSettings.fromJsonStringOrDefault(raw);
-  }
-
-  String? _dominantFilter(List<DbCapturedImage> subs) {
-    final counts = <String, int>{};
-    for (final s in subs) {
-      final f = (s.filter ?? '').trim();
-      counts[f] = (counts[f] ?? 0) + 1;
-    }
-    if (counts.isEmpty) return null;
-    final best = counts.entries.reduce((a, b) => a.value >= b.value ? a : b).key;
-    return best.isEmpty ? null : best;
   }
 
   Future<String> _outputDir() async {

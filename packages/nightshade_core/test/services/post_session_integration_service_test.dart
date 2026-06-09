@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:drift/drift.dart' show Value, Variable;
 import 'package:drift/native.dart';
@@ -148,6 +149,15 @@ class FakePostSessionSeam implements PostSessionSeam {
   /// Synthetic progress events the fake [integrationProgress] stream replays.
   List<({String phase, double fraction})> progressEvents = const [];
 
+  /// When true, [analyzeNight] computes the curve with a faithful port of the
+  /// native optimizer (`integration_curve`, `optimizer.rs`) over the qualities
+  /// it is actually handed — instead of returning the canned [analyzeResult].
+  /// This makes the morning-report wiring testable end-to-end: a `qualities`
+  /// map that omits `noise` yields the same all-zero curve the real Rust
+  /// optimizer would (it skips any `noise <= 0` sub from its variance sums), so
+  /// the dead-feature regression (blocker #5) cannot be masked by a fake curve.
+  bool useRealOptimizer = false;
+
   @override
   Future<IntegrationCurve> analyzeNight({
     required List<Map<String, dynamic>> qualities,
@@ -161,7 +171,68 @@ class FakePostSessionSeam implements PostSessionSeam {
       weights: weights,
       exposuresS: exposuresS,
     ));
+    if (useRealOptimizer) {
+      return _realIntegrationCurve(qualities, weights, exposuresS);
+    }
     return analyzeResult;
+  }
+
+  /// Faithful Dart port of `optimizer.rs::integration_curve`: rank subs by
+  /// weight desc, then sweep the prefix accumulating signal = snr·noise and
+  /// variance = noise² ONLY for subs with finite `noise > 0` and `weight > 0`.
+  /// SNR = ΣwΒ·signal / sqrt(Σw²·variance). The point of porting (rather than
+  /// fabricating) is that the `noise > 0` gate is exactly the one that kills the
+  /// real curve when `_analyzeAndStoreCurve` forgets to forward `noise`.
+  static IntegrationCurve _realIntegrationCurve(
+    List<Map<String, dynamic>> qualities,
+    List<double> weights,
+    List<double> exposuresS,
+  ) {
+    final n = qualities.length;
+    if (n == 0) return IntegrationCurve.empty;
+    final order = List<int>.generate(n, (i) => i)
+      ..sort((a, b) => weights[b].compareTo(weights[a]));
+
+    var sumSignal = 0.0;
+    var sumVar = 0.0;
+    var sumWFwhm = 0.0;
+    var sumWForFwhm = 0.0;
+    var cumExposure = 0.0;
+    final points = <IntegrationCurvePoint>[];
+    for (var rank = 0; rank < order.length; rank++) {
+      final idx = order[rank];
+      final q = qualities[idx];
+      final w = weights[idx] <= 0 ? 0.0 : weights[idx];
+      final noise = (q['noise'] as num?)?.toDouble() ?? 0.0;
+      final snr = (q['snr'] as num?)?.toDouble() ?? 0.0;
+      if (noise.isFinite && noise > 0.0 && w > 0.0) {
+        final signal = (snr < 0 ? 0.0 : snr) * noise;
+        sumSignal += w * signal;
+        sumVar += w * w * noise * noise;
+      }
+      final fwhm = (q['fwhm'] as num?)?.toDouble() ?? 0.0;
+      if (fwhm.isFinite && fwhm > 0.0 && w > 0.0) {
+        sumWFwhm += w * fwhm;
+        sumWForFwhm += w;
+      }
+      cumExposure += (idx < exposuresS.length ? exposuresS[idx] : 0.0)
+          .clamp(0.0, double.infinity);
+      points.add(IntegrationCurvePoint(
+        n: rank + 1,
+        snr: sumVar > 0 ? sumSignal / math.sqrt(sumVar) : 0.0,
+        fwhm: sumWForFwhm > 0 ? sumWFwhm / sumWForFwhm : 0.0,
+        cumulativeIntegrationS: cumExposure,
+      ));
+    }
+    return IntegrationCurve(
+      points: points,
+      recommendation: SubsetRecommendation(
+        keepN: points.length,
+        keptIndices: order,
+        predictedSnrGainPct: 0.0,
+        reason: 'keep all',
+      ),
+    );
   }
 
   @override
@@ -446,6 +517,10 @@ void main() {
               accepted: true,
               reason: null,
               snr: 40.0 + i,
+              // Real per-sub noise so the optimizer has an honest variance term.
+              noise: 5.0 + i * 0.5,
+              background: 1000.0 + i * 10,
+              starCount: 120 + i,
               fwhm: 2.5 + i * 0.1,
               eccentricity: 0.3,
             ),
@@ -542,6 +617,122 @@ void main() {
     // target_snr / target_integration_s anchor to the full-night curve point.
     expect(row.read<double>('target_snr'), 56.0);
     expect(row.read<double>('target_integration_s'), 240.0);
+  });
+
+  test(
+      'REGRESSION #5: the qualities map carries per-sub noise so the REAL '
+      'optimizer yields a positive, monotone curve + non-zero target_snr',
+      () async {
+    scriptMetrics();
+    // Drive the FAITHFUL optimizer port (not a canned curve), so the curve is
+    // whatever `_analyzeAndStoreCurve`'s qualities actually support. Pre-fix —
+    // when `noise` was dropped from the map — every point's snr is 0 and the
+    // anchor (target_snr) is 0, exactly the dead-feature the review flagged.
+    seam.useRealOptimizer = true;
+
+    final subs = [
+      await insertSub(path: '/l/a.fits', filter: 'L'),
+      await insertSub(path: '/l/b.fits', filter: 'L'),
+      await insertSub(path: '/l/c.fits', filter: 'L'),
+    ];
+    final outcomes = await service.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults,
+      outputFitsPathBuilder: (_) => '/out/master.fits',
+    );
+    final masterId = outcomes.single.masterId;
+
+    // The qualities map the service handed the optimizer must carry `noise` for
+    // every sub — the field whose absence kills the curve.
+    final call = seam.analyzeCalls.single;
+    expect(call.qualities, hasLength(3));
+    for (final q in call.qualities) {
+      expect(q.containsKey('noise'), isTrue,
+          reason: 'each quality descriptor must forward per-sub noise');
+      expect((q['noise'] as num) > 0, isTrue);
+    }
+
+    // The persisted curve is POSITIVE and monotone-non-decreasing, and the
+    // anchored target_snr is strictly > 0 (the value the deficit loop needs).
+    final row = (await db.customSelect(
+      'SELECT improvement_curve_json, target_snr FROM integrated_masters '
+      'WHERE id = ?',
+      variables: [Variable<int>(masterId)],
+    ).get())
+        .single;
+    final decoded = IntegrationCurve.fromJson(
+        jsonDecode(row.read<String>('improvement_curve_json'))
+            as Map<String, dynamic>);
+    expect(decoded.points, hasLength(3));
+    var prev = -1.0;
+    for (final pt in decoded.points) {
+      expect(pt.snr, greaterThan(0.0),
+          reason: 'a real noise-driven curve must be positive, not all-zero');
+      expect(pt.snr, greaterThanOrEqualTo(prev - 1e-9),
+          reason: 'curve must be monotone-non-decreasing');
+      prev = pt.snr;
+    }
+    final targetSnr = row.read<double>('target_snr');
+    expect(targetSnr, greaterThan(0.0),
+        reason: 'target_snr anchors the deficit loop; it must be non-zero');
+  });
+
+  test(
+      'CONTROL: without per-sub noise the REAL optimizer collapses to a '
+      'zero curve (proves the regression test bites)', () async {
+    // A metrics scripter that deliberately OMITS noise (the pre-fix shape).
+    seam.integrateBuilder = (args) {
+      final lights = (args['lightPaths'] as List).cast<String>();
+      final output = args['output'] as Map<String, dynamic>;
+      return IntegrateSessionResult(
+        masterFitsPath: output['masterFitsPath'] as String,
+        previewPath: output['previewPngPath'] as String?,
+        rejectionMapPath: output['rejectionMapPath'] as String?,
+        framesIntegrated: lights.length,
+        framesRejected: 0,
+        totalIntegrationSec: 120.0 * lights.length,
+        rmsResidual: 0.42,
+        width: 100,
+        height: 80,
+        channels: 1,
+        perFrameStats: [
+          for (final pth in lights)
+            PerFrameRecord(
+              path: pth,
+              weight: 1.0,
+              rmsResidualPx: 0.4,
+              accepted: true,
+              reason: null,
+              snr: 40.0, // snr present, noise absent → variance term is 0.
+              fwhm: 2.5,
+              eccentricity: 0.3,
+            ),
+        ],
+      );
+    };
+    seam.useRealOptimizer = true;
+
+    final subs = [
+      await insertSub(path: '/l/a.fits', filter: 'L'),
+      await insertSub(path: '/l/b.fits', filter: 'L'),
+    ];
+    final outcomes = await service.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults,
+      outputFitsPathBuilder: (_) => '/out/master.fits',
+    );
+    final row = (await db.customSelect(
+      'SELECT improvement_curve_json, target_snr FROM integrated_masters '
+      'WHERE id = ?',
+      variables: [Variable<int>(outcomes.single.masterId)],
+    ).get())
+        .single;
+    final decoded = IntegrationCurve.fromJson(
+        jsonDecode(row.read<String>('improvement_curve_json'))
+            as Map<String, dynamic>);
+    // Every point is zero and the anchor is zero — the exact dead feature.
+    expect(decoded.points.every((p) => p.snr == 0.0), isTrue);
+    expect(row.read<double>('target_snr'), 0.0);
   });
 
   test('optional finishing steps are gated by the settings knobs', () async {
@@ -740,6 +931,47 @@ void main() {
     expect(outcomes.single.result.masterFitsPath, '/out/master_drizzle.fits');
     expect(outcomes.single.result.previewPath, '/out/master_drizzle.png');
     expect(outcomes.single.result.width, 200);
+  });
+
+  test(
+      'REGRESSION #4: drizzle is handed the SAME resolved calibration the '
+      'standard integrate path used (so the drizzled master stays calibrated)',
+      () async {
+    scriptMetricsWithTransforms();
+
+    // Register a matching master dark + master flat so calibration resolves to
+    // real paths (the same ones the integrate call receives).
+    await darkLibrary.createMasterDarkEntryForTest(db);
+    await flatDao.addEntry(
+      filePath: '/cal/master_flat_L.fits',
+      filter: 'L',
+      gain: 100,
+      offset: 10,
+      binX: 1,
+      binY: 1,
+      temperature: -10.0,
+    );
+
+    final subs = [await insertSub(path: '/l/a.fits', filter: 'L')];
+    await service.integrate(
+      subs: subs,
+      settings: IntegrationSettings.defaults.copyWith(drizzle: true),
+      outputFitsPathBuilder: (_) => '/out/master.fits',
+    );
+
+    // The drizzle call carried a calibration block, and it is byte-identical to
+    // the one the standard integrate path applied — so the drizzled master that
+    // gets swapped in as canonical is NOT uncalibrated.
+    final integrateCal =
+        seam.integrateCalls.single['calibration'] as Map<String, dynamic>;
+    final drizzleCal =
+        seam.drizzleCalls.single['calibration'] as Map<String, dynamic>?;
+    expect(drizzleCal, isNotNull,
+        reason: 'drizzle must receive the resolved calibration block');
+    expect(drizzleCal!['dark'], '/cal/master_dark.fits');
+    expect(drizzleCal['flat'], '/cal/master_flat_L.fits');
+    expect(drizzleCal, equals(integrateCal),
+        reason: 'drizzle calibration must match the integrate calibration');
   });
 
   test('Bayer drizzle sets the bayer flag and yields a 3-channel master',

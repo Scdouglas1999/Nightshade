@@ -277,7 +277,7 @@ void main() {
   // ---------------------------------------------------------------------------
 
   group('pushDeficitToScheduler', () {
-    test('raises an existing goal frame_count by the computed deficit',
+    test('raises a smaller existing goal to the absolute deficit target',
         () async {
       final targetId = await insertTarget('M51');
       final masterId = await insertMaster(targetId: targetId);
@@ -301,17 +301,19 @@ void main() {
       await mastersDao.updateSmartFields(masterId,
           improvementCurveJson: jsonEncode(curve.toJson()));
 
-      // Pre-existing goal: 30 frames of L @ 120s.
+      // Pre-existing goal: 10 frames of L @ 120s (smaller than the deficit
+      // target so the push raises it).
       await goals.upsert(IntegrationGoal(
         targetId: targetId,
         filter: 'L',
         exposureSeconds: 120.0,
-        frameCount: 30,
+        frameCount: 10,
         createdAt: DateTime.utc(2026, 6, 1),
       ));
 
       // Target SNR 40 → need (40/20)^2 = 4× the time = 1920s; deficit 1440s →
-      // ceil(1440/120) = 12 frames.
+      // ceil(1440/120) = 12 frames. The absolute deficit target is
+      // captured(4) + 12 = 16, which exceeds the existing 10 → raised to 16.
       final result = await service.pushDeficitToScheduler(masterId, 40.0);
       expect(result.applied, isTrue);
       expect(result.currentSnr, 20.0);
@@ -319,15 +321,101 @@ void main() {
       expect(result.perFilter, hasLength(1));
       expect(result.perFilter.single.filter, 'L');
       expect(result.perFilter.single.deltaFrames, 12);
-      expect(result.perFilter.single.newFrameCount, 42); // 30 + 12
+      expect(result.perFilter.single.newFrameCount, 16); // captured(4) + 12
 
-      // Persisted: the goal frame_count was raised to 42, leaving everything
-      // else (exposure, filter, priority) untouched.
+      // Persisted: the goal frame_count was raised to the absolute target 16,
+      // leaving everything else (exposure, filter, priority) untouched.
       final persisted = await goals.listForTarget(targetId);
       expect(persisted, hasLength(1));
-      expect(persisted.single.frameCount, 42);
+      expect(persisted.single.frameCount, 16);
       expect(persisted.single.exposureSeconds, 120.0);
       expect(persisted.single.filter, 'L');
+    });
+
+    test('never lowers a larger pre-existing operator goal', () async {
+      final targetId = await insertTarget('M51');
+      final masterId = await insertMaster(targetId: targetId);
+
+      final cap = DateTime.utc(2026, 6, 1, 23);
+      for (var i = 0; i < 4; i++) {
+        final id = await insertSub(
+            targetId: targetId, filter: 'L', exposure: 120.0, capturedAt: cap);
+        await fold(masterId: masterId, imageId: id, weight: 1.0);
+      }
+      final curve = IntegrationCurve(
+        points: const [
+          IntegrationCurvePoint(
+              n: 4, snr: 20.0, fwhm: 2.0, cumulativeIntegrationS: 480.0),
+        ],
+        recommendation: IntegrationCurve.empty.recommendation,
+      );
+      await mastersDao.updateSmartFields(masterId,
+          improvementCurveJson: jsonEncode(curve.toJson()));
+
+      // Operator already wants 50 frames — far more than the deficit target of
+      // captured(4) + 12 = 16. The push must not lower their goal.
+      await goals.upsert(IntegrationGoal(
+        targetId: targetId,
+        filter: 'L',
+        exposureSeconds: 120.0,
+        frameCount: 50,
+        createdAt: DateTime.utc(2026, 6, 1),
+      ));
+
+      final result = await service.pushDeficitToScheduler(masterId, 40.0);
+      expect(result.applied, isTrue);
+      expect(result.perFilter.single.newFrameCount, 50); // max(50, 16)
+
+      final persisted = await goals.listForTarget(targetId);
+      expect(persisted.single.frameCount, 50);
+    });
+
+    test('is idempotent — re-running with the same target does not double-count',
+        () async {
+      final targetId = await insertTarget('M51');
+      final masterId = await insertMaster(targetId: targetId);
+
+      // 4 × 120s = 480s of L integration; current SNR 20 (from curve).
+      final cap = DateTime.utc(2026, 6, 1, 23);
+      for (var i = 0; i < 4; i++) {
+        final id = await insertSub(
+            targetId: targetId, filter: 'L', exposure: 120.0, capturedAt: cap);
+        await fold(masterId: masterId, imageId: id, weight: 1.0);
+      }
+      final curve = IntegrationCurve(
+        points: const [
+          IntegrationCurvePoint(
+              n: 4, snr: 20.0, fwhm: 2.0, cumulativeIntegrationS: 480.0),
+        ],
+        recommendation: IntegrationCurve.empty.recommendation,
+      );
+      await mastersDao.updateSmartFields(masterId,
+          improvementCurveJson: jsonEncode(curve.toJson()));
+
+      // First push seeds the goal at captured(4) + 12 = 16.
+      final first = await service.pushDeficitToScheduler(masterId, 40.0);
+      expect(first.applied, isTrue);
+      expect(first.perFilter.single.newFrameCount, 16);
+      final afterFirst = await goals.listForTarget(targetId);
+      expect(afterFirst, hasLength(1));
+      expect(afterFirst.single.frameCount, 16);
+
+      // Re-running with the SAME target SNR must converge — NOT 16 + 12 = 28.
+      // The deficit depends on the master's state alone, so the second run
+      // upserts the same absolute target and the goal count is unchanged.
+      final second = await service.pushDeficitToScheduler(masterId, 40.0);
+      expect(second.perFilter.single.newFrameCount, 16,
+          reason: 're-running must not double-count the deficit');
+      final afterSecond = await goals.listForTarget(targetId);
+      expect(afterSecond, hasLength(1),
+          reason: 'no duplicate goal row is created');
+      expect(afterSecond.single.frameCount, 16,
+          reason: 'frame_count is idempotent across repeated pushes');
+
+      // A third run is likewise stable.
+      await service.pushDeficitToScheduler(masterId, 40.0);
+      final afterThird = await goals.listForTarget(targetId);
+      expect(afterThird.single.frameCount, 16);
     });
 
     test('seeds a new goal at captured + deficit when none exists', () async {

@@ -279,6 +279,7 @@ class PostSessionIntegrationService {
         masterId: masterId,
         result: result,
         settings: settings,
+        calibration: calibration,
       );
       // Plate-solve the finished (possibly drizzled) master FITS and persist its
       // WCS. Fail-soft: a missing solver / failed solve leaves the master
@@ -395,6 +396,13 @@ class PostSessionIntegrationService {
         if (!record.accepted || record.snr == null) continue;
         qualities.add(<String, dynamic>{
           'snr': record.snr,
+          // `noise` is load-bearing: the optimizer (`apiAnalyzeNight`) skips any
+          // sub with `noise <= 0` from its variance sums, so omitting it
+          // collapses the whole improvement curve (and `targetSnr`) to zero.
+          // Surfaced per-sub by the native integrate FFI; thread it through.
+          if (record.noise != null) 'noise': record.noise,
+          if (record.background != null) 'background': record.background,
+          if (record.starCount != null) 'starCount': record.starCount,
           if (record.fwhm != null) 'fwhm': record.fwhm,
           if (record.eccentricity != null) 'eccentricity': record.eccentricity,
         });
@@ -643,6 +651,7 @@ class PostSessionIntegrationService {
     required int masterId,
     required IntegrateSessionResult result,
     required IntegrationSettings settings,
+    required ResolvedCalibration calibration,
   }) async {
     if (!settings.drizzle) return result;
 
@@ -689,6 +698,13 @@ class PostSessionIntegrationService {
           'kernel': settings.drizzleKernel.wire,
         },
         'bayer': settings.bayerDrizzle,
+        // Drizzle deposits raw sub pixels, so it must apply the SAME resolved
+        // calibration the standard integrate path applied — otherwise the
+        // drizzled master that gets swapped in as canonical is uncalibrated
+        // (amp glow / hot pixels / vignetting / dust). The drizzle-native side
+        // consumes the same `{dark?, flat?, bias?, cosmeticCorrection}` shape
+        // `api_integrate_session` does, calibrating each frame before drizzling.
+        'calibration': calibration.toBridgeJson(),
         'outputFits': outputFits,
         'coverageFits': coverageFits,
         'previewPngPath': previewPng,

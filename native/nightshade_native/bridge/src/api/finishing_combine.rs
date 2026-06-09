@@ -24,6 +24,8 @@
 //! geometry mismatch, bad parameters, write failure) surfaces as `Err(String)`
 //! — never a silent partial result.
 
+use nightshade_imaging::calibration::calibrate_frame;
+use nightshade_imaging::calibration_masters::{cosmetic_correct_transient, CosmeticConfig};
 use nightshade_imaging::channel_combine::{combine_channels, hoo_palette, sho_palette};
 use nightshade_imaging::drizzle::{
     bayer_drizzle_integrate, drizzle_integrate, BayerDrizzleFrame, DrizzleConfig, DrizzleFrame,
@@ -61,6 +63,52 @@ struct DrizzleFrameArgs {
     weight: f64,
 }
 
+/// Calibration master paths applied to every (raw) sub **before** its drops are
+/// deposited onto the drizzle grid.
+///
+/// This is the **same shape** `api_integrate_session`'s `CalibrationArgs` uses
+/// (see [`crate::api::post_session`]). The DRIZZLE CALIBRATION CONTRACT requires
+/// the drizzle to consume the *same resolved calibration* the standard integrate
+/// pass did, so a drizzled master is calibrated identically to the standard
+/// master it replaces — never a raw, uncalibrated deposit. `defect_map` is
+/// accepted for shape-compatibility with the shared calibration block (it is
+/// resolved Dart-side); the per-frame correction we apply here is the same
+/// dark/flat/bias + self-derived cosmetic repair `api_integrate_session` runs.
+#[derive(Debug, Clone, Default, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+#[flutter_rust_bridge::frb(ignore)]
+struct CalibrationArgs {
+    /// Master dark FITS path, or `None`/empty to skip.
+    dark: Option<String>,
+    /// Master flat (unit-mean) path, or `None`/empty to skip.
+    flat: Option<String>,
+    /// Master bias path, or `None`/empty to skip.
+    bias: Option<String>,
+    /// Resolved defect-map path (shape-compatible with the shared calibration
+    /// block; defect repair is applied Dart-side / at capture time).
+    defect_map: Option<String>,
+    /// Apply self-derived cosmetic (hot/cold transient) correction per sub.
+    cosmetic_correction: bool,
+}
+
+impl CalibrationArgs {
+    /// `true` when this block requests at least one calibration step that the
+    /// drizzle path itself performs (dark/flat/bias subtraction-division or the
+    /// per-sub cosmetic repair). When `false`, sub loading skips the (cloning)
+    /// calibrate pass entirely and deposits the raw pixels as before.
+    fn is_active(&self) -> bool {
+        non_empty(&self.dark)
+            || non_empty(&self.flat)
+            || non_empty(&self.bias)
+            || self.cosmetic_correction
+    }
+}
+
+/// `true` when an optional path is `Some` and non-blank.
+fn non_empty(path: &Option<String>) -> bool {
+    matches!(path, Some(p) if !p.trim().is_empty())
+}
+
 /// Drizzle tunables (subset of [`DrizzleConfig`]). Each unset field falls back
 /// to the [`DrizzleConfig::default`] (2× drizzle, `pixfrac = 0.9`, square
 /// kernel).
@@ -87,6 +135,12 @@ struct DrizzleIntegrateArgs {
     ref_w: u32,
     /// Reference-grid height in pixels.
     ref_h: u32,
+    /// Optional calibration block applied to every (raw) sub before its drops
+    /// are deposited. Defaults to "no calibration" (every field unset) — the
+    /// historical raw-deposit behaviour — so omitting it is a no-op. The
+    /// caller is expected to pass the **same** resolved calibration the standard
+    /// integrate pass used so the drizzled master is calibrated identically.
+    calibration: CalibrationArgs,
     /// Drizzle tunables (optional; defaults applied per field).
     config: DrizzleConfigArgs,
     /// When `true`, treat every input as a raw single-channel CFA mosaic and run
@@ -218,6 +272,20 @@ fn drizzle_integrate_impl(
 
     let cfg = build_drizzle_config(&args.config)?;
 
+    // --- Load calibration masters once (shared across all subs). ---
+    //
+    // DRIZZLE CALIBRATION CONTRACT: the drizzle must calibrate each sub with the
+    // SAME dark/flat/bias the standard integrate pass applied — otherwise the
+    // drizzled FITS that `_runDrizzle` swaps in as THE persisted master would be
+    // a raw, uncalibrated deposit (amp glow, hot pixels, vignetting, dust). We
+    // read the masters with `read_fits` (NOT the auto-debayering `read_image`):
+    // calibration is per-raw-pixel and must run on the same single-channel
+    // geometry the (raw, Bayer or mono) sub carries, before any debayer/warp.
+    let calibrate = args.calibration.is_active();
+    let dark = load_optional_master(&args.calibration.dark, "dark")?;
+    let flat = load_optional_master(&args.calibration.flat, "flat")?;
+    let bias = load_optional_master(&args.calibration.bias, "bias")?;
+
     // The native `DrizzleFrame`/`BayerDrizzleFrame` borrow their pixel buffer
     // and transform by reference (`&'a [f64]`, `&'a TransformModel`). We must
     // therefore materialise the owned `Vec<f64>` buffers and owned
@@ -234,7 +302,7 @@ fn drizzle_integrate_impl(
         if fa.fits_path.trim().is_empty() {
             return Err("a drizzle frame has an empty fitsPath".to_string());
         }
-        let (image, header) = read_fits(Path::new(&fa.fits_path))
+        let (mut image, header) = read_fits(Path::new(&fa.fits_path))
             .map_err(|e| format!("failed to read '{}': {e:?}", fa.fits_path))?;
         let transform = transform_from_row_major(&fa.transform)
             .map_err(|e| format!("frame '{}': {e}", fa.fits_path))?;
@@ -256,6 +324,25 @@ fn drizzle_integrate_impl(
                 )
             })?;
             patterns.push(geometry.effective);
+        }
+
+        // --- Calibrate the (raw) sub before depositing its drops. ---
+        //
+        // Same helpers `api_integrate_session` uses: dark/flat/bias via
+        // `calibrate_frame`, then the per-sub self-derived cosmetic repair. This
+        // runs on the raw single-channel (Bayer) or RGB/mono buffer, before the
+        // drizzle warp, so a hot pixel / pedestal / vignette is removed once, at
+        // the source — exactly as the standard integrate pass does it. Without
+        // this, `_runDrizzle` would persist an UNcalibrated master as canonical.
+        if calibrate {
+            if dark.is_some() || flat.is_some() || bias.is_some() {
+                image = calibrate_frame(&image, dark.as_ref(), flat.as_ref(), bias.as_ref())
+                    .map_err(|e| format!("calibration of '{}' failed: {e}", fa.fits_path))?;
+            }
+            if args.calibration.cosmetic_correction {
+                // Operates per-channel in place; the report is advisory.
+                let _ = cosmetic_correct_transient(&mut image, CosmeticConfig::default());
+            }
         }
 
         buffers.push(decode_image_f64(&image, &fa.fits_path)?);
@@ -337,12 +424,29 @@ fn drizzle_integrate_impl(
     // --- Optional stretched preview PNG of the drizzled master. ---
     // Mirror `api_integrate_session`: emit a sibling 8-bit preview so the
     // session-review hero shows the (scaled) drizzled image, not the standard
-    // 1× preview. Fail-soft is the caller's job — here a write failure is a hard
-    // error like the master/coverage writes.
+    // 1× preview.
+    //
+    // BEST-EFFORT: the preview is a cosmetic convenience, not a real output. A
+    // drizzle run is expensive (read + calibrate + warp + deposit every sub);
+    // aborting the whole run because an 8-bit sibling PNG failed to write would
+    // throw away the master + coverage — the artifacts that actually matter. So
+    // a preview-write failure is logged and skipped (`preview_png_path = None`),
+    // never propagated. The Dart side already falls back to the standard preview
+    // when the drizzle returns no `previewPngPath`.
     let preview_png_path = match args.preview_png_path.as_ref() {
         Some(p) if !p.trim().is_empty() => {
-            crate::api::post_session::write_preview_png(&output.master, Path::new(p))?;
-            Some(p.clone())
+            match crate::api::post_session::write_preview_png(&output.master, Path::new(p)) {
+                Ok(()) => Some(p.clone()),
+                Err(e) => {
+                    tracing::warn!(
+                        path = %p,
+                        error = %e,
+                        "drizzle preview PNG write failed; returning master/coverage without a \
+                         drizzle preview (best-effort)"
+                    );
+                    None
+                }
+            }
         }
         _ => None,
     };
@@ -529,6 +633,24 @@ fn combine_channels_impl(
 // Shared helpers
 // =============================================================================
 
+/// Read an optional calibration master by path. Empty / `None` → `Ok(None)`.
+///
+/// Reads with [`read_fits`] (NOT the auto-debayering `read_image`): the drizzle
+/// calibration runs on the raw, single-channel (Bayer) or RGB/mono sub geometry,
+/// so the master must keep the same raw layout. Mirrors the `load_optional_master`
+/// in [`crate::api::post_session`]; duplicated here so this module stays
+/// self-contained (its sibling is private to that module).
+fn load_optional_master(path: &Option<String>, label: &str) -> Result<Option<ImageData>, String> {
+    match path {
+        Some(p) if !p.trim().is_empty() => {
+            let (image, _header) = read_fits(Path::new(p))
+                .map_err(|e| format!("failed to read {label} master '{p}': {e:?}"))?;
+            Ok(Some(image))
+        }
+        _ => Ok(None),
+    }
+}
+
 /// Ensure the parent directory of `path` exists, creating it if necessary.
 ///
 /// Mirrors the `ensure_parent_dir` in [`crate::api::post_session`]; duplicated
@@ -698,6 +820,215 @@ mod tests {
         let _ = std::fs::remove_file(&out_path);
         let _ = std::fs::remove_file(&cov_path);
         let _ = std::fs::remove_file(&png_path);
+    }
+
+    // -------------------------------------------------------------------------
+    // api_drizzle_integrate — calibration contract (BLOCKER #4)
+    // -------------------------------------------------------------------------
+
+    /// A uniform `F32` field of `value`, single-channel `size`x`size`. Flat
+    /// fields make the drizzle interior trivially predictable (`flux/weight`
+    /// resolves a flat input to that same value), so calibration arithmetic is
+    /// verifiable cell-by-cell.
+    fn render_uniform_f32(size: u32, value: f32) -> ImageData {
+        let n = (size * size) as usize;
+        ImageData::from_f32(size, size, 1, &vec![value; n])
+    }
+
+    /// A two-region `F32` field: rows `[0, size/2)` hold `top`, the rest `bottom`.
+    /// Lets a non-uniform flat be shown to correct each region differently.
+    fn render_split_f32(size: u32, top: f32, bottom: f32) -> ImageData {
+        let w = size as usize;
+        let h = size as usize;
+        let mut px = vec![0f32; w * h];
+        for y in 0..h {
+            let v = if y < h / 2 { top } else { bottom };
+            for x in 0..w {
+                px[y * w + x] = v;
+            }
+        }
+        ImageData::from_f32(size, size, 1, &px)
+    }
+
+    /// Mean of the interior cells in a row band `[y0, y1)` of a single-channel
+    /// `F32` master, away from the drizzle border (which loses some coverage).
+    fn interior_band_mean(master: &ImageData, y0: usize, y1: usize) -> f64 {
+        let w = master.width as usize;
+        let px = master.as_f32().expect("master is F32");
+        let margin = 4usize;
+        let mut sum = 0.0f64;
+        let mut count = 0u64;
+        for y in y0..y1 {
+            for x in margin..(w - margin) {
+                sum += px[y * w + x] as f64;
+                count += 1;
+            }
+        }
+        assert!(count > 0, "interior band must contain cells");
+        sum / count as f64
+    }
+
+    /// BLOCKER #4 (native half): with a `calibration` block, drizzle calibrates
+    /// every (raw) sub — dark/flat/bias — BEFORE depositing drops, so the
+    /// drizzled master `_runDrizzle` swaps in as canonical is calibrated, not a
+    /// raw deposit. The same input drizzled *without* the block is the raw,
+    /// uncalibrated reference: the two masters must differ exactly by the dark
+    /// pedestal and the region-dependent flat.
+    ///
+    /// Without the fix the `calibration` field doesn't exist (or is ignored) and
+    /// the calibrated run equals the raw run — this test FAILS. With the fix the
+    /// pedestal is removed and the non-uniform flat reshapes each region.
+    #[test]
+    fn drizzle_calibration_removes_pedestal_and_applies_flat() {
+        let size = 64u32;
+
+        // Uniform light: a flat sky at 1000 (no stars — interior is predictable).
+        let light = render_uniform_f32(size, 1000.0);
+        // Dark: a 200-count pedestal to be subtracted from every pixel.
+        let dark = render_uniform_f32(size, 200.0);
+        // Flat: top half 2.0, bottom half 1.0 ⇒ mean 1.5; normalized flat is
+        // 1.3333 (top) / 0.6667 (bottom), so the dark-subtracted 800 becomes
+        // 800/1.3333 ≈ 600 (top) and 800/0.6667 ≈ 1200 (bottom).
+        let flat = render_split_f32(size, 2.0, 1.0);
+
+        let light_path = temp_path("drizzle_cal_light", "fits");
+        let dark_path = temp_path("drizzle_cal_dark", "fits");
+        let flat_path = temp_path("drizzle_cal_flat", "fits");
+        write_master(&light_path, &light);
+        write_master(&dark_path, &dark);
+        write_master(&flat_path, &flat);
+
+        let raw_out = temp_path("drizzle_cal_raw_out", "fits");
+        let cal_out = temp_path("drizzle_cal_cal_out", "fits");
+
+        // Two identical subs, identity transforms ⇒ full interior coverage.
+        let frames = serde_json::json!([
+            { "fitsPath": light_path.to_string_lossy(), "transform": translate(0.0, 0.0), "weight": 1.0 },
+            { "fitsPath": light_path.to_string_lossy(), "transform": translate(0.0, 0.0), "weight": 1.0 }
+        ]);
+
+        // Raw deposit (no calibration block) — the historical behaviour.
+        let raw_args = serde_json::json!({
+            "frames": frames,
+            "refW": size,
+            "refH": size,
+            "config": { "scale": 2.0, "pixfrac": 1.0, "kernel": "square" },
+            "outputFits": raw_out.to_string_lossy()
+        });
+        let raw_resp = api_drizzle_integrate(raw_args.to_string()).expect("raw drizzle");
+        let _: DrizzleIntegrateResult = serde_json::from_str(&raw_resp).unwrap();
+
+        // Calibrated deposit — dark + flat applied per sub before depositing.
+        let cal_args = serde_json::json!({
+            "frames": frames,
+            "refW": size,
+            "refH": size,
+            "calibration": {
+                "dark": dark_path.to_string_lossy(),
+                "flat": flat_path.to_string_lossy()
+            },
+            "config": { "scale": 2.0, "pixfrac": 1.0, "kernel": "square" },
+            "outputFits": cal_out.to_string_lossy()
+        });
+        let cal_resp = api_drizzle_integrate(cal_args.to_string()).expect("calibrated drizzle");
+        let _: DrizzleIntegrateResult = serde_json::from_str(&cal_resp).unwrap();
+
+        let (raw_master, _h0) = read_fits(raw_out.as_path()).expect("read raw master");
+        let (cal_master, _h1) = read_fits(cal_out.as_path()).expect("read calibrated master");
+
+        let out_h = raw_master.height as usize;
+        // Sample bands well inside each region (away from the half-split seam and
+        // the drizzle border).
+        let top_lo = out_h / 8;
+        let top_hi = out_h * 3 / 8;
+        let bot_lo = out_h * 5 / 8;
+        let bot_hi = out_h * 7 / 8;
+
+        // Raw drizzle reconstructs the uncalibrated sky (~1000) in BOTH bands.
+        let raw_top = interior_band_mean(&raw_master, top_lo, top_hi);
+        let raw_bot = interior_band_mean(&raw_master, bot_lo, bot_hi);
+        assert!((raw_top - 1000.0).abs() < 1.0, "raw top band ~= 1000, got {raw_top}");
+        assert!((raw_bot - 1000.0).abs() < 1.0, "raw bottom band ~= 1000, got {raw_bot}");
+
+        // Calibrated drizzle removed the 200 pedestal and applied the non-uniform
+        // flat: top ~600, bottom ~1200 — provably different from the raw deposit.
+        let cal_top = interior_band_mean(&cal_master, top_lo, top_hi);
+        let cal_bot = interior_band_mean(&cal_master, bot_lo, bot_hi);
+        assert!((cal_top - 600.0).abs() < 1.0, "calibrated top band ~= 600, got {cal_top}");
+        assert!((cal_bot - 1200.0).abs() < 1.0, "calibrated bottom band ~= 1200, got {cal_bot}");
+
+        // The decisive regression guard: the calibrated master is NOT the raw
+        // deposit (the BLOCKER-#4 silent-corruption symptom).
+        assert!(
+            (cal_top - raw_top).abs() > 100.0 && (cal_bot - raw_bot).abs() > 100.0,
+            "calibrated master must differ from the raw deposit (cal_top={cal_top} \
+             raw_top={raw_top} cal_bot={cal_bot} raw_bot={raw_bot})"
+        );
+
+        let _ = std::fs::remove_file(&light_path);
+        let _ = std::fs::remove_file(&dark_path);
+        let _ = std::fs::remove_file(&flat_path);
+        let _ = std::fs::remove_file(&raw_out);
+        let _ = std::fs::remove_file(&cal_out);
+    }
+
+    /// SHOULD-FIX: a preview-PNG write failure must NOT abort the (expensive)
+    /// drizzle run — the master + coverage are the real outputs. We point the
+    /// preview at an unwritable path (a PNG *inside* a path whose parent is a
+    /// regular file, so directory creation fails) and assert the call still
+    /// succeeds, the master/coverage are on disk, and `previewPngPath` comes back
+    /// `None` (best-effort skipped).
+    ///
+    /// Without the fix the preview write is a hard `?` error and the whole run
+    /// returns `Err`, throwing away the master — this test FAILS.
+    #[test]
+    fn drizzle_preview_failure_still_returns_master() {
+        let size = 32u32;
+        let stars = drizzle_stars(size as f64);
+        let frame = render_mono_f32(size, &stars, 200.0);
+        let fp = temp_path("drizzle_preview_fail_frame", "fits");
+        write_master(&fp, &frame);
+
+        let out_path = temp_path("drizzle_preview_fail_out", "fits");
+        let cov_path = temp_path("drizzle_preview_fail_cov", "fits");
+
+        // A "file" we create, then ask the preview to be written *underneath* as
+        // if it were a directory: `<blocker>/preview.png`. `ensure_parent_dir`
+        // (via write_preview_png) must `create_dir_all("<blocker>")`, which fails
+        // because `<blocker>` already exists as a regular file — a deterministic,
+        // platform-independent write failure.
+        let blocker = temp_path("drizzle_preview_fail_blocker", "dat");
+        std::fs::write(&blocker, b"not a directory").expect("create blocker file");
+        let bad_preview = blocker.join("preview.png");
+
+        let args = serde_json::json!({
+            "frames": [
+                { "fitsPath": fp.to_string_lossy(), "transform": translate(0.0, 0.0), "weight": 1.0 }
+            ],
+            "refW": size,
+            "refH": size,
+            "config": { "scale": 2.0 },
+            "outputFits": out_path.to_string_lossy(),
+            "coverageFits": cov_path.to_string_lossy(),
+            "previewPngPath": bad_preview.to_string_lossy()
+        });
+
+        let resp = api_drizzle_integrate(args.to_string())
+            .expect("a failing preview write must NOT abort the drizzle run");
+        let result: DrizzleIntegrateResult = serde_json::from_str(&resp).unwrap();
+
+        // The real outputs landed; the preview was best-effort skipped.
+        assert!(out_path.exists(), "master must still be on disk");
+        assert!(cov_path.exists(), "coverage must still be on disk");
+        assert_eq!(
+            result.preview_png_path, None,
+            "a failed preview write surfaces as no preview, not an aborted run"
+        );
+
+        let _ = std::fs::remove_file(&fp);
+        let _ = std::fs::remove_file(&out_path);
+        let _ = std::fs::remove_file(&cov_path);
+        let _ = std::fs::remove_file(&blocker);
     }
 
     // -------------------------------------------------------------------------

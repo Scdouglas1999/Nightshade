@@ -310,6 +310,26 @@ class PerFrameRecord {
   /// `integrated_master_frames.snr` column for the Night Doctor.
   final double? snr;
 
+  /// Per-sub robust noise σ (ADU) from this sub's own measured [FrameQuality],
+  /// or null when not measured. Mirrors the native `PerFrameRecord.noise`.
+  ///
+  /// **Load-bearing for the Smart Morning Report:** the marginal-SNR optimizer
+  /// (`apiAnalyzeNight`) skips any sub whose `noise <= 0` from its variance
+  /// sums, so the improvement curve / `targetSnr` collapse to zero unless this
+  /// rides through into the `qualities` map (`_analyzeAndStoreCurve`). It used
+  /// to be omitted, defaulting to 0 across the FFI and killing the feature.
+  final double? noise;
+
+  /// Per-sub sky-background level (ADU) from this sub's own measured
+  /// [FrameQuality], or null when not measured. Mirrors the native
+  /// `PerFrameRecord.background`; carried alongside [noise] so the optimizer's
+  /// quality descriptors are complete.
+  final double? background;
+
+  /// Per-sub detected star count from this sub's own measured [FrameQuality],
+  /// or null when not measured. Mirrors the native `PerFrameRecord.starCount`.
+  final int? starCount;
+
   /// Per-sub median star FWHM in px, or null when not measured. Mirrors the
   /// native `PerFrameRecord.fwhm`.
   final double? fwhm;
@@ -339,6 +359,9 @@ class PerFrameRecord {
     required this.accepted,
     required this.reason,
     this.snr,
+    this.noise,
+    this.background,
+    this.starCount,
     this.fwhm,
     this.eccentricity,
     this.transform,
@@ -354,6 +377,9 @@ class PerFrameRecord {
       accepted: json['accepted'] as bool? ?? false,
       reason: json['reason'] as String?,
       snr: (json['snr'] as num?)?.toDouble(),
+      noise: (json['noise'] as num?)?.toDouble(),
+      background: (json['background'] as num?)?.toDouble(),
+      starCount: (json['starCount'] as num?)?.toInt(),
       fwhm: (json['fwhm'] as num?)?.toDouble(),
       eccentricity: (json['eccentricity'] as num?)?.toDouble(),
       transform: rawTransform is List
@@ -372,6 +398,9 @@ class PerFrameRecord {
         'accepted': accepted,
         'reason': reason,
         'snr': snr,
+        'noise': noise,
+        'background': background,
+        'starCount': starCount,
         'fwhm': fwhm,
         'eccentricity': eccentricity,
         if (transform != null) 'transform': transform,

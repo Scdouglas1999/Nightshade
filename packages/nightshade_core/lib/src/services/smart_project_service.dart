@@ -474,19 +474,25 @@ class SmartProjectService {
         }
       }
 
+      // Idempotency: the deficit is a function of the master's state alone
+      // (current vs target SNR, captured count), NOT of the goal's current
+      // frame_count — so re-running with the same target must converge, never
+      // double-count. We upsert the goal to an ABSOLUTE target,
+      // `captured + deltaFrames` (the engine's `remaining = frame_count −
+      // captured` then equals exactly the deficit frames), and never lower a
+      // larger pre-existing operator goal. Running twice with the same target
+      // SNR is a no-op the second time.
+      final captured = await _goals.capturedFrameCount(
+        targetId: targetId,
+        filter: filter,
+      );
+      final deficitTarget = captured + deltaFrames;
       final int newFrameCount;
       if (existing != null) {
-        newFrameCount = existing.frameCount + deltaFrames;
+        newFrameCount = math.max(existing.frameCount, deficitTarget);
         await _goals.upsert(existing.copyWith(frameCount: newFrameCount));
       } else {
-        // No goal yet: seed it at the already-captured count plus the deficit,
-        // so the engine's `remaining = frame_count − captured` equals exactly
-        // the new frames the deficit demands.
-        final captured = await _goals.capturedFrameCount(
-          targetId: targetId,
-          filter: filter,
-        );
-        newFrameCount = captured + deltaFrames;
+        newFrameCount = deficitTarget;
         await _goals.upsert(IntegrationGoal(
           targetId: targetId,
           filter: filter,

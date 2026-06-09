@@ -323,6 +323,22 @@ struct PerFrameRecord {
     /// not be registered + measured. Persisted by the Dart side for the Night
     /// Doctor after a morning integration.
     snr: Option<f64>,
+    /// Per-sub robust noise σ (ADU) from this sub's own [`FrameQuality`], or
+    /// null when not measured. **Load-bearing for the morning report:** the
+    /// marginal-SNR optimizer (`integration_curve`) skips any sub whose
+    /// `noise <= 0` from the SNR sums, so without surfacing this the whole
+    /// improvement curve collapses to zero (signal·noise = 0, variance = 0) and
+    /// `target_snr` anchors to 0. The Dart `_analyzeAndStoreCurve` threads this
+    /// into the `qualities` map it hands `apiAnalyzeNight`.
+    noise: Option<f64>,
+    /// Per-sub sky-background level (ADU) from this sub's own [`FrameQuality`],
+    /// or null when not measured. Surfaced alongside `noise` so the optimizer's
+    /// quality descriptors are complete (the optimizer reads `noise`/`snr`; the
+    /// extras keep the morning-report record faithful).
+    background: Option<f64>,
+    /// Per-sub detected star count from this sub's own [`FrameQuality`], or null
+    /// when not measured (transparency / depth proxy carried to the report).
+    star_count: Option<u32>,
     /// Per-sub median star FWHM in px (focus / seeing proxy), or null when not
     /// measured.
     fwhm: Option<f64>,
@@ -796,6 +812,12 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
             accepted: r.accepted,
             reason: r.reason.clone(),
             snr: r.quality.map(|q| q.snr),
+            // Surface the same measured quality the optimizer needs: `noise`
+            // (its variance term) plus the background/star_count context. Without
+            // `noise` the Dart morning-report curve is structurally dead.
+            noise: r.quality.map(|q| q.noise),
+            background: r.quality.map(|q| q.background),
+            star_count: r.quality.map(|q| q.star_count),
             fwhm: r.quality.map(|q| q.fwhm),
             eccentricity: r.quality.and_then(|q| q.eccentricity),
             transform: r.transform.as_ref().map(transform_to_row_major),
@@ -2142,5 +2164,126 @@ mod tests {
         assert!(api_integrate_session("not json".to_string()).is_err());
         assert!(api_integrate_session(r#"{"lightPaths":[]}"#.to_string()).is_err());
         assert!(api_master_accumulate(r#"{"op":"bogus"}"#.to_string()).is_err());
+    }
+
+    /// REGRESSION (senior review blocker #5 — "morning report intelligence is
+    /// structurally dead"): every accepted sub MUST surface a positive, finite
+    /// `noise` (and `snr`) so the downstream marginal-SNR optimizer
+    /// (`integration_curve`, which skips any `noise <= 0` sub from its variance
+    /// sums) produces a real, non-zero improvement curve rather than the all-zero
+    /// curve the old record — which omitted `noise` entirely, defaulting it to 0
+    /// across the FFI — guaranteed.
+    ///
+    /// This drives the REAL pipeline both ways: `api_integrate_session` measures
+    /// the per-sub `FrameQuality`, and then the exact `qualities` map the Dart
+    /// `_analyzeAndStoreCurve` builds from these records is fed to the REAL
+    /// `api_analyze_night`. The assertions (positive, monotone-non-decreasing
+    /// curve; non-zero `target_snr`) fail with the old (noise-less) record and
+    /// pass once `noise` rides through — no scripted fake curve can mask it.
+    #[test]
+    fn per_frame_noise_drives_a_positive_optimizer_curve() {
+        use crate::api::finishing_analyze::api_analyze_night;
+
+        let size = 256u32;
+        let stars = base_stars(size as f64);
+        let mut light_paths = Vec::new();
+        let shifts = [(0.0, 0.0), (3.0, -2.0), (-2.0, 4.0), (1.0, 1.0)];
+        for (i, (dx, dy)) in shifts.iter().enumerate() {
+            let field = render_field(size, &shift_stars(&stars, *dx, *dy), 200.0);
+            let p = temp_path(&format!("noise_light{i}"), "fits");
+            write_field_fits(&p, &field);
+            light_paths.push(p.to_string_lossy().to_string());
+        }
+        let master_path = temp_path("noise_master", "fits");
+
+        let args = serde_json::json!({
+            "lightPaths": light_paths,
+            "reference": "auto",
+            "exposuresSec": [60.0, 60.0, 60.0, 60.0],
+            "settings": {
+                "align": synthetic_align(),
+                "integration": { "reject": "auto", "outputBitDepth": "f32" }
+            },
+            "output": { "masterFitsPath": master_path.to_string_lossy() }
+        });
+
+        let resp = api_integrate_session(args.to_string()).expect("integration should succeed");
+        let result: IntegrateSessionResult = serde_json::from_str(&resp).unwrap();
+
+        // Every accepted sub carries a positive, finite noise + snr — the inputs
+        // the optimizer's variance sums need. (Pre-fix: `noise` did not exist on
+        // the record, so it crossed the FFI as 0 and killed the curve.)
+        let accepted: Vec<&PerFrameRecord> =
+            result.per_frame_stats.iter().filter(|r| r.accepted).collect();
+        assert!(accepted.len() >= 2, "need ≥2 accepted subs to form a curve");
+        for r in &accepted {
+            let noise = r.noise.expect("accepted sub must surface measured noise");
+            assert!(noise.is_finite() && noise > 0.0, "noise must be positive: {noise}");
+            let snr = r.snr.expect("accepted sub must surface measured snr");
+            assert!(snr.is_finite() && snr >= 0.0, "snr must be finite/non-negative: {snr}");
+        }
+
+        // Build the exact `qualities` payload the Dart `_analyzeAndStoreCurve`
+        // sends (snr + noise + background + starCount + fwhm/eccentricity), and
+        // drive the REAL optimizer through `api_analyze_night`.
+        let qualities: Vec<serde_json::Value> = accepted
+            .iter()
+            .map(|r| {
+                let mut q = serde_json::Map::new();
+                q.insert("snr".into(), serde_json::json!(r.snr.unwrap()));
+                q.insert("noise".into(), serde_json::json!(r.noise.unwrap()));
+                if let Some(bg) = r.background {
+                    q.insert("background".into(), serde_json::json!(bg));
+                }
+                if let Some(sc) = r.star_count {
+                    q.insert("starCount".into(), serde_json::json!(sc));
+                }
+                if let Some(f) = r.fwhm {
+                    q.insert("fwhm".into(), serde_json::json!(f));
+                }
+                if let Some(e) = r.eccentricity {
+                    q.insert("eccentricity".into(), serde_json::json!(e));
+                }
+                serde_json::Value::Object(q)
+            })
+            .collect();
+        let weights: Vec<f64> = accepted.iter().map(|r| r.weight.max(0.001)).collect();
+        let exposures: Vec<f64> = vec![60.0; accepted.len()];
+
+        let night_args = serde_json::json!({
+            "qualities": qualities,
+            "weights": weights,
+            "exposuresS": exposures,
+        });
+        let night_resp =
+            api_analyze_night(night_args.to_string()).expect("analyze_night should succeed");
+        let night: serde_json::Value = serde_json::from_str(&night_resp).unwrap();
+
+        let points = night["curve"].as_array().expect("curve points array");
+        assert_eq!(points.len(), accepted.len(), "one curve point per accepted sub");
+
+        // The curve is POSITIVE and monotone-non-decreasing in SNR (more subs
+        // never lowers the predicted stack SNR), and the full-night anchor SNR is
+        // strictly > 0 — the value Dart persists as `target_snr`.
+        let mut prev = -1.0_f64;
+        for (i, p) in points.iter().enumerate() {
+            let snr = p["snr"].as_f64().expect("point snr");
+            assert!(snr.is_finite() && snr > 0.0, "curve point {i} snr must be > 0: {snr}");
+            assert!(
+                snr + 1e-9 >= prev,
+                "curve must be monotone-non-decreasing at point {i}: {snr} < {prev}"
+            );
+            prev = snr;
+        }
+        let target_snr = points.last().unwrap()["snr"].as_f64().unwrap();
+        assert!(
+            target_snr > 0.0,
+            "target_snr (full-night anchor) must be non-zero, got {target_snr}"
+        );
+
+        let _ = std::fs::remove_file(&master_path);
+        for p in &light_paths {
+            let _ = std::fs::remove_file(p);
+        }
     }
 }
