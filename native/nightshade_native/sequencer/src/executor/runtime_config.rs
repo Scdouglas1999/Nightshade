@@ -240,6 +240,61 @@ impl SequenceExecutor {
         });
     }
 
+    /// Remediation 2026-06-09 (finding #2) — runtime override for the W1 native
+    /// daylight gate's maximum Sun altitude. The gate is already safe by default:
+    /// when this is never called, `start()` resolves the unset (`None`) field to
+    /// [`crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES`] (-12°, nautical
+    /// darkness), which equals the Dart `SchedulerConfig.maxSunAltitudeDegrees`
+    /// default — so the native backstop never blocks weaker than the Dart W1 gate.
+    ///
+    /// This setter exists so that a custom darkness limit (e.g. a future
+    /// user-facing setting, or a non-default `SchedulerConfig`) can be pushed in
+    /// to keep the native gate aligned with the Dart one. It is exercised by the
+    /// executor tests today; no Dart caller is wired yet because the darkness
+    /// limit is not user-configurable (it is always the -12° default the gate
+    /// already uses), so exposing it across the FFI would only transmit a
+    /// constant equal to that default. Wire it (and the FFI export) the day a
+    /// configurable darkness limit lands.
+    ///
+    /// Follows the two-step write-then-forward contract: writes through
+    /// `runtime_config` (canonical, honoured by the next `start()`), patches the
+    /// idle trigger state directly so a loaded-but-not-running executor picks it
+    /// up, and forwards `UpdateMaxSunAltitude` to a live task so a running
+    /// sequence honours it on the next slew / exposure. `None`/non-finite
+    /// resolves to [`crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES`].
+    pub async fn update_max_sun_altitude(&mut self, degrees: Option<f64>) {
+        let effective = match degrees {
+            Some(v) if v.is_finite() => v,
+            _ => crate::instructions::DEFAULT_MAX_SUN_ALTITUDE_DEGREES,
+        };
+        tracing::info!(
+            "Updating max Sun altitude (W1 daylight gate): {:?} -> effective {:.1}°",
+            degrees,
+            effective
+        );
+        {
+            let mut rc = self.runtime_config.write();
+            rc.max_sun_altitude_degrees = degrees;
+        }
+        // Patch the idle trigger state directly so a loaded-but-not-running
+        // executor also picks up the change (the command_tx path covers a live
+        // executor; this covers the idle case).
+        {
+            let manager = self.trigger_manager.read().await;
+            let state_lock = manager.state();
+            let mut state = state_lock.write().await;
+            state.set_max_sun_altitude_degrees(effective);
+        }
+        if let Some(tx) = &self.command_tx {
+            let _ = tx
+                .send(ExecutorCommand::UpdateMaxSunAltitude { degrees })
+                .await;
+        }
+        let _ = self.event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
+            what: "max_sun_altitude".to_string(),
+        });
+    }
+
     /// Wave 7.5 — stage per-target carry-over integration seconds so the
     /// next `start()` seeds the `BudgetRegistry` with the operator's
     /// "Resume" / "Restart" decision from the session-handoff dialog.
