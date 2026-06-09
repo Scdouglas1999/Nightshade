@@ -110,6 +110,75 @@ void main() {
     });
   });
 
+  group('guideStatsProvider (per-axis peak)', () {
+    // Regression: the RA/Dec Peak tiles in the guiding panel read
+    // Phd2GuideStats.peakRa/peakDec. Before the fix, _handleGuideStep built the
+    // snapshot without those fields, so they defaulted to 0.0 forever and the
+    // tiles always rendered 0.00. This drives the REAL GuideStatsNotifier
+    // through GuideStep events (no seeded override) and asserts the peak is the
+    // worst single-frame absolute excursion over the rolling window.
+    test('GuideStep events populate per-axis peak from the rolling window',
+        () async {
+      final controller = StreamController<NightshadeEvent>.broadcast();
+      addTearDown(controller.close);
+
+      final backend = _MockNetworkBackend();
+      when(() => backend.eventStream).thenAnswer((_) => controller.stream);
+
+      final container = _container(backend);
+
+      // Materialize the provider so its event binding subscribes.
+      final initial = container.read(guideStatsProvider);
+      expect(initial.peakRa, 0.0);
+      expect(initial.peakDec, 0.0);
+
+      // Feed a sequence whose worst absolute excursion is unambiguous and
+      // includes a negative spike (peak must be |value|, not the signed max).
+      controller.add(_guideStepEvent(ra: 0.5, dec: -0.2));
+      controller.add(_guideStepEvent(ra: -2.5, dec: 0.4));
+      controller.add(_guideStepEvent(ra: 1.0, dec: -1.8));
+      await Future<void>.delayed(Duration.zero);
+
+      final stats = container.read(guideStatsProvider);
+      // Worst |RA| = 2.5 (from the -2.5 spike); worst |Dec| = 1.8.
+      expect(stats.peakRa, closeTo(2.5, 1e-9),
+          reason: 'peakRa must be the max absolute RA excursion in the window.');
+      expect(stats.peakDec, closeTo(1.8, 1e-9),
+          reason: 'peakDec must be the max absolute Dec excursion.');
+    });
+
+    test('a GuideStats SNR update preserves the accumulated peak', () async {
+      final controller = StreamController<NightshadeEvent>.broadcast();
+      addTearDown(controller.close);
+
+      final backend = _MockNetworkBackend();
+      when(() => backend.eventStream).thenAnswer((_) => controller.stream);
+
+      final container = _container(backend);
+      container.read(guideStatsProvider);
+
+      controller.add(_guideStepEvent(ra: -3.0, dec: 2.0));
+      await Future<void>.delayed(Duration.zero);
+      expect(container.read(guideStatsProvider).peakRa, closeTo(3.0, 1e-9));
+
+      // A standalone GuideStats event (SNR/StarMass) must not wipe the peak.
+      controller.add(NightshadeEvent(
+        severity: EventSeverity.info,
+        category: EventCategory.guiding,
+        eventType: 'GuideStats',
+        data: const {'SNR': 22.0, 'StarMass': 5000.0},
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+      ));
+      await Future<void>.delayed(Duration.zero);
+
+      final stats = container.read(guideStatsProvider);
+      expect(stats.snr, 22.0);
+      expect(stats.peakRa, closeTo(3.0, 1e-9),
+          reason: 'peak must survive an interleaved SNR-only update.');
+      expect(stats.peakDec, closeTo(2.0, 1e-9));
+    });
+  });
+
   group('guideStarsProvider (internal multi-star list)', () {
     test('populates from status poll when the built-in guider is looping',
         () async {

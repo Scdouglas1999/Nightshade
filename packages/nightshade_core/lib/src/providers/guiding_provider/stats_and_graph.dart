@@ -111,6 +111,13 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
     final rmsRa = _rmsRaCalculator.rms;
     final rmsDec = _rmsDecCalculator.rms;
 
+    // Per-axis PEAK is the worst single-frame absolute excursion over the same
+    // rolling window the RMS is computed from. RollingRmsCalculator already
+    // tracks it; surface it so the panel's RA/Dec Peak tiles read the real
+    // worst-case figure instead of a never-populated 0.00.
+    final peakRa = _rmsRaCalculator.peak;
+    final peakDec = _rmsDecCalculator.peak;
+
     // Total RMS is pythagorean combination of RA and Dec RMS
     var rmsTotal = math.sqrt(rmsRa * rmsRa + rmsDec * rmsDec);
 
@@ -127,6 +134,8 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
       rmsRa: rmsRa,
       rmsDec: rmsDec,
       rmsTotal: rmsTotal,
+      peakRa: peakRa,
+      peakDec: peakDec,
       snr: (json['SNR'] ?? 0).toDouble(),
       starMass: (json['StarMass'] ?? 0).toDouble(),
       frameCount: _frameCount,
@@ -153,6 +162,8 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
       rmsRa: state.rmsRa,
       rmsDec: state.rmsDec,
       rmsTotal: state.rmsTotal,
+      peakRa: state.peakRa,
+      peakDec: state.peakDec,
       snr: snr,
       starMass: starMass,
       frameCount: state.frameCount,
