@@ -15,6 +15,8 @@ import '../screens/stack_result/stack_result_screen.dart';
 import '../screens/session_review/session_review_controller.dart';
 import '../screens/session_review/session_review_screen.dart';
 import '../screens/flat_wizard/flat_wizard_screen.dart';
+import '../screens/mosaic/mosaic_project_screen.dart';
+import '../screens/mosaic/mosaic_projects_list_screen.dart';
 import '../screens/weather/weather_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/settings/plate_solving_settings_screen.dart';
@@ -219,6 +221,36 @@ final appRouterProvider = Provider<GoRouter>((ref) {
                 transitionDuration: const Duration(milliseconds: 300),
               );
             },
+          ),
+          // Mosaic projects list + per-project review. The list is reachable
+          // from nav / analytics; tapping a row deep-links to the review screen
+          // at `/mosaic/:id`. The id is parsed defensively (a non-int falls
+          // back to -1, which can never match an autoincrement row, so the
+          // review screen renders its "not found" empty state rather than
+          // crashing on a bad deep link).
+          GoRoute(
+            path: '/mosaic',
+            name: 'mosaic-projects',
+            pageBuilder: (context, state) => const CustomTransitionPage(
+              child: MosaicProjectsListScreen(),
+              transitionsBuilder: PageTransitions.slideFadeTransition,
+              transitionDuration: Duration(milliseconds: 300),
+            ),
+            routes: [
+              GoRoute(
+                path: ':id',
+                name: 'mosaic-project',
+                pageBuilder: (context, state) {
+                  final id =
+                      int.tryParse(state.pathParameters['id'] ?? '') ?? -1;
+                  return CustomTransitionPage(
+                    child: MosaicProjectScreen(projectId: id),
+                    transitionsBuilder: PageTransitions.slideFadeTransition,
+                    transitionDuration: const Duration(milliseconds: 300),
+                  );
+                },
+              ),
+            ],
           ),
           GoRoute(
             path: '/flat-wizard',

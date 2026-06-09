@@ -93,6 +93,10 @@ class _FakeSeam implements PostSessionSeam {
   }
 
   @override
+  Future<MosaicStitchResult> stitchMosaic(Map<String, dynamic> args) async =>
+      throw UnimplementedError();
+
+  @override
   Stream<({String phase, double fraction})> integrationProgress() =>
       const Stream.empty();
 }

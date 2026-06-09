@@ -17,6 +17,7 @@
 // The Wave 4 Mosaic-Resume banner remains at the top of the dialog â€”
 // see `_buildResumeBanner` below.
 
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -27,7 +28,10 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart'
     as planetarium;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'package:go_router/go_router.dart';
+
 import '../../../utils/snackbar_helper.dart';
+import 'mosaic_wizard_dialog/mosaic_project_creation_controller.dart';
 part 'mosaic_wizard_dialog/config_controls.dart';
 part 'mosaic_wizard_dialog/panel_position.dart';
 part 'mosaic_wizard_dialog/visual_planner.dart';
@@ -273,6 +277,76 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
     }
   }
 
+  /// The mosaic's display name, shared by the "load into sequencer" path and
+  /// the durable-project path so a saved project and its capture sequence line
+  /// up by name.
+  String get _mosaicName =>
+      'Mosaic ${_centerRa.toStringAsFixed(2)}h ${_centerDec.toStringAsFixed(1)}°';
+
+  /// Snapshot the wizard's current on-screen design into the value object the
+  /// persist controller consumes. Nothing is recomputed — these are the same
+  /// centre/grid/overlap/rotation/FOV the visual planner is drawing right now.
+  MosaicProjectDesign _currentDesign() => MosaicProjectDesign(
+        name: _mosaicName,
+        centerRaHours: _centerRa,
+        centerDecDegrees: _centerDec,
+        rows: _panelsVertical,
+        cols: _panelsHorizontal,
+        overlapPercent: _overlapPercent,
+        positionAngleDeg: _rotation,
+        panelWidthArcmin: _panelWidthArcmin,
+        panelHeightArcmin: _panelHeightArcmin,
+      );
+
+  /// Persist the current design as a durable [MosaicProject] and route to the
+  /// project screen (`/mosaic/:id`).
+  ///
+  /// This is the primary "Create mosaic project" action: it validates the grid
+  /// the same way the "Generate Mosaic" (load-into-sequencer) path does, then
+  /// hands the design to [MosaicProjectCreationController] (which forwards it to
+  /// the committed `mosaicProjectServiceProvider.createProject`). The
+  /// load-into-sequencer path is untouched and still available.
+  Future<void> _createMosaicProject() async {
+    const mosaicService = MosaicService();
+    final config = MosaicConfig(
+      centerRa: _centerRa,
+      centerDec: _centerDec,
+      panelWidthArcmin: _panelWidthArcmin,
+      panelHeightArcmin: _panelHeightArcmin,
+      overlapPercent: _overlapPercent,
+      rotation: _rotation,
+      panelsHorizontal: _panelsHorizontal,
+      panelsVertical: _panelsVertical,
+    );
+
+    final validation = mosaicService.validateMosaic(config);
+    if (!validation.isValid) {
+      _showValidationDialog(validation);
+      return;
+    }
+    if (validation.hasWarnings) {
+      _showWarningsDialog(validation, () => unawaited(_persistProject()));
+      return;
+    }
+    await _persistProject();
+  }
+
+  Future<void> _persistProject() async {
+    final controller = MosaicProjectCreationController(
+      ref.read(mosaicProjectServiceProvider),
+    );
+    try {
+      final projectId = await controller.createProject(_currentDesign());
+      if (!mounted) return;
+      Navigator.of(context).pop();
+      unawaited(context.push('/mosaic/$projectId'));
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Could not create mosaic project: $e');
+      }
+    }
+  }
+
   /// Find the set of node IDs that correspond to user-disabled panels
   /// in the visual planner. MosaicService labels its per-panel
   /// TargetHeaders deterministically via MosaicPanelInfo.panelIndex
@@ -434,10 +508,23 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
           variant: ButtonVariant.ghost,
           size: ButtonSize.small,
         ),
+        // Secondary path, unchanged: expand the grid into the live sequencer's
+        // capture tree (no durable project row).
         NightshadeButton(
+          key: const ValueKey('mosaic_generate_sequence_btn'),
           onPressed: _generateMosaic,
           icon: NightshadeIcons.add,
-          label: 'Generate Mosaic',
+          label: 'Load into Sequencer',
+          variant: ButtonVariant.outline,
+          size: ButtonSize.small,
+        ),
+        // Primary path: persist the design as a durable mosaic project and open
+        // the project screen (/mosaic/:id).
+        NightshadeButton(
+          key: const ValueKey('mosaic_create_project_btn'),
+          onPressed: () => unawaited(_createMosaicProject()),
+          icon: NightshadeIcons.layoutGrid,
+          label: 'Create mosaic project',
           variant: ButtonVariant.primary,
           size: ButtonSize.small,
         ),

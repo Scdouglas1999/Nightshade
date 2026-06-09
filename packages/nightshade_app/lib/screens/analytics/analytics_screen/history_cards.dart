@@ -7,9 +7,35 @@ class _ProjectsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.all(24),
-      child: ProjectTrackingPanel(),
+    final colors = NightshadeColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Entry point into the multi-panel mosaic projects list (the durable
+          // capture/integrate/stitch projects created from the Mosaic Wizard).
+          // Always present, independent of the target-tracking data below, so
+          // the list is reachable even before any single target is tracked.
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              key: const ValueKey('mosaic_projects_entry'),
+              onPressed: () => context.push('/mosaic'),
+              icon: Icon(LucideIcons.layoutGrid, size: 14, color: colors.accent),
+              label: Text(
+                'Mosaic projects',
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  color: colors.accent,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          const Expanded(child: ProjectTrackingPanel()),
+        ],
+      ),
     );
   }
 }

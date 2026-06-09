@@ -29,6 +29,10 @@ class _CombineSeam implements PostSessionSeam {
       args['output'] as String;
 
   @override
+  Future<MosaicStitchResult> stitchMosaic(Map<String, dynamic> args) async =>
+      throw UnimplementedError();
+
+  @override
   Future<seam.IntegrateSessionResult> integrateSession(
           Map<String, dynamic> args) async =>
       throw UnimplementedError();
