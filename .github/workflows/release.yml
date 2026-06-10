@@ -48,6 +48,27 @@ jobs:
       - name: Bootstrap workspace
         run: dart run melos bootstrap
 
+      # The app's `release` signing config falls back to the standard Android
+      # debug keystore. A dev machine already has one (auto-generated on the
+      # first build); a clean CI runner does not, and release-signing
+      # validation runs before AGP would create it — so make it ourselves with
+      # the canonical debug credentials at the locations AGP looks.
+      - name: Ensure Android debug keystore exists
+        run: |
+          set -euo pipefail
+          for dir in "$HOME/.android" "$HOME/.config/.android"; do
+            ks="$dir/debug.keystore"
+            if [ ! -f "$ks" ]; then
+              mkdir -p "$dir"
+              keytool -genkeypair -v \
+                -keystore "$ks" \
+                -storepass android -keypass android \
+                -alias androiddebugkey \
+                -keyalg RSA -keysize 2048 -validity 10000 \
+                -dname "CN=Android Debug,O=Android,C=US"
+            fi
+          done
+
       # The mobile app is a pure-Flutter companion (it talks to the desktop
       # server over HTTP/WS) — no Rust/NDK cross-compilation is required.
       # `flutter build apk --release` produces a universal, debug-signed
