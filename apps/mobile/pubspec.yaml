@@ -92,14 +92,10 @@ dev_dependencies:
   freezed: ^3.2.0
   json_serializable: ^6.9.0
   mocktail: ^1.0.4
-  # Test-only path dependency: the mobile_remote_e2e_test in
-  # `test/services/` boots a real HeadlessApiServer in-process and verifies
-  # the desktop→mobile event propagation seam. The desktop server is the
-  # production code under test; depending on it here is the only way to
-  # exercise the actual transport without a stub. The dependency is
-  # dev-only — production mobile builds do NOT link the desktop server.
-  nightshade_desktop:
-    path: ../desktop
+  # NOTE: the desktop→mobile e2e seam test lives in apps/mobile_e2e, NOT
+  # here. A dev-dependency on nightshade_desktop leaks the desktop-only
+  # irondash_engine_context plugin into the Android release registrant and
+  # breaks `flutter build apk --release`.
 
 flutter:
   uses-material-design: true

@@ -1,0 +1,35 @@
+name: nightshade_mobile_e2e
+description: >-
+  Test-only package for cross-app e2e seam tests. mobile_remote_e2e_test
+  boots a real HeadlessApiServer (nightshade_desktop) in-process and drives
+  the mobile client services against it. It lives here — not in apps/mobile —
+  because a dev-dependency on nightshade_desktop leaks the desktop-only
+  irondash_engine_context plugin into the mobile Android plugin registrant,
+  which breaks `flutter build apk --release` (registrant references a class
+  Gradle correctly excludes from the release classpath).
+publish_to: 'none'
+version: 0.0.1
+
+environment:
+  sdk: ">=3.8.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_riverpod: ^2.5.1
+  mocktail: ^1.0.4
+  shared_preferences: ^2.2.2
+  nightshade_core:
+    path: ../../packages/nightshade_core
+  nightshade_mobile:
+    path: ../mobile
+  nightshade_desktop:
+    path: ../desktop
+
+flutter:
+  uses-material-design: true

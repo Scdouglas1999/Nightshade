@@ -48,21 +48,26 @@ class _RecordingNotificationSink implements MobileNotificationSink {
   final List<_NotifyCall> calls = <_NotifyCall>[];
 
   @override
-  Future<void> notifySequenceComplete(
-      String targetName, int imageCount) async {
-    calls.add(_NotifyCall('sequenceComplete', {
-      'target': targetName,
-      'count': imageCount,
-    }));
+  Future<void> notifySequenceComplete(String targetName, int imageCount) async {
+    calls.add(
+      _NotifyCall('sequenceComplete', {
+        'target': targetName,
+        'count': imageCount,
+      }),
+    );
   }
 
   @override
   Future<void> notifySequenceFailed(
-      String targetName, String errorMessage) async {
-    calls.add(_NotifyCall('sequenceFailed', {
-      'target': targetName,
-      'error': errorMessage,
-    }));
+    String targetName,
+    String errorMessage,
+  ) async {
+    calls.add(
+      _NotifyCall('sequenceFailed', {
+        'target': targetName,
+        'error': errorMessage,
+      }),
+    );
   }
 
   @override
@@ -71,11 +76,13 @@ class _RecordingNotificationSink implements MobileNotificationSink {
     required String body,
     String? eventType,
   }) async {
-    calls.add(_NotifyCall('safety', {
-      'title': title,
-      'body': body,
-      if (eventType != null) 'eventType': eventType,
-    }));
+    calls.add(
+      _NotifyCall('safety', {
+        'title': title,
+        'body': body,
+        if (eventType != null) 'eventType': eventType,
+      }),
+    );
   }
 
   @override
@@ -100,11 +107,15 @@ class _RecordingNotificationSink implements MobileNotificationSink {
 
   @override
   Future<void> notifyEquipmentDisconnected(
-      String deviceType, String deviceId) async {
-    calls.add(_NotifyCall('equipmentDisconnected', {
-      'deviceType': deviceType,
-      'deviceId': deviceId,
-    }));
+    String deviceType,
+    String deviceId,
+  ) async {
+    calls.add(
+      _NotifyCall('equipmentDisconnected', {
+        'deviceType': deviceType,
+        'deviceId': deviceId,
+      }),
+    );
   }
 
   @override
@@ -152,11 +163,13 @@ class _RecordingNotificationSink implements MobileNotificationSink {
     String? displacingClientName,
     String? reason,
   }) async {
-    calls.add(_NotifyCall('ownershipTakenOver', {
-      if (displacingClientName != null)
-        'displacingClientName': displacingClientName,
-      if (reason != null) 'reason': reason,
-    }));
+    calls.add(
+      _NotifyCall('ownershipTakenOver', {
+        if (displacingClientName != null)
+          'displacingClientName': displacingClientName,
+        if (reason != null) 'reason': reason,
+      }),
+    );
   }
 
   @override
@@ -238,8 +251,8 @@ void main() {
   final Object? e2eSkip = Platform.environment['NIGHTSHADE_E2E'] == '1'
       ? null
       : 'Flaky real-socket E2E (live HeadlessApiServer + WebSocket, multi-second '
-          'waits). Run explicitly with NIGHTSHADE_E2E=1 flutter test '
-          'test/services/mobile_remote_e2e_test.dart';
+            'waits). Run explicitly with NIGHTSHADE_E2E=1 flutter test '
+            'test/services/mobile_remote_e2e_test.dart';
 
   group('Mobile remote E2E (HeadlessApiServer ↔ NetworkBackend)', () {
     late _ServerSideBackend serverBackend;
@@ -252,7 +265,8 @@ void main() {
       serverContainer = ProviderContainer(
         overrides: [
           backendProvider.overrideWith(
-              (ref) => _ServerSideBackendNotifier(ref, serverBackend)),
+            (ref) => _ServerSideBackendNotifier(ref, serverBackend),
+          ),
         ],
       );
       server = HeadlessApiServer(
@@ -275,8 +289,7 @@ void main() {
       serverBackend.dispose();
     }
 
-    test(
-        'desktop ExposureFailed event reaches mobile notifier '
+    test('desktop ExposureFailed event reaches mobile notifier '
         'within 5 seconds and fires notifyExposureFailed', () async {
       await bootServer();
       addTearDown(tearDownServer);
@@ -315,13 +328,16 @@ void main() {
       // WebSocket upgrade and `_handleWebSocket` callback run).
       await mobileBackend.connect();
       final connected = await _waitUntil(
-        () => mobileBackend.connectionState ==
-            BackendConnectionState.connected,
+        () => mobileBackend.connectionState == BackendConnectionState.connected,
         timeout: const Duration(seconds: 5),
       );
-      expect(connected, isTrue,
-          reason: 'NetworkBackend must connect to HeadlessApiServer '
-              'with a valid token');
+      expect(
+        connected,
+        isTrue,
+        reason:
+            'NetworkBackend must connect to HeadlessApiServer '
+            'with a valid token',
+      );
 
       // Inject the event server-side. HeadlessApiServer's
       // `_subscribeToBackendEvents` is listening; it serializes via
@@ -336,14 +352,12 @@ void main() {
       // short interval until the round-trip succeeds is robust against
       // that race without requiring access to server internals.
       NightshadeEvent makeEvent() => NightshadeEvent(
-            timestamp: DateTime.now().millisecondsSinceEpoch,
-            severity: EventSeverity.critical,
-            category: EventCategory.imaging,
-            eventType: 'ExposureFailed',
-            data: const {
-              'error': 'Mount lost guide star during long exposure',
-            },
-          );
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.critical,
+        category: EventCategory.imaging,
+        eventType: 'ExposureFailed',
+        data: const {'error': 'Mount lost guide star during long exposure'},
+      );
 
       final deadline = DateTime.now().add(const Duration(seconds: 5));
       bool delivered = false;
@@ -353,19 +367,23 @@ void main() {
         delivered = sink.calls.isNotEmpty;
       }
 
-      expect(delivered, isTrue,
-          reason:
-              'desktop ExposureFailed event must reach mobile notifier inside '
-              '5s via HeadlessApiServer→NetworkBackend');
+      expect(
+        delivered,
+        isTrue,
+        reason:
+            'desktop ExposureFailed event must reach mobile notifier inside '
+            '5s via HeadlessApiServer→NetworkBackend',
+      );
       expect(sink.calls, hasLength(1));
       final call = sink.calls.single;
       expect(call.kind, equals('exposureFailed'));
-      expect(call.data['error'],
-          equals('Mount lost guide star during long exposure'));
+      expect(
+        call.data['error'],
+        equals('Mount lost guide star during long exposure'),
+      );
     });
 
-    test(
-        'invalid auth token: WebSocket is rejected; event does NOT reach '
+    test('invalid auth token: WebSocket is rejected; event does NOT reach '
         'the mobile notifier', () async {
       // The HeadlessApiServer's WebSocket handler rejects bad-auth upgrades
       // with HTTP 401. The IOWebSocketChannel's internal `_readyCompleter`
@@ -377,74 +395,83 @@ void main() {
       // the visible behaviour (no event reaches the mobile notifier) rather
       // than on an internal channel-library implementation detail.
       final swallowed = <Object>[];
-      await runZonedGuarded(() async {
-        await bootServer();
-        addTearDown(tearDownServer);
+      await runZonedGuarded(
+        () async {
+          await bootServer();
+          addTearDown(tearDownServer);
 
-        final mobileBackend = NetworkBackend(
-          serverHost: '127.0.0.1',
-          serverPort: server.actualPort,
-          webSocketPort: server.actualPort,
-          authToken: 'definitely-not-the-real-token',
-          webSocketHeartbeatInterval: const Duration(days: 1),
-          webSocketHeartbeatTimeout: const Duration(days: 1),
-          autoConnectWebSocket: false,
-        );
-        addTearDown(mobileBackend.dispose);
+          final mobileBackend = NetworkBackend(
+            serverHost: '127.0.0.1',
+            serverPort: server.actualPort,
+            webSocketPort: server.actualPort,
+            authToken: 'definitely-not-the-real-token',
+            webSocketHeartbeatInterval: const Duration(days: 1),
+            webSocketHeartbeatTimeout: const Duration(days: 1),
+            autoConnectWebSocket: false,
+          );
+          addTearDown(mobileBackend.dispose);
 
-        final prefs =
-            MobilePreferences(await SharedPreferences.getInstance());
-        final sink = _RecordingNotificationSink();
-        final notifier = MobileEventNotifier(
-          eventStream: mobileBackend.eventStream,
-          preferences: prefs,
-          notificationService: sink,
-        );
-        notifier.start();
-        addTearDown(notifier.stop);
+          final prefs = MobilePreferences(
+            await SharedPreferences.getInstance(),
+          );
+          final sink = _RecordingNotificationSink();
+          final notifier = MobileEventNotifier(
+            eventStream: mobileBackend.eventStream,
+            preferences: prefs,
+            notificationService: sink,
+          );
+          notifier.start();
+          addTearDown(notifier.stop);
 
-        // Attempt the connection. NetworkBackend.connect() catches the
-        // 401 internally and schedules a reconnect timer; `await connect()`
-        // returns even when the underlying upgrade was rejected. The
-        // mobile-side `connectionState` may transiently read `connected`
-        // because IOWebSocketChannel reports the subscription as "set up"
-        // before the WS handshake completes — the rejection arrives via
-        // the stream's onError shortly after. We don't assert on that
-        // transient state; the load-bearing invariant is that no event
-        // reaches the mobile notifier when the server rejected our auth.
-        await mobileBackend.connect();
+          // Attempt the connection. NetworkBackend.connect() catches the
+          // 401 internally and schedules a reconnect timer; `await connect()`
+          // returns even when the underlying upgrade was rejected. The
+          // mobile-side `connectionState` may transiently read `connected`
+          // because IOWebSocketChannel reports the subscription as "set up"
+          // before the WS handshake completes — the rejection arrives via
+          // the stream's onError shortly after. We don't assert on that
+          // transient state; the load-bearing invariant is that no event
+          // reaches the mobile notifier when the server rejected our auth.
+          await mobileBackend.connect();
 
-        // Drive the server-side broadcast in a polling loop (same pattern
-        // as the happy-path test). With a bad-auth client, the server's
-        // `_handleWebSocket` callback never runs, so `_sockets` is empty
-        // for this client and the broadcast fan-out has zero recipients
-        // for our connection. Even if a brief race lets the server briefly
-        // see the client before tearing it down, the broadcast still must
-        // not deliver to the rejected client.
-        for (var i = 0; i < 20; i++) {
-          serverBackend.emit(NightshadeEvent(
-            timestamp: DateTime.now().millisecondsSinceEpoch,
-            severity: EventSeverity.critical,
-            category: EventCategory.imaging,
-            eventType: 'ExposureFailed',
-            data: const {'error': 'should not be delivered'},
-          ));
-          await Future<void>.delayed(const Duration(milliseconds: 50));
-        }
+          // Drive the server-side broadcast in a polling loop (same pattern
+          // as the happy-path test). With a bad-auth client, the server's
+          // `_handleWebSocket` callback never runs, so `_sockets` is empty
+          // for this client and the broadcast fan-out has zero recipients
+          // for our connection. Even if a brief race lets the server briefly
+          // see the client before tearing it down, the broadcast still must
+          // not deliver to the rejected client.
+          for (var i = 0; i < 20; i++) {
+            serverBackend.emit(
+              NightshadeEvent(
+                timestamp: DateTime.now().millisecondsSinceEpoch,
+                severity: EventSeverity.critical,
+                category: EventCategory.imaging,
+                eventType: 'ExposureFailed',
+                data: const {'error': 'should not be delivered'},
+              ),
+            );
+            await Future<void>.delayed(const Duration(milliseconds: 50));
+          }
 
-        expect(sink.calls, isEmpty,
-            reason: 'no event must reach the mobile notifier on bad auth');
-      }, (Object error, StackTrace stack) {
-        // We only swallow the WS-rejection errors. Anything else is a real
-        // test failure.
-        if (error is WebSocketException ||
-            error.toString().contains('WebSocketChannelException')) {
-          swallowed.add(error);
-        } else {
-          // Re-raise so the test runner sees genuine bugs.
-          Zone.root.handleUncaughtError(error, stack);
-        }
-      });
+          expect(
+            sink.calls,
+            isEmpty,
+            reason: 'no event must reach the mobile notifier on bad auth',
+          );
+        },
+        (Object error, StackTrace stack) {
+          // We only swallow the WS-rejection errors. Anything else is a real
+          // test failure.
+          if (error is WebSocketException ||
+              error.toString().contains('WebSocketChannelException')) {
+            swallowed.add(error);
+          } else {
+            // Re-raise so the test runner sees genuine bugs.
+            Zone.root.handleUncaughtError(error, stack);
+          }
+        },
+      );
 
       // Note: we intentionally do NOT assert `swallowed` is non-empty.
       // Whether the 401 rejection arrives synchronously or via a deferred
