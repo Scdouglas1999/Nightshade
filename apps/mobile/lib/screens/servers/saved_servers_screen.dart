@@ -36,11 +36,12 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../services/saved_servers_service.dart';
 
 /// Async snapshot of the saved-server list — drives the screen state.
-final _savedServersListProvider =
-    FutureProvider.autoDispose<List<SavedServer>>((ref) async {
-  final service = ref.watch(savedServersServiceProvider);
-  return service.loadAll();
-});
+final _savedServersListProvider = FutureProvider.autoDispose<List<SavedServer>>(
+  (ref) async {
+    final service = ref.watch(savedServersServiceProvider);
+    return service.loadAll();
+  },
+);
 
 /// Per-entry reachability cache keyed by [SavedServer.id]. We populate
 /// it lazily on screen first build and on pull-to-refresh; the screen
@@ -59,9 +60,10 @@ class _ReachabilityNotifier extends StateNotifier<Map<String, bool?>> {
 }
 
 final _reachabilityProvider =
-    StateNotifierProvider.autoDispose<_ReachabilityNotifier, Map<String, bool?>>(
-  (ref) => _ReachabilityNotifier(),
-);
+    StateNotifierProvider.autoDispose<
+      _ReachabilityNotifier,
+      Map<String, bool?>
+    >((ref) => _ReachabilityNotifier());
 
 /// Saved-server list screen.
 ///
@@ -80,7 +82,7 @@ class SavedServersScreen extends ConsumerStatefulWidget {
   /// Called after a saved entry successfully reconnects. `null` lets
   /// the screen close via the default Navigator.pop.
   final void Function(BuildContext context, SavedServer server)?
-      onServerSelected;
+  onServerSelected;
 
   const SavedServersScreen({
     super.key,
@@ -89,8 +91,7 @@ class SavedServersScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<SavedServersScreen> createState() =>
-      _SavedServersScreenState();
+  ConsumerState<SavedServersScreen> createState() => _SavedServersScreenState();
 }
 
 class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
@@ -188,12 +189,16 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
     );
   }
 
-  Future<void> _pingOne(
-      SavedServer s, _ReachabilityNotifier notifier) async {
+  Future<void> _pingOne(SavedServer s, _ReachabilityNotifier notifier) async {
+    // A relay row's host:port is a synthetic loopback placeholder — there's
+    // nothing to probe without first opening the tunnel (which would be a
+    // full connect, not a cheap pull-to-refresh ping). Leave it as unknown.
+    if (s.isRelay) {
+      notifier.setStatus(s.id, null);
+      return;
+    }
     try {
-      final token = await ref
-          .read(savedServersServiceProvider)
-          .tokenFor(s.id);
+      final token = await ref.read(savedServersServiceProvider).tokenFor(s.id);
       final ok = await EnhancedNightshadeDiscovery.testServerConnection(
         s.host,
         s.port,
@@ -216,8 +221,18 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
   /// [SavedServer.host] is used. The transport [SavedServer.scheme] is
   /// honoured throughout so a TLS-fronted tailnet host is probed and
   /// dialled over https, not plain http.
-  Future<void> _activateServer(SavedServer server, {String? hostOverride}) async {
+  Future<void> _activateServer(
+    SavedServer server, {
+    String? hostOverride,
+  }) async {
     if (_busy) return;
+    // Relay rows can't be dialled directly — their host:port is a synthetic
+    // loopback placeholder. Route them through the relay tunnel flow owned by
+    // the connection shell (registered into relayReconnectProvider).
+    if (server.isRelay) {
+      await _activateRelayServer(server);
+      return;
+    }
     setState(() => _busy = true);
     final host = hostOverride ?? server.host;
     final scheme = server.scheme;
@@ -235,18 +250,21 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
       if (!ok) {
         if (!mounted) return;
         _showSnack(
-            context.l10n.text('savedServersUnreachable',
-                params: {'name': server.displayName, 'host': host}),
-            isError: true);
-        ref
-            .read(_reachabilityProvider.notifier)
-            .setStatus(server.id, false);
+          context.l10n.text(
+            'savedServersUnreachable',
+            params: {'name': server.displayName, 'host': host},
+          ),
+          isError: true,
+        );
+        ref.read(_reachabilityProvider.notifier).setStatus(server.id, false);
         return;
       }
       final viewerId = (token != null && token.isNotEmpty)
           ? computeServerFingerprint(token)
           : server.id;
-      await ref.read(backendProvider.notifier).connect(
+      await ref
+          .read(backendProvider.notifier)
+          .connect(
             host,
             server.port,
             authToken: token,
@@ -285,9 +303,53 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
     } catch (e) {
       if (!mounted) return;
       _showSnack(
-          context.l10n.text('savedServersOpenError',
-              params: {'name': server.displayName, 'error': '$e'}),
-          isError: true);
+        context.l10n.text(
+          'savedServersOpenError',
+          params: {'name': server.displayName, 'error': '$e'},
+        ),
+        isError: true,
+      );
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Reconnect a saved relay row through the relay-reconnect bridge the
+  /// connection shell registered. The shell opens the tunnel and swaps the
+  /// backend; the screen just kicks it off and pops back to the dashboard
+  /// (mirroring the direct-connect [onServerSelected] contract). When the
+  /// bridge is absent (the shell isn't mounted, e.g. an isolated widget test)
+  /// we surface a clear message rather than silently no-op.
+  Future<void> _activateRelayServer(SavedServer server) async {
+    final reconnect = ref.read(relayReconnectProvider);
+    if (reconnect == null) {
+      _showSnack(
+        context.l10n.text('savedServersRelayUnavailable'),
+        isError: true,
+      );
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await reconnect(server);
+      if (!mounted) return;
+      // The shell stamps lastConnectedAt + secure-storage token via
+      // upsertRelay; refresh the list so the row floats to the top.
+      ref.invalidate(_savedServersListProvider);
+      if (widget.onServerSelected != null) {
+        widget.onServerSelected!(context, server);
+      } else {
+        Navigator.of(context).pop();
+      }
+    } catch (e) {
+      if (!mounted) return;
+      _showSnack(
+        context.l10n.text(
+          'savedServersOpenError',
+          params: {'name': server.displayName, 'error': '$e'},
+        ),
+        isError: true,
+      );
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -295,10 +357,7 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
 
   Future<void> _handleAddServer() async {
     if (widget.onAddServer == null) {
-      _showSnack(
-        context.l10n.text('savedServersAddDisabled'),
-        isError: true,
-      );
+      _showSnack(context.l10n.text('savedServersAddDisabled'), isError: true);
       return;
     }
     setState(() => _busy = true);
@@ -307,8 +366,12 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
       if (!mounted) return;
       if (added != null) {
         ref.invalidate(_savedServersListProvider);
-        _showSnack(context.l10n
-            .text('savedServersAdded', params: {'name': added.displayName}));
+        _showSnack(
+          context.l10n.text(
+            'savedServersAdded',
+            params: {'name': added.displayName},
+          ),
+        );
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -335,50 +398,64 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
             children: [
               if (showConnectTailscale)
                 ListTile(
-                  leading:
-                      Icon(LucideIcons.radioTower, color: colors.primary),
-                  title: Text(l10n.text('tailscaleConnect'),
-                      style: TextStyle(color: colors.textPrimary)),
-                  subtitle: Text(remoteHost,
-                      style: TextStyle(color: colors.textSecondary)),
-                  onTap: () => Navigator.of(sheetContext)
-                      .pop(_RowMenuAction.connectTailscale),
+                  leading: Icon(LucideIcons.radioTower, color: colors.primary),
+                  title: Text(
+                    l10n.text('tailscaleConnect'),
+                    style: TextStyle(color: colors.textPrimary),
+                  ),
+                  subtitle: Text(
+                    remoteHost,
+                    style: TextStyle(color: colors.textSecondary),
+                  ),
+                  onTap: () => Navigator.of(
+                    sheetContext,
+                  ).pop(_RowMenuAction.connectTailscale),
                 ),
               ListTile(
                 leading: Icon(LucideIcons.edit, color: colors.textPrimary),
-                title: Text(l10n.text('savedServersRename'),
-                    style: TextStyle(color: colors.textPrimary)),
+                title: Text(
+                  l10n.text('savedServersRename'),
+                  style: TextStyle(color: colors.textPrimary),
+                ),
                 onTap: () =>
                     Navigator.of(sheetContext).pop(_RowMenuAction.rename),
               ),
               ListTile(
-                leading:
-                    Icon(LucideIcons.fileText, color: colors.textPrimary),
-                title: Text(l10n.text('savedServersEditNotes'),
-                    style: TextStyle(color: colors.textPrimary)),
+                leading: Icon(LucideIcons.fileText, color: colors.textPrimary),
+                title: Text(
+                  l10n.text('savedServersEditNotes'),
+                  style: TextStyle(color: colors.textPrimary),
+                ),
                 onTap: () =>
                     Navigator.of(sheetContext).pop(_RowMenuAction.notes),
               ),
               ListTile(
-                leading:
-                    Icon(LucideIcons.radioTower, color: colors.textPrimary),
+                leading: Icon(
+                  LucideIcons.radioTower,
+                  color: colors.textPrimary,
+                ),
                 title: Text(
-                    server.hasTailscaleHost
-                        ? l10n.text('savedServersEditTailscale')
-                        : l10n.text('savedServersAddTailscale'),
-                    style: TextStyle(color: colors.textPrimary)),
+                  server.hasTailscaleHost
+                      ? l10n.text('savedServersEditTailscale')
+                      : l10n.text('savedServersAddTailscale'),
+                  style: TextStyle(color: colors.textPrimary),
+                ),
                 subtitle: Text(
-                    server.hasTailscaleHost
-                        ? server.tailscaleHost!
-                        : l10n.text('savedServersTailscaleSubtitle'),
-                    style: TextStyle(color: colors.textSecondary)),
-                onTap: () => Navigator.of(sheetContext)
-                    .pop(_RowMenuAction.tailscaleHost),
+                  server.hasTailscaleHost
+                      ? server.tailscaleHost!
+                      : l10n.text('savedServersTailscaleSubtitle'),
+                  style: TextStyle(color: colors.textSecondary),
+                ),
+                onTap: () => Navigator.of(
+                  sheetContext,
+                ).pop(_RowMenuAction.tailscaleHost),
               ),
               ListTile(
                 leading: Icon(LucideIcons.trash, color: colors.error),
-                title: Text(l10n.text('savedServersRemove'),
-                    style: TextStyle(color: colors.error)),
+                title: Text(
+                  l10n.text('savedServersRemove'),
+                  style: TextStyle(color: colors.error),
+                ),
                 onTap: () =>
                     Navigator.of(sheetContext).pop(_RowMenuAction.remove),
               ),
@@ -390,8 +467,7 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
     if (!mounted || action == null) return;
     switch (action) {
       case _RowMenuAction.connectTailscale:
-        await _activateServer(server,
-            hostOverride: server.preferredRemoteHost);
+        await _activateServer(server, hostOverride: server.preferredRemoteHost);
         break;
       case _RowMenuAction.rename:
         await _renameServer(server);
@@ -410,8 +486,7 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
 
   Future<void> _editTailscaleHost(SavedServer server) async {
     final l10n = context.l10n;
-    final controller =
-        TextEditingController(text: server.tailscaleHost ?? '');
+    final controller = TextEditingController(text: server.tailscaleHost ?? '');
     final result = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
@@ -456,10 +531,7 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
       ref.invalidate(_savedServersListProvider);
     } on ArgumentError {
       if (!mounted) return;
-      _showSnack(
-        l10n.text('savedServersTailscaleInvalid'),
-        isError: true,
-      );
+      _showSnack(l10n.text('savedServersTailscaleInvalid'), isError: true);
     }
   }
 
@@ -495,9 +567,7 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
     if (newName == null || newName.isEmpty || newName == server.displayName) {
       return;
     }
-    await ref
-        .read(savedServersServiceProvider)
-        .rename(server.id, newName);
+    await ref.read(savedServersServiceProvider).rename(server.id, newName);
     ref.invalidate(_savedServersListProvider);
   }
 
@@ -525,8 +595,7 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
               child: Text(l10n.text('savedServersCancel')),
             ),
             TextButton(
-              onPressed: () =>
-                  Navigator.of(dialogContext).pop(controller.text),
+              onPressed: () => Navigator.of(dialogContext).pop(controller.text),
               child: Text(l10n.text('savedServersSave')),
             ),
           ],
@@ -546,8 +615,12 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text(l10n.text('savedServersRemoveTitle',
-              params: {'name': server.displayName})),
+          title: Text(
+            l10n.text(
+              'savedServersRemoveTitle',
+              params: {'name': server.displayName},
+            ),
+          ),
           content: Text(l10n.text('savedServersRemoveBody')),
           actions: [
             TextButton(
@@ -643,8 +716,8 @@ class _SavedServerRow extends StatelessWidget {
     final dotLabel = reachable == null
         ? l10n.text('savedServersReachabilityUnknown')
         : (reachable!
-            ? l10n.text('savedServersReachable')
-            : l10n.text('savedServersUnreachableShort'));
+              ? l10n.text('savedServersReachable')
+              : l10n.text('savedServersUnreachableShort'));
     final secondary = _secondaryLine();
     return InkWell(
       onTap: busy ? null : onTap,
@@ -658,8 +731,10 @@ class _SavedServerRow extends StatelessWidget {
               child: Container(
                 width: 12,
                 height: 12,
-                decoration:
-                    BoxDecoration(color: dotColor, shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: dotColor,
+                  shape: BoxShape.circle,
+                ),
               ),
             ),
             const SizedBox(width: 14),
@@ -688,10 +763,7 @@ class _SavedServerRow extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     secondary,
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: colors.textSecondary, fontSize: 12),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -712,8 +784,11 @@ class _SavedServerRow extends StatelessWidget {
               ),
             ),
             const SizedBox(width: 8),
-            Icon(LucideIcons.chevronRight,
-                size: 18, color: colors.textSecondary),
+            Icon(
+              LucideIcons.chevronRight,
+              size: 18,
+              color: colors.textSecondary,
+            ),
           ],
         ),
       ),
@@ -721,10 +796,15 @@ class _SavedServerRow extends StatelessWidget {
   }
 
   String _secondaryLine() {
-    final hostPort = '${server.host}:${server.port}';
+    // Relay rows have a synthetic loopback host:port — show the relay
+    // endpoint + appliance id instead, which is what actually identifies the
+    // rig the row reconnects to.
+    final endpoint = server.isRelay
+        ? '${server.relayUrl} · ${server.relayApplianceId}'
+        : '${server.host}:${server.port}';
     final last = server.lastConnectedAt;
-    if (last == null) return '$hostPort · never connected';
-    return '$hostPort · ${_formatRelative(last)}';
+    if (last == null) return '$endpoint · never connected';
+    return '$endpoint · ${_formatRelative(last)}';
   }
 
   static String _formatRelative(DateTime when) {
@@ -776,6 +856,12 @@ class _ReachBadge extends StatelessWidget {
   }
 
   (String, Color, IconData) _descriptor() {
+    // A relay entry is reached through the self-hosted tunnel, not a direct
+    // LAN/Tailscale dial — surface that first so the operator knows the row
+    // reconnects via the relay rather than probing a (synthetic) host:port.
+    if (server.isRelay) {
+      return ('RELAY', colors.info, LucideIcons.globe);
+    }
     if (server.isPrimaryTailscale) {
       return ('TAILSCALE', colors.info, LucideIcons.radioTower);
     }

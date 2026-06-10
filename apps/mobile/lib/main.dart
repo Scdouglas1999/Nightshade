@@ -16,6 +16,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'companion_ui_config.dart';
 import 'screens/dashboard/mobile_dashboard_screen.dart';
 import 'screens/qr_scanner_screen.dart';
+import 'screens/servers/saved_servers_screen.dart';
+import 'services/saved_servers_service.dart';
 import 'services/foreground_service.dart';
 import 'services/live_activity_lifecycle_provider.dart';
 import 'services/mobile_pairing_service.dart';
@@ -53,8 +55,11 @@ void main() async {
     final appDir = await getApplicationDocumentsDirectory();
     await CatalogManager.instance.initialize(appDir.path);
   } catch (e) {
-    developer.log('Failed to initialize CatalogManager: $e',
-        name: 'Main', level: 1000);
+    developer.log(
+      'Failed to initialize CatalogManager: $e',
+      name: 'Main',
+      level: 1000,
+    );
   }
 
   // Initialize NetworkService for connectivity monitoring
@@ -62,8 +67,11 @@ void main() async {
     await NetworkService().initialize();
     developer.log('NetworkService initialized', name: 'Main');
   } catch (e) {
-    developer.log('Failed to initialize NetworkService: $e',
-        name: 'Main', level: 1000);
+    developer.log(
+      'Failed to initialize NetworkService: $e',
+      name: 'Main',
+      level: 1000,
+    );
   }
 
   // Wave 6D / P2-14 — start the battery sampler so the dashboard
@@ -75,8 +83,13 @@ void main() async {
     await BatteryService().start();
     developer.log('BatteryService started', name: 'Main');
   } catch (e, st) {
-    developer.log('Failed to start BatteryService: $e',
-        name: 'Main', level: 1000, error: e, stackTrace: st);
+    developer.log(
+      'Failed to start BatteryService: $e',
+      name: 'Main',
+      level: 1000,
+      error: e,
+      stackTrace: st,
+    );
   }
 
   // P1-16a / audit §7 bug 3: request Android POST_NOTIFICATIONS at startup
@@ -135,11 +148,13 @@ void main() async {
   // Add error handling
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
-    developer.log('Flutter Error: ${details.exception}',
-        name: 'Main',
-        level: 1000,
-        error: details.exception,
-        stackTrace: details.stack);
+    developer.log(
+      'Flutter Error: ${details.exception}',
+      name: 'Main',
+      level: 1000,
+      error: details.exception,
+      stackTrace: details.stack,
+    );
   };
 
   runApp(
@@ -207,13 +222,14 @@ Future<_CollaborationIdentityBundle> _buildCollaborationIdentity(
   // Short tail (the suffix bytes are random; the prefix is the constant
   // `mobile:` discriminator) keeps the display readable in the host's
   // viewer slot list without exposing the full id.
-  final shortId =
-      deviceId.length > 14 ? deviceId.substring(deviceId.length - 6) : deviceId;
+  final shortId = deviceId.length > 14
+      ? deviceId.substring(deviceId.length - 6)
+      : deviceId;
   final platformLabel = Platform.isIOS
       ? 'iPhone'
       : Platform.isAndroid
-          ? 'Android'
-          : Platform.operatingSystem;
+      ? 'Android'
+      : Platform.operatingSystem;
   // The viewerId MUST match the server's `computeServerFingerprint(token)`
   // when auth is enabled — otherwise the server's P2-15 override branch
   // would log every join as an impersonation attempt. When auth is off
@@ -244,6 +260,14 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Register the relay-reconnect bridge so the dashboard-launched
+    // SavedServersScreen can dial a saved relay row through the tunnel this
+    // (always-mounted) shell owns. Done post-frame because mutating a
+    // provider during initState/build is disallowed.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(relayReconnectProvider.notifier).state = _reconnectSavedRelay;
+    });
     // Automatically discover and connect on startup
     _autoConnect();
   }
@@ -316,9 +340,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
             localizationsDelegates:
                 NightshadeLocalizations.localizationsDelegates,
             supportedLocales: NightshadeLocalizations.supportedLocales,
-            home: Builder(
-              builder: (context) => _buildConnectionScreen(),
-            ),
+            home: Builder(builder: (context) => _buildConnectionScreen()),
           ),
         );
       }
@@ -402,8 +424,13 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
       );
     } catch (e, stackTrace) {
       // Fallback UI if something goes wrong
-      developer.log('Error building app: $e',
-          name: 'Main', level: 1000, error: e, stackTrace: stackTrace);
+      developer.log(
+        'Error building app: $e',
+        name: 'Main',
+        level: 1000,
+        error: e,
+        stackTrace: stackTrace,
+      );
       return MaterialApp(
         title: 'Nightshade',
         debugShowCheckedModeBanner: false,
@@ -423,10 +450,13 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    NightshadeLocalizations.of(context)
-                        .text('mobileErrorLoadingApp'),
+                    NightshadeLocalizations.of(
+                      context,
+                    ).text('mobileErrorLoadingApp'),
                     style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.bold),
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -468,10 +498,12 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
         // If colors extension not available, use default Material colors
         final bgColor = colors?.background ?? theme.scaffoldBackgroundColor;
         final surfaceColor = colors?.surface ?? theme.cardColor;
-        final textColor = colors?.textPrimary ??
+        final textColor =
+            colors?.textPrimary ??
             theme.textTheme.bodyLarge?.color ??
             theme.colorScheme.onSurface;
-        final textSecondary = colors?.textSecondary ??
+        final textSecondary =
+            colors?.textSecondary ??
             theme.textTheme.bodyMedium?.color ??
             theme.colorScheme.onSurfaceVariant;
         final borderColor = colors?.border ?? theme.colorScheme.outlineVariant;
@@ -555,10 +587,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
                           ),
                           child: Text(
                             _error!,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: errorColor,
-                            ),
+                            style: TextStyle(fontSize: 12, color: errorColor),
                           ),
                         ),
                       ],
@@ -638,8 +667,9 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
                       filled: true,
                       fillColor: surfaceColor,
                     ),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
@@ -738,9 +768,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
                     onPressed: _skipConnection,
                     child: Text(
                       l10n.text('mobileSkipConnection'),
-                      style: TextStyle(
-                        color: textSecondary,
-                      ),
+                      style: TextStyle(color: textSecondary),
                     ),
                   ),
                 ],
@@ -759,8 +787,11 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.info_outline,
-                              size: 20, color: textSecondary),
+                          Icon(
+                            Icons.info_outline,
+                            size: 20,
+                            color: textSecondary,
+                          ),
                           const SizedBox(width: 8),
                           Text(
                             l10n.text('mobileHowToConnect'),

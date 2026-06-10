@@ -126,6 +126,29 @@ class SavedServer {
   /// here is refused, so this can never become an exfiltration vector.
   final String? tailscaleHost;
 
+  /// v4 couch-grade remote: the self-hosted relay's `ws(s)://host[:port]`
+  /// URL when this entry is reached through a relay tunnel rather than a
+  /// direct LAN / Tailscale dial. `null` for direct entries.
+  ///
+  /// A relay entry is identified by [isRelay] (both this and
+  /// [relayApplianceId] non-empty). For a relay entry the [host] / [port]
+  /// are *synthetic* loopback placeholders — the live tunnel mints a fresh
+  /// ephemeral loopback port on every reconnect — so they are not used to
+  /// dial; the reconnect path opens a tunnel from [relayUrl] +
+  /// [relayApplianceId] and connects to 127.0.0.1 on the tunnel's port.
+  final String? relayUrl;
+
+  /// v4 relay: the appliance id the relay minted for the rig (printed by
+  /// the headless daemon on first contact, shape `xxxx-xxxx-xxxx`). Pairs
+  /// with [relayUrl] to define a relay entry. `null` for direct entries.
+  final String? relayApplianceId;
+
+  /// v4 relay: whether to trust a self-signed TLS certificate on the relay
+  /// (the `wss://` endpoint). Mirrors the "Trust self-signed relay TLS"
+  /// toggle in the connect dialog so a relay fronted by a self-signed cert
+  /// reconnects without re-prompting. Ignored for non-relay entries.
+  final bool relayAllowInsecureTls;
+
   const SavedServer({
     required this.id,
     required this.displayName,
@@ -137,7 +160,20 @@ class SavedServer {
     this.notes = '',
     this.scheme = 'http',
     this.tailscaleHost,
+    this.relayUrl,
+    this.relayApplianceId,
+    this.relayAllowInsecureTls = false,
   });
+
+  /// `true` when this entry is reached through a relay tunnel — both the
+  /// relay URL and appliance id are present. The saved-servers screen
+  /// routes the row tap through the relay flow (open tunnel → connect to
+  /// loopback) rather than a direct dial, and shows a "Relay" badge.
+  bool get isRelay =>
+      relayUrl != null &&
+      relayUrl!.isNotEmpty &&
+      relayApplianceId != null &&
+      relayApplianceId!.isNotEmpty;
 
   /// The reachability tier of the primary [host] — drives the LAN /
   /// Remote badge on the saved-servers screen.
@@ -195,6 +231,10 @@ class SavedServer {
     String? scheme,
     String? tailscaleHost,
     bool clearTailscaleHost = false,
+    String? relayUrl,
+    String? relayApplianceId,
+    bool clearRelay = false,
+    bool? relayAllowInsecureTls,
   }) {
     return SavedServer(
       id: id,
@@ -213,6 +253,12 @@ class SavedServer {
       tailscaleHost: clearTailscaleHost
           ? null
           : (tailscaleHost ?? this.tailscaleHost),
+      relayUrl: clearRelay ? null : (relayUrl ?? this.relayUrl),
+      relayApplianceId: clearRelay
+          ? null
+          : (relayApplianceId ?? this.relayApplianceId),
+      relayAllowInsecureTls:
+          relayAllowInsecureTls ?? this.relayAllowInsecureTls,
     );
   }
 
@@ -220,21 +266,29 @@ class SavedServer {
   /// blob. The auth token is intentionally omitted — it lives in secure
   /// storage and is keyed off [id].
   Map<String, dynamic> toJsonNonSecret() => {
-        'id': id,
-        'displayName': displayName,
-        'host': host,
-        'port': port,
-        if (pinnedFingerprint != null) 'pinnedFingerprint': pinnedFingerprint,
-        if (lastConnectedAt != null)
-          'lastConnectedAt': lastConnectedAt!.toIso8601String(),
-        if (notes.isNotEmpty) 'notes': notes,
-        // Persist the scheme only when it diverges from the legacy default
-        // so old readers (which assume http) and the JSON blob both stay
-        // compact for the common LAN case.
-        if (scheme != 'http') 'scheme': scheme,
-        if (tailscaleHost != null && tailscaleHost!.isNotEmpty)
-          'tailscaleHost': tailscaleHost,
-      };
+    'id': id,
+    'displayName': displayName,
+    'host': host,
+    'port': port,
+    if (pinnedFingerprint != null) 'pinnedFingerprint': pinnedFingerprint,
+    if (lastConnectedAt != null)
+      'lastConnectedAt': lastConnectedAt!.toIso8601String(),
+    if (notes.isNotEmpty) 'notes': notes,
+    // Persist the scheme only when it diverges from the legacy default
+    // so old readers (which assume http) and the JSON blob both stay
+    // compact for the common LAN case.
+    if (scheme != 'http') 'scheme': scheme,
+    if (tailscaleHost != null && tailscaleHost!.isNotEmpty)
+      'tailscaleHost': tailscaleHost,
+    // Relay fields are written only for relay entries so a direct entry's
+    // blob stays byte-identical to a pre-relay build (forward/backward
+    // compatible — old readers ignore unknown keys, new readers treat the
+    // absence as a direct entry).
+    if (relayUrl != null && relayUrl!.isNotEmpty) 'relayUrl': relayUrl,
+    if (relayApplianceId != null && relayApplianceId!.isNotEmpty)
+      'relayApplianceId': relayApplianceId,
+    if (relayAllowInsecureTls) 'relayAllowInsecureTls': true,
+  };
 
   /// Inverse of [toJsonNonSecret]. The auth token is *not* populated;
   /// callers that need it should hit [SavedServersService.tokenFor] to
@@ -273,7 +327,8 @@ class SavedServer {
       parsedScheme = rawScheme.toLowerCase();
     } else {
       throw const FormatException(
-          'SavedServer: scheme is not "http" or "https"');
+        'SavedServer: scheme is not "http" or "https"',
+      );
     }
     // Tailscale host is optional, but if present it must pass the same
     // fail-closed acceptance gate as the primary host — a public address
@@ -284,10 +339,46 @@ class SavedServer {
     if (rawTs is String && rawTs.isNotEmpty) {
       if (!isTailscaleEndpoint(rawTs)) {
         throw const FormatException(
-            'SavedServer: tailscaleHost is not a tailnet IP or *.ts.net name');
+          'SavedServer: tailscaleHost is not a tailnet IP or *.ts.net name',
+        );
       }
       parsedTailscaleHost = rawTs;
     }
+    // Relay fields are optional and travel together. When present the URL
+    // must be a ws/wss endpoint and the appliance id must match the relay
+    // id shape — a malformed blob is rejected rather than silently coerced
+    // (CLAUDE.md no silent fallbacks) so a hand-edited entry can't point the
+    // reconnect at an arbitrary scheme/host.
+    final rawRelayUrl = json['relayUrl'];
+    final rawRelayId = json['relayApplianceId'];
+    String? parsedRelayUrl;
+    String? parsedRelayApplianceId;
+    if (rawRelayUrl != null || rawRelayId != null) {
+      if (rawRelayUrl is! String ||
+          rawRelayUrl.isEmpty ||
+          rawRelayId is! String ||
+          rawRelayId.isEmpty) {
+        throw const FormatException(
+          'SavedServer: relayUrl and relayApplianceId must both be present',
+        );
+      }
+      final relayUri = Uri.tryParse(rawRelayUrl);
+      if (relayUri == null ||
+          (relayUri.scheme != 'ws' && relayUri.scheme != 'wss')) {
+        throw const FormatException(
+          'SavedServer: relayUrl is not a ws:// or wss:// URL',
+        );
+      }
+      if (!isValidApplianceId(rawRelayId)) {
+        throw const FormatException(
+          'SavedServer: relayApplianceId is not a valid appliance id',
+        );
+      }
+      parsedRelayUrl = rawRelayUrl;
+      parsedRelayApplianceId = rawRelayId;
+    }
+    final rawRelayInsecure = json['relayAllowInsecureTls'];
+    final parsedRelayInsecure = rawRelayInsecure == true;
     return SavedServer(
       id: id,
       displayName: displayName,
@@ -300,6 +391,9 @@ class SavedServer {
       notes: notes is String ? notes : '',
       scheme: parsedScheme,
       tailscaleHost: parsedTailscaleHost,
+      relayUrl: parsedRelayUrl,
+      relayApplianceId: parsedRelayApplianceId,
+      relayAllowInsecureTls: parsedRelayInsecure,
     );
   }
 
@@ -316,16 +410,33 @@ class SavedServer {
           other.lastConnectedAt == lastConnectedAt &&
           other.notes == notes &&
           other.scheme == scheme &&
-          other.tailscaleHost == tailscaleHost);
+          other.tailscaleHost == tailscaleHost &&
+          other.relayUrl == relayUrl &&
+          other.relayApplianceId == relayApplianceId &&
+          other.relayAllowInsecureTls == relayAllowInsecureTls);
 
   @override
-  int get hashCode => Object.hash(id, displayName, host, port, authToken,
-      pinnedFingerprint, lastConnectedAt, notes, scheme, tailscaleHost);
+  int get hashCode => Object.hash(
+    id,
+    displayName,
+    host,
+    port,
+    authToken,
+    pinnedFingerprint,
+    lastConnectedAt,
+    notes,
+    scheme,
+    tailscaleHost,
+    relayUrl,
+    relayApplianceId,
+    relayAllowInsecureTls,
+  );
 
   @override
   String toString() =>
       'SavedServer($id, $displayName, $scheme://$host:$port, '
       'tailscale=${tailscaleHost ?? '-'}, '
+      'relay=${isRelay ? '$relayApplianceId@$relayUrl' : '-'}, '
       'pinned=${pinnedFingerprint != null}, '
       'lastConnected=$lastConnectedAt)';
 }
@@ -385,17 +496,17 @@ class SavedServersService {
     FlutterSecureStorage? secureStorage,
     Future<SharedPreferences> Function()? prefsLoader,
     Random? random,
-  })  : _secureStorage = secureStorage ?? _defaultSecureStorage,
-        _prefsLoader = prefsLoader ?? SharedPreferences.getInstance,
-        _random = random ?? Random.secure();
+  }) : _secureStorage = secureStorage ?? _defaultSecureStorage,
+       _prefsLoader = prefsLoader ?? SharedPreferences.getInstance,
+       _random = random ?? Random.secure();
 
   static const FlutterSecureStorage _defaultSecureStorage =
       FlutterSecureStorage(
-    iOptions: IOSOptions(
-      accessibility: KeychainAccessibility.first_unlock_this_device,
-    ),
-    aOptions: AndroidOptions(encryptedSharedPreferences: true),
-  );
+        iOptions: IOSOptions(
+          accessibility: KeychainAccessibility.first_unlock_this_device,
+        ),
+        aOptions: AndroidOptions(encryptedSharedPreferences: true),
+      );
 
   /// Load the full list. Always sorted with the most-recently-connected
   /// entry first, then alphabetically by [SavedServer.displayName] for
@@ -495,6 +606,9 @@ class SavedServersService {
     String notes = '',
     String scheme = 'http',
     String? tailscaleHost,
+    String? relayUrl,
+    String? relayApplianceId,
+    bool relayAllowInsecureTls = false,
   }) async {
     final id = _generateId();
     final entry = SavedServer(
@@ -508,6 +622,9 @@ class SavedServersService {
       notes: notes,
       scheme: scheme,
       tailscaleHost: tailscaleHost,
+      relayUrl: relayUrl,
+      relayApplianceId: relayApplianceId,
+      relayAllowInsecureTls: relayAllowInsecureTls,
     );
     await _writeRow(entry, authToken: authToken);
     return entry;
@@ -576,6 +693,71 @@ class SavedServersService {
       notes: notes,
       scheme: scheme,
       tailscaleHost: tailscaleHost,
+    );
+    await _writeRow(updated, authToken: authToken);
+    return updated;
+  }
+
+  /// Insert-or-update a relay entry, keyed on the (relay URL, appliance id)
+  /// pair rather than host:port — a relay entry's loopback host:port is
+  /// synthetic and changes on every reconnect, so the host:port match in
+  /// [upsert] would spawn a duplicate row each session.
+  ///
+  /// Match strategy:
+  ///   1. An existing relay row with the same [relayUrl] + [relayApplianceId]
+  ///      is updated in place (keeps its id, notes, display name unless a
+  ///      non-empty [displayName] is supplied).
+  ///   2. Otherwise a new relay row is inserted.
+  ///
+  /// [authToken] follows the same rule as [upsert]: non-null overwrites the
+  /// stored bearer; null leaves the existing token untouched. The token
+  /// stays out of the JSON blob and lives in secure storage keyed by id.
+  Future<SavedServer> upsertRelay({
+    required String displayName,
+    required String relayUrl,
+    required String relayApplianceId,
+    bool relayAllowInsecureTls = false,
+    String? authToken,
+    String? pinnedFingerprint,
+    DateTime? lastConnectedAt,
+    String? notes,
+  }) async {
+    final all = await loadAll();
+    SavedServer? existing;
+    for (final s in all) {
+      if (s.isRelay &&
+          s.relayUrl == relayUrl &&
+          s.relayApplianceId == relayApplianceId) {
+        existing = s;
+        break;
+      }
+    }
+    if (existing == null) {
+      return add(
+        displayName: displayName,
+        // A relay entry never dials these directly; persist a loopback
+        // placeholder so the (required) host/port fields round-trip and the
+        // secondary line renders something stable.
+        host: '127.0.0.1',
+        port: 1, // Valid (1..65535) placeholder; unused for relay dials.
+        authToken: authToken,
+        pinnedFingerprint: pinnedFingerprint,
+        lastConnectedAt: lastConnectedAt,
+        notes: notes ?? '',
+        relayUrl: relayUrl,
+        relayApplianceId: relayApplianceId,
+        relayAllowInsecureTls: relayAllowInsecureTls,
+      );
+    }
+    final updated = existing.copyWith(
+      displayName: displayName.trim().isEmpty ? null : displayName,
+      authToken: authToken,
+      pinnedFingerprint: pinnedFingerprint,
+      lastConnectedAt: lastConnectedAt,
+      notes: notes,
+      relayUrl: relayUrl,
+      relayApplianceId: relayApplianceId,
+      relayAllowInsecureTls: relayAllowInsecureTls,
     );
     await _writeRow(updated, authToken: authToken);
     return updated;
@@ -708,14 +890,19 @@ class SavedServersService {
         return updated;
       }
     }
-    throw StateError('SavedServersService.setTailscaleHost: no row with id $id');
+    throw StateError(
+      'SavedServersService.setTailscaleHost: no row with id $id',
+    );
   }
 
   // ------------------------------------------------------------------
   // Internals
   // ------------------------------------------------------------------
 
-  Future<void> _writeRow(SavedServer entry, {required String? authToken}) async {
+  Future<void> _writeRow(
+    SavedServer entry, {
+    required String? authToken,
+  }) async {
     final all = await loadAll();
     final next = <SavedServer>[];
     var replaced = false;
@@ -741,14 +928,18 @@ class SavedServersService {
 
   Future<void> _persistList(List<SavedServer> rows) async {
     final prefs = await _prefsLoader();
-    final payload =
-        jsonEncode(rows.map((r) => r.toJsonNonSecret()).toList(growable: false));
+    final payload = jsonEncode(
+      rows.map((r) => r.toJsonNonSecret()).toList(growable: false),
+    );
     await prefs.setString(SavedServersStorageKeys.list, payload);
   }
 
   String _generateId() {
-    final bytes =
-        List<int>.generate(16, (_) => _random.nextInt(256), growable: false);
+    final bytes = List<int>.generate(
+      16,
+      (_) => _random.nextInt(256),
+      growable: false,
+    );
     return bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
   }
 
@@ -815,9 +1006,9 @@ class SavedServersService {
           for (final entry in decoded) {
             if (entry is Map) {
               try {
-                existingList.add(SavedServer.fromJsonNonSecret(
-                  entry.cast<String, dynamic>(),
-                ));
+                existingList.add(
+                  SavedServer.fromJsonNonSecret(entry.cast<String, dynamic>()),
+                );
               } on FormatException catch (_) {
                 // Drop malformed rows quietly during migration — the
                 // loadAll path above re-logs them on the next read.
@@ -840,8 +1031,9 @@ class SavedServersService {
     final id = _generateId();
     final imported = SavedServer(
       id: id,
-      displayName:
-          (legacy.name.isNotEmpty) ? legacy.name : '${legacy.host}:${legacy.webPort}',
+      displayName: (legacy.name.isNotEmpty)
+          ? legacy.name
+          : '${legacy.host}:${legacy.webPort}',
       host: legacy.host,
       port: legacy.webPort,
       authToken: legacy.authToken,
@@ -883,3 +1075,18 @@ class SavedServersService {
 final savedServersServiceProvider = Provider<SavedServersService>((ref) {
   return SavedServersService();
 });
+
+/// Signature of the relay-reconnect bridge — see [relayReconnectProvider].
+typedef RelayReconnectFn = Future<void> Function(SavedServer server);
+
+/// Bridge for reconnecting a saved *relay* server from the saved-servers
+/// screen.
+///
+/// The relay tunnel (`RelayTunnelClient`) is owned by the always-mounted
+/// mobile connection shell so it outlives the dashboard-launched
+/// `SavedServersScreen`. The screen can't reach that state directly, so the
+/// shell registers a relay-connect closure here on first frame; the screen
+/// reads it to dial a saved relay row. `null` until the shell is mounted
+/// (e.g. a widget test that pumps the screen in isolation) — in that case the
+/// relay row tap surfaces a "not available" message rather than crashing.
+final relayReconnectProvider = StateProvider<RelayReconnectFn?>((ref) => null);

@@ -82,6 +82,8 @@ final Map<String, Map<String, String>> _localizedValues = {
     'savedServersLoadError': 'Failed to load saved servers: {error}',
     'savedServersAdd': 'Add server',
     'savedServersUnreachable': 'Could not reach {name} at {host}',
+    'savedServersRelayUnavailable':
+        'Relay reconnect is not available right now. Open the app from the connection screen and try again.',
     'savedServersOpenError': 'Failed to open {name}: {error}',
     'savedServersAddDisabled':
         'Adding new servers from this screen is not enabled in this build.',
@@ -610,6 +612,8 @@ final Map<String, Map<String, String>> _localizedValues = {
         'No se pudieron cargar los servidores guardados: {error}',
     'savedServersAdd': 'Agregar servidor',
     'savedServersUnreachable': 'No se pudo acceder a {name} en {host}',
+    'savedServersRelayUnavailable':
+        'La reconexión por relay no está disponible ahora. Abre la app desde la pantalla de conexión e inténtalo de nuevo.',
     'savedServersOpenError': 'No se pudo abrir {name}: {error}',
     'savedServersAddDisabled':
         'Agregar servidores desde esta pantalla no est\u00E1 habilitado en esta versi\u00F3n.',

@@ -20,8 +20,9 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
   String? _error;
   String _statusMessage = '';
   final TextEditingController _ipController = TextEditingController(text: '');
-  final TextEditingController _accessTokenController =
-      TextEditingController(text: '');
+  final TextEditingController _accessTokenController = TextEditingController(
+    text: '',
+  );
   bool _showManualEntry = false;
   bool _skippedConnection = false;
   // Tokens are sensitive — default to obscured. Trailing icon toggles for
@@ -116,8 +117,9 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
       return;
     }
 
-    _connectionStateSubscription =
-        backend.connectionStateStream.listen((state) {
+    _connectionStateSubscription = backend.connectionStateStream.listen((
+      state,
+    ) {
       if (!mounted) return;
 
       switch (state) {
@@ -224,18 +226,25 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
       );
 
       if (server != null) {
-        developer.log('Found server: ${server.name} at ${server.host}',
-            name: 'Discovery', level: 800);
+        developer.log(
+          'Found server: ${server.name} at ${server.host}',
+          name: 'Discovery',
+          level: 800,
+        );
 
         // Save for future reconnects
         await _connectToServer(server);
       } else {
-        developer.log('No server found via any method',
-            name: 'Discovery', level: 900);
+        developer.log(
+          'No server found via any method',
+          name: 'Discovery',
+          level: 900,
+        );
         setState(() {
           _isDiscovering = false;
           _statusMessage = '';
-          _error = 'No Nightshade server found on this network.\n\n'
+          _error =
+              'No Nightshade server found on this network.\n\n'
               'If you are away from the observatory, use "Connect over '
               'Tailscale" to reach it by its MagicDNS name — local discovery '
               'only works on the same WiFi.\n\n'
@@ -246,8 +255,13 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
         });
       }
     } catch (e, stackTrace) {
-      developer.log('Discovery error: $e',
-          name: 'Discovery', level: 1000, error: e, stackTrace: stackTrace);
+      developer.log(
+        'Discovery error: $e',
+        name: 'Discovery',
+        level: 1000,
+        error: e,
+        stackTrace: stackTrace,
+      );
       setState(() {
         _isDiscovering = false;
         _statusMessage = '';
@@ -311,10 +325,7 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
                   Text(
                     'Enter the pairing code shown on the desktop '
                     '(Remote Access settings or pairing screen).',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: colors.textSecondary,
-                    ),
+                    style: TextStyle(fontSize: 13, color: colors.textSecondary),
                   ),
                   const SizedBox(height: 12),
                   TextField(
@@ -399,7 +410,8 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
       setState(() {
         _isDiscovering = false;
         _statusMessage = '';
-        _error = result.message ??
+        _error =
+            result.message ??
             'Pairing failed (${result.statusCode ?? 'unknown'}).';
       });
       return null;
@@ -434,10 +446,18 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
   /// [relayUrl] is the operator's relay (ws(s)://host[:port]); [applianceId]
   /// is the id the relay minted for the rig (printed by the daemon on first
   /// contact). End-to-end auth is unchanged; the relay only splices bytes.
+  /// [presetAuthToken] short-circuits pairing when reconnecting a *saved*
+  /// relay row whose appliance bearer is already in secure storage — mirrors
+  /// how [SavedServersScreen] reconnects a direct row with a stored token.
+  /// `null` for a first-time relay connect (the appliance is paired through
+  /// the normal [_connectToServer] flow). [savedServerDisplayName] feeds the
+  /// persisted row's label; defaults to `Relay: <id>` when null.
   Future<void> _connectViaRelay({
     required String relayUrl,
     required String applianceId,
     bool allowInsecureTls = false,
+    String? presetAuthToken,
+    String? savedServerDisplayName,
   }) async {
     setState(() {
       _isDiscovering = true;
@@ -481,17 +501,19 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
 
       // If the relay/appliance drops, surface it: closing the backend kicks
       // the user back to the connection screen through the normal monitor.
-      unawaited(tunnel.done.then((_) {
-        if (!mounted || !identical(_activeRelayTunnel, tunnel)) return;
-        _activeRelayTunnel = null;
-      }));
+      unawaited(
+        tunnel.done.then((_) {
+          if (!mounted || !identical(_activeRelayTunnel, tunnel)) return;
+          _activeRelayTunnel = null;
+        }),
+      );
 
       // The relay carries opaque bytes end-to-end; the appliance behind it may
       // still serve plain http (typical) — the loopback hop is local-only, so
       // dialling the tunnel over http is correct regardless of the appliance's
       // own TLS. The appliance's pairing token / HMAC remain end-to-end.
       final relayServer = DiscoveredServer(
-        name: 'Relay: $trimmedId',
+        name: savedServerDisplayName ?? 'Relay: $trimmedId',
         host: '127.0.0.1',
         webPort: tunnel.localPort,
         signalingPort: tunnel.localPort,
@@ -500,6 +522,9 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
         scheme: 'http',
         authRequired: true,
         pairingSupported: true,
+        // A saved relay carries its appliance bearer in secure storage —
+        // pass it through so _connectToServer skips re-pairing every night.
+        authToken: presetAuthToken,
       );
       await _connectToServer(relayServer);
 
@@ -507,6 +532,37 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
       // down so we don't leak a loopback listener.
       if (!mounted || ref.read(backendProvider) is! NetworkBackend) {
         await _closeActiveRelayTunnel();
+        return;
+      }
+
+      // Persist (or refresh) the relay entry in the saved-servers list so the
+      // operator reconnects from the roaming list next session instead of
+      // re-running the relay setup. Keyed on (relayUrl, applianceId) so a
+      // reconnect updates the existing row rather than duplicating it. The
+      // bearer the appliance ended up authenticating with is mirrored into
+      // secure storage; non-secret fields go in the JSON blob.
+      final connectedToken = _connectedServer?.authToken;
+      try {
+        await ref
+            .read(savedServersServiceProvider)
+            .upsertRelay(
+              displayName: savedServerDisplayName ?? 'Relay: $trimmedId',
+              relayUrl: relayUrl.trim(),
+              relayApplianceId: trimmedId,
+              relayAllowInsecureTls: allowInsecureTls,
+              authToken: connectedToken,
+              lastConnectedAt: DateTime.now(),
+            );
+      } catch (e, st) {
+        // A persistence failure must not drop the live session — the relay
+        // tunnel and backend are already up. Log and carry on.
+        developer.log(
+          'relay: failed to persist saved server: $e',
+          name: 'Relay',
+          level: 1000,
+          error: e,
+          stackTrace: st,
+        );
       }
     } on RelayTunnelException catch (e) {
       await _closeActiveRelayTunnel();
@@ -525,6 +581,27 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
         _error = 'Could not reach the relay: $e';
       });
     }
+  }
+
+  /// Reconnect a *saved* relay row from [SavedServersScreen].
+  ///
+  /// Loads the appliance bearer from secure storage (so the appliance behind
+  /// the relay isn't re-paired every session) and dials through the relay
+  /// using the row's persisted relay URL + appliance id + TLS-trust flag.
+  /// Registered into [relayReconnectProvider] by the shell so the
+  /// dashboard-launched screen can invoke it.
+  Future<void> _reconnectSavedRelay(SavedServer server) async {
+    if (!server.isRelay) return;
+    final token = await ref
+        .read(savedServersServiceProvider)
+        .tokenFor(server.id);
+    await _connectViaRelay(
+      relayUrl: server.relayUrl!,
+      applianceId: server.relayApplianceId!,
+      allowInsecureTls: server.relayAllowInsecureTls,
+      presetAuthToken: token,
+      savedServerDisplayName: server.displayName,
+    );
   }
 
   /// Prompt for a relay URL + appliance id, then dial through the relay.
@@ -577,8 +654,7 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
                   value: allowInsecure,
-                  onChanged: (v) =>
-                      setLocal(() => allowInsecure = v ?? false),
+                  onChanged: (v) => setLocal(() => allowInsecure = v ?? false),
                   title: const Text(
                     'Trust self-signed relay TLS',
                     style: TextStyle(fontSize: 13),
@@ -664,10 +740,10 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
       // Test connection first
       final isReachable =
           await EnhancedNightshadeDiscovery.testServerConnection(
-        enrichedServer.host,
-        enrichedServer.webPort,
-        authToken: authToken,
-      );
+            enrichedServer.host,
+            enrichedServer.webPort,
+            authToken: authToken,
+          );
 
       if (isReachable) {
         developer.log('Connection successful!', name: 'Discovery', level: 800);
@@ -686,9 +762,10 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
           await EnhancedNightshadeDiscovery.saveLastServer(enrichedServer);
         } else {
           developer.log(
-              'Skipping saveLastServer — /api/info did not return metadata',
-              name: 'Discovery',
-              level: 900);
+            'Skipping saveLastServer — /api/info did not return metadata',
+            name: 'Discovery',
+            level: 900,
+          );
         }
 
         // Update global backend state to use NetworkBackend.
@@ -705,7 +782,9 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
         final collabIdentity = await _buildCollaborationIdentity(
           enrichedServer.authToken,
         );
-        await ref.read(backendProvider.notifier).connect(
+        await ref
+            .read(backendProvider.notifier)
+            .connect(
               enrichedServer.host,
               enrichedServer.webPort,
               authToken: enrichedServer.authToken,
@@ -739,7 +818,8 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
           ref.invalidate(equipmentProfilesProvider);
         });
       } else {
-        final authMessage = enrichedServer.authRequired &&
+        final authMessage =
+            enrichedServer.authRequired &&
                 (enrichedServer.authToken == null ||
                     enrichedServer.authToken!.isEmpty)
             ? '\n\nThis host requires an access token or paired-device QR code.'
@@ -752,8 +832,13 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
         });
       }
     } catch (e, stackTrace) {
-      developer.log('Connection error: $e',
-          name: 'Discovery', level: 1000, error: e, stackTrace: stackTrace);
+      developer.log(
+        'Connection error: $e',
+        name: 'Discovery',
+        level: 1000,
+        error: e,
+        stackTrace: stackTrace,
+      );
       setState(() {
         _isDiscovering = false;
         _statusMessage = '';
@@ -783,8 +868,13 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
         ),
       );
     } catch (e, stackTrace) {
-      developer.log('QR scanner failed: $e',
-          name: 'Discovery', level: 1000, error: e, stackTrace: stackTrace);
+      developer.log(
+        'QR scanner failed: $e',
+        name: 'Discovery',
+        level: 1000,
+        error: e,
+        stackTrace: stackTrace,
+      );
       if (!mounted) return;
       setState(() {
         _error = 'QR scanner failed: $e';
@@ -1035,7 +1125,8 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: const Text('Sequence resumed from checkpoint'),
-                    backgroundColor: colors?.success ??
+                    backgroundColor:
+                        colors?.success ??
                         Theme.of(context).colorScheme.primary,
                   ),
                 );
@@ -1055,8 +1146,11 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
           }
         }
       } catch (e) {
-        developer.log('Error checking for checkpoint: $e',
-            name: 'Main', level: 1000);
+        developer.log(
+          'Error checking for checkpoint: $e',
+          name: 'Main',
+          level: 1000,
+        );
       }
     });
   }
