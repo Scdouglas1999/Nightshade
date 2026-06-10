@@ -715,11 +715,11 @@ CREATE TABLE captured_images (
   );
 
   test(
-    'fresh database is at schema 46 with stacked_results table (C3)',
+    'fresh database is at schema 47 with stacked_results table (C3)',
     () async {
       final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
       try {
-        expect(db.schemaVersion, equals(46));
+        expect(db.schemaVersion, equals(47));
 
         final tableRow = await db
             .customSelect(
@@ -776,7 +776,7 @@ CREATE TABLE captured_images (
           .customSelect('PRAGMA user_version')
           .getSingle();
       expect(upgradedVersion.data['user_version'], equals(db.schemaVersion));
-      expect(db.schemaVersion, equals(46));
+      expect(db.schemaVersion, equals(47));
 
       final tableRow = await db
           .customSelect(

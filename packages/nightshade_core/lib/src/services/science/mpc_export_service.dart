@@ -196,29 +196,24 @@ class MpcExportService {
     // Columns 57-65: Blank (9 chars)
     const blank9 = '         ';
 
-    // Columns 66-70: Magnitude — 5 chars (right-justified, e.g. " 18.5")
-    //
-    // The MovingObjectCandidateRow stores astrometric position data (RA, Dec,
-    // motion rate, position angle) from the moving object detection pipeline,
-    // but does not persist the candidate's measured flux or instrumental
-    // magnitude. The detection algorithm in DefaultScienceBackend.detectMovingObjects
-    // works by matching StarMeasurement positions across frames and computing
-    // motion vectors, but the flux values from those transient StarMeasurement
-    // objects are not carried forward into the MovingObjectCandidateRow schema.
-    //
-    // To properly populate magnitude here, the moving_object_candidates table
-    // would need a flux or instrumental_magnitude column added, and the
-    // detection pipeline would need to persist the measured flux alongside the
-    // astrometric data. Combined with the frame's photometric calibration
-    // zero-point, the apparent magnitude could then be computed as:
-    //   mag = -2.5 * log10(flux / exposure_seconds) + zero_point
-    //
-    // Per MPC guidelines, blank magnitude is acceptable for astrometry-only
-    // submissions.
-    const magField = '     ';
+    // Columns 66-70: Magnitude — 5 chars (right-justified, e.g. " 18.5").
+    // Populated since schema v47: the detection pipeline persists the
+    // candidate's measured flux converted to an apparent magnitude via the
+    // frame's photometric zero point. Rows from frames that produced no
+    // calibration carry a null magnitude and the line stays
+    // astrometry-only, which MPC guidelines explicitly allow.
+    final magValue = candidate.magnitude;
+    final hasMagnitude =
+        magValue != null && magValue.isFinite && magValue > 0 && magValue < 35;
+    final magField = hasMagnitude
+        ? magValue.toStringAsFixed(1).padLeft(5)
+        : '     ';
 
-    // Column 71: Band — blank when no magnitude
-    const band = ' ';
+    // Column 71: Band — blank when no magnitude. Single character; the
+    // pipeline stamps 'V' (zero point is fitted against catalog V mags).
+    final band = hasMagnitude
+        ? (candidate.magnitudeBand ?? 'V').padRight(1).substring(0, 1)
+        : ' ';
 
     // Columns 72-77: Blank (6 chars)
     const blank6 = '      ';

@@ -218,6 +218,13 @@ class ScienceSettingsPage extends ConsumerWidget {
               ],
             ),
             SettingsSection(
+              title: 'Photometric catalog',
+              isMobile: isMobile,
+              children: [
+                _ScienceOnlineCatalogRow(isMobile: isMobile),
+              ],
+            ),
+            SettingsSection(
               title: 'AAVSO',
               isMobile: isMobile,
               children: [
@@ -235,6 +242,7 @@ class ScienceSettingsPage extends ConsumerWidget {
               title: 'Camera',
               isMobile: isMobile,
               children: [
+                _ScienceCameraAutoRow(isMobile: isMobile),
                 _ScienceCameraValueRow(
                   isMobile: isMobile,
                   settingKey: 'science.camera.read_noise_e',
@@ -458,6 +466,139 @@ class _MpcObservatoryCodeRowState
   }
 }
 
+/// Toggle for online APASS DR9 cone searches. Downloads are cached per
+/// field, so disabling this only stops NEW lookups — previously visited
+/// fields keep their deep photometry offline, and everything else falls
+/// back to the bundled HYG catalog.
+class _ScienceOnlineCatalogRow extends ConsumerStatefulWidget {
+  final bool isMobile;
+  const _ScienceOnlineCatalogRow({this.isMobile = false});
+
+  @override
+  ConsumerState<_ScienceOnlineCatalogRow> createState() =>
+      _ScienceOnlineCatalogRowState();
+}
+
+class _ScienceOnlineCatalogRowState
+    extends ConsumerState<_ScienceOnlineCatalogRow> {
+  bool _enabled = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final stored = await ref
+        .read(settingsDaoProvider)
+        .getSetting(PhotometricCatalogService.onlineEnabledSettingKey);
+    if (mounted) {
+      setState(
+        () => _enabled = stored == null || stored.toLowerCase() != 'false',
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SettingRow(
+      icon: LucideIcons.globe,
+      title: 'Deep catalog lookups (APASS DR9)',
+      subtitle: 'Fetch B/V photometry to ~mag 16 from VizieR for zero-point '
+          'calibration and the transform wizard. Cached per field for '
+          'offline reuse; falls back to the bundled star catalog when off '
+          'or unreachable.',
+      trailing: SettingsSwitch(
+        value: _enabled,
+        onChanged: (value) async {
+          await ref.read(settingsDaoProvider).setSetting(
+                PhotometricCatalogService.onlineEnabledSettingKey,
+                value.toString(),
+              );
+          if (mounted) setState(() => _enabled = value);
+        },
+      ),
+      isLast: true,
+      isMobile: widget.isMobile,
+    );
+  }
+}
+
+/// "Auto-configure from camera" switch with provenance subtitle. When on,
+/// [ScienceCameraAutoConfig] keeps the three numeric rows below in sync with
+/// the connected camera (or active profile); manually editing any of them
+/// flips this off so user values are never silently overwritten.
+class _ScienceCameraAutoRow extends ConsumerStatefulWidget {
+  final bool isMobile;
+  const _ScienceCameraAutoRow({this.isMobile = false});
+
+  @override
+  ConsumerState<_ScienceCameraAutoRow> createState() =>
+      _ScienceCameraAutoRowState();
+}
+
+class _ScienceCameraAutoRowState extends ConsumerState<_ScienceCameraAutoRow> {
+  bool _autoManaged = true;
+  String? _source;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final dao = ref.read(settingsDaoProvider);
+    final managed =
+        await dao.getSetting(ScienceCameraAutoConfig.autoManagedKey);
+    final source = await dao.getSetting(ScienceCameraAutoConfig.autoSourceKey);
+    if (!mounted) return;
+    setState(() {
+      _autoManaged = managed == null || managed.toLowerCase() != 'false';
+      _source = source;
+    });
+  }
+
+  Future<void> _setAutoManaged(bool value) async {
+    final dao = ref.read(settingsDaoProvider);
+    await dao.setSetting(
+      ScienceCameraAutoConfig.autoManagedKey,
+      value.toString(),
+    );
+    if (value) {
+      // Re-enable: immediately resync from the current camera/profile.
+      await ref
+          .read(scienceCameraAutoConfigProvider)
+          .maybeSync(reason: 'auto-config re-enabled', force: true);
+    }
+    if (mounted) {
+      setState(() => _autoManaged = value);
+      await _load();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final subtitle = _autoManaged
+        ? (_source == null || _source!.isEmpty
+            ? 'Read noise, gain, and saturation follow the connected camera '
+                'or active profile'
+            : 'Following: $_source')
+        : 'Manual — values below are user-set and will not be overwritten';
+    return SettingRow(
+      icon: LucideIcons.wand2,
+      title: 'Auto-configure from camera',
+      subtitle: subtitle,
+      trailing: SettingsSwitch(
+        value: _autoManaged,
+        onChanged: _setAutoManaged,
+      ),
+      isMobile: widget.isMobile,
+    );
+  }
+}
+
 /// Numeric camera-property row backed by a raw settings key. Shared by the
 /// read-noise, gain, and saturation rows so all three validate and persist
 /// identically.
@@ -550,6 +691,13 @@ class _ScienceCameraValueRowState
                   : clamped.toString();
               final dao = ref.read(settingsDaoProvider);
               await dao.setSetting(widget.settingKey, stored);
+              // A hand-entered value is an explicit override — stop the
+              // auto-config service from replacing it on the next camera
+              // event. The user can flip auto back on in the row above.
+              await dao.setSetting(
+                ScienceCameraAutoConfig.autoManagedKey,
+                'false',
+              );
               if (mounted) {
                 _controller.text = stored;
               }

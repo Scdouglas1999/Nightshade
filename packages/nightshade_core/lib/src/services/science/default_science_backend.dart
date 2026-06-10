@@ -3,7 +3,6 @@ import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart';
-import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 import '../../backend/nightshade_backend.dart';
 import '../../models/science/science_models.dart';
@@ -12,6 +11,7 @@ import '../../providers/backend_provider.dart';
 import '../../providers/database_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/logging_service.dart';
+import 'photometric_catalog_service.dart';
 import 'science_backend.dart';
 
 part 'default_science_backend/helpers.dart';
@@ -169,11 +169,13 @@ class DefaultScienceBackend implements ScienceBackend {
       return null;
     }
 
-    final matches = await _catalogMatches(
+    // V≤15 reaches the depth APASS actually provides; the HYG fallback
+    // simply has nothing fainter than ~9, so a deeper request costs nothing.
+    final (matches, matchedCatalog) = await _catalogMatches(
       imagePath: imagePath,
       wcs: wcs,
       detectedStars: stars,
-      maxCatalogMag: 12.5,
+      maxCatalogMag: 15.0,
       maxMatchPx: 9.0,
     );
     if (matches.length < 8) {
@@ -282,10 +284,11 @@ class DefaultScienceBackend implements ScienceBackend {
       calibrationRms: rms,
       solverId: wcs.solverId,
       // Resolve the `auto` request to the catalog _catalogMatches actually
-      // consulted (the bundled HYG star catalog) so the persisted row and
-      // the MAGZPSRC FITS keyword record real provenance.
+      // served the fit from (APASS online/cache, or the bundled HYG
+      // fallback) so the persisted row and the MAGZPSRC FITS keyword
+      // record real provenance.
       catalogSource: catalog == PhotometricCatalogSource.auto
-          ? PhotometricCatalogSource.localHyg
+          ? matchedCatalog
           : catalog,
     );
   }
@@ -514,11 +517,11 @@ class DefaultScienceBackend implements ScienceBackend {
       const PhotometryOptions(minSnr: 4.0),
     );
     if (stars.isEmpty) return null;
-    final matches = await _catalogMatches(
+    final (matches, _) = await _catalogMatches(
       imagePath: imagePath,
       wcs: wcs,
       detectedStars: stars,
-      maxCatalogMag: 12.5,
+      maxCatalogMag: 15.0,
       maxMatchPx: 10.0,
     );
     if (matches.length < 6) return null;
@@ -721,6 +724,7 @@ class DefaultScienceBackend implements ScienceBackend {
           confidence: confidence,
           isKnownObject: false,
           epochUtc: epochUtc,
+          fluxEstimate: (star.flux + matched.flux) / 2.0,
         ),
       );
     }

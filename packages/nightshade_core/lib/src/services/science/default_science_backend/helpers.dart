@@ -1,15 +1,18 @@
 part of '../default_science_backend.dart';
 
 extension _DefaultScienceBackendHelpers on DefaultScienceBackend {
-  Future<List<_CatalogMatch>> _catalogMatches({
+  /// Match detected stars against the photometric catalog. Returns the
+  /// matches plus the catalog that actually served them (APASS when the
+  /// deep catalog was available, bundled HYG otherwise) so calibration
+  /// rows and MAGZPSRC carry real provenance.
+  Future<(List<_CatalogMatch>, PhotometricCatalogSource)> _catalogMatches({
     required String imagePath,
     required WcsSolution wcs,
     required List<StarMeasurement> detectedStars,
     required double maxCatalogMag,
     required double maxMatchPx,
   }) async {
-    final manager = CatalogManager.instance;
-    if (!manager.isInitialized) return const [];
+    const fallback = (<_CatalogMatch>[], PhotometricCatalogSource.localHyg);
     try {
       final fits = await apiReadFitsFile(filePath: imagePath);
       final radius =
@@ -21,13 +24,15 @@ extension _DefaultScienceBackendHelpers on DefaultScienceBackend {
                   0.3)
               .clamp(0.25, 8.0)
               .toDouble();
-      final nearby = await manager.searchStarsNearby(
-        ra: wcs.raHours * 15.0,
-        dec: wcs.decDegrees,
-        radiusDegrees: radius,
-        maxMagnitude: maxCatalogMag,
-      );
-      if (nearby.isEmpty) return const [];
+      final cone = await _ref
+          .read(photometricCatalogServiceProvider)
+          .coneSearch(
+            raDegrees: wcs.raHours * 15.0,
+            decDegrees: wcs.decDegrees,
+            radiusDegrees: radius,
+            maxMagnitude: maxCatalogMag,
+          );
+      if (cone.stars.isEmpty) return fallback;
 
       final projection = _projectionFor(
         wcs,
@@ -41,26 +46,25 @@ extension _DefaultScienceBackendHelpers on DefaultScienceBackend {
           'dims=${fits.width}x${fits.height}).',
           source: 'ScienceBackend',
         );
-        return const [];
+        return fallback;
       }
       final projected = <_ProjectedCatalogStar>[];
-      for (final star in nearby) {
-        if (star.magnitude == null || !star.magnitude!.isFinite) continue;
+      for (final star in cone.stars) {
         final px = projection.worldToPixel(
-          raDegrees: star.ra,
-          decDegrees: star.dec,
+          raDegrees: star.raDegrees,
+          decDegrees: star.decDegrees,
         );
         if (px == null) continue;
         projected.add(
           _ProjectedCatalogStar(
-            id: '${star.catalogId}_${star.ra.toStringAsFixed(6)}_${star.dec.toStringAsFixed(6)}',
+            id: '${star.raDegrees.toStringAsFixed(6)}_${star.decDegrees.toStringAsFixed(6)}',
             x: px.pixel.x,
             y: px.pixel.y,
-            mag: star.magnitude!,
+            mag: star.magV,
           ),
         );
       }
-      if (projected.isEmpty) return const [];
+      if (projected.isEmpty) return fallback;
 
       final usedCatalog = <String>{};
       final sorted = detectedStars.toList(growable: false)
@@ -91,13 +95,13 @@ extension _DefaultScienceBackendHelpers on DefaultScienceBackend {
           );
         }
       }
-      return matches;
+      return (matches, cone.source);
     } catch (error, stack) {
       _logger.warning(
         'Catalog matching failed for $imagePath: $error\n$stack',
         source: 'ScienceBackend',
       );
-      return const [];
+      return fallback;
     }
   }
 

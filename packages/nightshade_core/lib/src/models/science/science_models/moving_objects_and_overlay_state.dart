@@ -29,6 +29,12 @@ class MovingObjectMatch {
   /// parseable DATE-OBS; callers then fall back to the trigger frame's time.
   final DateTime? epochUtc;
 
+  /// Mean measured flux (ADU) of the candidate across the first/last
+  /// detections. Combined with the frame's photometric zero point this
+  /// yields the apparent magnitude for the MPC report; null/zero means the
+  /// report line stays astrometry-only.
+  final double? fluxEstimate;
+
   const MovingObjectMatch({
     required this.candidateId,
     required this.raDegrees,
@@ -39,6 +45,7 @@ class MovingObjectMatch {
     this.isKnownObject = false,
     this.objectName,
     this.epochUtc,
+    this.fluxEstimate,
   });
 }
 

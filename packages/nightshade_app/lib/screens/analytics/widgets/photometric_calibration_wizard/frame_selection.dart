@@ -10,7 +10,7 @@ extension _PhotometricWizardFrameSelection
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Select a plate-solved frame from a standard star field',
+          'Select plate-solved frames from a standard star field',
           style: TextStyle(
             color: colors.textPrimary,
             fontSize: NightshadeTypography.fontSize14,
@@ -19,9 +19,11 @@ extension _PhotometricWizardFrameSelection
         ),
         const SizedBox(height: 8),
         Text(
-          'Choose a frame captured in a field with known standard stars '
-          '(e.g., Landolt fields, Stetson standards). The frame must be '
-          'plate-solved so star positions can be matched to catalog entries.',
+          'Choose one or more plate-solved frames captured in a field with '
+          'known standard stars (e.g., Landolt fields, Stetson standards). '
+          'One frame fits the zero point and color term; selecting frames of '
+          'the same field at different altitudes adds airmass spread, which '
+          'lets the fit also recover the atmospheric extinction coefficient.',
           style: TextStyle(
               color: colors.textSecondary,
               fontSize: NightshadeTypography.fontSize12),
@@ -135,7 +137,7 @@ extension _PhotometricWizardFrameSelection
             itemCount: solvedImages.length,
             itemBuilder: (context, index) {
               final img = solvedImages[index];
-              final isSelected = _selectedImageId == img.id;
+              final isSelected = _selectedImageIds.contains(img.id);
               return ListTile(
                 dense: true,
                 selected: isSelected,
@@ -170,10 +172,15 @@ extension _PhotometricWizardFrameSelection
                 ),
                 onTap: () {
                   _update(() {
-                    _selectedImageId = img.id;
+                    if (!_selectedImageIds.remove(img.id)) {
+                      _selectedImageIds.add(img.id);
+                    }
                     if (_filterName.isEmpty && img.filter != null) {
                       _filterName = img.filter!;
                     }
+                    // New frame selection invalidates downstream products.
+                    _starMatches = const [];
+                    _computedCoefficients = null;
                   });
                 },
               );

@@ -97,6 +97,10 @@ class NightshadeApp extends ConsumerWidget {
     ref.watch(hostLocalSyncProvider);
     ref.watch(sequenceLibrarySyncProvider);
     ref.watch(remoteSequenceEditorSyncProvider);
+    // Keep science.camera.* (read noise / gain / saturation) in sync with
+    // the connected camera or active profile so photometry works without
+    // manual sensor-spec entry.
+    ref.watch(scienceCameraAutoConfigProvider);
 
     // Get settings
     final settingsAsync = ref.watch(appSettingsProvider);

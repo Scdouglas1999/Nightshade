@@ -645,6 +645,16 @@ class ScienceProcessingService {
                     isKnownObject: drift.Value(candidate.isKnownObject),
                     objectName: drift.Value(candidate.objectName),
                     source: const drift.Value('local'),
+                    magnitude: drift.Value(
+                      _candidateApparentMagnitude(
+                        fluxEstimate: candidate.fluxEstimate,
+                        calibration: writebackCalibration,
+                        exposureSeconds: frameContext.exposureSeconds,
+                      ),
+                    ),
+                    // The zero point is fitted against catalog V magnitudes,
+                    // so the derived value approximates Johnson V.
+                    magnitudeBand: const drift.Value('V'),
                     // The candidate's RA/Dec is a mid-stack position; store
                     // its true astrometric epoch so MPC export lines pair
                     // position and time correctly for fast movers.
@@ -850,6 +860,28 @@ class ScienceProcessingService {
         note: error.toString(),
       );
     }
+  }
+
+  /// Apparent magnitude for a moving-object candidate from its measured
+  /// flux and the frame's photometric zero point:
+  ///   mag = ZP − 2.5·log10(flux / exposure)
+  /// (the ZP is fitted on exposure-normalized fluxes against catalog V
+  /// magnitudes). Null whenever any input is missing/unusable — MPC lines
+  /// are then astrometry-only, which the format explicitly allows.
+  static double? _candidateApparentMagnitude({
+    required double? fluxEstimate,
+    required FramePhotometricCalibration? calibration,
+    required double exposureSeconds,
+  }) {
+    final zeroPoint = calibration?.zeroPoint;
+    if (zeroPoint == null || !zeroPoint.isFinite) return null;
+    if (fluxEstimate == null || !fluxEstimate.isFinite || fluxEstimate <= 0) {
+      return null;
+    }
+    if (!exposureSeconds.isFinite || exposureSeconds <= 0) return null;
+    final magnitude =
+        zeroPoint - 2.5 * math.log(fluxEstimate / exposureSeconds) / math.ln10;
+    return magnitude.isFinite ? magnitude : null;
   }
 
   /// Fallback build tag stamped into the FITS header when the caller does

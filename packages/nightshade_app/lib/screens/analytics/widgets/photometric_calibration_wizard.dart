@@ -6,8 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' show apiReadFitsFile;
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_planetarium/nightshade_planetarium.dart'
-    show CatalogManager, HygStarData;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'adaptive_chart_container.dart';
@@ -66,7 +64,12 @@ class _PhotometricCalibrationWizardState
 
   int _step = 0;
   String _filterName = '';
-  int? _selectedImageId;
+
+  /// One or more plate-solved frames feeding the fit. A single frame
+  /// constrains zero point + color term; frames of the same field at
+  /// DIFFERENT altitudes add airmass spread, which is what lets the fit
+  /// recover a real atmospheric extinction coefficient.
+  final Set<int> _selectedImageIds = <int>{};
   List<CatalogStarMatch> _starMatches = const [];
   PhotometricTransformCoefficients? _computedCoefficients;
   String _statusMessage = '';

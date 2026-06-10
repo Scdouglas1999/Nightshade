@@ -18354,6 +18354,28 @@ class $MovingObjectCandidatesTable extends MovingObjectCandidates
     requiredDuringInsert: false,
     defaultValue: const Constant('local'),
   );
+  static const VerificationMeta _magnitudeMeta = const VerificationMeta(
+    'magnitude',
+  );
+  @override
+  late final GeneratedColumn<double> magnitude = GeneratedColumn<double>(
+    'magnitude',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _magnitudeBandMeta = const VerificationMeta(
+    'magnitudeBand',
+  );
+  @override
+  late final GeneratedColumn<String> magnitudeBand = GeneratedColumn<String>(
+    'magnitude_band',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _timestampMeta = const VerificationMeta(
     'timestamp',
   );
@@ -18380,6 +18402,8 @@ class $MovingObjectCandidatesTable extends MovingObjectCandidates
     isKnownObject,
     objectName,
     source,
+    magnitude,
+    magnitudeBand,
     timestamp,
   ];
   @override
@@ -18490,6 +18514,21 @@ class $MovingObjectCandidatesTable extends MovingObjectCandidates
         source.isAcceptableOrUnknown(data['source']!, _sourceMeta),
       );
     }
+    if (data.containsKey('magnitude')) {
+      context.handle(
+        _magnitudeMeta,
+        magnitude.isAcceptableOrUnknown(data['magnitude']!, _magnitudeMeta),
+      );
+    }
+    if (data.containsKey('magnitude_band')) {
+      context.handle(
+        _magnitudeBandMeta,
+        magnitudeBand.isAcceptableOrUnknown(
+          data['magnitude_band']!,
+          _magnitudeBandMeta,
+        ),
+      );
+    }
     if (data.containsKey('timestamp')) {
       context.handle(
         _timestampMeta,
@@ -18556,6 +18595,14 @@ class $MovingObjectCandidatesTable extends MovingObjectCandidates
         DriftSqlType.string,
         data['${effectivePrefix}source'],
       )!,
+      magnitude: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}magnitude'],
+      ),
+      magnitudeBand: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}magnitude_band'],
+      ),
       timestamp: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}timestamp'],
@@ -18583,6 +18630,14 @@ class MovingObjectCandidateRow extends DataClass
   final bool isKnownObject;
   final String? objectName;
   final String source;
+
+  /// Apparent magnitude derived from the candidate's measured flux and the
+  /// frame's photometric zero point (v47). Null when the frame had no
+  /// calibration — MPC accepts astrometry-only lines, so absence is valid.
+  final double? magnitude;
+
+  /// Photometric band code for [magnitude] (MPC column 71, e.g. 'V').
+  final String? magnitudeBand;
   final DateTime timestamp;
   const MovingObjectCandidateRow({
     required this.id,
@@ -18597,6 +18652,8 @@ class MovingObjectCandidateRow extends DataClass
     required this.isKnownObject,
     this.objectName,
     required this.source,
+    this.magnitude,
+    this.magnitudeBand,
     required this.timestamp,
   });
   @override
@@ -18620,6 +18677,12 @@ class MovingObjectCandidateRow extends DataClass
       map['object_name'] = Variable<String>(objectName);
     }
     map['source'] = Variable<String>(source);
+    if (!nullToAbsent || magnitude != null) {
+      map['magnitude'] = Variable<double>(magnitude);
+    }
+    if (!nullToAbsent || magnitudeBand != null) {
+      map['magnitude_band'] = Variable<String>(magnitudeBand);
+    }
     map['timestamp'] = Variable<DateTime>(timestamp);
     return map;
   }
@@ -18644,6 +18707,12 @@ class MovingObjectCandidateRow extends DataClass
           ? const Value.absent()
           : Value(objectName),
       source: Value(source),
+      magnitude: magnitude == null && nullToAbsent
+          ? const Value.absent()
+          : Value(magnitude),
+      magnitudeBand: magnitudeBand == null && nullToAbsent
+          ? const Value.absent()
+          : Value(magnitudeBand),
       timestamp: Value(timestamp),
     );
   }
@@ -18670,6 +18739,8 @@ class MovingObjectCandidateRow extends DataClass
       isKnownObject: serializer.fromJson<bool>(json['isKnownObject']),
       objectName: serializer.fromJson<String?>(json['objectName']),
       source: serializer.fromJson<String>(json['source']),
+      magnitude: serializer.fromJson<double?>(json['magnitude']),
+      magnitudeBand: serializer.fromJson<String?>(json['magnitudeBand']),
       timestamp: serializer.fromJson<DateTime>(json['timestamp']),
     );
   }
@@ -18689,6 +18760,8 @@ class MovingObjectCandidateRow extends DataClass
       'isKnownObject': serializer.toJson<bool>(isKnownObject),
       'objectName': serializer.toJson<String?>(objectName),
       'source': serializer.toJson<String>(source),
+      'magnitude': serializer.toJson<double?>(magnitude),
+      'magnitudeBand': serializer.toJson<String?>(magnitudeBand),
       'timestamp': serializer.toJson<DateTime>(timestamp),
     };
   }
@@ -18706,6 +18779,8 @@ class MovingObjectCandidateRow extends DataClass
     bool? isKnownObject,
     Value<String?> objectName = const Value.absent(),
     String? source,
+    Value<double?> magnitude = const Value.absent(),
+    Value<String?> magnitudeBand = const Value.absent(),
     DateTime? timestamp,
   }) => MovingObjectCandidateRow(
     id: id ?? this.id,
@@ -18722,6 +18797,10 @@ class MovingObjectCandidateRow extends DataClass
     isKnownObject: isKnownObject ?? this.isKnownObject,
     objectName: objectName.present ? objectName.value : this.objectName,
     source: source ?? this.source,
+    magnitude: magnitude.present ? magnitude.value : this.magnitude,
+    magnitudeBand: magnitudeBand.present
+        ? magnitudeBand.value
+        : this.magnitudeBand,
     timestamp: timestamp ?? this.timestamp,
   );
   MovingObjectCandidateRow copyWithCompanion(
@@ -18756,6 +18835,10 @@ class MovingObjectCandidateRow extends DataClass
           ? data.objectName.value
           : this.objectName,
       source: data.source.present ? data.source.value : this.source,
+      magnitude: data.magnitude.present ? data.magnitude.value : this.magnitude,
+      magnitudeBand: data.magnitudeBand.present
+          ? data.magnitudeBand.value
+          : this.magnitudeBand,
       timestamp: data.timestamp.present ? data.timestamp.value : this.timestamp,
     );
   }
@@ -18775,6 +18858,8 @@ class MovingObjectCandidateRow extends DataClass
           ..write('isKnownObject: $isKnownObject, ')
           ..write('objectName: $objectName, ')
           ..write('source: $source, ')
+          ..write('magnitude: $magnitude, ')
+          ..write('magnitudeBand: $magnitudeBand, ')
           ..write('timestamp: $timestamp')
           ..write(')'))
         .toString();
@@ -18794,6 +18879,8 @@ class MovingObjectCandidateRow extends DataClass
     isKnownObject,
     objectName,
     source,
+    magnitude,
+    magnitudeBand,
     timestamp,
   );
   @override
@@ -18812,6 +18899,8 @@ class MovingObjectCandidateRow extends DataClass
           other.isKnownObject == this.isKnownObject &&
           other.objectName == this.objectName &&
           other.source == this.source &&
+          other.magnitude == this.magnitude &&
+          other.magnitudeBand == this.magnitudeBand &&
           other.timestamp == this.timestamp);
 }
 
@@ -18829,6 +18918,8 @@ class MovingObjectCandidatesCompanion
   final Value<bool> isKnownObject;
   final Value<String?> objectName;
   final Value<String> source;
+  final Value<double?> magnitude;
+  final Value<String?> magnitudeBand;
   final Value<DateTime> timestamp;
   const MovingObjectCandidatesCompanion({
     this.id = const Value.absent(),
@@ -18843,6 +18934,8 @@ class MovingObjectCandidatesCompanion
     this.isKnownObject = const Value.absent(),
     this.objectName = const Value.absent(),
     this.source = const Value.absent(),
+    this.magnitude = const Value.absent(),
+    this.magnitudeBand = const Value.absent(),
     this.timestamp = const Value.absent(),
   });
   MovingObjectCandidatesCompanion.insert({
@@ -18858,6 +18951,8 @@ class MovingObjectCandidatesCompanion
     this.isKnownObject = const Value.absent(),
     this.objectName = const Value.absent(),
     this.source = const Value.absent(),
+    this.magnitude = const Value.absent(),
+    this.magnitudeBand = const Value.absent(),
     this.timestamp = const Value.absent(),
   }) : candidateId = Value(candidateId),
        raDegrees = Value(raDegrees),
@@ -18878,6 +18973,8 @@ class MovingObjectCandidatesCompanion
     Expression<bool>? isKnownObject,
     Expression<String>? objectName,
     Expression<String>? source,
+    Expression<double>? magnitude,
+    Expression<String>? magnitudeBand,
     Expression<DateTime>? timestamp,
   }) {
     return RawValuesInsertable({
@@ -18895,6 +18992,8 @@ class MovingObjectCandidatesCompanion
       if (isKnownObject != null) 'is_known_object': isKnownObject,
       if (objectName != null) 'object_name': objectName,
       if (source != null) 'source': source,
+      if (magnitude != null) 'magnitude': magnitude,
+      if (magnitudeBand != null) 'magnitude_band': magnitudeBand,
       if (timestamp != null) 'timestamp': timestamp,
     });
   }
@@ -18912,6 +19011,8 @@ class MovingObjectCandidatesCompanion
     Value<bool>? isKnownObject,
     Value<String?>? objectName,
     Value<String>? source,
+    Value<double?>? magnitude,
+    Value<String?>? magnitudeBand,
     Value<DateTime>? timestamp,
   }) {
     return MovingObjectCandidatesCompanion(
@@ -18928,6 +19029,8 @@ class MovingObjectCandidatesCompanion
       isKnownObject: isKnownObject ?? this.isKnownObject,
       objectName: objectName ?? this.objectName,
       source: source ?? this.source,
+      magnitude: magnitude ?? this.magnitude,
+      magnitudeBand: magnitudeBand ?? this.magnitudeBand,
       timestamp: timestamp ?? this.timestamp,
     );
   }
@@ -18975,6 +19078,12 @@ class MovingObjectCandidatesCompanion
     if (source.present) {
       map['source'] = Variable<String>(source.value);
     }
+    if (magnitude.present) {
+      map['magnitude'] = Variable<double>(magnitude.value);
+    }
+    if (magnitudeBand.present) {
+      map['magnitude_band'] = Variable<String>(magnitudeBand.value);
+    }
     if (timestamp.present) {
       map['timestamp'] = Variable<DateTime>(timestamp.value);
     }
@@ -18996,6 +19105,8 @@ class MovingObjectCandidatesCompanion
           ..write('isKnownObject: $isKnownObject, ')
           ..write('objectName: $objectName, ')
           ..write('source: $source, ')
+          ..write('magnitude: $magnitude, ')
+          ..write('magnitudeBand: $magnitudeBand, ')
           ..write('timestamp: $timestamp')
           ..write(')'))
         .toString();
@@ -41915,6 +42026,8 @@ typedef $$MovingObjectCandidatesTableCreateCompanionBuilder =
       Value<bool> isKnownObject,
       Value<String?> objectName,
       Value<String> source,
+      Value<double?> magnitude,
+      Value<String?> magnitudeBand,
       Value<DateTime> timestamp,
     });
 typedef $$MovingObjectCandidatesTableUpdateCompanionBuilder =
@@ -41931,6 +42044,8 @@ typedef $$MovingObjectCandidatesTableUpdateCompanionBuilder =
       Value<bool> isKnownObject,
       Value<String?> objectName,
       Value<String> source,
+      Value<double?> magnitude,
+      Value<String?> magnitudeBand,
       Value<DateTime> timestamp,
     });
 
@@ -42051,6 +42166,16 @@ class $$MovingObjectCandidatesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
+  ColumnFilters<double> get magnitude => $composableBuilder(
+    column: $table.magnitude,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get magnitudeBand => $composableBuilder(
+    column: $table.magnitudeBand,
+    builder: (column) => ColumnFilters(column),
+  );
+
   ColumnFilters<DateTime> get timestamp => $composableBuilder(
     column: $table.timestamp,
     builder: (column) => ColumnFilters(column),
@@ -42162,6 +42287,16 @@ class $$MovingObjectCandidatesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get magnitude => $composableBuilder(
+    column: $table.magnitude,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get magnitudeBand => $composableBuilder(
+    column: $table.magnitudeBand,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get timestamp => $composableBuilder(
     column: $table.timestamp,
     builder: (column) => ColumnOrderings(column),
@@ -42267,6 +42402,14 @@ class $$MovingObjectCandidatesTableAnnotationComposer
   GeneratedColumn<String> get source =>
       $composableBuilder(column: $table.source, builder: (column) => column);
 
+  GeneratedColumn<double> get magnitude =>
+      $composableBuilder(column: $table.magnitude, builder: (column) => column);
+
+  GeneratedColumn<String> get magnitudeBand => $composableBuilder(
+    column: $table.magnitudeBand,
+    builder: (column) => column,
+  );
+
   GeneratedColumn<DateTime> get timestamp =>
       $composableBuilder(column: $table.timestamp, builder: (column) => column);
 
@@ -42368,6 +42511,8 @@ class $$MovingObjectCandidatesTableTableManager
                 Value<bool> isKnownObject = const Value.absent(),
                 Value<String?> objectName = const Value.absent(),
                 Value<String> source = const Value.absent(),
+                Value<double?> magnitude = const Value.absent(),
+                Value<String?> magnitudeBand = const Value.absent(),
                 Value<DateTime> timestamp = const Value.absent(),
               }) => MovingObjectCandidatesCompanion(
                 id: id,
@@ -42382,6 +42527,8 @@ class $$MovingObjectCandidatesTableTableManager
                 isKnownObject: isKnownObject,
                 objectName: objectName,
                 source: source,
+                magnitude: magnitude,
+                magnitudeBand: magnitudeBand,
                 timestamp: timestamp,
               ),
           createCompanionCallback:
@@ -42398,6 +42545,8 @@ class $$MovingObjectCandidatesTableTableManager
                 Value<bool> isKnownObject = const Value.absent(),
                 Value<String?> objectName = const Value.absent(),
                 Value<String> source = const Value.absent(),
+                Value<double?> magnitude = const Value.absent(),
+                Value<String?> magnitudeBand = const Value.absent(),
                 Value<DateTime> timestamp = const Value.absent(),
               }) => MovingObjectCandidatesCompanion.insert(
                 id: id,
@@ -42412,6 +42561,8 @@ class $$MovingObjectCandidatesTableTableManager
                 isKnownObject: isKnownObject,
                 objectName: objectName,
                 source: source,
+                magnitude: magnitude,
+                magnitudeBand: magnitudeBand,
                 timestamp: timestamp,
               ),
           withReferenceMapper: (p0) => p0

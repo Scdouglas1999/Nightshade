@@ -104,7 +104,7 @@ extension _PhotometricWizardSaveNavigation
   bool _canAdvance() {
     switch (_step) {
       case 0:
-        return _selectedImageId != null && _filterName.isNotEmpty;
+        return _selectedImageIds.isNotEmpty && _filterName.isNotEmpty;
       case 1:
         return _starMatches.length >= 4;
       case 2:

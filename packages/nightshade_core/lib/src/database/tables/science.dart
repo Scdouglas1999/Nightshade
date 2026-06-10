@@ -322,6 +322,14 @@ class MovingObjectCandidates extends Table {
   TextColumn get objectName => text().nullable()();
   TextColumn get source => text().withDefault(const Constant('local'))();
 
+  /// Apparent magnitude derived from the candidate's measured flux and the
+  /// frame's photometric zero point (v47). Null when the frame had no
+  /// calibration — MPC accepts astrometry-only lines, so absence is valid.
+  RealColumn get magnitude => real().nullable()();
+
+  /// Photometric band code for [magnitude] (MPC column 71, e.g. 'V').
+  TextColumn get magnitudeBand => text().nullable()();
+
   DateTimeColumn get timestamp => dateTime().withDefault(currentDateAndTime)();
 }
 

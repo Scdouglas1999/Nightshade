@@ -284,17 +284,37 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
       }
     }
 
-    final effectiveComparisons = inliers.length >= 2
-        ? inliers
-        : comparisonObjects;
-    final weightedFluxTuple = _weightedComparisonFlux(effectiveComparisons);
+    final targetFlux = target.flux.clamp(1e-6, double.infinity);
+
+    // AAVSO-style check star: with 3+ inlier comparisons, promote the one
+    // whose brightness is closest to the target (the standard guidance for
+    // check-star choice) out of the ensemble. It is then measured exactly
+    // like the target — differential magnitude against the remaining
+    // ensemble — so a drifting zero point or a variable "comparison" shows
+    // up as scatter in the check star's light curve. With only 2
+    // comparisons the ensemble would collapse to a single star, so no
+    // check is designated.
+    String? checkObjectId;
+    var ensemble = inliers.length >= 2 ? inliers : comparisonObjects;
+    if (inliers.length >= 3) {
+      final checkEntry = inliers.reduce(
+        (a, b) =>
+            (a.star.flux - targetFlux).abs() <= (b.star.flux - targetFlux).abs()
+            ? a
+            : b,
+      );
+      checkObjectId = checkEntry.objectId;
+      ensemble = inliers
+          .where((entry) => entry.objectId != checkObjectId)
+          .toList(growable: false);
+    }
+
+    final weightedFluxTuple = _weightedComparisonFlux(ensemble);
     final comparisonFlux = weightedFluxTuple.$1;
     final comparisonFluxUncertainty = weightedFluxTuple.$2;
     if (comparisonFlux <= 0 || !comparisonFlux.isFinite) {
       return 0;
     }
-
-    final targetFlux = target.flux.clamp(1e-6, double.infinity);
     final targetSnr = target.snr.isFinite
         ? target.snr.clamp(1.0, 1e6).toDouble()
         : 1.0;
@@ -372,26 +392,50 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
       ),
     ];
 
+    double? standardMagFor(StarMeasurement star) {
+      if (transform == null || airmass == null || airmass <= 0) return null;
+      final flux = (star.flux / safeExposure).clamp(1e-6, double.infinity);
+      final instMag =
+          -2.5 * math.log(flux.clamp(1e-30, double.infinity)) / math.ln10;
+      final standard = transform.applyTransform(
+        instrumentalMag: instMag,
+        airmass: airmass,
+        colorIndex: 0.0,
+      );
+      return standard.isFinite ? standard : null;
+    }
+
     for (var index = 0; index < comparisonObjects.length; index++) {
       final objectId = comparisonObjects[index].objectId;
       final star = comparisonObjects[index].star;
+      final isCheck = checkObjectId != null && objectId == checkObjectId;
 
-      double? compStandardMag;
-      if (transform != null && airmass != null && airmass > 0) {
-        final compFlux = (star.flux / safeExposure).clamp(
-          1e-6,
-          double.infinity,
-        );
-        final compInstMag =
-            -2.5 * math.log(compFlux.clamp(1e-30, double.infinity)) / math.ln10;
-        compStandardMag = transform.applyTransform(
-          instrumentalMag: compInstMag,
-          airmass: airmass,
-          colorIndex: 0.0,
-        );
-        if (!compStandardMag.isFinite) {
-          compStandardMag = null;
-        }
+      // The check star gets its own differential magnitude against the
+      // SAME ensemble used for the target, so its light curve directly
+      // exposes systematics. Plain comparisons keep a null differential —
+      // they ARE the reference.
+      double? checkDiffMag;
+      double? checkUncertainty;
+      if (isCheck) {
+        final checkFlux = star.flux.clamp(1e-6, double.infinity);
+        checkDiffMag =
+            -2.5 *
+            math.log(
+              (checkFlux / comparisonFlux).clamp(1e-6, double.infinity),
+            ) /
+            math.ln10;
+        final checkSnr = star.snr.isFinite
+            ? star.snr.clamp(1.0, 1e6).toDouble()
+            : 1.0;
+        final checkVariance =
+            math.pow(1.0 / checkSnr, 2) +
+            math.pow(
+              comparisonFluxUncertainty /
+                  comparisonFlux.clamp(1e-6, double.infinity),
+              2,
+            );
+        checkUncertainty =
+            1.0857 * math.sqrt(checkVariance.isFinite ? checkVariance : 0.0);
       }
 
       entries.add(
@@ -399,16 +443,19 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
           capturedImageId: drift.Value(capturedImageId),
           sessionId: drift.Value(sessionId),
           objectId: objectId,
-          role: const drift.Value('comparison'),
+          role: drift.Value(isCheck ? 'check' : 'comparison'),
           x: star.x,
           y: star.y,
           flux: star.flux,
-          differentialMagnitude: const drift.Value<double?>(null),
-          standardMagnitude: drift.Value(compStandardMag),
+          differentialMagnitude: drift.Value<double?>(checkDiffMag),
+          standardMagnitude: drift.Value(standardMagFor(star)),
           snr: drift.Value(star.snr),
           uncertainty: drift.Value<double?>(
-            star.flux /
-                (star.snr.isFinite ? star.snr.clamp(1.0, 1e6).toDouble() : 1.0),
+            checkUncertainty ??
+                star.flux /
+                    (star.snr.isFinite
+                        ? star.snr.clamp(1.0, 1e6).toDouble()
+                        : 1.0),
           ),
           isOutlier: drift.Value(outlierObjectIds.contains(objectId)),
           timestamp: drift.Value(frameTimestamp),
