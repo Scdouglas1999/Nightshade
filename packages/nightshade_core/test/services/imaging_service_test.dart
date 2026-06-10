@@ -9,8 +9,34 @@ import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/equipment_provider.dart';
 import 'package:nightshade_core/src/models/imaging/imaging_models.dart';
 import 'package:nightshade_core/src/services/imaging_service.dart';
+import 'package:nightshade_core/src/services/science/science_processing_service.dart';
 
 import '../mocks/mock_backend.dart';
+
+/// No-op science processor for capture-pipeline tests.
+///
+/// captureImage() launches science processing as fire-and-forget background
+/// work (`unawaited(...)`). In production the ProviderContainer lives for the
+/// whole app, so that background task always reads a live container. In a unit
+/// test the container is disposed in tearDown as soon as captureImage()
+/// returns, while the real science pipeline is still running — its provider
+/// reads then hit a disposed container and surface as "This test failed after
+/// it had already completed". These tests assert capture behaviour, not
+/// science processing, so we stub the processor to a no-op to keep them
+/// hermetic. Science processing has its own dedicated test coverage.
+class _NoOpScienceProcessingService extends ScienceProcessingService {
+  _NoOpScienceProcessingService(super.ref);
+
+  @override
+  Future<void> processCapturedFrame({
+    required String imagePath,
+    String? deviceId,
+    int? capturedImageId,
+    int? sessionId,
+  }) async {
+    // Intentionally does nothing.
+  }
+}
 
 /// TestBackendNotifier that injects a mock backend into the provider.
 class TestBackendNotifier extends BackendNotifier {
@@ -360,6 +386,11 @@ void main() {
             notifier.setConnected();
             return notifier;
           }),
+          // captureImage() fires science processing as background work that
+          // outlives the test; stub it so it cannot read a disposed container.
+          scienceProcessingServiceProvider.overrideWith(
+            (ref) => _NoOpScienceProcessingService(ref),
+          ),
           // Mount defaults (disconnected) are fine for most tests
         ],
       );
@@ -930,6 +961,11 @@ void main() {
             notifier.setConnected();
             return notifier;
           }),
+          // captureImage() fires science processing as background work that
+          // outlives the test; stub it so it cannot read a disposed container.
+          scienceProcessingServiceProvider.overrideWith(
+            (ref) => _NoOpScienceProcessingService(ref),
+          ),
         ],
       );
     });
@@ -1145,6 +1181,11 @@ void main() {
             notifier.setConnected();
             return notifier;
           }),
+          // captureImage() fires science processing as background work that
+          // outlives the test; stub it so it cannot read a disposed container.
+          scienceProcessingServiceProvider.overrideWith(
+            (ref) => _NoOpScienceProcessingService(ref),
+          ),
         ],
       );
     });
@@ -1250,6 +1291,11 @@ void main() {
             notifier.setConnected();
             return notifier;
           }),
+          // captureImage() fires science processing as background work that
+          // outlives the test; stub it so it cannot read a disposed container.
+          scienceProcessingServiceProvider.overrideWith(
+            (ref) => _NoOpScienceProcessingService(ref),
+          ),
         ],
       );
     });
