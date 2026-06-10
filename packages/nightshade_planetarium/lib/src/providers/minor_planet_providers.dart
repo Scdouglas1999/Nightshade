@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../catalogs/minor_planet_catalog.dart';
+import 'element_refresh_providers.dart';
 import 'planetarium_providers.dart';
 
 // ============================================================================
@@ -78,7 +79,7 @@ class MinorPlanetPositionNotifier extends StateNotifier<MinorPlanetPositionState
 
     try {
       final bodies = KeplerianPropagator.computePositions(
-        elements: MinorPlanetCatalog.all,
+        elements: _ref.read(effectiveMinorBodyElementsProvider),
         time: timeState.time,
       );
 

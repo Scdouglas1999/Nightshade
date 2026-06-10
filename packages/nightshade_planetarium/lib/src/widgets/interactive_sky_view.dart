@@ -17,6 +17,7 @@ import '../rendering/sky_renderer.dart';
 import '../rendering/render_quality.dart';
 import '../providers/performance_providers.dart';
 import '../providers/planetarium_providers.dart';
+import '../providers/deep_star_providers.dart';
 import '../providers/satellite_providers.dart';
 import '../providers/variable_star_providers.dart';
 import '../providers/minor_planet_providers.dart';
@@ -464,7 +465,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     // The sky doesn't visibly change in one second, but rebuilding 60x/min hurts performance
     final observationMinute = ref.watch(observationMinuteProvider);
     final selectedObject = ref.watch(selectedObjectProvider);
-    final stars = ref.watch(fovFilteredStarsProvider);
+    final stars = ref.watch(combinedStarsProvider);
     final dsos = ref.watch(fovFilteredDsosProvider);
     final constellations = ref.watch(constellationDataProvider);
     final equipmentFOV = ref.watch(equipmentFOVProvider);
@@ -929,7 +930,7 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
     widget.onCoordinateTapped?.call(coord);
 
     // Try to find a nearby object using FOV-filtered objects (same as rendering)
-    final stars = ref.read(fovFilteredStarsProvider).valueOrNull ?? [];
+    final stars = ref.read(combinedStarsProvider).valueOrNull ?? [];
     final dsos = ref.read(fovFilteredDsosProvider).valueOrNull ?? [];
 
     CelestialObject? nearestObject;

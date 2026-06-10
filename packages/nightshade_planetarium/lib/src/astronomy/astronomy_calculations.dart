@@ -472,7 +472,17 @@ class AstronomyCalculations {
   static const double nauticalTwilightAngle = -12.0;
   static const double astronomicalTwilightAngle = -18.0;
 
-  /// Find time when sun crosses given altitude (binary search)
+  /// Find time when sun crosses given altitude.
+  ///
+  /// A coarse 10-minute scan first brackets the FIRST crossing in the
+  /// requested direction, then bisection refines inside that bracket.
+  /// The previous implementation compared only the window's endpoint
+  /// altitudes and bailed when their signs matched — which silently
+  /// returns null whenever the window contains zero OR two crossings.
+  /// That is exactly what happens at high latitudes / west-of-meridian
+  /// timezones where sunset slips past local midnight, and what would
+  /// happen everywhere once the search windows are widened to cover
+  /// those sites. Direction-aware bracketing makes wide windows safe.
   static DateTime? _findSunAltitudeCrossing({
     required DateTime startTime,
     required DateTime endTime,
@@ -481,32 +491,47 @@ class AstronomyCalculations {
     required double longitudeDeg,
     required bool rising,
   }) {
-    var t1 = startTime;
-    var t2 = endTime;
-    final startAlt = sunAltitude(
-      dt: t1,
-      latitudeDeg: latitudeDeg,
-      longitudeDeg: longitudeDeg,
-    );
-    final endAlt = sunAltitude(
-      dt: t2,
-      latitudeDeg: latitudeDeg,
-      longitudeDeg: longitudeDeg,
-    );
-    final startDelta = startAlt - targetAlt;
-    final endDelta = endAlt - targetAlt;
+    const step = Duration(minutes: 10);
+    double altAt(DateTime t) => sunAltitude(
+          dt: t,
+          latitudeDeg: latitudeDeg,
+          longitudeDeg: longitudeDeg,
+        );
 
-    if (startDelta.abs() < 0.001) return t1;
-    if (endDelta.abs() < 0.001) return t2;
-    if (startDelta.sign == endDelta.sign) {
+    var t = startTime;
+    var delta = altAt(t) - targetAlt;
+    if (delta.abs() < 0.001) return t;
+
+    DateTime? bracketLo;
+    DateTime? bracketHi;
+    while (t.isBefore(endTime)) {
+      var next = t.add(step);
+      if (next.isAfter(endTime)) next = endTime;
+      final nextDelta = altAt(next) - targetAlt;
+      if (nextDelta.abs() < 0.001) return next;
+
+      final crossesDown = delta > 0 && nextDelta < 0;
+      final crossesUp = delta < 0 && nextDelta > 0;
+      if ((rising && crossesUp) || (!rising && crossesDown)) {
+        bracketLo = t;
+        bracketHi = next;
+        break;
+      }
+      t = next;
+      delta = nextDelta;
+    }
+    if (bracketLo == null || bracketHi == null) {
+      // No crossing in the requested direction — legitimately null at
+      // polar latitudes (sun never reaches the target altitude tonight).
       return null;
     }
 
+    var t1 = bracketLo;
+    var t2 = bracketHi;
     for (var i = 0; i < 50; i++) {
       final tMid =
           t1.add(Duration(milliseconds: t2.difference(t1).inMilliseconds ~/ 2));
-      final alt = sunAltitude(
-          dt: tMid, latitudeDeg: latitudeDeg, longitudeDeg: longitudeDeg);
+      final alt = altAt(tMid);
 
       if ((alt - targetAlt).abs() < 0.001) {
         return tMid;
@@ -537,14 +562,29 @@ class AstronomyCalculations {
     required double latitudeDeg,
     required double longitudeDeg,
   }) {
-    // Start from noon local time
+    // Anchor the search on the SITE's solar noon, not the machine's
+    // civil noon. Each event below is found independently as "first
+    // crossing in its window" — if the windows were cut on the machine's
+    // civil day, a site far from the machine's timezone (remote/headless
+    // rig, or simply a high-latitude site where sunset slips past local
+    // midnight) gets events from different solar days mixed into one
+    // "night" (dusk before sunset, dawn after sunrise). Anchoring on the
+    // site's solar day keeps every event on the same night for any
+    // machine-TZ/site combination.
     final localNoon = DateTime(date.year, date.month, date.day, 12);
+    final tzOffsetHours = localNoon.timeZoneOffset.inMinutes / 60.0;
+    final siteSolarNoon = localNoon.add(Duration(
+        minutes: ((tzOffsetHours - longitudeDeg / 15.0) * 60).round()));
 
-    // Search windows
-    final eveningStart = localNoon;
-    final eveningEnd = localNoon.add(const Duration(hours: 12));
-    final morningStart = localNoon.subtract(const Duration(hours: 12));
-    final morningEnd = localNoon;
+    // Evening events: first DESCENDING crossing after the site's solar
+    // noon. Morning events: first RISING crossing after the site's solar
+    // midnight. The generous spans are safe because the direction-aware
+    // bracketing in [_findSunAltitudeCrossing] cannot latch onto the
+    // wrong crossing.
+    final eveningStart = siteSolarNoon;
+    final eveningEnd = siteSolarNoon.add(const Duration(hours: 24));
+    final morningStart = siteSolarNoon.subtract(const Duration(hours: 12));
+    final morningEnd = siteSolarNoon.add(const Duration(hours: 6));
 
     return TwilightTimes(
       sunset: _findSunAltitudeCrossing(

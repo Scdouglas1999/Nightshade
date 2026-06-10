@@ -18,6 +18,10 @@ export 'src/catalogs/annotation_catalog.dart';
 export 'src/catalogs/satellite_catalog.dart';
 export 'src/catalogs/variable_star_catalog.dart';
 export 'src/catalogs/minor_planet_catalog.dart';
+export 'src/catalogs/deep_star_tile.dart';
+export 'src/catalogs/deep_star_store.dart';
+export 'src/catalogs/deep_star_catalog.dart';
+export 'src/catalogs/mpcorb.dart';
 
 // Astronomy calculations
 export 'src/astronomy/astronomy_calculations.dart';
@@ -37,6 +41,7 @@ export 'src/catalogs/spatial_index.dart';
 export 'src/services/survey_image_service.dart';
 export 'src/services/mosaic_planner.dart';
 export 'src/services/geolocation_service.dart';
+export 'src/services/element_refresh_service.dart';
 
 // Planning
 export 'src/planning/target_scoring.dart';
@@ -51,6 +56,8 @@ export 'src/providers/performance_providers.dart';
 export 'src/providers/satellite_providers.dart';
 export 'src/providers/variable_star_providers.dart';
 export 'src/providers/minor_planet_providers.dart';
+export 'src/providers/deep_star_providers.dart';
+export 'src/providers/element_refresh_providers.dart';
 
 // Widgets
 export 'src/widgets/interactive_sky_view.dart';

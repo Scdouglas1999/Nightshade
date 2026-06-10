@@ -176,7 +176,7 @@ class VariableStarData {
   double get magRange => magMin - magMax;
 
   /// Estimate current visual magnitude based on a simple sinusoidal model.
-  /// This is approximate â€” real light curves are asymmetric â€” but useful for display.
+  /// This is approximate — real light curves are asymmetric — but useful for display.
   double estimateMagnitude(DateTime time) {
     if (periodDays == null || periodDays! <= 0) {
       // No period: return midpoint
@@ -203,7 +203,7 @@ class VariableStarData {
         return magMax;
 
       case VariableStarType.mira:
-        // Mira-type: asymmetric â€” fast rise, slow decline
+        // Mira-type: asymmetric — fast rise, slow decline
         // Rise takes ~35% of period, decline ~65%
         double lightPhase;
         if (phase < 0.35) {

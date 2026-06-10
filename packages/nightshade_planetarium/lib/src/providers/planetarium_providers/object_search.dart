@@ -278,7 +278,7 @@ final solarSystemSearchObjectsProvider = Provider<List<CelestialObject>>((ref) {
   }
 
   final minorBodies = KeplerianPropagator.computePositions(
-    elements: MinorPlanetCatalog.all,
+    elements: ref.watch(effectiveMinorBodyElementsProvider),
     time: time,
   );
   for (final body in minorBodies) {
