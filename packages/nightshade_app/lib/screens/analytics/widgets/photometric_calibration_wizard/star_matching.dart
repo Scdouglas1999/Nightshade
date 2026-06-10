@@ -16,8 +16,8 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
         const SizedBox(height: 8),
         Text(
           'Nightshade is matching stars detected in the selected frame against '
-          'the photometric catalog (APASS/Gaia). Stars with known B and V '
-          'magnitudes will be used for the transformation fit.',
+          'the star catalog. Stars with a known V magnitude and B-V color '
+          'index will be used for the transformation fit.',
           style: TextStyle(
               color: colors.textSecondary,
               fontSize: NightshadeTypography.fontSize12),
@@ -237,39 +237,70 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
         stars: stars,
         pixelScale: image.solvedPixelScale,
       );
+      // Canonical TAN projection (services/wcs in nightshade_core) — the
+      // same implementation the science pipeline and catalog overlay use.
+      final solvedWcs = SolvedWcs(
+        raHours: wcs.raHours,
+        decDegrees: wcs.decDegrees,
+        rotationDeg: wcs.rotationDegrees,
+        pixelScaleArcsec: wcs.pixelScaleArcsecPerPixel,
+        imageWidth: imageSize.width.round(),
+        imageHeight: imageSize.height.round(),
+      );
+      if (!solvedWcs.isValid) {
+        throw StateError(
+          'Frame WCS is not projectable (pixel scale '
+          '${wcs.pixelScaleArcsecPerPixel}"/px, image '
+          '${imageSize.width.round()}x${imageSize.height.round()}).',
+        );
+      }
+      final projection = GnomonicProjection(solvedWcs);
       final projectedCatalog = <({double x, double y, HygStarData star})>[];
       for (final catStar in catalogStars) {
         if (catStar.magnitude == null || !catStar.magnitude!.isFinite) continue;
-        final px = _skyToPixel(
-          wcs: wcs,
-          ra: catStar.ra,
-          dec: catStar.dec,
-          width: imageSize.width,
-          height: imageSize.height,
+        final px = projection.worldToPixel(
+          raDegrees: catStar.ra,
+          decDegrees: catStar.dec,
         );
         if (px != null) {
-          projectedCatalog.add((x: px.x, y: px.y, star: catStar));
+          projectedCatalog.add((x: px.pixel.x, y: px.pixel.y, star: catStar));
         }
       }
 
       // Build matches: for each detected star, find the nearest catalog
-      // star and use its real B-V color index. Falls back to spectral
-      // type estimate, then to a Gaussian synthetic value as last resort.
-      final rng = math.Random(42);
+      // star and take its REAL catalog V magnitude and B-V color index.
+      //
+      // Why catalog data is mandatory: a previous revision synthesized
+      // catalogV from the detected star's own instrumental magnitude plus
+      // the frame zero point (catalogV = instMag + zp). That made
+      // y = catalogV - instMag a constant for every star, so the transform
+      // fit was circular — it could only ever recover the frame ZP with a
+      // zero color term, regardless of the camera's true color response.
+      // Stars without a genuine catalog counterpart are dropped instead of
+      // being filled with synthetic values that would poison the fit.
+      //
+      // Fluxes are normalized by exposure so the saved transform applies to
+      // science frames of any exposure length (the pipeline normalizes the
+      // same way before applying the transform).
+      final exposureSeconds = image.exposureDuration;
+      if (!exposureSeconds.isFinite || exposureSeconds <= 0) {
+        throw StateError(
+          'Selected frame has no valid exposure duration; cannot compute '
+          'exposure-normalized instrumental magnitudes.',
+        );
+      }
       final usedCatalogIndices = <int>{};
       final matches = <CatalogStarMatch>[];
+      var skippedNoCatalog = 0;
+      var skippedImplausible = 0;
       for (final star in stars) {
         if (star.flux <= 0 || star.snr < 5.0) continue;
+        final normalizedFlux = star.flux / exposureSeconds;
         final instMag = -2.5 *
-            math.log(star.flux.clamp(1e-30, double.infinity)) /
+            math.log(normalizedFlux.clamp(1e-30, double.infinity)) /
             math.ln10;
-        final catalogV = instMag + zp;
 
-        if (!catalogV.isFinite) continue;
-        if (catalogV < 4 || catalogV > 20) continue;
-
-        // Try to find the closest catalog star within 10 pixels
-        double? realBv;
+        // Find the closest unclaimed catalog star within 10 pixels.
         double bestDist = 10.0;
         int? bestIdx;
         for (int i = 0; i < projectedCatalog.length; i++) {
@@ -283,41 +314,62 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
             bestIdx = i;
           }
         }
-
-        if (bestIdx != null) {
-          usedCatalogIndices.add(bestIdx);
-          final matchedStar = projectedCatalog[bestIdx].star;
-
-          // Priority 1: Use actual B-V color index from catalog
-          if (matchedStar.colorIndex != null &&
-              matchedStar.colorIndex!.isFinite) {
-            realBv = matchedStar.colorIndex!;
-          }
-          // Priority 2: Estimate B-V from spectral type
-          else if (matchedStar.spectralType != null &&
-              matchedStar.spectralType!.isNotEmpty) {
-            realBv = _bvFromSpectralType(matchedStar.spectralType!);
-          }
+        if (bestIdx == null) {
+          skippedNoCatalog++;
+          continue;
+        }
+        final matchedStar = projectedCatalog[bestIdx].star;
+        final catalogV = matchedStar.magnitude;
+        if (catalogV == null || !catalogV.isFinite) {
+          skippedNoCatalog++;
+          continue;
         }
 
-        // Priority 3: Synthetic fallback only when catalog provides no data
-        final bv = realBv ?? (0.65 + 0.4 * _gaussianRandom(rng));
-        final catalogB = catalogV + bv;
+        // Sanity gate on the pairing: the frame ZP predicts
+        // V ≈ instMag + zp. A positional match whose brightness disagrees
+        // by over ~1.5 mag is almost certainly the wrong star (blend,
+        // double, or projection error) and would corrupt the fit.
+        if ((instMag + zp - catalogV).abs() > 1.5) {
+          skippedImplausible++;
+          continue;
+        }
 
-        if (!catalogB.isFinite) continue;
+        // B-V from the catalog, falling back to a spectral-type estimate.
+        // No synthetic fallback: a made-up color paired with a real V mag
+        // only adds noise to the color-term fit.
+        double? bv;
+        if (matchedStar.colorIndex != null &&
+            matchedStar.colorIndex!.isFinite) {
+          bv = matchedStar.colorIndex!;
+        } else if (matchedStar.spectralType != null &&
+            matchedStar.spectralType!.isNotEmpty) {
+          bv = _bvFromSpectralType(matchedStar.spectralType!);
+        }
+        if (bv == null || !bv.isFinite) {
+          skippedNoCatalog++;
+          continue;
+        }
 
+        usedCatalogIndices.add(bestIdx);
         matches.add(CatalogStarMatch(
           x: star.x,
           y: star.y,
-          raDegrees: bestIdx != null ? projectedCatalog[bestIdx].star.ra : 0.0,
-          decDegrees:
-              bestIdx != null ? projectedCatalog[bestIdx].star.dec : 0.0,
+          raDegrees: matchedStar.ra,
+          decDegrees: matchedStar.dec,
           catalogMagV: catalogV,
-          catalogMagB: catalogB,
-          instrumentalFlux: star.flux,
+          catalogMagB: catalogV + bv,
+          instrumentalFlux: normalizedFlux,
           snr: star.snr,
           airmass: airmass,
         ));
+      }
+      if (skippedNoCatalog > 0 || skippedImplausible > 0) {
+        ref.read(loggingServiceProvider).info(
+              'Calibration wizard: ${matches.length} catalog matches kept, '
+              '$skippedNoCatalog star(s) without usable catalog data, '
+              '$skippedImplausible implausible pairing(s) rejected.',
+              source: 'PhotometricCalibrationWizard',
+            );
       }
 
       // Sort by SNR descending, take the top 200 for the fit
@@ -381,14 +433,6 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
       pixelSizeUm: pixelSizeUm,
       focalLengthMm: focalLengthMm,
     );
-  }
-
-  double _gaussianRandom(math.Random rng) {
-    // Box-Muller transform
-    final u1 = rng.nextDouble();
-    final u2 = rng.nextDouble();
-    return math.sqrt(-2.0 * math.log(u1.clamp(1e-10, 1.0))) *
-        math.cos(2.0 * math.pi * u2);
   }
 
   /// Estimate B-V color index from MK spectral type string.
@@ -476,47 +520,6 @@ extension _PhotometricWizardStarMatching on _PhotometricCalibrationWizardState {
     throw StateError(
       'Cannot determine image dimensions for remote catalog matching',
     );
-  }
-
-  /// Project sky coordinates (RA/Dec in degrees) to pixel coordinates
-  /// using a tangent-plane (gnomonic) projection centered on the WCS reference.
-  ({double x, double y})? _skyToPixel({
-    required WcsSolution wcs,
-    required double ra,
-    required double dec,
-    required double width,
-    required double height,
-  }) {
-    final raRad = ra * math.pi / 180.0;
-    final decRad = dec * math.pi / 180.0;
-    final cra = (wcs.raHours * 15.0) * math.pi / 180.0;
-    final cdec = wcs.decDegrees * math.pi / 180.0;
-    var dra = raRad - cra;
-    while (dra > math.pi) {
-      dra -= 2 * math.pi;
-    }
-    while (dra < -math.pi) {
-      dra += 2 * math.pi;
-    }
-
-    final cosDec = math.cos(decRad);
-    final sinDec = math.sin(decRad);
-    final cosCDec = math.cos(cdec);
-    final sinCDec = math.sin(cdec);
-    final denom = sinCDec * sinDec + cosCDec * cosDec * math.cos(dra);
-    if (denom <= 0) return null;
-
-    final xi = cosDec * math.sin(dra) / denom;
-    final eta = (cosCDec * sinDec - sinCDec * cosDec * math.cos(dra)) / denom;
-    final xiDeg = xi * 180.0 / math.pi;
-    final etaDeg = eta * 180.0 / math.pi;
-    final rot = wcs.rotationDegrees * math.pi / 180.0;
-    final xr = xiDeg * math.cos(rot) - etaDeg * math.sin(rot);
-    final yr = xiDeg * math.sin(rot) + etaDeg * math.cos(rot);
-    final x = xr * 3600.0 / wcs.pixelScaleArcsecPerPixel + width / 2.0;
-    final y = height / 2.0 - yr * 3600.0 / wcs.pixelScaleArcsecPerPixel;
-    if (!x.isFinite || !y.isFinite) return null;
-    return (x: x, y: y);
   }
 
   // =========================================================================

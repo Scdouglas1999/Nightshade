@@ -22,14 +22,21 @@ class AavsoExportService {
   final ImagesDao _imagesDao;
   final Future<Directory> Function() _documentsDirectoryProvider;
 
+  /// Written to the #SOFTWARE header line. Callers should pass
+  /// `ref.read(appVersionLabelProvider)` so the reported version tracks
+  /// version.yaml instead of a hard-coded constant.
+  final String _softwareLabel;
+
   AavsoExportService({
     required ScienceDao scienceDao,
     required SettingsDao settingsDao,
     required ImagesDao imagesDao,
+    String softwareLabel = 'Nightshade',
     Future<Directory> Function()? documentsDirectoryProvider,
   }) : _scienceDao = scienceDao,
        _settingsDao = settingsDao,
        _imagesDao = imagesDao,
+       _softwareLabel = softwareLabel,
        _documentsDirectoryProvider =
            documentsDirectoryProvider ?? getApplicationDocumentsDirectory;
 
@@ -120,7 +127,7 @@ class AavsoExportService {
     // === Header ===
     buffer.writeln('#TYPE=Extended');
     buffer.writeln('#OBSCODE=$observerCode');
-    buffer.writeln('#SOFTWARE=Nightshade 2.6.0');
+    buffer.writeln('#SOFTWARE=$_softwareLabel');
     buffer.writeln('#DELIM=,');
     buffer.writeln('#DATE=JD');
     buffer.writeln('#OBSTYPE=CCD');
@@ -149,8 +156,13 @@ class AavsoExportService {
       // Our photometry is differential by default
       const mtype = 'DIFF';
 
-      // Comparison star magnitude — try to find a comp measurement for the
-      // same capturedImageId to get a frame-matched comp mag.
+      // Comparison star magnitude — find a comp measurement for the same
+      // capturedImageId to get a frame-matched value. Per the Extended
+      // Format spec, for MTYPE=DIFF the CMAG/KMAG columns carry the
+      // *instrumental* magnitude of the comp/check star. The pipeline
+      // stores comparison rows with a null differentialMagnitude (only the
+      // target gets one), so derive the instrumental magnitude from the
+      // stored flux instead of reading a field that is always null.
       String cmag = 'na';
       if (compStars.isNotEmpty) {
         final compForFrame = measurements
@@ -160,9 +172,11 @@ class AavsoExportService {
                   row.capturedImageId == m.capturedImageId,
             )
             .toList();
-        if (compForFrame.isNotEmpty &&
-            compForFrame.first.differentialMagnitude != null) {
-          cmag = compForFrame.first.differentialMagnitude!.toStringAsFixed(4);
+        if (compForFrame.isNotEmpty) {
+          final instMag = _instrumentalMagnitude(compForFrame.first);
+          if (instMag != null) {
+            cmag = instMag.toStringAsFixed(4);
+          }
         }
       }
 
@@ -176,9 +190,11 @@ class AavsoExportService {
                   row.capturedImageId == m.capturedImageId,
             )
             .toList();
-        if (checkForFrame.isNotEmpty &&
-            checkForFrame.first.differentialMagnitude != null) {
-          kmag = checkForFrame.first.differentialMagnitude!.toStringAsFixed(4);
+        if (checkForFrame.isNotEmpty) {
+          final instMag = _instrumentalMagnitude(checkForFrame.first);
+          if (instMag != null) {
+            kmag = instMag.toStringAsFixed(4);
+          }
         }
       }
 
@@ -299,6 +315,21 @@ class AavsoExportService {
         (h - 12) / 24.0 + min / 1440.0 + s / 86400.0 + ms / 86400000.0;
 
     return jdn.toDouble() + dayFraction;
+  }
+
+  /// Instrumental magnitude of a comp/check measurement, preferring an
+  /// explicit differential magnitude when a future pipeline version stores
+  /// one, otherwise -2.5·log10(flux). Returns null when the flux is
+  /// unusable so the column falls back to 'na' rather than a bogus value.
+  static double? _instrumentalMagnitude(PhotometryMeasurementRow row) {
+    final differential = row.differentialMagnitude;
+    if (differential != null && differential.isFinite) {
+      return differential;
+    }
+    if (row.flux.isFinite && row.flux > 0) {
+      return -2.5 * math.log(row.flux) / math.ln10;
+    }
+    return null;
   }
 
   /// Sanitize a string for use in AAVSO CSV fields.

@@ -7,6 +7,7 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 import '../../backend/nightshade_backend.dart';
 import '../../models/science/science_models.dart';
+import '../wcs/gnomonic_projection.dart';
 import '../../providers/backend_provider.dart';
 import '../../providers/database_provider.dart';
 import '../../providers/settings_provider.dart';
@@ -88,7 +89,7 @@ class DefaultScienceBackend implements ScienceBackend {
         minArea: 4,
         maxArea: 1024,
         maxEccentricity: 0.95,
-        saturationLimit: 65535,
+        saturationLimit: await _saturationLimitAdu(),
         hfrRadius: math.max(options.apertureRadiusPixels, 4),
         minHfr: 0.6,
         minSnr: options.minSnr,
@@ -232,15 +233,31 @@ class DefaultScienceBackend implements ScienceBackend {
     double? lim5;
     double? lim3;
     if (readNoise != null) {
-      final noise = math
-          .sqrt(aperturePixels * (bg + readNoise * readNoise))
-          .clamp(1e-6, double.infinity);
+      // Photon statistics live in electrons, while the background and the
+      // fitted zero point are in ADU. Convert via the configured gain:
+      //   variance_e  = npix · (bg_adu·g + rn_e²)
+      //   sigma_adu   = sqrt(variance_e) / g
+      // With no gain configured we assume 1 e⁻/ADU, which understates the
+      // sky-noise term for high-gain CMOS settings (g < 1) — say so rather
+      // than silently producing an optimistic limit.
+      final gain = await _gainElectronsPerAdu();
+      if (gain == null) {
+        _logger.warning(
+          'science.camera.gain_e_per_adu is not configured; limiting '
+          'magnitude assumes 1 e-/ADU.',
+          source: 'ScienceBackend',
+        );
+      }
+      final g = gain ?? 1.0;
+      final noiseAdu =
+          (math.sqrt(aperturePixels * (bg * g + readNoise * readNoise)) / g)
+              .clamp(1e-6, double.infinity);
       lim5 =
           zeroPoint -
-          2.5 * math.log((5.0 * noise) / exposureSeconds) / math.ln10;
+          2.5 * math.log((5.0 * noiseAdu) / exposureSeconds) / math.ln10;
       lim3 =
           zeroPoint -
-          2.5 * math.log((3.0 * noise) / exposureSeconds) / math.ln10;
+          2.5 * math.log((3.0 * noiseAdu) / exposureSeconds) / math.ln10;
     } else {
       _logger.warning(
         'Limiting magnitude omitted for $imagePath: camera read noise is not configured.',
@@ -264,7 +281,12 @@ class DefaultScienceBackend implements ScienceBackend {
       // High RMS is real data; downstream code already thresholds at 0.2.
       calibrationRms: rms,
       solverId: wcs.solverId,
-      catalogSource: catalog,
+      // Resolve the `auto` request to the catalog _catalogMatches actually
+      // consulted (the bundled HYG star catalog) so the persisted row and
+      // the MAGZPSRC FITS keyword record real provenance.
+      catalogSource: catalog == PhotometricCatalogSource.auto
+          ? PhotometricCatalogSource.localHyg
+          : catalog,
     );
   }
 
@@ -300,6 +322,7 @@ class DefaultScienceBackend implements ScienceBackend {
     double transparency = 100.0;
     double extinction = 0.0;
     double confidence = 0.0;
+    var extinctionFromAirmassFit = false;
 
     if (useAirmassFit) {
       // Leave-one-out: fit the airmass model on all samples EXCEPT
@@ -332,16 +355,17 @@ class DefaultScienceBackend implements ScienceBackend {
       final slope = fit.slope;
       final intercept = fit.intercept;
       extinction = math.max(0.0, -slope);
+      extinctionFromAirmassFit = true;
 
       // Transparency = how much the ACTUAL latest ZP deviates from what
-      // the airmass model PREDICTS.  A clear sky gives residual â‰ˆ 0 →
-      // transparency â‰ˆ 100%, regardless of airmass.  Clouds / haze push
+      // the airmass model PREDICTS.  A clear sky gives residual ≈ 0 →
+      // transparency ≈ 100%, regardless of airmass.  Clouds / haze push
       // the actual ZP below the prediction → transparency < 100%.
       final currentAirmass = withAirmass.last.airmass!.clamp(1.0, 5.0);
       final predictedZp = intercept + slope * currentAirmass;
       final actualZp = withAirmass.last.zeroPoint!;
       final residualMag =
-          predictedZp - actualZp; // positive â‡’ dimmer than expected
+          predictedZp - actualZp; // positive ⇒ dimmer than expected
       transparency = (math.pow(10.0, -0.4 * residualMag) * 100.0)
           .clamp(0.0, 100.0)
           .toDouble();
@@ -361,6 +385,9 @@ class DefaultScienceBackend implements ScienceBackend {
       transparency = (math.pow(10.0, -0.4 * deltaMag) * 100.0)
           .clamp(0.0, 100.0)
           .toDouble();
+      // Warm-up fallback: this is a zero-point depression vs the session
+      // baseline in magnitudes, NOT mag/airmass — flagged via
+      // extinctionFromAirmassFit=false so unit-bearing consumers skip it.
       extinction = math.max(0.0, deltaMag);
 
       final scatter = _robustStdDev(zps);
@@ -389,6 +416,7 @@ class DefaultScienceBackend implements ScienceBackend {
       extinctionCoefficient: extinction,
       qualityBucket: quality,
       confidence: confidence,
+      extinctionFromAirmassFit: extinctionFromAirmassFit,
     );
   }
 
@@ -402,6 +430,7 @@ class DefaultScienceBackend implements ScienceBackend {
       imagePath,
       const PhotometryOptions(minSnr: 4.0),
     );
+    final saturationAdu = await _saturationLimitAdu();
     final usable = stars
         .where(
           (s) =>
@@ -409,7 +438,7 @@ class DefaultScienceBackend implements ScienceBackend {
               s.eccentricity <= 0.98 &&
               s.fwhm.isFinite &&
               s.hfr.isFinite &&
-              s.peak < 65535,
+              s.peak < saturationAdu,
         )
         .toList(growable: false);
     if (usable.isEmpty) {
@@ -564,6 +593,25 @@ class DefaultScienceBackend implements ScienceBackend {
       lastFits.dateObs,
       imagePaths.length,
     );
+    // The candidate position below is the midpoint between the first and
+    // last detections, so its astrometric epoch is the midpoint of the two
+    // frame times — not "now" and not the triggering frame's timestamp.
+    final epochUtc = _midpointEpochUtc(firstFits.dateObs, lastFits.dateObs);
+
+    final projection = _projectionFor(
+      wcs,
+      imageWidth: firstFits.width,
+      imageHeight: firstFits.height,
+    );
+    if (projection == null) {
+      _logger.warning(
+        'Moving-object detection skipped: WCS/image geometry is not '
+        'projectable (scale=${wcs.pixelScaleArcsecPerPixel}, '
+        'dims=${firstFits.width}x${firstFits.height}).',
+        source: 'ScienceBackend',
+      );
+      return const [];
+    }
 
     // When 3+ frames are available, measure the middle frame for linear
     // motion validation — a candidate must also appear near the
@@ -642,14 +690,11 @@ class DefaultScienceBackend implements ScienceBackend {
         wcsRotationDegrees: wcs.rotationDegrees,
       );
       final motion = (bestDist * wcs.pixelScaleArcsecPerPixel) / dtMin;
-      final mid = _pixelToSky(
-        wcs: wcs,
+      final midSky = projection.pixelToWorld(
         x: (star.x + matched.x) / 2.0,
         y: (star.y + matched.y) / 2.0,
-        imageWidth: firstFits.width.toDouble(),
-        imageHeight: firstFits.height.toDouble(),
       );
-      if (mid == null) continue;
+      final mid = (ra: midSky.raDegrees, dec: midSky.decDegrees);
 
       final snrScore = (((star.snr + matched.snr) * 0.5) / 20.0)
           .clamp(0.2, 1.0)
@@ -675,6 +720,7 @@ class DefaultScienceBackend implements ScienceBackend {
           positionAngleDegrees: pa,
           confidence: confidence,
           isKnownObject: false,
+          epochUtc: epochUtc,
         ),
       );
     }

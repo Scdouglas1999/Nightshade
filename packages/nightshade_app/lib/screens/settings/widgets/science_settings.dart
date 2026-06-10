@@ -235,7 +235,42 @@ class ScienceSettingsPage extends ConsumerWidget {
               title: 'Camera',
               isMobile: isMobile,
               children: [
-                _ScienceReadNoiseRow(isMobile: isMobile),
+                _ScienceCameraValueRow(
+                  isMobile: isMobile,
+                  settingKey: 'science.camera.read_noise_e',
+                  icon: LucideIcons.zap,
+                  title: 'Camera read noise (e⁻)',
+                  subtitle:
+                      'Used for limiting magnitude calculations (default 3.5)',
+                  defaultText: '3.5',
+                  min: 0.5,
+                  max: 30.0,
+                ),
+                _ScienceCameraValueRow(
+                  isMobile: isMobile,
+                  settingKey: 'science.camera.gain_e_per_adu',
+                  icon: LucideIcons.activity,
+                  title: 'Camera gain (e⁻/ADU)',
+                  subtitle: 'Converts sky background to electrons for limiting '
+                      'magnitude (assumes 1.0 when unset)',
+                  defaultText: '1.0',
+                  min: 0.01,
+                  max: 50.0,
+                ),
+                _ScienceCameraValueRow(
+                  isMobile: isMobile,
+                  settingKey: 'science.camera.saturation_adu',
+                  icon: LucideIcons.sun,
+                  title: 'Saturation level (ADU)',
+                  subtitle: 'White level used to reject saturated stars from '
+                      'photometry — 4095 for raw 12-bit, 16383 for 14-bit, '
+                      '65535 for 16-bit output',
+                  defaultText: '65535',
+                  min: 255,
+                  max: 65535,
+                  integer: true,
+                  isLast: true,
+                ),
               ],
             ),
           ],
@@ -423,28 +458,53 @@ class _MpcObservatoryCodeRowState
   }
 }
 
-class _ScienceReadNoiseRow extends ConsumerStatefulWidget {
+/// Numeric camera-property row backed by a raw settings key. Shared by the
+/// read-noise, gain, and saturation rows so all three validate and persist
+/// identically.
+class _ScienceCameraValueRow extends ConsumerStatefulWidget {
   final bool isMobile;
-  const _ScienceReadNoiseRow({this.isMobile = false});
+  final String settingKey;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final String defaultText;
+  final double min;
+  final double max;
+  final bool integer;
+  final bool isLast;
+
+  const _ScienceCameraValueRow({
+    required this.settingKey,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.defaultText,
+    required this.min,
+    required this.max,
+    this.integer = false,
+    this.isLast = false,
+    this.isMobile = false,
+  });
+
   @override
-  ConsumerState<_ScienceReadNoiseRow> createState() =>
-      _ScienceReadNoiseRowState();
+  ConsumerState<_ScienceCameraValueRow> createState() =>
+      _ScienceCameraValueRowState();
 }
 
-class _ScienceReadNoiseRowState extends ConsumerState<_ScienceReadNoiseRow> {
+class _ScienceCameraValueRowState
+    extends ConsumerState<_ScienceCameraValueRow> {
   late TextEditingController _controller;
-  static const _key = 'science.camera.read_noise_e';
 
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: '3.5');
+    _controller = TextEditingController(text: widget.defaultText);
     _loadValue();
   }
 
   Future<void> _loadValue() async {
     final dao = ref.read(settingsDaoProvider);
-    final stored = await dao.getSetting(_key);
+    final stored = await dao.getSetting(widget.settingKey);
     if (stored != null && stored.isNotEmpty && mounted) {
       _controller.text = stored;
     }
@@ -459,9 +519,9 @@ class _ScienceReadNoiseRowState extends ConsumerState<_ScienceReadNoiseRow> {
   @override
   Widget build(BuildContext context) {
     return SettingRow(
-      icon: LucideIcons.zap,
-      title: 'Camera read noise (e\u207B)',
-      subtitle: 'Used for limiting magnitude calculations (default 3.5)',
+      icon: widget.icon,
+      title: widget.title,
+      subtitle: widget.subtitle,
       trailing: SizedBox(
         width: 72,
         child: TextField(
@@ -484,13 +544,20 @@ class _ScienceReadNoiseRowState extends ConsumerState<_ScienceReadNoiseRow> {
           onSubmitted: (value) async {
             final parsed = double.tryParse(value);
             if (parsed != null && parsed > 0 && parsed.isFinite) {
+              final clamped = parsed.clamp(widget.min, widget.max);
+              final stored = widget.integer
+                  ? clamped.round().toString()
+                  : clamped.toString();
               final dao = ref.read(settingsDaoProvider);
-              await dao.setSetting(_key, parsed.clamp(0.5, 30.0).toString());
+              await dao.setSetting(widget.settingKey, stored);
+              if (mounted) {
+                _controller.text = stored;
+              }
             }
           },
         ),
       ),
-      isLast: true,
+      isLast: widget.isLast,
       isMobile: widget.isMobile,
     );
   }

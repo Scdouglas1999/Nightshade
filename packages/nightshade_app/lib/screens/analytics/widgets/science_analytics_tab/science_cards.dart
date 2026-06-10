@@ -51,6 +51,7 @@ class _AavsoExportButtonState extends ConsumerState<_AavsoExportButton> {
           scienceDao: scienceDao,
           settingsDao: settingsDao,
           imagesDao: imagesDao,
+          softwareLabel: ref.read(appVersionLabelProvider),
         );
 
         filePath = await service.exportSession(

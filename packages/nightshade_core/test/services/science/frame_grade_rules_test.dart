@@ -67,25 +67,18 @@ void main() {
       expect(reason, contains('4.00'));
     });
 
-    test('configuring an eccentricity rule without supplying the metric trips '
-        'an assert (loud, not silent)', () {
-      // The old code silently returned null here forever; the new code makes
-      // the misuse loud in debug/test builds.
-      expect(
-        () => eccRule.gradeFrame(_light()),
-        throwsA(isA<AssertionError>()),
-      );
+    test('configuring an eccentricity rule with no metric available skips the '
+        'rule (no no-evidence reject)', () {
+      // Both production callers (FrameAutoGrader, Image Grader dialog) now
+      // source these metrics from the frame's PSF tiles when available. A
+      // frame whose pipeline produced no PSF data is legitimately
+      // ungradeable on this dimension and must pass, not assert or reject.
+      expect(eccRule.gradeFrame(_light()), isNull);
     });
 
-    test(
-      'configuring a FWHM rule without supplying the metric trips an assert',
-      () {
-        expect(
-          () => fwhmRule.gradeFrame(_light()),
-          throwsA(isA<AssertionError>()),
-        );
-      },
-    );
+    test('configuring a FWHM rule with no metric available skips the rule', () {
+      expect(fwhmRule.gradeFrame(_light()), isNull);
+    });
 
     test('rules without ecc/FWHM thresholds grade fine with no extra args', () {
       const rules = FrameGradeRules(maxHfr: 2.5, minStars: 30);

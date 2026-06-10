@@ -43,3 +43,18 @@ final appVersionProvider = Provider<AppVersionInfo>((ref) {
     'or apps/mobile for the canonical override.',
   );
 });
+
+/// `Nightshade <version>` label for stamping exports and FITS headers
+/// (AAVSO #SOFTWARE, NSHA_VER, science reports). Falls back to a plain
+/// "Nightshade" when [appVersionProvider] has not been overridden (test
+/// benches) so a label consumer never crashes a data export over version
+/// metadata. Kept short — the FITS writeback needs it to fit a single
+/// 80-char header card with room for a comment.
+final appVersionLabelProvider = Provider<String>((ref) {
+  try {
+    final v = ref.read(appVersionProvider);
+    return 'Nightshade ${v.version}';
+  } catch (_) {
+    return 'Nightshade';
+  }
+});

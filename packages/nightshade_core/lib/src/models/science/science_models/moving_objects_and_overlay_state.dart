@@ -20,6 +20,15 @@ class MovingObjectMatch {
   final bool isKnownObject;
   final String? objectName;
 
+  /// UTC epoch the reported RA/Dec corresponds to. The detector reports the
+  /// *midpoint* position between the first and last frame of the stack, so
+  /// this is the midpoint of their DATE-OBS values — not the capture time of
+  /// the frame that triggered detection. Astrometric consumers (MPC export)
+  /// must pair the position with this epoch or fast movers pick up an error
+  /// of motion × (half the stack baseline). Null when the frames carried no
+  /// parseable DATE-OBS; callers then fall back to the trigger frame's time.
+  final DateTime? epochUtc;
+
   const MovingObjectMatch({
     required this.candidateId,
     required this.raDegrees,
@@ -29,6 +38,7 @@ class MovingObjectMatch {
     required this.confidence,
     this.isKnownObject = false,
     this.objectName,
+    this.epochUtc,
   });
 }
 

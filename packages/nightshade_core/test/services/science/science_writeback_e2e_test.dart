@@ -138,6 +138,9 @@ void main() {
         extinctionCoefficient: 0.215,
         qualityBucket: 'good',
         confidence: 0.78,
+        // EXTINCT is unit-bearing (mag/airmass) and only stamped when the
+        // value came from a real ZP-vs-airmass regression.
+        extinctionFromAirmassFit: true,
       );
 
       final updates = ScienceProcessingService.buildScienceWritebackKeywords(
@@ -252,6 +255,7 @@ void main() {
         extinctionCoefficient: 0.41,
         qualityBucket: 'fair',
         confidence: 0.55,
+        extinctionFromAirmassFit: true,
       ),
     );
     expect(updates.map((u) => u.keyword).toList(), [
@@ -260,6 +264,26 @@ void main() {
       'NSHA_VER',
     ]);
   });
+
+  test(
+    'warm-up transparency (no airmass fit) must NOT stamp EXTINCT — the '
+    'fallback value is a baseline ZP depression in mag, not mag/airmass',
+    () async {
+      final updates = ScienceProcessingService.buildScienceWritebackKeywords(
+        calibration: null,
+        transparency: TransparencySample(
+          capturedImageId: null,
+          sessionId: null,
+          timestamp: DateTime.utc(2026, 1, 1),
+          transparencyPercent: 64.0,
+          extinctionCoefficient: 0.41,
+          qualityBucket: 'fair',
+          confidence: 0.55,
+        ),
+      );
+      expect(updates.map((u) => u.keyword).toList(), ['TRANSPAR', 'NSHA_VER']);
+    },
+  );
 
   test('infinite values are silently dropped, never written', () async {
     final updates = ScienceProcessingService.buildScienceWritebackKeywords(

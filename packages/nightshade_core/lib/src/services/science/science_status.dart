@@ -30,7 +30,7 @@ enum ScienceStage {
   movingObjects('Moving objects'),
 
   /// Writes the science measurements (MAGZP, MAGZPERR, MAGZPSRC, TRANSPAR,
-  /// NSHA_VER, NSHA_RUN) back into the captured frame's FITS header so
+  /// NSHA_VER) back into the captured frame's FITS header so
   /// external pipelines (PixInsight, AstroPixelProcessor, Siril) can read
   /// Nightshade's products without going through the database.
   fitsWriteback('FITS writeback'),
@@ -239,6 +239,14 @@ class ScienceProcessingStatusTracker {
   /// Called by [ScienceProcessingService] when a new frame enters the queue.
   void enqueue() {
     _queueDepth++;
+  }
+
+  /// Called when an enqueued frame is dropped without processing (e.g. a
+  /// dark/flat/bias that the science pipeline skips before [beginFrame]).
+  /// Without this, every non-light capture would permanently inflate the
+  /// reported queue depth.
+  void dequeue() {
+    _queueDepth = _queueDepth > 0 ? _queueDepth - 1 : 0;
   }
 
   /// Called when processing of [imagePath] begins. Initializes the in-flight

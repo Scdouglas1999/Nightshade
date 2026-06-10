@@ -29,22 +29,33 @@ extension _DefaultScienceBackendHelpers on DefaultScienceBackend {
       );
       if (nearby.isEmpty) return const [];
 
+      final projection = _projectionFor(
+        wcs,
+        imageWidth: fits.width,
+        imageHeight: fits.height,
+      );
+      if (projection == null) {
+        _logger.warning(
+          'Catalog matching skipped for $imagePath: WCS/image geometry is '
+          'not projectable (scale=${wcs.pixelScaleArcsecPerPixel}, '
+          'dims=${fits.width}x${fits.height}).',
+          source: 'ScienceBackend',
+        );
+        return const [];
+      }
       final projected = <_ProjectedCatalogStar>[];
       for (final star in nearby) {
         if (star.magnitude == null || !star.magnitude!.isFinite) continue;
-        final px = _skyToPixel(
-          wcs: wcs,
-          ra: star.ra,
-          dec: star.dec,
-          width: fits.width.toDouble(),
-          height: fits.height.toDouble(),
+        final px = projection.worldToPixel(
+          raDegrees: star.ra,
+          decDegrees: star.dec,
         );
         if (px == null) continue;
         projected.add(
           _ProjectedCatalogStar(
             id: '${star.catalogId}_${star.ra.toStringAsFixed(6)}_${star.dec.toStringAsFixed(6)}',
-            x: px.x,
-            y: px.y,
+            x: px.pixel.x,
+            y: px.pixel.y,
             mag: star.magnitude!,
           ),
         );
@@ -90,73 +101,38 @@ extension _DefaultScienceBackendHelpers on DefaultScienceBackend {
     }
   }
 
-  ({double x, double y})? _skyToPixel({
-    required WcsSolution wcs,
-    required double ra,
-    required double dec,
-    required double width,
-    required double height,
+  /// Canonical TAN projection for a science [WcsSolution] + frame geometry,
+  /// or null when the inputs are not projectable (zero/negative pixel scale
+  /// or dimensions). One shared implementation lives in
+  /// `services/wcs/gnomonic_projection.dart`; the previous per-file copies
+  /// of the spherical math have been removed.
+  GnomonicProjection? _projectionFor(
+    WcsSolution wcs, {
+    required int imageWidth,
+    required int imageHeight,
   }) {
-    final raRad = ra * math.pi / 180.0;
-    final decRad = dec * math.pi / 180.0;
-    final cra = (wcs.raHours * 15.0) * math.pi / 180.0;
-    final cdec = wcs.decDegrees * math.pi / 180.0;
-    var dra = raRad - cra;
-    while (dra > math.pi) dra -= 2 * math.pi;
-    while (dra < -math.pi) dra += 2 * math.pi;
-
-    final cosDec = math.cos(decRad);
-    final sinDec = math.sin(decRad);
-    final cosCDec = math.cos(cdec);
-    final sinCDec = math.sin(cdec);
-    final denom = sinCDec * sinDec + cosCDec * cosDec * math.cos(dra);
-    if (denom <= 0) return null;
-
-    final xi = cosDec * math.sin(dra) / denom;
-    final eta = (cosCDec * sinDec - sinCDec * cosDec * math.cos(dra)) / denom;
-    final xiDeg = xi * 180.0 / math.pi;
-    final etaDeg = eta * 180.0 / math.pi;
-    final rot = wcs.rotationDegrees * math.pi / 180.0;
-    final xr = xiDeg * math.cos(rot) - etaDeg * math.sin(rot);
-    final yr = xiDeg * math.sin(rot) + etaDeg * math.cos(rot);
-    final x = xr * 3600.0 / wcs.pixelScaleArcsecPerPixel + width / 2.0;
-    final y = height / 2.0 - yr * 3600.0 / wcs.pixelScaleArcsecPerPixel;
-    if (!x.isFinite || !y.isFinite) return null;
-    return (x: x, y: y);
+    final solved = SolvedWcs(
+      raHours: wcs.raHours,
+      decDegrees: wcs.decDegrees,
+      rotationDeg: wcs.rotationDegrees,
+      pixelScaleArcsec: wcs.pixelScaleArcsecPerPixel,
+      imageWidth: imageWidth,
+      imageHeight: imageHeight,
+    );
+    if (!solved.isValid) return null;
+    return GnomonicProjection(solved);
   }
 
-  ({double ra, double dec})? _pixelToSky({
-    required WcsSolution wcs,
-    required double x,
-    required double y,
-    required double imageWidth,
-    required double imageHeight,
-  }) {
-    final xDeg = (x - imageWidth / 2.0) * wcs.pixelScaleArcsecPerPixel / 3600.0;
-    final yDeg =
-        (imageHeight / 2.0 - y) * wcs.pixelScaleArcsecPerPixel / 3600.0;
-    final rot = wcs.rotationDegrees * math.pi / 180.0;
-    final xi = (xDeg * math.cos(rot) + yDeg * math.sin(rot)) * math.pi / 180.0;
-    final eta =
-        (-xDeg * math.sin(rot) + yDeg * math.cos(rot)) * math.pi / 180.0;
-    final rho = math.sqrt(xi * xi + eta * eta);
-    final cra = (wcs.raHours * 15.0) * math.pi / 180.0;
-    final cdec = wcs.decDegrees * math.pi / 180.0;
-    if (rho < 1e-12) return (ra: wcs.raHours * 15.0, dec: wcs.decDegrees);
-
-    final c = math.atan(rho);
-    final sinC = math.sin(c);
-    final cosC = math.cos(c);
-    final sinCDec = math.sin(cdec);
-    final cosCDec = math.cos(cdec);
-    final dec = math.asin(cosC * sinCDec + eta * sinC * cosCDec / rho);
-    final ra =
-        cra +
-        math.atan2(xi * sinC, rho * cosCDec * cosC - eta * sinCDec * sinC);
-    var raDeg = ra * 180.0 / math.pi;
-    while (raDeg < 0) raDeg += 360;
-    while (raDeg >= 360) raDeg -= 360;
-    return (ra: raDeg, dec: dec * 180.0 / math.pi);
+  /// Midpoint of the two frames' DATE-OBS values in UTC, or null when
+  /// either is missing/unparseable.
+  DateTime? _midpointEpochUtc(String? firstObs, String? lastObs) {
+    final t0 = firstObs == null ? null : DateTime.tryParse(firstObs);
+    final t1 = lastObs == null ? null : DateTime.tryParse(lastObs);
+    if (t0 == null || t1 == null) return null;
+    final t0Utc = t0.toUtc();
+    return t0Utc.add(
+      Duration(milliseconds: t1.toUtc().difference(t0Utc).inMilliseconds ~/ 2),
+    );
   }
 
   double _deltaMinutes(String? firstObs, String? lastObs, int frameCount) {
@@ -718,5 +694,58 @@ extension _DefaultScienceBackendHelpers on DefaultScienceBackend {
       );
     }
     return null;
+  }
+
+  /// Returns the camera gain setting in electrons per ADU, or null when
+  /// not configured / invalid. Callers fall back to 1 e⁻/ADU and say so.
+  Future<double?> _gainElectronsPerAdu() async {
+    try {
+      final dao = _ref.read(settingsDaoProvider);
+      final stored = await dao.getSetting('science.camera.gain_e_per_adu');
+      if (stored != null && stored.isNotEmpty) {
+        final parsed = double.tryParse(stored);
+        if (parsed != null && parsed.isFinite && parsed > 0) {
+          return parsed.clamp(0.01, 50.0);
+        }
+        _logger.warning(
+          'Invalid science.camera.gain_e_per_adu setting "$stored"; assuming 1 e-/ADU.',
+          source: 'ScienceBackend',
+        );
+      }
+    } catch (error, stack) {
+      _logger.warning(
+        'Failed to read science.camera.gain_e_per_adu; assuming 1 e-/ADU: $error\n$stack',
+        source: 'ScienceBackend',
+      );
+    }
+    return null;
+  }
+
+  /// Camera full-well / white level in ADU used to flag saturated stars.
+  /// Defaults to 65535 (16-bit). 12/14-bit cameras whose drivers do not
+  /// scale to 16 bits clip at 4095/16383, and stars saturated there are
+  /// photometrically useless — set science.camera.saturation_adu so the
+  /// detector can reject them.
+  Future<int> _saturationLimitAdu() async {
+    try {
+      final dao = _ref.read(settingsDaoProvider);
+      final stored = await dao.getSetting('science.camera.saturation_adu');
+      if (stored != null && stored.isNotEmpty) {
+        final parsed = int.tryParse(stored);
+        if (parsed != null && parsed >= 255 && parsed <= 65535) {
+          return parsed;
+        }
+        _logger.warning(
+          'Invalid science.camera.saturation_adu setting "$stored"; using 65535.',
+          source: 'ScienceBackend',
+        );
+      }
+    } catch (error, stack) {
+      _logger.warning(
+        'Failed to read science.camera.saturation_adu; using 65535: $error\n$stack',
+        source: 'ScienceBackend',
+      );
+    }
+    return 65535;
   }
 }

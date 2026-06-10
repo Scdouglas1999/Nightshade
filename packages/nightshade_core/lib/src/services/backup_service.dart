@@ -126,7 +126,7 @@ class BackupService {
   // and the science_* tables. Restore is idempotent (insertOrIgnore) so
   // older v2.0 backups remain restorable on the new code path.
   static const String backupVersion = '2.1';
-  static const String appVersion = '2.6.0'; // Must match version.yaml
+  static const String appVersion = '4.0.0'; // Must match version.yaml
 
   BackupService({
     required this.database,

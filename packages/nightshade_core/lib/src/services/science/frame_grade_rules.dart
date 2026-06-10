@@ -76,35 +76,19 @@ class FrameGradeRules {
   /// is a raw-DDL column added by the v30 migration but never declared on the
   /// Drift table; FWHM is not persisted on `captured_images` at all). They are
   /// therefore supplied by the caller via [eccentricity] / [fwhm], exactly the
-  /// way [gradeStats] takes its out-of-band metrics.
+  /// way [gradeStats] takes its out-of-band metrics. Both production callers
+  /// (FrameAutoGrader and the Image Grader dialog) source them from the
+  /// frame's PSF field-map tiles.
   ///
   /// A `null` metric means "cannot grade this dimension" and the rule is
-  /// skipped — but skipping a *configured* rule because nobody supplied its
-  /// metric is the silent-never-fires trap this method previously fell into
-  /// (it read `eccentricity`/`fwhm` via dynamic dispatch on columns the data
-  /// class does not have, so they were *always* null). To make that failure
-  /// loud instead of silent, an [assert] trips in debug/test builds when an
-  /// eccentricity or FWHM rule is active but its metric was not supplied.
+  /// skipped — a frame whose science pipeline produced no PSF data (stage
+  /// disabled, starless field) is legitimately ungradeable on these two
+  /// dimensions and must never be rejected without evidence.
   String? gradeFrame(
     db.CapturedImage img, {
     double? eccentricity,
     double? fwhm,
   }) {
-    assert(
-      maxEccentricity == null || eccentricity != null,
-      'maxEccentricity rule is configured but no eccentricity was supplied to '
-      'gradeFrame(). CapturedImage does not carry eccentricity; the caller '
-      'must read the raw `eccentricity` column and pass it in, otherwise the '
-      'rule would silently never fire.',
-    );
-    assert(
-      maxFwhm == null || fwhm != null,
-      'maxFwhm rule is configured but no fwhm was supplied to gradeFrame(). '
-      'FWHM is not persisted on captured_images; the caller must source it '
-      '(e.g. from the science row or live ImageStats) and pass it in, '
-      'otherwise the rule would silently never fire.',
-    );
-
     final reasons = <String>[];
     if (maxHfr != null && img.hfr != null && img.hfr! > maxHfr!) {
       reasons.add(

@@ -148,6 +148,7 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
     required WcsSolution? wcs,
     required SciencePhotometrySelection selection,
     required DateTime frameTimestamp,
+    required double exposureSeconds,
     String? filterName,
     double? airmass,
   }) async {
@@ -173,13 +174,23 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
         wcs != null) {
       try {
         final fits = await apiReadFitsFile(filePath: imagePath);
-        final targetPixel = _skyToPixel(
-          wcs: wcs,
-          raDegrees: selection.target!.raDegrees,
-          decDegrees: selection.target!.decDegrees,
-          imageWidth: fits.width.toDouble(),
-          imageHeight: fits.height.toDouble(),
+        // Canonical TAN projection — same implementation the catalog
+        // overlay and science backend use (services/wcs).
+        final solved = SolvedWcs(
+          raHours: wcs.raHours,
+          decDegrees: wcs.decDegrees,
+          rotationDeg: wcs.rotationDegrees,
+          pixelScaleArcsec: wcs.pixelScaleArcsecPerPixel,
+          imageWidth: fits.width,
+          imageHeight: fits.height,
         );
+        final projection = solved.isValid ? GnomonicProjection(solved) : null;
+        final targetPixel = projection
+            ?.worldToPixel(
+              raDegrees: selection.target!.raDegrees,
+              decDegrees: selection.target!.decDegrees,
+            )
+            ?.pixel;
         if (targetPixel != null) {
           final matchedTarget = _findNearestStar(
             available,
@@ -195,13 +206,12 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
         }
 
         for (final anchor in selection.comparisons) {
-          final anchorPixel = _skyToPixel(
-            wcs: wcs,
-            raDegrees: anchor.raDegrees,
-            decDegrees: anchor.decDegrees,
-            imageWidth: fits.width.toDouble(),
-            imageHeight: fits.height.toDouble(),
-          );
+          final anchorPixel = projection
+              ?.worldToPixel(
+                raDegrees: anchor.raDegrees,
+                decDegrees: anchor.decDegrees,
+              )
+              ?.pixel;
           if (anchorPixel == null) {
             continue;
           }
@@ -319,10 +329,20 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
       }
     }
 
+    // Transforms are fitted against exposure-normalized fluxes (see the
+    // calibration wizard), so the instrumental magnitude here must use the
+    // same normalization or the standard magnitude shifts by
+    // 2.5·log10(exposure ratio) between calibration and science frames.
+    final safeExposure = exposureSeconds.isFinite && exposureSeconds > 0
+        ? exposureSeconds
+        : 1.0;
+
     double? targetStandardMag;
     if (transform != null && airmass != null && airmass > 0) {
       final instMag =
-          -2.5 * math.log(targetFlux.clamp(1e-30, double.infinity)) / math.ln10;
+          -2.5 *
+          math.log((targetFlux / safeExposure).clamp(1e-30, double.infinity)) /
+          math.ln10;
       // Use color index 0.0 as default when unknown — the color term
       // contribution is typically small for broadband filters.
       targetStandardMag = transform.applyTransform(
@@ -358,7 +378,10 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
 
       double? compStandardMag;
       if (transform != null && airmass != null && airmass > 0) {
-        final compFlux = star.flux.clamp(1e-6, double.infinity);
+        final compFlux = (star.flux / safeExposure).clamp(
+          1e-6,
+          double.infinity,
+        );
         final compInstMag =
             -2.5 * math.log(compFlux.clamp(1e-30, double.infinity)) / math.ln10;
         compStandardMag = transform.applyTransform(
@@ -402,54 +425,6 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
       await _scienceDao.insertPhotometryMeasurements(entries);
     }
     return entries.length;
-  }
-
-  ({double x, double y})? _skyToPixel({
-    required WcsSolution wcs,
-    required double raDegrees,
-    required double decDegrees,
-    required double imageWidth,
-    required double imageHeight,
-  }) {
-    final raRad = raDegrees * math.pi / 180.0;
-    final decRad = decDegrees * math.pi / 180.0;
-    final centerRaRad = (wcs.raHours * 15.0) * math.pi / 180.0;
-    final centerDecRad = wcs.decDegrees * math.pi / 180.0;
-
-    final dRa = _normalizeRadians(raRad - centerRaRad);
-    final cosDec = math.cos(decRad);
-    final sinDec = math.sin(decRad);
-    final cosCenterDec = math.cos(centerDecRad);
-    final sinCenterDec = math.sin(centerDecRad);
-
-    final denominator =
-        sinCenterDec * sinDec + cosCenterDec * cosDec * math.cos(dRa);
-    if (denominator <= 0.0) {
-      return null;
-    }
-
-    final xi = cosDec * math.sin(dRa) / denominator;
-    final eta =
-        (cosCenterDec * sinDec - sinCenterDec * cosDec * math.cos(dRa)) /
-        denominator;
-
-    final xiDeg = xi * 180.0 / math.pi;
-    final etaDeg = eta * 180.0 / math.pi;
-
-    final rotRad = wcs.rotationDegrees * math.pi / 180.0;
-    final cosRot = math.cos(rotRad);
-    final sinRot = math.sin(rotRad);
-    final xiRot = xiDeg * cosRot - etaDeg * sinRot;
-    final etaRot = xiDeg * sinRot + etaDeg * cosRot;
-
-    final x =
-        (xiRot * 3600.0 / wcs.pixelScaleArcsecPerPixel) + imageWidth / 2.0;
-    final y =
-        imageHeight / 2.0 - (etaRot * 3600.0 / wcs.pixelScaleArcsecPerPixel);
-    if (!x.isFinite || !y.isFinite) {
-      return null;
-    }
-    return (x: x, y: y);
   }
 
   StarMeasurement? _findNearestStar(
@@ -501,17 +476,6 @@ extension _ScienceProcessingPrivateHelpers on ScienceProcessingService {
     final flux = weightedSum / weightSum;
     final sigma = math.sqrt(1.0 / weightSum);
     return (flux, sigma);
-  }
-
-  double _normalizeRadians(double value) {
-    var wrapped = value;
-    while (wrapped > math.pi) {
-      wrapped -= 2.0 * math.pi;
-    }
-    while (wrapped < -math.pi) {
-      wrapped += 2.0 * math.pi;
-    }
-    return wrapped;
   }
 
   double _median(List<double> values) {

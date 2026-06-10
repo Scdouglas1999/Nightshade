@@ -46,6 +46,14 @@ class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
   bool _applying = false;
   String? _applyError;
 
+  /// Per-frame field medians from the science PSF tiles. FWHM and
+  /// eccentricity are not persisted on captured_images, so the grader
+  /// sources them here — same data the capture-time auto-grader uses, so
+  /// the preview and the automatic path can never disagree. Frames without
+  /// PSF products simply have no entry and skip those rules.
+  Map<int, ({double? fwhm, double? eccentricity})> _psfMetricsByImage =
+      const {};
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -54,6 +62,43 @@ class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
     final persisted = ref.read(scienceSettingsProvider).valueOrNull;
     _rules = persisted?.resolvedFrameGradeRules() ??
         FrameGradeRules.suggestFrom(widget.frames);
+    _loadPsfMetrics();
+  }
+
+  Future<void> _loadPsfMetrics() async {
+    final dao = ref.read(scienceDaoProvider);
+    final result = <int, ({double? fwhm, double? eccentricity})>{};
+    for (final frame in widget.frames) {
+      final tiles = await dao.getPsfTilesForImage(frame.id);
+      final fwhms = <double>[];
+      final eccs = <double>[];
+      for (final tile in tiles) {
+        if (tile.starCount <= 0) continue;
+        if (tile.medianFwhm.isFinite && tile.medianFwhm > 0) {
+          fwhms.add(tile.medianFwhm);
+        }
+        if (tile.medianEccentricity.isFinite && tile.medianEccentricity > 0) {
+          eccs.add(tile.medianEccentricity);
+        }
+      }
+      final fwhm = _median(fwhms);
+      final ecc = _median(eccs);
+      if (fwhm != null || ecc != null) {
+        result[frame.id] = (fwhm: fwhm, eccentricity: ecc);
+      }
+    }
+    if (mounted) {
+      setState(() => _psfMetricsByImage = result);
+    }
+  }
+
+  static double? _median(List<double> values) {
+    if (values.isEmpty) return null;
+    final sorted = values.toList(growable: false)..sort();
+    final mid = sorted.length ~/ 2;
+    return sorted.length.isOdd
+        ? sorted[mid]
+        : (sorted[mid - 1] + sorted[mid]) / 2.0;
   }
 
   ({
@@ -64,7 +109,12 @@ class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
     final rejections = <({DbCapturedImage frame, String reason})>[];
     var rejected = 0;
     for (final f in widget.frames) {
-      final reason = _rules.gradeFrame(f);
+      final metrics = _psfMetricsByImage[f.id];
+      final reason = _rules.gradeFrame(
+        f,
+        fwhm: metrics?.fwhm,
+        eccentricity: metrics?.eccentricity,
+      );
       if (reason != null) {
         rejected++;
         rejections.add((frame: f, reason: reason));
@@ -129,6 +179,7 @@ class _ImageGraderDialogState extends ConsumerState<ImageGraderDialog> {
                 colors: colors,
                 rules: _rules,
                 frames: widget.frames,
+                psfMetricsByImage: _psfMetricsByImage,
                 onChanged: (next) => setState(() => _rules = next),
               ),
               const SizedBox(height: 12),
@@ -247,12 +298,14 @@ class _ThresholdSliders extends StatelessWidget {
   final NightshadeColors colors;
   final FrameGradeRules rules;
   final List<DbCapturedImage> frames;
+  final Map<int, ({double? fwhm, double? eccentricity})> psfMetricsByImage;
   final ValueChanged<FrameGradeRules> onChanged;
 
   const _ThresholdSliders({
     required this.colors,
     required this.rules,
     required this.frames,
+    required this.psfMetricsByImage,
     required this.onChanged,
   });
 
@@ -270,6 +323,14 @@ class _ThresholdSliders extends StatelessWidget {
         .whereType<double>()
         .where((v) => v.isFinite)
         .toList(growable: false);
+    final fwhms = psfMetricsByImage.values
+        .map((m) => m.fwhm)
+        .whereType<double>()
+        .toList(growable: false);
+    final eccs = psfMetricsByImage.values
+        .map((m) => m.eccentricity)
+        .whereType<double>()
+        .toList(growable: false);
 
     return Column(
       children: [
@@ -283,6 +344,32 @@ class _ThresholdSliders extends StatelessWidget {
           rangeMax: hfrs.isEmpty ? 10.0 : hfrs.reduce((a, b) => a > b ? a : b),
           onChanged: (v) => onChanged(rules.copyWith(maxHfr: v)),
           onCleared: () => onChanged(rules.copyWith(clearHfr: true)),
+        ),
+        // FWHM / eccentricity come from each frame's PSF field map (science
+        // pipeline product); frames without one skip these rules, and the
+        // sliders disable entirely when no frame has PSF data.
+        _DoubleRow(
+          colors: colors,
+          label: 'Max FWHM',
+          unit: 'px',
+          value: rules.maxFwhm,
+          available: fwhms,
+          rangeMin: fwhms.isEmpty ? 0.0 : fwhms.reduce((a, b) => a < b ? a : b),
+          rangeMax:
+              fwhms.isEmpty ? 12.0 : fwhms.reduce((a, b) => a > b ? a : b),
+          onChanged: (v) => onChanged(rules.copyWith(maxFwhm: v)),
+          onCleared: () => onChanged(rules.copyWith(clearFwhm: true)),
+        ),
+        _DoubleRow(
+          colors: colors,
+          label: 'Max eccentricity',
+          unit: '',
+          value: rules.maxEccentricity,
+          available: eccs,
+          rangeMin: 0,
+          rangeMax: eccs.isEmpty ? 1.0 : eccs.reduce((a, b) => a > b ? a : b),
+          onChanged: (v) => onChanged(rules.copyWith(maxEccentricity: v)),
+          onCleared: () => onChanged(rules.copyWith(clearEccentricity: true)),
         ),
         _IntRow(
           colors: colors,

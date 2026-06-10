@@ -21,6 +21,14 @@ class TransparencySample {
   final String qualityBucket;
   final double confidence;
 
+  /// True when [extinctionCoefficient] came from a real zero-point vs
+  /// airmass regression (units: mag/airmass). False for the warm-up
+  /// fallback path, where the value is a zero-point depression relative to
+  /// the session baseline (units: mag) — informative for trends but NOT a
+  /// physical extinction coefficient. Consumers that stamp the value with
+  /// physical units (the EXTINCT FITS keyword) must check this flag.
+  final bool extinctionFromAirmassFit;
+
   const TransparencySample({
     required this.capturedImageId,
     required this.sessionId,
@@ -29,6 +37,7 @@ class TransparencySample {
     required this.extinctionCoefficient,
     required this.qualityBucket,
     required this.confidence,
+    this.extinctionFromAirmassFit = false,
   });
 }
 

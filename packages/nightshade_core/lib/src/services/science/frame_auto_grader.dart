@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../database/database.dart' as db;
+import '../../providers/database_provider.dart';
 import '../../services/imaging_records_repository.dart';
 import '../../providers/science_provider.dart';
 import '../../services/logging_service.dart';
@@ -28,7 +29,26 @@ class FrameAutoGrader {
     final rules = settings.resolvedFrameGradeRules();
     if (rules.isEmpty) return null;
 
-    final reason = rules.gradeFrame(image);
+    // FWHM and eccentricity are not persisted on captured_images;
+    // gradeFrame requires the caller to supply them or those rules
+    // silently never fire. The PSF field map (written earlier in this same
+    // pipeline run) carries per-tile medians — aggregate them when the
+    // corresponding rule is active. When the PSF stage is disabled or
+    // produced nothing, the metric stays null and that rule is skipped,
+    // matching the "cannot grade this dimension" contract.
+    double? fwhm;
+    double? eccentricity;
+    if (rules.maxFwhm != null || rules.maxEccentricity != null) {
+      final psfMetrics = await _psfFieldMetrics(image.id);
+      fwhm = psfMetrics.fwhm;
+      eccentricity = psfMetrics.eccentricity;
+    }
+
+    final reason = rules.gradeFrame(
+      image,
+      fwhm: fwhm,
+      eccentricity: eccentricity,
+    );
     if (reason == null) return false;
 
     await _ref
@@ -41,6 +61,38 @@ class FrameAutoGrader {
           source: 'FrameAutoGrader',
         );
     return true;
+  }
+
+  /// Field-wide median FWHM / eccentricity from the frame's PSF tiles.
+  /// Tiles with no stars carry zeroed metrics and are excluded so an empty
+  /// corner can't drag the frame value down.
+  Future<({double? fwhm, double? eccentricity})> _psfFieldMetrics(
+    int capturedImageId,
+  ) async {
+    final tiles = await _ref
+        .read(scienceDaoProvider)
+        .getPsfTilesForImage(capturedImageId);
+    final fwhms = <double>[];
+    final eccs = <double>[];
+    for (final tile in tiles) {
+      if (tile.starCount <= 0) continue;
+      if (tile.medianFwhm.isFinite && tile.medianFwhm > 0) {
+        fwhms.add(tile.medianFwhm);
+      }
+      if (tile.medianEccentricity.isFinite && tile.medianEccentricity > 0) {
+        eccs.add(tile.medianEccentricity);
+      }
+    }
+    return (fwhm: _median(fwhms), eccentricity: _median(eccs));
+  }
+
+  double? _median(List<double> values) {
+    if (values.isEmpty) return null;
+    final sorted = values.toList(growable: false)..sort();
+    final mid = sorted.length ~/ 2;
+    return sorted.length.isOdd
+        ? sorted[mid]
+        : (sorted[mid - 1] + sorted[mid]) / 2.0;
   }
 }
 

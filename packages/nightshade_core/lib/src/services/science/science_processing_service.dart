@@ -8,6 +8,7 @@ import 'package:nightshade_bridge/nightshade_bridge.dart';
 
 import '../../database/database.dart' as db;
 import '../../database/daos/science_dao.dart';
+import '../../providers/app_version_provider.dart';
 import '../../providers/database_provider.dart';
 import '../imaging_records_repository.dart';
 import '../../providers/science_provider.dart';
@@ -15,6 +16,7 @@ import '../../providers/science_status_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/logging_service.dart';
 import '../../models/science/science_models.dart';
+import '../wcs/gnomonic_projection.dart';
 import 'default_science_backend.dart';
 import 'fits_header_writer.dart';
 import 'photometric_transform_service.dart';
@@ -32,6 +34,14 @@ class ScienceProcessingService {
   int _liveBudgetBreachCount = 0;
   int _queueDepth = 0;
 
+  /// Tail of the frame-processing chain. Captures fire
+  /// [processCapturedFrame] unawaited, so with short exposures several
+  /// frames can be in flight at once — but the status tracker keeps a
+  /// single in-flight slot and the adaptive-grid state is per-service.
+  /// Chaining each frame onto the previous one keeps the documented
+  /// "one frame at a time" contract true regardless of capture cadence.
+  Future<void> _processingTail = Future<void>.value();
+
   ScienceProcessingService(this._ref);
 
   ScienceDao get _scienceDao => _ref.read(scienceDaoProvider);
@@ -47,7 +57,7 @@ class ScienceProcessingService {
     String? deviceId,
     int? capturedImageId,
     int? sessionId,
-  }) async {
+  }) {
     _queueDepth++;
     _status.enqueue();
     _logger.debug(
@@ -55,6 +65,26 @@ class ScienceProcessingService {
       source: 'ScienceProcessingService',
     );
 
+    final run = _processingTail.then(
+      (_) => _processFrame(
+        imagePath: imagePath,
+        deviceId: deviceId,
+        capturedImageId: capturedImageId,
+        sessionId: sessionId,
+      ),
+    );
+    // _processFrame never throws (it catches and logs internally), but keep
+    // the chain alive defensively so one broken link can't stall the queue.
+    _processingTail = run.catchError((_) {});
+    return run;
+  }
+
+  Future<void> _processFrame({
+    required String imagePath,
+    String? deviceId,
+    int? capturedImageId,
+    int? sessionId,
+  }) async {
     bool frameBegun = false;
     // Snapshots gathered during processing and consumed by the FITS
     // writeback stage at the end. They stay local so a partial pipeline
@@ -69,6 +99,7 @@ class ScienceProcessingService {
         final frameType = capturedImage?.frameType.toLowerCase();
         // Science products in v1 are computed for light frames only.
         if (frameType != null && frameType != 'light') {
+          _status.dequeue();
           return;
         }
       }
@@ -544,6 +575,7 @@ class ScienceProcessingService {
             wcs: wcs,
             selection: photometrySelection,
             frameTimestamp: frameContext.capturedAt,
+            exposureSeconds: frameContext.exposureSeconds,
             filterName: frameContext.filterName,
             airmass: frameContext.airmass,
           );
@@ -613,7 +645,12 @@ class ScienceProcessingService {
                     isKnownObject: drift.Value(candidate.isKnownObject),
                     objectName: drift.Value(candidate.objectName),
                     source: const drift.Value('local'),
-                    timestamp: drift.Value(frameContext.capturedAt),
+                    // The candidate's RA/Dec is a mid-stack position; store
+                    // its true astrometric epoch so MPC export lines pair
+                    // position and time correctly for fast movers.
+                    timestamp: drift.Value(
+                      candidate.epochUtc ?? frameContext.capturedAt,
+                    ),
                   ),
                 )
                 .toList(growable: false);
@@ -775,6 +812,7 @@ class ScienceProcessingService {
     final updates = buildScienceWritebackKeywords(
       calibration: calibration,
       transparency: transparency,
+      buildTag: _ref.read(appVersionLabelProvider),
     );
     if (updates.isEmpty) {
       _status.skipStage(
@@ -814,9 +852,12 @@ class ScienceProcessingService {
     }
   }
 
-  /// Build tag stamped into the FITS header. Keep this small (≤ 60 chars)
-  /// so it fits a single 80-char value card with room for a comment.
-  static const String _nightshadeBuildTag = 'Nightshade 2.6.0';
+  /// Fallback build tag stamped into the FITS header when the caller does
+  /// not resolve a concrete version (pure-function tests). Keep this small
+  /// (≤ 60 chars) so it fits a single 80-char value card with room for a
+  /// comment. Production calls pass `nightshadeBuildLabel(ref)` instead so
+  /// the stamped tag always tracks version.yaml.
+  static const String _nightshadeBuildTag = 'Nightshade';
 
   /// Build the FITS keyword update set the science pipeline writes back
   /// for a finished frame, given the photometric calibration and
@@ -887,7 +928,13 @@ class ScienceProcessingService {
           comment: 'Atmospheric transparency [percent]',
         ),
       );
-      if (transparency.extinctionCoefficient.isFinite) {
+      // EXTINCT carries physical units (mag/airmass), so it is only
+      // stamped when the value came from a real ZP-vs-airmass regression.
+      // The warm-up fallback stores a baseline ZP depression in plain
+      // magnitudes — writing that under this keyword would hand external
+      // pipelines a number with the wrong units.
+      if (transparency.extinctionFromAirmassFit &&
+          transparency.extinctionCoefficient.isFinite) {
         updates.add(
           FitsKeywordWrite.floating(
             'EXTINCT',

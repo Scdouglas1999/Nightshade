@@ -1,6 +1,11 @@
 part of '../science_models.dart';
 
-enum PhotometricCatalogSource { auto, localGaia, localApass }
+/// Catalog a photometric calibration was fitted against. `auto` is a
+/// request value only — the backend resolves it to the concrete catalog it
+/// actually matched (today always [localHyg], the bundled HYG star catalog)
+/// before persisting, so MAGZPSRC and the calibration rows record real
+/// provenance.
+enum PhotometricCatalogSource { auto, localHyg, localGaia, localApass }
 
 enum ScienceFeature {
   photometry,

@@ -16,8 +16,8 @@ class ScienceSettings {
 
   /// When true, after calibration + transparency complete the science
   /// pipeline writes a small set of standard keywords back onto the
-  /// captured FITS file (MAGZP, MAGZPERR, MAGZPSRC, TRANSPAR, NSHA_VER,
-  /// NSHA_RUN). This makes Nightshade's photometric and atmospheric
+  /// captured FITS file (MAGZP, MAGZPERR, MAGZPSRC, MAGZPNST, MAGLIM5,
+  /// TRANSPAR, EXTINCT, NSHA_VER). This makes Nightshade's photometric and atmospheric
   /// measurements directly visible to PixInsight, AstroPixelProcessor,
   /// Siril, and any other tool that reads the original capture.
   ///
@@ -328,10 +328,17 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
   Future<void> setFrameGradeRules(FrameGradeRules rules) async {
     final json = rules.isEmpty ? '' : rules.toJsonString();
     await _writeScienceSettings(ref, {_keys['frameGradeRules']!: json});
+    // copyWith treats a null json as "keep current", so clearing the rules
+    // must go through the explicit clear flag or stale thresholds keep
+    // grading frames until the next app restart.
     state = AsyncData(
-      (state.value ?? const ScienceSettings()).copyWith(
-        frameGradeRulesJson: json.isEmpty ? null : json,
-      ),
+      json.isEmpty
+          ? (state.value ?? const ScienceSettings()).copyWith(
+              clearFrameGradeRulesJson: true,
+            )
+          : (state.value ?? const ScienceSettings()).copyWith(
+              frameGradeRulesJson: json,
+            ),
     );
   }
 
