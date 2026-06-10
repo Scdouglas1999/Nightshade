@@ -1,0 +1,273 @@
+name: Release
+
+# Builds the Android APK, Linux bundle, and Windows package, then publishes
+# them all to a public GitHub Release. Triggered by pushing a version tag
+# (e.g. `git tag v4.0.0 && git push origin v4.0.0`). Windows desktop cannot be
+# cross-compiled from Linux, so it builds on a Windows runner here.
+#
+# `workflow_dispatch` lets you rebuild artifacts on demand; the publish job
+# only runs for tag refs.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  FLUTTER_VERSION: '3.44.1'
+
+jobs:
+  # --------------------------------------------------------------------------
+  android:
+    name: Android APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Install Melos
+        run: dart pub global activate melos
+
+      - name: Bootstrap workspace
+        run: dart run melos bootstrap
+
+      # The mobile app is a pure-Flutter companion (it talks to the desktop
+      # server over HTTP/WS) — no Rust/NDK cross-compilation is required.
+      # `flutter build apk --release` produces a universal, debug-signed
+      # release APK; no production keystore is configured.
+      - name: Build release APK (universal)
+        working-directory: apps/mobile
+        run: flutter build apk --release
+
+      - name: Stage + checksum APK
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp apps/mobile/build/app/outputs/flutter-apk/app-release.apk \
+             dist/nightshade-4.0.0-android-universal.apk
+          (cd dist && sha256sum nightshade-4.0.0-android-universal.apk \
+             > nightshade-4.0.0-android-universal.apk.sha256)
+          ls -l dist
+
+      - name: Upload Android artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: android
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  # --------------------------------------------------------------------------
+  linux:
+    name: Linux x64
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/nightshade_native
+
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev libsecret-1-dev libjsoncpp-dev \
+            libudev-dev libraw-dev tar
+
+      - name: Install Melos
+        run: dart pub global activate melos
+
+      - name: Bootstrap workspace
+        run: dart run melos bootstrap
+
+      - name: Build Linux release bundle
+        run: dart run melos run build:desktop:linux --no-select
+
+      - name: Bundle native libs + verify the bridge is present
+        run: |
+          set -euo pipefail
+          BUNDLE="apps/desktop/build/linux/x64/release/bundle"
+          BUNDLE_LIB="$BUNDLE/lib"
+          if [ ! -e "$BUNDLE_LIB/libnightshade_bridge.so" ]; then
+            echo "libnightshade_bridge.so is MISSING — the Rust build likely failed." >&2
+            ls -l "$BUNDLE_LIB" >&2 || true
+            exit 1
+          fi
+          # The bridge dynamically links libraw; ship it so the release is
+          # self-contained (executable rpath = $ORIGIN/lib).
+          LIBRAW_PATH="$(ldconfig -p | awk '/libraw\.so/ {print $NF; exit}')"
+          if [ -z "${LIBRAW_PATH:-}" ] || [ ! -e "$LIBRAW_PATH" ]; then
+            echo "libraw shared object not found via ldconfig" >&2
+            exit 1
+          fi
+          cp -Lv "$LIBRAW_PATH" "$BUNDLE_LIB/"
+          ls -l "$BUNDLE_LIB"
+
+      - name: Package + checksum
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          tar -czf dist/nightshade-4.0.0-linux-x64.tar.gz \
+            -C apps/desktop/build/linux/x64/release \
+            --transform 's,^bundle,nightshade-4.0.0-linux-x64,' bundle
+          (cd dist && sha256sum nightshade-4.0.0-linux-x64.tar.gz \
+             > nightshade-4.0.0-linux-x64.tar.gz.sha256)
+          ls -l dist
+
+      - name: Upload Linux artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  # --------------------------------------------------------------------------
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      # The imaging crate's build.rs links libraw; point it at the vendored
+      # import lib/DLL so the Rust build is self-contained on a clean runner.
+      LIBRAW_DIR: ${{ github.workspace }}\lib\libraw
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: 'stable'
+          cache: true
+
+      - name: Setup Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native/nightshade_native
+
+      - name: Install Melos
+        run: dart pub global activate melos
+
+      - name: Bootstrap workspace
+        run: dart run melos bootstrap
+
+      # Build phases run as explicit steps (the melos multi-line `run:` only
+      # executes its first line on the Windows shell).
+      - name: Build Rust native bridge (release)
+        run: cargo build --release --manifest-path native/nightshade_native/bridge/Cargo.toml
+
+      - name: Build Flutter Windows app (release)
+        working-directory: apps/desktop
+        run: flutter build windows --release
+
+      - name: Stage native DLLs (bridge, libraw, MSVC runtime) into Release
+        shell: pwsh
+        run: ./scripts/stage_windows_release.ps1 -Profile Release
+
+      - name: Verify the Release output is complete
+        shell: pwsh
+        run: |
+          $rel = "apps/desktop/build/windows/x64/runner/Release"
+          $missing = @()
+          foreach ($f in @("nightshade_desktop.exe", "nightshade_bridge.dll", "libraw.dll")) {
+            if (-not (Test-Path (Join-Path $rel $f))) { $missing += $f }
+          }
+          if ($missing.Count -gt 0) {
+            Write-Host "Release dir contents:"
+            Get-ChildItem $rel | Format-Table Name, Length
+            Write-Error "Missing required files in Release output: $($missing -join ', ')"
+            exit 1
+          }
+          Write-Host "Release output verified:"
+          Get-ChildItem $rel | Format-Table Name, Length
+
+      - name: Package + checksum
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $rel = "apps/desktop/build/windows/x64/runner/Release"
+          $zip = "dist/nightshade-4.0.0-windows-x64.zip"
+          Compress-Archive -Path "$rel/*" -DestinationPath $zip -Force
+          (Get-FileHash $zip -Algorithm SHA256).Hash.ToLower() + "  nightshade-4.0.0-windows-x64.zip" `
+            | Out-File -Encoding ascii "$zip.sha256"
+          Get-ChildItem dist
+
+      - name: Upload Windows artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 14
+
+  # --------------------------------------------------------------------------
+  publish:
+    name: Publish GitHub Release
+    needs: [android, linux, windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect release assets
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          find artifacts -type f \( -name '*.apk' -o -name '*.tar.gz' \
+            -o -name '*.zip' -o -name '*.sha256' \) -exec cp -v {} release-assets/ \;
+          echo "Release assets:"
+          ls -l release-assets
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Nightshade ${{ github.ref_name }} — From your couch. Wake up to a finished image.
+          body_path: docs/release/v4.0.0.md
+          files: release-assets/*
+          draft: false
+          prerelease: false
+          make_latest: true
+          fail_on_unmatched_files: true

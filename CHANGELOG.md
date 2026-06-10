@@ -9,7 +9,7 @@ Engineering cross-references in the form `(§N.M)` point at the
 `docs/plans/2026-05-09-v250-audit-fixes.md` v2.5.0 pre-release audit and are
 intended for code reviewers rather than end users.
 
-## [4.0.0] — From your couch. Wake up to a finished image. (beta, build 15)
+## [4.0.0] — From your couch. Wake up to a finished image. (build 15)
 
 The headline release: run your whole rig from your phone like an ASIAIR — but
 with any gear, a real autopilot, a built-in planetarium, and a master that's
