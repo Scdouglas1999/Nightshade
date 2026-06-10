@@ -9,7 +9,7 @@ Engineering cross-references in the form `(§N.M)` point at the
 `docs/plans/2026-05-09-v250-audit-fixes.md` v2.5.0 pre-release audit and are
 intended for code reviewers rather than end users.
 
-## [4.0.0] — From your couch. Wake up to a finished image. (build 16)
+## [4.0.0] — From your couch. Wake up to a finished image. (build 17)
 
 The headline release: run your whole rig from your phone like an ASIAIR — but
 with any gear, a real autopilot, a built-in planetarium, and a master that's
@@ -42,6 +42,26 @@ cellular-push keys, on-sky tuning) that flip the gated bits live.
   source resolves to local HYG with recorded zeropoint provenance;
   moving-object measurements use the mid-stack epoch; science frame
   processing is serialized.
+
+### Science & photometry — online catalog & auto-config (2026-06-10)
+
+- **Online APASS catalog.** Opt-in APASS DR9 cone search via VizieR (cached
+  to disk on a 0.2° pointing grid, HYG fallback when offline) gives the
+  calibration wizard real B−V colors and stamps `LOCALAPASS` provenance.
+  Toggle in Science → Catalog.
+- **Multi-frame calibration.** Select several frames so the airmass spread
+  makes atmospheric extinction fittable; also fixes a bug where the wizard
+  passed a null frame context and local calibration always failed.
+- **AAVSO check star.** With three or more inlier comparisons, the star
+  closest in flux to the target is promoted to a check star with its own
+  differential magnitude.
+- **Moving-object magnitudes (schema v47).** Moving-object candidates now
+  carry a magnitude and band; the MPC export fills the magnitude columns
+  (band V). Migration is idempotent and column-existence-guarded.
+- **Automatic camera config.** A new service syncs the Science → Camera
+  values (gain, saturation, read noise) from the connected camera/profile;
+  opt out with `science.camera.auto_managed`, and any manual edit turns the
+  auto-management off.
 
 ### Release hardening (2026-06-10)
 
