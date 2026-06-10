@@ -541,6 +541,8 @@ class _BuiltinGuiderSettingsCardState
         children: [
           _SettingRow(
             label: 'Exposure (s)',
+            subtitle:
+                'Guide-frame length. Longer averages out seeing; shorter reacts faster.',
             child: _builtinNumberField(
               context,
               controller: _exposureController,
@@ -550,6 +552,7 @@ class _BuiltinGuiderSettingsCardState
           const SizedBox(height: 12),
           _SettingRow(
             label: 'Gain',
+            subtitle: 'Guide-camera gain. Raise to find stars in poor seeing.',
             child: _builtinNumberField(
               context,
               controller: _gainController,
@@ -559,6 +562,7 @@ class _BuiltinGuiderSettingsCardState
           const SizedBox(height: 12),
           _SettingRow(
             label: 'Offset',
+            subtitle: 'Guide-camera offset (black-level pedestal).',
             child: _builtinNumberField(
               context,
               controller: _offsetController,
@@ -568,6 +572,8 @@ class _BuiltinGuiderSettingsCardState
           const SizedBox(height: 12),
           _SettingRow(
             label: 'Binning',
+            subtitle:
+                'Combine pixels to boost star SNR at the cost of resolution.',
             child: _builtinNumberField(
               context,
               controller: _binningController,
@@ -577,6 +583,8 @@ class _BuiltinGuiderSettingsCardState
           const SizedBox(height: 12),
           _SettingRow(
             label: 'Cal. Pulse (ms)',
+            subtitle:
+                'Mount move per calibration step. Longer for short focal lengths.',
             child: _builtinNumberField(
               context,
               controller: _calibrationMsController,
@@ -586,6 +594,8 @@ class _BuiltinGuiderSettingsCardState
           const SizedBox(height: 12),
           _SettingRow(
             label: 'Min Pulse (ms)',
+            subtitle: 'Corrections shorter than this are skipped to avoid '
+                'chasing seeing.',
             child: _builtinNumberField(
               context,
               controller: _minPulseController,
@@ -595,6 +605,8 @@ class _BuiltinGuiderSettingsCardState
           const SizedBox(height: 12),
           _SettingRow(
             label: 'Max Pulse (ms)',
+            subtitle: 'Corrections are clamped to this so one bad frame '
+                'cannot lurch the mount.',
             child: _builtinNumberField(
               context,
               controller: _maxPulseController,
@@ -604,6 +616,7 @@ class _BuiltinGuiderSettingsCardState
           const SizedBox(height: 12),
           _SettingRow(
             label: 'Settle Sleep (ms)',
+            subtitle: 'Wait between settle checks after a dither or slew.',
             child: _builtinNumberField(
               context,
               controller: _settleSleepController,
@@ -750,14 +763,42 @@ Widget _compactNumberField(
 
 class _SettingRow extends StatelessWidget {
   final String label;
+
+  /// Optional one-line, plain-language explanation rendered under the label.
+  final String? subtitle;
   final Widget child;
 
-  const _SettingRow({required this.label, required this.child});
+  const _SettingRow({required this.label, this.subtitle, required this.child});
+
+  Widget _labelColumn(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: NightshadeTypography.fontSize13,
+            color: colors.textSecondary,
+          ),
+        ),
+        if (subtitle != null) ...[
+          const SizedBox(height: 2),
+          Text(
+            subtitle!,
+            style: TextStyle(
+              fontSize: NightshadeTypography.fontSize10,
+              color: colors.textMuted,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final colors = NightshadeColors.of(context);
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final stackFields = constraints.maxWidth < 220;
@@ -765,13 +806,7 @@ class _SettingRow extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  color: colors.textSecondary,
-                ),
-              ),
+              _labelColumn(context),
               const SizedBox(height: 8),
               child,
             ],
@@ -782,13 +817,7 @@ class _SettingRow extends StatelessWidget {
           children: [
             Flexible(
               flex: 2,
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize13,
-                  color: colors.textSecondary,
-                ),
-              ),
+              child: _labelColumn(context),
             ),
             const SizedBox(width: 12),
             Flexible(
