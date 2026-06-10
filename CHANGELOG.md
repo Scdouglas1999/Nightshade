@@ -17,6 +17,176 @@ finished, diagnosed, and labelled by morning. See
 `docs/4.0-activation-checklist.md` for the three external steps (iOS publish,
 cellular-push keys, on-sky tuning) that flip the gated bits live.
 
+### Couch-release feature expansion (2026-06-10)
+
+- **Turnkey appliance packaging.** Hardened systemd unit + installer,
+  Docker/compose deployment with API healthcheck, and a Raspberry Pi
+  (arm64) image builder with first-boot Wi-Fi hotspot provisioning
+  (`packaging/appliance/`). Release-enablement playbooks for iOS publish,
+  FCM/APNs credentials, and a 7-night on-sky validation campaign live in
+  `docs/release/`.
+- **Remote access relay.** Self-hostable relay (`tools/nightshade_relay`):
+  the appliance dials out over WebSocket, phones connect through a
+  multiplexed tunnel — no VPN or port forwarding. End-to-end auth stays the
+  existing HMAC pairing token; the relay never sees credentials. Desktop
+  `--relay-url` flag, mobile "Connect via Relay" flow; live view falls back
+  WebRTC→WebSocket automatically.
+- **Built-in multi-star guider, grown up.** Star selection now rejects
+  saturated/elongated/edge stars; offsets are sigma-clipped, flux-weighted
+  means that shrug off a single jumping star; calibration derives axis
+  angles, rates, orthogonality, and measured Dec backlash (compensated once
+  per direction reversal); dither walks a golden-angle spiral scaled by
+  recent RMS. Per-star weights ride the existing telemetry into the UI.
+- **Dual-rig synchronized imaging (v1).** A piggyback secondary camera runs
+  its own capture loop with a native dither barrier: the secondary is never
+  mid-exposure when the primary dithers (complete-if-short or abort policy),
+  and a stuck secondary can never stall the primary past a bounded wait.
+  Frames share the naming/metadata pipeline, tagged `NS-RIG`. Opt-in
+  "Secondary Rig" dashboard tile; headless routes for mobile/web monitoring.
+  Same-mount only; no secondary guiding/solving/AF by design.
+- **Calibration library manager.** Browse/filter/tag every dark, flat, bias,
+  and defect-map master with age indicators; transparent auto-matching
+  (exact gain/offset for darks, temp tolerance, exposure scaling, flats by
+  filter + recency) now drives unpinned master selection in post-session
+  integration, with staleness warnings surfaced. Settings UI with
+  matching-preview panel, `/api/calibration-library` routes, FITS-header
+  enrichment, schema v46.
+- **Device hot-plug recovery.** Reconnect of a yanked USB camera or serial
+  mount now re-applies cooling setpoint and tracking state (drivers lose
+  both across a physical reconnect); disconnect/reconnect continue to flow
+  through heartbeat debounce → recovery loop → push notification.
+- **Deep-star catalog tier + live minor-planet refresh (planetarium).**
+  Downloadable tiled deep-star catalog (NSDT format, hash-verified,
+  LRU-cached) renders below 8° FOV with clean HYG handoff; MPC element
+  refresh unions fresh comet/asteroid elements into the overlay and omnibox
+  search, offline-safe with last-updated indicator. Catalog prep tooling in
+  `tools/catalog_prep/`.
+- **Home Assistant auto-discovery.** Opt-in MQTT discovery publishes the
+  observatory as one HA device: safety/sequence/guiding/cooling binary
+  sensors, target/progress/HFR/RMS/weather/sun-altitude sensors, online
+  availability via last-will, and (default-off) pause/resume/abort controls
+  routed through the same code paths as the UI.
+- **Cloud backup & sync.** WebDAV (Nextcloud-compatible) push/pull of the
+  existing backup bundles with SHA-256 manifests, retention pruning,
+  keyring-stored credentials, opt-in auto-push after the daily backup
+  cycle, and a remote-browser restore flow (restore replaces local config —
+  bundle-based, no merging).
+- **Weather verdict abstain channel, proven.** The disabled/snoozed/fail-open
+  safety paths push an explicit abstain (never "safe") to the native
+  executor; an exhaustive verdict × hardware gate-matrix test now pins that
+  an abstain can never suppress an unsafe signal.
+- **Planner = autopilot, guaranteed.** The Planner headline is a read-only
+  preview of the live `SchedulerEngine` scoring, so the target shown is the
+  target imaged; suggestion data is re-scoped to advisory night-outlook
+  columns. Notification router eager-mounts at startup with a
+  no-double-subscribe guard test.
+- **Localization pass.** Wizard/tour/settings/planner/equipment chrome
+  extracted (43 new keys, full Spanish coverage), translation-completeness
+  test added, contributor guide at `docs/i18n-contributing.md`.
+
+### Full-stack imaging-night audit (2026-06-09)
+
+A ten-subsystem deep trace (camera/cooling, slew-center-solve, meridian flip,
+filter wheel, autofocus, sequencer engine, guiding, monitoring, planning,
+native device layer) with every finding verified against the code before
+fixing. Fixed:
+
+- **Resume-from-checkpoint never actually resumed.** All three resume paths
+  (crash-recovery dialog, mosaic resume, executor provider) called the
+  native prepare step but nothing issued the `sequencerStart()` that walks
+  the restored tree — the UI showed "running" while the executor sat idle.
+  Resume now prepares, re-seeds current settings over the snapshot
+  (location for the W1 daylight gate and hour-angle math, safety fail mode,
+  AF cadence, dither, grading), creates a session/run row so stats attach,
+  restarts the settings watchers + sky-brightness poll, and starts.
+- **Pre-exposure meridian gate (N.I.N.A.-style).** A frame that would still
+  be exposing when the flip trigger fires is now held until the flip
+  completes instead of being ruined mid-exposure by the flip slew. Also
+  fixes `meridian_trigger_method` never being stamped into trigger state in
+  production (the MountTrackingLost→OnTrackingLimitHit deferral never
+  engaged).
+- **Autofocus fail-soft.** A wrong-way parabola / degenerate fit or
+  over-aggressive outlier rejection now falls back to the minimum-HFR
+  sampled position (R²=0, warned) instead of aborting AF and leaving the
+  focuser at the sweep edge.
+- **Native centering: 180 s plate-solve timeout** — a hung solver process
+  can no longer stall an unattended centering loop indefinitely.
+- **Camera warm-up race.** `Timer.periodic` with an async body could land a
+  stale `cameraSetCooling(enabled: true)` *after* the completion tick
+  disabled the cooler, leaving it silently re-enabled forever. Now a
+  self-rescheduling tick with per-tick error containment and a device-id
+  guard. Cooler is also best-effort disabled on intentional camera
+  disconnect (ASCOM/INDI coolers outlive the client connection).
+- **Exposure timeout honesty.** On an exposure-event timeout the interactive
+  capture path aborts the (possibly still-running) exposure and discards
+  stale prior-frame images instead of saving them under new metadata.
+- **Twilight solver rewrite.** Crossing search is now direction-aware
+  (coarse bracket + bisection) and anchored on the *site's* solar noon, so
+  high-latitude sites (sunset past local midnight) and rigs far from the
+  controlling machine's timezone get correct, same-night dusk/dawn times;
+  previously these returned null or mixed events from different solar
+  days. New cross-latitude regression suite (18 cases vs brute force).
+- **Filter focus offsets (interactive path).** Offset moves are now
+  verified against actual focuser position before being recorded (a
+  stalled move used to poison all subsequent delta bookkeeping), the
+  per-wheel baseline is seeded on connect (reconnect used to double-apply
+  the current filter's offset), and a failed offset raises a toast, not
+  just a log line.
+- **Monitoring**: the run-dashboard HFR sparkline now includes rejected
+  frames (warning dots) with a min–max scale label — a focus collapse that
+  causes rejections is visible in the trend again; guide-graph history
+  extended 100→400 samples; mobile camera tab gained a glanceable
+  HFR / star count / eccentricity / guide-RMS row.
+- **Guiding**: `dither()` now pre-checks that guiding is active (clear
+  error instead of an opaque PHD2 RPC failure).
+- Archived the stale `NOT_IMPLEMENTED_FIXES.md` — the audit confirmed all
+  ~38 "not implemented for driver type" device ops it listed are now fully
+  implemented across ASCOM/Alpaca/INDI/Native/Simulator.
+
+Verified-clean during the same audit (no action needed): exposure
+abort/cancel semantics, the W1 daylight gate logic itself, settle-failure
+fail-closed dither path, native star-lost trigger + re-acquire recovery,
+reject-storm pause/escalation, live-stacking stats wiring, per-filter
+focus offsets in the native sequencer, and the full device-op × driver
+matrix.
+
+### Audit follow-up: remaining-gaps closure (2026-06-09, same day)
+
+- **Standalone meridian flip now actually flips.** New
+  `api_perform_meridian_flip` bridge call runs the canonical
+  `MeridianFlipExecutor` outside a sequence (refusing while one runs), so
+  the standalone monitor executes the flip — pause guiding, slew, verify
+  pier, re-center, refocus, resume — instead of only alerting while the
+  mount tracked into the pier. Wired through FFI/network/disconnected
+  backends, a new `/api/sequencer/meridian-flip` headless route, and the
+  monitor itself. The headless `/checkpoint/resume` route also got the
+  "actually start" fix from the main audit.
+- **J2000 → of-date conversion at the mount boundary.** Slew and sync
+  inputs are precessed (rigorous Meeus 21.3/21.4, validated against the
+  Meeus 21.b worked example) for ASCOM/Alpaca/INDI/Native mounts —
+  initial GOTOs land ~22′ closer in 2026. Reads stay in the mount's
+  native frame so hour-angle/flip math is untouched; the Simulator is
+  exempt (epoch-agnostic tests).
+- **PHD2 crash auto-relaunch.** On link loss that was not user-initiated
+  (and with guider auto-reconnect enabled), the controller now relaunches
+  PHD2 via the launcher and reconnects with 5/15/30 s backoff, surfacing
+  a clear error if all attempts fail — previously it sat at
+  "Connecting…" until morning.
+- **Predictive AF is visible.** The focus-model card shows the last
+  consultation: filter, confidence band (training / low / medium / high),
+  predicted position, R², and predicted-vs-actual error after the sweep.
+- **Night Doctor tilt/collimation detector implemented** — drives the
+  existing `OpticalTrainDiagnosticsService` (PSF field tiles + astrometric
+  residuals) so the morning report and the equipment optical-health card
+  share one engine; silently-skipped detectors now leave a log trace.
+- **Session report SNR is real when possible** — prefers the science
+  pipeline's photometric SNR per filter; the background/noise proxy is
+  the fallback and is explicitly footnoted in exports.
+- Session-optimizer insights were found fully implemented and wired
+  (the audit's "DTO-only" claim was a false positive); guide-graph
+  history extended and the interactive dither precondition added in the
+  same pass.
+
 ### Smart Morning Report & finishing
 - **Night Doctor** — a plain-language, evidence-backed diagnosis of the night
   (focus drift, cloud/transparency loss, guiding-correlated trailing, dew/HFR

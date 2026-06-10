@@ -76,6 +76,54 @@ angular_measurement).
 Both deferrals are about keeping this branch a self-contained, offline,
 deterministically-measurable unit. Neither is blocked by anything shipped here.
 
+### Deferred items — now shipped (follow-up data-services pass)
+
+Both deferrals above have since been implemented as an additive data-services
+layer that leaves the §3 perf spine untouched.
+
+* **Deep-star tier (Tycho-2 / Gaia subset).** A compact binary tile format
+  (`NSDT`, `deep_star_tile.dart`) tiles the sky on the *same* 24×18 RA/Dec grid
+  as `CelestialSpatialIndex`, so tile culling agrees with the existing HYG star
+  culling. `DeepStarCatalogManager` downloads tiles from a configurable,
+  self-hostable base URL into the app data dir, SHA-256-verifying each tile
+  against a `manifest.json` (resumable: matching tiles are skipped).
+  `DeepStarTileStore` answers brightest-in-viewport queries with an LRU of
+  decoded tiles. The renderer consumes them through a new
+  `combinedStarsProvider = fovFilteredStars ⊕ deepStarsInView`: deep tiles load
+  **only** when the deep-star layer is on, a tileset is installed, and the FOV
+  is below `kDeepStarFovThresholdDegrees` (8°) — i.e. exactly when the bright
+  HYG set no longer fills the view and the spatial index is on its cheap
+  grid-cell path. Stars hand off at the HYG faint floor (`minMagnitude`) so the
+  two tiers never double-draw, and deep stars flow through the *existing* star
+  paint path (identical style, magnitude/label settings honoured). Tooling:
+  `tools/catalog_prep/make_deep_star_tiles.py` (+ README) converts a public
+  Tycho-2/Gaia CSV into the tile format, with a `--synthetic` mode that writes
+  the deterministic test fixture (honest: no real catalog data is downloaded
+  here). **Perf-spine impact: none.** The benchmark/golden harness drives
+  `SkyCanvasPainter` over the committed fixture directly and never touches these
+  providers, so the §4 numbers and the anti-cheat gate are unchanged; the deep
+  tier is strictly *additive* (it adds stars when zoomed in, never renders
+  less).
+
+* **Live MPC / TLE refresh.** `ElementRefreshService` fetches MPC bright
+  subsets — `Soft00Bright.txt` (MPCORB 1-line) and `CometEls.txt` — on a
+  configurable schedule (default weekly + manual), caching raw downloads to disk
+  with fetch timestamps and falling back to the stale cache on failure
+  (offline-safe; `loadCached` never hits the network). `mpcorb.dart` parses both
+  fixed-column formats into the *existing* `MinorBodyElements`, propagated by the
+  *existing* `KeplerianPropagator` (verified: parsed Ceres lands within ~0.25h
+  RA / 1° Dec / 0.05 AU of JPL Horizons for 2024-01-01). Refreshed bodies are
+  unioned with the bundled `MinorPlanetCatalog` (fresh elements win on name
+  collision) via `effectiveMinorBodyElementsProvider`, which both the
+  minor-planet overlay and the omnibox `solarSystemSearchObjectsProvider` now
+  read — so refreshed asteroids/comets render *and* are searchable. **SGP4 /
+  satellites:** an SGP4 implementation already exists in-repo
+  (`astronomy/sgp4.dart`) and `SatelliteCatalog` already downloads + caches
+  CelesTrak TLE groups on a 24-hour cache; the refresh card surfaces that
+  existing path rather than hand-rolling a second SGP4. The settings UI
+  (`deep_star_catalog_card.dart`, `element_refresh_card.dart`) shows download
+  progress / hash-verify, schedule, and a "last updated" indicator.
+
 ---
 
 ## 3. Benchmark methodology

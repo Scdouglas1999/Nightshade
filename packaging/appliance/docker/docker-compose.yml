@@ -1,0 +1,90 @@
+# Nightshade headless appliance — compose deployment.
+#
+# Build the runtime image first (see the Dockerfile header for the
+# two-step tarball flow), then from the repo root:
+#
+#   docker compose -f packaging/appliance/docker/docker-compose.yml up -d
+#
+# NETWORKING — host mode is deliberate, not lazy:
+#   * mDNS advertisement (`_nightshade._tcp`, P1-6 in main_headless.dart)
+#     and the UDP discovery beacons on 45679 are link-local protocols.
+#     Behind the default bridge network the phone app can still connect
+#     by manual IP:port, but zero-config discovery and the LAN UDP push
+#     broadcaster will NOT cross the bridge. Host networking gives the
+#     server real LAN interfaces, so discovery Just Works.
+#   * If you must use bridge networking (e.g. rootless Docker on a NAS),
+#     comment out `network_mode: host`, uncomment the `ports:` block,
+#     and connect from the phone by entering the host's IP manually.
+#
+# DEVICES: the container needs the same camera/mount/focuser access the
+# systemd unit gets from supplementary groups. Pass through the USB bus
+# (and serial adapters) explicitly — avoid `privileged: true`.
+
+services:
+  nightshade:
+    image: nightshade-headless
+    build:
+      # Build context is the repo root so the Dockerfile can ADD the
+      # release tarball from dist-linux/.
+      context: ../../..
+      dockerfile: packaging/appliance/docker/Dockerfile
+      args:
+        BUNDLE_TARBALL: dist-linux/nightshade-linux-x64-3.0.0.tar.gz
+    container_name: nightshade-headless
+    restart: unless-stopped
+
+    network_mode: host
+    # Bridge-mode alternative (no mDNS/UDP discovery — manual IP entry):
+    # ports:
+    #   - "8080:8080/tcp"     # headless API (HTTP or HTTPS)
+    #   - "45679:45679/udp"   # discovery beacons (broadcast; bridge-limited)
+    #   - "45680:45680/tcp"   # LAN OTA push receiver
+
+    environment:
+      # REQUIRED for LAN exposure: without any token the server binds to
+      # loopback only (see _parseAuthConfig in main_headless.dart).
+      # Put real values in an .env file next to this compose file:
+      #   NIGHTSHADE_AUTH_TOKEN=$(openssl rand -hex 32)
+      NIGHTSHADE_AUTH_TOKEN: ${NIGHTSHADE_AUTH_TOKEN:?set NIGHTSHADE_AUTH_TOKEN in .env}
+      NIGHTSHADE_PORT: ${NIGHTSHADE_PORT:-8080}
+      # Pairing codes are only visible in `docker logs` on a headless box.
+      NIGHTSHADE_PAIRING_PRINT_CODES: "true"
+      # Recommended: self-signed TLS; the SPKI fingerprint the phone pins
+      # is printed at startup and exposed via /api/info.
+      # NIGHTSHADE_TLS: "true"
+      # OTA updates (off when unset; /api/system/update/* returns 404):
+      # NIGHTSHADE_UPDATE_SERVER: https://updates.example.org
+      # NIGHTSHADE_UPDATE_CHANNEL: stable
+      # Cellular push config (see docs/release/cellular-push-setup.md).
+      # The default path is inside the data volume:
+      #   /var/lib/nightshade/.local/share/Nightshade/push_config.json
+      # NIGHTSHADE_PUSH_CONFIG: /var/lib/nightshade/push_config.json
+
+    volumes:
+      # All persistent state: Drift DB, pairing DB, TLS cert/key,
+      # push_config.json, OTA state, NIGHTSHADE_DATA_DIR (defect maps).
+      - nightshade-data:/var/lib/nightshade
+      # Capture output. Point the left side at your image disk and set the
+      # capture path to /captures in app settings (the disk-space watchdog
+      # in main_headless.dart monitors whatever path is configured there).
+      - ${NIGHTSHADE_CAPTURE_DIR:-./captures}:/captures
+
+    devices:
+      # USB cameras / filter wheels / focusers (libusb access).
+      - /dev/bus/usb:/dev/bus/usb
+      # Serial mounts and focusers — uncomment the ones that exist on the
+      # host (a missing device node fails container start):
+      # - /dev/ttyUSB0:/dev/ttyUSB0
+      # - /dev/ttyACM0:/dev/ttyACM0
+    # The container user (uid 947) must be able to open those nodes. Either
+    # add matching udev rules on the host, or map the host's dialout/video
+    # gids here (numbers vary per distro — check /etc/group on the host):
+    group_add:
+      - dialout
+      - video
+
+    # Healthcheck is baked into the image (nightshade-healthcheck hitting
+    # GET /api/status); nothing to add here. View with `docker inspect`.
+
+volumes:
+  nightshade-data:
