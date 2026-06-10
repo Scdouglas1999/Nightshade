@@ -9,13 +9,39 @@ Engineering cross-references in the form `(§N.M)` point at the
 `docs/plans/2026-05-09-v250-audit-fixes.md` v2.5.0 pre-release audit and are
 intended for code reviewers rather than end users.
 
-## [4.0.0] — From your couch. Wake up to a finished image. (build 15)
+## [4.0.0] — From your couch. Wake up to a finished image. (build 16)
 
 The headline release: run your whole rig from your phone like an ASIAIR — but
 with any gear, a real autopilot, a built-in planetarium, and a master that's
 finished, diagnosed, and labelled by morning. See
 `docs/4.0-activation-checklist.md` for the three external steps (iOS publish,
 cellular-push keys, on-sky tuning) that flip the gated bits live.
+
+### Science & photometry audit (2026-06-10)
+
+- **Catalog-anchored photometric transform.** The calibration wizard now
+  fits the transform against the bundled HYG catalog (real V magnitudes,
+  exposure-normalized instrumental magnitudes) with a degeneracy-aware
+  2-/1-parameter fallback when color can't be solved from a single frame.
+  Transforms saved before this build were fit on raw flux and should be
+  re-run.
+- **Camera gain & saturation settings.** New Science → Camera rows for gain
+  (e⁻/ADU) and saturation level (ADU) feed the star-measurement saturation
+  limit and an electron-correct limiting-magnitude noise model. Common
+  white levels (4095 for 12-bit, 16383 for 14-bit) are noted in-line.
+- **Image Grader FWHM/eccentricity sliders.** The grader dialog gained Max
+  FWHM and Max eccentricity rules driven by per-frame PSF-tile medians; the
+  auto-grader sources FWHM/ecc from the same PSF tiles. A null metric skips
+  its rule by contract.
+- **One projection for all astrometry.** Sky↔pixel math is consolidated
+  onto a single gnomonic projection; duplicate implementations were removed
+  from three science files.
+- **Honest provenance.** AAVSO export computes comparison/check magnitudes
+  from flux and stamps the real app version; the EXTINCT FITS keyword is
+  only written for a real airmass-fit value; the photometric catalog 'auto'
+  source resolves to local HYG with recorded zeropoint provenance;
+  moving-object measurements use the mid-stack epoch; science frame
+  processing is serialized.
 
 ### Release hardening (2026-06-10)
 
