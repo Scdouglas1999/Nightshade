@@ -173,7 +173,7 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
     _pushNotificationSubscription?.cancel();
     _pushNotificationSubscription = notificationStream.listen(
       (notification) {
-        // Always do the WS fan-out â€” even if no sockets are attached, we
+        // Always do the WS fan-out — even if no sockets are attached, we
         // still kick the LAN broadcaster + remote delivery so a phone that
         // can't keep its WS open still gets the alert.
         if (_sockets.isNotEmpty) {
@@ -206,7 +206,7 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
           return;
         }
         if (broadcaster != null && broadcaster.isStarted) {
-          // Fire-and-forget â€” sendCriticalPush is non-blocking on the
+          // Fire-and-forget — sendCriticalPush is non-blocking on the
           // happy path. Errors inside the broadcaster surface via its own
           // logger, so we don't need a try/catch here.
           unawaited(broadcaster.sendCriticalPush(frame));
@@ -223,7 +223,7 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
 
   /// Coerce a `push_notification` JSON envelope into a wire-format
   /// [PushNotificationFrame]. Returns null when the envelope is missing
-  /// required fields â€” those are logged so a malformed producer is
+  /// required fields — those are logged so a malformed producer is
   /// visible rather than silently dropped.
   PushNotificationFrame? _buildPushFrameFromNotification(
     Map<String, dynamic> notification,
@@ -236,7 +236,7 @@ extension _HeadlessApiServerEventForwarding on HeadlessApiServer {
     final timestamp = notification['timestamp'];
     if (title is! String || body is! String) {
       _logWarning(
-        'Push notification missing title/body â€” skipping LAN fan-out',
+        'Push notification missing title/body — skipping LAN fan-out',
         fields: {'envelope_keys': notification.keys.toList()},
       );
       return null;

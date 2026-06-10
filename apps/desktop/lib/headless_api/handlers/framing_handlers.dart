@@ -449,7 +449,7 @@ class FramingHandlers {
 }
 
 /// Sentinel marking the cancellation branch of a Future.any race against
-/// the multi-step centering loop. Library-private â€” see the analogous
+/// the multi-step centering loop. Library-private — see the analogous
 /// sentinels in imaging_handlers / device_handlers.
 class _CenteringCancelled {
   const _CenteringCancelled._();

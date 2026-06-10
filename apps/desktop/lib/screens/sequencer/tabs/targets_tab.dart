@@ -95,21 +95,29 @@ class TargetsTab extends ConsumerWidget {
                 child: CircularProgressIndicator(color: colors.primary),
               ),
               error: (error, stack) => Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(LucideIcons.alertTriangle,
-                        size: 48, color: colors.error),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Failed to load targets',
-                      style: TextStyle(color: colors.textPrimary),
-                    ),
-                    Text(
-                      error.toString(),
-                      style: TextStyle(color: colors.textMuted, fontSize: 12),
-                    ),
-                  ],
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 360),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(LucideIcons.alertTriangle,
+                          size: 48, color: colors.error),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Failed to load targets',
+                        style: TextStyle(color: colors.textPrimary),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        error.toString(),
+                        style: TextStyle(color: colors.textMuted, fontSize: 12),
+                        textAlign: TextAlign.center,
+                        maxLines: 3,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

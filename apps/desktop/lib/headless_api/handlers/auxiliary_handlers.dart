@@ -93,10 +93,10 @@ class AuxiliaryHandlers {
       }
 
       // Why: per-device read errors are reported as `error` fields per entry
-      // rather than failing the whole request â€” one bad device shouldn't blind
+      // rather than failing the whole request — one bad device shouldn't blind
       // the caller to other working ones.
       //
-      // Â§6a-fixed: emit a stable `read_failed` code rather than the legacy
+      // §6a-fixed: emit a stable `read_failed` code rather than the legacy
       // pattern of shipping the raw exception message, which would leak
       // Dart type names. Full detail is logged for operator triage.
       final logger = container.read(loggingServiceProvider);

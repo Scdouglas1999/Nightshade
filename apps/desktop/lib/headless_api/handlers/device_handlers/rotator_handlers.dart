@@ -57,7 +57,7 @@ extension RotatorDeviceHandlers on DeviceHandlers {
     return jsonOk({'status': 'halted'});
   }
 
-  /// POST /api/rotator/sync â€” sync rotator reported sky angle to the supplied
+  /// POST /api/rotator/sync — sync rotator reported sky angle to the supplied
   /// position angle (degrees) without moving the hardware. Used by the "Sync
   /// to image PA" workflow after a plate solve.
   ///
@@ -66,7 +66,7 @@ extension RotatorDeviceHandlers on DeviceHandlers {
   /// (motion). Conflating them would slew the rotator every time the operator
   /// hit "Sync to image", which is the opposite of the intended effect.
   ///
-  /// Body: `{deviceId, positionAngle}` â€” `positionAngle` is the canonical
+  /// Body: `{deviceId, positionAngle}` — `positionAngle` is the canonical
   /// field; `angle` is accepted as an alias for compatibility with older
   /// clients that mirrored the move-to body shape.
   Future<Response> handleRotatorSync(Request request) async {

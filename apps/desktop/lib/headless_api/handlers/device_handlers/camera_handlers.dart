@@ -179,12 +179,12 @@ extension CameraDeviceHandlers on DeviceHandlers {
   /// Returns a JPEG live-view frame from the host-native preview pipeline when
   /// the connected camera driver supports it (gPhoto2 DSLRs, Fujifilm live view).
   ///
-  /// Poll this endpoint at 2â€“5 Hz for a simple remote viewer. For push delivery,
+  /// Poll this endpoint at 2–5 Hz for a simple remote viewer. For push delivery,
   /// clients may also open `GET /api/run-watch/frame-thumbnail` (last capture) or
   /// subscribe to imaging SSE events on `/api/run-watch/events`.
   ///
   /// Query params:
-  ///   deviceId â€” required connected camera id
+  ///   deviceId — required connected camera id
   Future<Response> handleCameraLiveViewFrame(Request request) async {
     final deviceId = request.url.queryParameters['deviceId']?.trim() ?? '';
     if (deviceId.isEmpty) {
@@ -275,12 +275,12 @@ extension CameraDeviceHandlers on DeviceHandlers {
     return jsonOk({'status': 'ok'});
   }
 
-  /// GET /api/camera/cooling â€” dedicated cooling-state snapshot.
+  /// GET /api/camera/cooling — dedicated cooling-state snapshot.
   ///
   /// Why a focused endpoint vs. polling /api/equipment/camera/status: the
   /// cooling panel only needs four fields and we don't want to round-trip the
   /// full sensor/binning/gain payload at the cooling poll cadence. Source of
-  /// truth is the same CameraStatus model â€” we just project the cooling
+  /// truth is the same CameraStatus model — we just project the cooling
   /// fields out of it.
   Future<Response> handleCameraGetCooling(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
@@ -302,12 +302,12 @@ extension CameraDeviceHandlers on DeviceHandlers {
     });
   }
 
-  /// GET /api/camera/readout-modes â€” list available readout modes.
+  /// GET /api/camera/readout-modes — list available readout modes.
   ///
   /// Why a focused endpoint vs. /api/equipment/camera/capabilities: the
   /// readout-mode dropdown only needs the string list, not the full
   /// capabilities payload (bayer pattern, sensor geometry, supported binning,
-  /// etc.). Source of truth remains CameraCapabilities â€” we project the
+  /// etc.). Source of truth remains CameraCapabilities — we project the
   /// `readoutModes` field out of it.
   Future<Response> handleCameraGetReadoutModes(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
@@ -328,12 +328,12 @@ extension CameraDeviceHandlers on DeviceHandlers {
     return jsonOk({'readoutModes': caps.readoutModes});
   }
 
-  /// GET /api/camera/recommended-settings â€” manufacturer-recommended
+  /// GET /api/camera/recommended-settings — manufacturer-recommended
   /// gain/offset values, when the vendor SDK exposes them.
   ///
   /// Mirrors the FFI shape: the JSON body is the exact projection of
   /// [CameraRecommendedSettings] (unityGain, hcgGain, defaultOffset, notes).
-  /// Older remote hosts won't expose this route â€” the network backend's
+  /// Older remote hosts won't expose this route — the network backend's
   /// fallback handles the resulting 404 by returning an empty recommendation.
   ///
   /// Errors bubble out as the standard `{code, message, ...}` envelope so

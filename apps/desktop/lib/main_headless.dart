@@ -60,6 +60,14 @@ const _headlessLogSource = 'HeadlessMain';
 ///                         of generating a self-signed one.
 ///   --tls-key=<path>      (P0-9) Use the supplied private-key PEM instead
 ///                         of generating a self-signed one.
+///   --relay-url=<url>     v4 couch-grade remote: dial OUT to a self-hosted
+///                         Nightshade relay (ws(s)://host[:port]) so the rig
+///                         is reachable from anywhere with no port-forwarding.
+///                         The appliance id minted on first contact is printed
+///                         to stdout/log; enter it + the relay URL in the app.
+///   --relay-allow-insecure-tls
+///                         Trust a self-signed relay TLS cert. Only for relays
+///                         you operate yourself before getting a real cert.
 ///
 ///   Environment variables:
 ///   NIGHTSHADE_AUTH_TOKEN  Authentication token
@@ -79,6 +87,9 @@ const _headlessLogSource = 'HeadlessMain';
 ///   NIGHTSHADE_TLS=true   Same as --tls.
 ///   NIGHTSHADE_TLS_CERT   Same as --tls-cert=<path>.
 ///   NIGHTSHADE_TLS_KEY    Same as --tls-key=<path>.
+///   NIGHTSHADE_RELAY_URL  Same as --relay-url=<url>.
+///   NIGHTSHADE_RELAY_ALLOW_INSECURE_TLS=true
+///                         Same as --relay-allow-insecure-tls.
 void main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
 
@@ -99,6 +110,10 @@ void main(List<String> args) async {
   // P1-11: headless OTA update stack. Owned at the entry point so SIGINT
   // can shut both the controller and the LAN push receiver cleanly.
   UpdateStack? updateStack;
+  // v4 couch-grade remote: outbound relay uplink (optional). Owned here so
+  // SIGINT/SIGTERM tear down the WebSocket cleanly. Null unless a relay URL
+  // was supplied via --relay-url / NIGHTSHADE_RELAY_URL.
+  RelayUplink? relayUplink;
 
   try {
     final appVersion = await loadDesktopAppVersion();
@@ -160,6 +175,18 @@ void main(List<String> args) async {
     );
     runtimeLogger.info('Headless API server started',
         source: _headlessLogSource);
+
+    // v4 couch-grade remote: if a relay URL was supplied, dial OUT to the
+    // self-hosted relay and proxy the loopback headless API through it so the
+    // rig is reachable from anywhere with no port-forwarding. End-to-end auth
+    // stays the existing pairing token / HMAC, which the relay never sees in
+    // plaintext. Failures are logged-and-continue: the LAN/mDNS path is
+    // unaffected if the relay is down.
+    relayUplink = await _startRelayUplink(
+      args: args,
+      logger: runtimeLogger,
+      localPort: apiServer.actualPort,
+    );
 
     // P1-6: register `_nightshade._tcp` via mDNS. This MUST happen after
     // `apiServer.start()` so the advertised port is the actually-bound one
@@ -236,6 +263,18 @@ void main(List<String> args) async {
     } catch (e, st) {
       runtimeLogger.error(
         'Failed to mount notification router: $e\n$st',
+        source: _headlessLogSource,
+      );
+    }
+
+    // v4 couch-grade remote: eager-mount Home Assistant MQTT discovery —
+    // a headless appliance is exactly where the observatory should show
+    // up as native HA entities. No-op until enabled in settings.
+    try {
+      container.read(homeAssistantDiscoveryProvider);
+    } catch (e, st) {
+      runtimeLogger.error(
+        'Failed to mount Home Assistant discovery: $e\n$st',
         source: _headlessLogSource,
       );
     }
@@ -340,6 +379,10 @@ void main(List<String> args) async {
       // already swallowed and logged by the class itself.
       await _mdnsRegistration?.stop();
       _mdnsRegistration = null;
+      // Drop the relay uplink BEFORE the HTTP server so in-flight tunnelled
+      // streams fail fast instead of dangling on a port that's about to close.
+      await relayUplink?.stop();
+      relayUplink = null;
       // P1-11: detach the update controller from the server BEFORE
       // stopping it so the controller's event subscription is cancelled
       // cleanly. The stack dispose call below then closes the controller
@@ -389,6 +432,8 @@ void main(List<String> args) async {
     diskGuard?.stop();
     await _mdnsRegistration?.stop();
     _mdnsRegistration = null;
+    await relayUplink?.stop();
+    relayUplink = null;
     apiServer?.setUpdateController(null);
     await apiServer?.stop();
     await updateStack?.dispose();
@@ -895,6 +940,96 @@ Future<StreamSubscription<DiskSpaceWatchdogEvent>?> _startDiskSpaceWatchdog({
 String _redactToken(String token) {
   if (token.length <= 8) return '*' * token.length;
   return '${token.substring(0, 4)}...${token.substring(token.length - 4)}';
+}
+
+/// v4 couch-grade remote: start the outbound relay uplink if a relay URL was
+/// supplied (`--relay-url=<url>` / `NIGHTSHADE_RELAY_URL`). Returns null when
+/// no relay is configured. Never throws — relay is strictly additive on top
+/// of the LAN/mDNS path, so a misconfigured or unreachable relay must not stop
+/// the daemon from coming up.
+///
+/// The minted appliance id + secret persist in `relay_credentials.json` under
+/// the application-support directory so the rig keeps the same id across
+/// restarts. The secret authenticates the appliance to the relay only; phone
+/// authentication remains the end-to-end pairing token the relay never sees.
+Future<RelayUplink?> _startRelayUplink({
+  required List<String> args,
+  required LoggingService logger,
+  required int localPort,
+}) async {
+  String? relayUrlRaw = _trimToNull(Platform.environment['NIGHTSHADE_RELAY_URL']);
+  for (final arg in args) {
+    if (arg.startsWith('--relay-url=')) {
+      relayUrlRaw = _trimToNull(arg.substring('--relay-url='.length));
+    }
+  }
+  if (relayUrlRaw == null) return null;
+
+  // Off by default: only trust a self-signed relay cert when the operator
+  // explicitly opts in (relays they run themselves before getting a real cert).
+  final allowInsecureTls = args.contains('--relay-allow-insecure-tls') ||
+      _envFlag('NIGHTSHADE_RELAY_ALLOW_INSECURE_TLS');
+
+  final Uri relayUrl;
+  try {
+    relayUrl = RelayUplink.normalizeRelayUrl(Uri.parse(relayUrlRaw));
+  } catch (e) {
+    logger.error(
+      'Invalid relay URL "$relayUrlRaw": $e. Relay disabled; LAN access '
+      'unaffected.',
+      source: _headlessLogSource,
+    );
+    return null;
+  }
+
+  final appData = await getApplicationSupportDirectory();
+  final credentialsPath =
+      '${appData.path}${Platform.pathSeparator}relay_credentials.json';
+
+  final uplink = RelayUplink(
+    relayUrl: relayUrl,
+    localPort: localPort,
+    credentialsStore: FileRelayCredentialsStore(credentialsPath),
+    allowBadTlsCertificate: allowInsecureTls,
+    onLog: (message) =>
+        logger.info('[relay] $message', source: _headlessLogSource),
+    onStatus: (status) {
+      switch (status.state) {
+        case RelayUplinkState.connected:
+          final id = status.applianceId;
+          logger.info(
+            'Relay uplink connected. Appliance id: $id — enter this id plus '
+            'the relay URL in the mobile app to connect from anywhere.',
+            source: _headlessLogSource,
+          );
+          if (id != null) {
+            stdout.writeln('Relay connected — appliance id: $id');
+          }
+        case RelayUplinkState.authFailed:
+          logger.error(
+            'Relay rejected stored credentials (${status.lastError}). '
+            'Delete $credentialsPath to mint a new appliance id, or restore '
+            'the relay state file.',
+            source: _headlessLogSource,
+          );
+        case RelayUplinkState.waitingToRetry:
+          logger.warning(
+            'Relay uplink retrying (${status.lastError})',
+            source: _headlessLogSource,
+          );
+        case RelayUplinkState.stopped:
+        case RelayUplinkState.connecting:
+        case RelayUplinkState.registering:
+          break;
+      }
+    },
+  );
+  uplink.start();
+  logger.info(
+    'Relay uplink starting -> $relayUrl (proxying loopback port $localPort)',
+    source: _headlessLogSource,
+  );
+  return uplink;
 }
 
 DiscoveryBroadcaster? _discoverySocket;

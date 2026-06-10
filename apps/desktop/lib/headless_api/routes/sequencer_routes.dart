@@ -108,6 +108,8 @@ List<HeadlessRoute> buildSequencerRoutes(SequencerHandlers h) =>
           h.handleSequencerDiscardCheckpoint),
       HeadlessRoute(HttpMethod.post, '/api/sequencer/checkpoint/save',
           h.handleSequencerSaveCheckpoint),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/meridian-flip',
+          h.handlePerformMeridianFlip),
 
       // Wave 4 Recovery Mode — remote-control endpoints used by the
       // mobile companion / web dashboard. Wire shape matches
@@ -137,4 +139,12 @@ List<HeadlessRoute> buildSequencerRoutes(SequencerHandlers h) =>
           h.handleSequencerUpdateConditionsScore),
       HeadlessRoute(HttpMethod.get, '/api/sequencer/adaptive-swap',
           h.handleSequencerGetAdaptiveSwap),
+
+      // Dual-rig / secondary (piggyback) camera — monitor + control.
+      HeadlessRoute(HttpMethod.get, '/api/sequencer/secondary-rig',
+          h.handleSecondaryRigStatus),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/secondary-rig/start',
+          h.handleSecondaryRigStart),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/secondary-rig/stop',
+          h.handleSecondaryRigStop),
     ];

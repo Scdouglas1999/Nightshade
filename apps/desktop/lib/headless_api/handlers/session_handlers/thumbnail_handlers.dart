@@ -220,7 +220,7 @@ extension SessionThumbnailHandlers on SessionHandlers {
     if (mgr == null) {
       // The job manager is constructed by the headless server and wired
       // into SessionHandlers when present. A missing manager means the
-      // server was bootstrapped without job support â€” surface a 503 so
+      // server was bootstrapped without job support — surface a 503 so
       // the operator/client knows to retry against a properly-configured
       // build rather than silently sidestepping cancellation/progress.
       return jsonServiceUnavailable({
@@ -264,7 +264,7 @@ extension SessionThumbnailHandlers on SessionHandlers {
                   : canonical;
 
           if (candidatePath != null && await File(candidatePath).exists()) {
-            // Already-present sidecar â€” make sure the DB stamp matches
+            // Already-present sidecar — make sure the DB stamp matches
             // the on-disk location so subsequent GETs hit it directly.
             if (stampedSidecar != candidatePath) {
               await database.imagesDao.setThumbnailPath(row.id, candidatePath);
@@ -303,7 +303,7 @@ extension SessionThumbnailHandlers on SessionHandlers {
               timeSinceLast >= const Duration(milliseconds: 1000)) {
             sink.update(
               total == 0 ? 1.0 : processed / total,
-              'Processed $processed of $total â€” ${row.filePath}',
+              'Processed $processed of $total — ${row.filePath}',
             );
             lastEmit = now;
           }
@@ -325,7 +325,7 @@ extension SessionThumbnailHandlers on SessionHandlers {
     });
   }
 
-  /// P0-5 â€” FITS download with HTTP Range support (RFC 7233).
+  /// P0-5 — FITS download with HTTP Range support (RFC 7233).
   ///
   /// Mobile clients on flaky cellular need partial-content resumption;
   /// a 30 MB FITS that dropped at byte 27 MB was previously unrecoverable
@@ -338,7 +338,7 @@ extension SessionThumbnailHandlers on SessionHandlers {
   /// An `etag` of `"<imageId>-<mtime-ms>"` lets the client validate the
   /// resource hasn't changed between resume attempts via `If-Range`.
   /// Multi-range (`bytes=0-499,1000-1499`) is explicitly rejected with
-  /// 416 â€” out of scope per P0-5.
+  /// 416 — out of scope per P0-5.
   Future<Response> handleDownloadImage(Request request, String imageId) async {
     final iid = _parsePathId(imageId, 'imageId');
     _logInfo('[API] GET /api/images/$iid/download');
@@ -362,7 +362,7 @@ extension SessionThumbnailHandlers on SessionHandlers {
     // Stat the file. A permission-denied here is a 403; a generic I/O
     // error is a 500. We deliberately surface these rather than letting
     // the middleware turn everything into a 500 (CLAUDE.md: "errors are
-    // a feature" â€” distinguish real failure modes).
+    // a feature" — distinguish real failure modes).
     final int fileLength;
     final DateTime mtime;
     try {
@@ -414,7 +414,7 @@ extension SessionThumbnailHandlers on SessionHandlers {
     final ifRange = request.headers['if-range'];
 
     // If the caller passes If-Range but it doesn't match our current
-    // etag, RFC 7233 Â§3.2 says we MUST ignore the Range header and
+    // etag, RFC 7233 §3.2 says we MUST ignore the Range header and
     // return the full body. Strong-validator semantics (etag must match
     // exactly, weak etags like `W/"..."` are deliberately not generated
     // here so we don't have to handle weak matching).
@@ -452,7 +452,7 @@ extension SessionThumbnailHandlers on SessionHandlers {
     }
 
     // File.openRead's `end` parameter is exclusive; the Range header
-    // bounds are inclusive â€” convert here.
+    // bounds are inclusive — convert here.
     final body = file.openRead(rangeStart, rangeEnd + 1);
     return partialContentResponse(
       body,

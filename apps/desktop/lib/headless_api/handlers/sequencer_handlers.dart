@@ -1,6 +1,7 @@
 ﻿import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
@@ -38,7 +39,7 @@ class SequencerHandlers {
 
   /// Start the sequencer via the canonical [SequenceExecutor.start] path.
   ///
-  /// Audit C3 â€” historical bug: this handler called
+  /// Audit C3 — historical bug: this handler called
   /// `backend.sequencerStart()` directly, bypassing the executor entirely.
   /// That skipped pre-flight validation, the session row, the
   /// sequence_runs row, the checkpoint timer, the disk-space watchdog,
@@ -77,14 +78,14 @@ class SequencerHandlers {
 
   /// Stop the sequencer via the canonical [SequenceExecutor.stop] path.
   ///
-  /// Audit C3 â€” historical bug: this handler bypassed the executor and
+  /// Audit C3 — historical bug: this handler bypassed the executor and
   /// only called `backend.sequencerStop()`, leaving the session row, run
   /// row, and progress timers dangling. It also discarded the checkpoint
   /// unconditionally with no way for the operator to opt out.
   ///
   /// The new wire contract accepts an optional `preserveCheckpoint`
   /// boolean (defaults to `true` for parity with the desktop Stop
-  /// button â€” operator-initiated stops keep the resume point). Callers
+  /// button — operator-initiated stops keep the resume point). Callers
   /// that want a destructive reset-style stop pass `false`.
   Future<Response> handleSequencerStop(Request request) async {
     _logInfo('[API] POST /api/sequencer/stop');
@@ -95,7 +96,7 @@ class SequencerHandlers {
       try {
         decoded = jsonDecode(body);
       } on FormatException {
-        // Legacy clients post an empty / non-JSON body â€” we silently
+        // Legacy clients post an empty / non-JSON body — we silently
         // fall back to the default so the wire contract stays
         // backward-compatible. Any caller intending to set the flag
         // must send a JSON object.
@@ -358,7 +359,7 @@ class SequencerHandlers {
     _logInfo('[API] POST /api/sequencer/update-filter-offsets');
     final payload = await readJsonObject(request);
     final rawOffsets = payload['offsets'];
-    // Why: same as set-devices â€” Dart's Map<String,int> can't be expressed
+    // Why: same as set-devices — Dart's Map<String,int> can't be expressed
     // through requireList; we validate per-entry to give callers a precise
     // error path rather than a generic ClassCastException.
     final offsets = <String, int>{};
@@ -522,9 +523,34 @@ class SequencerHandlers {
 
   Future<Response> handleSequencerResumeFromCheckpoint(Request request) async {
     _logInfo('[API] POST /api/sequencer/checkpoint/resume');
-    final backend = container.read(sequencerBackendProvider);
-    await backend.resumeFromCheckpoint();
+    // Route through the SequenceExecutor provider — it re-seeds the runtime
+    // config from current settings and issues the sequencerStart() that
+    // actually begins execution. The raw backend resumeFromCheckpoint()
+    // only prepares the native tree and leaves the executor idle.
+    await container.read(sequenceExecutorProvider).resumeFromCheckpoint();
     return jsonOk({'status': 'resumed'});
+  }
+
+  Future<Response> handlePerformMeridianFlip(Request request) async {
+    _logInfo('[API] POST /api/sequencer/meridian-flip');
+    final payload = await readJsonObject(request);
+    final backend = container.read(sequencerBackendProvider);
+    await backend.performMeridianFlip(
+      mountId: requireString(payload, 'mountId'),
+      cameraId: payload['cameraId'] as String?,
+      focuserId: payload['focuserId'] as String?,
+      coverCalibratorId: payload['coverCalibratorId'] as String?,
+      targetName: requireString(payload, 'targetName'),
+      targetRaHours: (payload['targetRaHours'] as num).toDouble(),
+      targetDecDegrees: (payload['targetDecDegrees'] as num).toDouble(),
+      pauseGuiding: payload['pauseGuiding'] as bool? ?? true,
+      autoCenter: payload['autoCenter'] as bool? ?? true,
+      refocusAfter: payload['refocusAfter'] as bool? ?? false,
+      resumeGuiding: payload['resumeGuiding'] as bool? ?? true,
+      settleTimeSecs:
+          (payload['settleTimeSecs'] as num?)?.toDouble() ?? 10.0,
+    );
+    return jsonOk({'status': 'flipped'});
   }
 
   Future<Response> handleSequencerDiscardCheckpoint(Request request) async {
@@ -542,7 +568,7 @@ class SequencerHandlers {
   }
 
   // ==========================================================================
-  // Wave 4 Recovery Mode â€” HTTP handlers
+  // Wave 4 Recovery Mode — HTTP handlers
   // ==========================================================================
   //
   // These mirror the NetworkBackend client calls in
@@ -597,7 +623,7 @@ class SequencerHandlers {
     return jsonOk({'status': 'ok'});
   }
 
-  /// GET â€” snapshot the current in-flight recovery context as a JSON
+  /// GET — snapshot the current in-flight recovery context as a JSON
   /// string. Returns `{"context": null}` when not recovering and
   /// `{"context": "<json>"}` while recovering. The wrapped-string shape
   /// matches what `NetworkBackend.getCurrentRecoveryJson` expects.
@@ -607,7 +633,7 @@ class SequencerHandlers {
     return jsonOk({'context': ctx});
   }
 
-  /// GET â€” dump every completed recovery loop in the current run. Returns
+  /// GET — dump every completed recovery loop in the current run. Returns
   /// `{"history": "<json-array-string>"}`. Empty array `[]` when no
   /// recoveries have completed yet.
   Future<Response> handleSequencerGetRecoveryHistory(Request request) async {
@@ -616,7 +642,7 @@ class SequencerHandlers {
     return jsonOk({'history': history});
   }
 
-  /// Wave 5 Agent 4 â€” POST /api/sequencer/update-cloud-motion.
+  /// Wave 5 Agent 4 — POST /api/sequencer/update-cloud-motion.
   ///
   /// Mirrors `NetworkBackend.sequencerUpdateCloudMotion`. Forwards the
   /// payload into the local executor; remote controllers running the
@@ -658,7 +684,7 @@ class SequencerHandlers {
     return jsonOk({'status': 'ok'});
   }
 
-  /// Wave 5 Agent 4 â€” GET /api/sequencer/cloud-motion.
+  /// Wave 5 Agent 4 — GET /api/sequencer/cloud-motion.
   ///
   /// Returns `{"cloud_motion": "<json>"}` (or `null`) so the remote run
   /// dashboard can render the same panel as the local one.
@@ -668,7 +694,7 @@ class SequencerHandlers {
     return jsonOk({'cloud_motion': json});
   }
 
-  /// Wave 8 â€” POST /api/sequencer/update-conditions-score.
+  /// Wave 8 — POST /api/sequencer/update-conditions-score.
   ///
   /// Remote controllers push the same composite sky-conditions score the
   /// local adaptive-swap driver would send through FFI. `score: null`
@@ -693,7 +719,7 @@ class SequencerHandlers {
     return jsonOk({'status': 'ok'});
   }
 
-  /// Wave 8 â€” GET /api/sequencer/adaptive-swap.
+  /// Wave 8 — GET /api/sequencer/adaptive-swap.
   ///
   /// Returns a structured snapshot so remote dashboards do not have to parse
   /// the native JSON string format.
@@ -703,7 +729,105 @@ class SequencerHandlers {
     return jsonOk({'adaptive_swap': snapshot?.toJson()});
   }
 
-  /// Wave 5 Agent 4 â€” narrow helper: pull an optional double out of the
+  // ===========================================================================
+  // Dual-rig / secondary (piggyback) camera — monitoring + control.
+  //
+  // Lets a remote dashboard observe and drive the secondary capture loop. The
+  // dither coordination is enforced natively (the primary's dither call sites
+  // gate on the shared barrier), so these endpoints are thin wrappers over the
+  // FRB bindings.
+  // ===========================================================================
+
+  /// GET /api/sequencer/secondary-rig — live status snapshot of the secondary
+  /// rig (or `{armed: false}` when none is running).
+  Future<Response> handleSecondaryRigStatus(Request request) async {
+    final s = await bridge_api.apiSecondaryRigGetStatus();
+    return jsonOk({
+      'armed': s.armed,
+      'running': s.running,
+      'cameraId': s.cameraId,
+      'rigLabel': s.rigLabel,
+      'framesCaptured': s.framesCaptured,
+      'framesAborted': s.framesAborted,
+      'plannedFrames': s.plannedFrames,
+      'waitingForDither': s.waitingForDither,
+      'exposing': s.exposing,
+      'ditherPending': s.ditherPending,
+      'forcedProceeds': s.forcedProceeds,
+      'lastError': s.lastError,
+    });
+  }
+
+  /// POST /api/sequencer/secondary-rig/start — arm + start the secondary loop.
+  ///
+  /// Body: { cameraId (required), exposureSecs (required), gain?, offset?,
+  /// binX?, binY?, frameCount?, filterName?, targetTempC?, rigLabel?,
+  /// ditherMaxWaitSecs?, inFlightPolicy?, saveBasePath?, targetName?,
+  /// targetRaHours?, targetDecDegrees? }.
+  Future<Response> handleSecondaryRigStart(Request request) async {
+    _logInfo('[API] POST /api/sequencer/secondary-rig/start');
+    final body = await request.readAsString();
+    final decoded = body.isEmpty ? null : jsonDecode(body);
+    if (decoded is! Map<String, dynamic>) {
+      throw BadRequestError(field: 'body', expected: 'JSON object');
+    }
+    final cameraId = decoded['cameraId'];
+    if (cameraId is! String || cameraId.trim().isEmpty) {
+      throw BadRequestError(field: 'cameraId', expected: 'non-empty string');
+    }
+    final exposure = _readNullableDouble(decoded, 'exposureSecs');
+    if (exposure == null || exposure <= 0) {
+      throw BadRequestError(field: 'exposureSecs', expected: 'positive number');
+    }
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'sequencer.secondaryRig.start',
+    );
+    await bridge_api.apiSecondaryRigStart(
+      config: bridge_api.SecondaryRigConfigApi(
+        cameraId: cameraId,
+        exposureSecs: exposure,
+        gain: (decoded['gain'] as num?)?.toInt(),
+        offset: (decoded['offset'] as num?)?.toInt(),
+        binX: (decoded['binX'] as num?)?.toInt() ?? 1,
+        binY: (decoded['binY'] as num?)?.toInt() ?? 1,
+        frameCount: (decoded['frameCount'] as num?)?.toInt(),
+        filterName: decoded['filterName'] as String?,
+        targetTempC: _readNullableDouble(decoded, 'targetTempC'),
+        rigLabel: (decoded['rigLabel'] as String?) ?? 'Secondary',
+        ditherMaxWaitSecs:
+            _readNullableDouble(decoded, 'ditherMaxWaitSecs') ?? 30.0,
+        inFlightPolicy:
+            (decoded['inFlightPolicy'] as String?) ?? 'complete_if_short',
+        saveBasePath: decoded['saveBasePath'] as String?,
+        targetName: decoded['targetName'] as String?,
+        targetRaHours: _readNullableDouble(decoded, 'targetRaHours'),
+        targetDecDegrees: _readNullableDouble(decoded, 'targetDecDegrees'),
+        observerName: decoded['observerName'] as String?,
+        siteLatitudeDeg: _readNullableDouble(decoded, 'siteLatitudeDeg'),
+        siteLongitudeDeg: _readNullableDouble(decoded, 'siteLongitudeDeg'),
+        siteElevationM: _readNullableDouble(decoded, 'siteElevationM'),
+      ),
+    );
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'started',
+    });
+  }
+
+  /// POST /api/sequencer/secondary-rig/stop — stop the secondary loop.
+  Future<Response> handleSecondaryRigStop(Request request) async {
+    _logInfo('[API] POST /api/sequencer/secondary-rig/stop');
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'sequencer.secondaryRig.stop',
+    );
+    await bridge_api.apiSecondaryRigStop();
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'stopped',
+    });
+  }
+
+  /// Wave 5 Agent 4 — narrow helper: pull an optional double out of the
   /// JSON payload, accepting either `num` or `null`. Lives next to the
   /// handler that needs it instead of in the shared helpers because no
   /// other endpoint currently surfaces optional doubles.

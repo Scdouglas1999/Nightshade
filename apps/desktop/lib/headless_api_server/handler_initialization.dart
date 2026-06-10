@@ -2,16 +2,16 @@ part of '../headless_api_server.dart';
 
 extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
   void _initializeHandlers() {
-    // P1-2 / P1-3 â€” job manager. Constructed BEFORE the device/imaging/
+    // P1-2 / P1-3 — job manager. Constructed BEFORE the device/imaging/
     // framing/session handlers so they can be wired to it. broadcastEvent
     // is a method on this class so we can pass the bound reference even
-    // though the server hasn't bound a socket yet â€” the event stream
+    // though the server hasn't bound a socket yet — the event stream
     // becomes active in start().
     _jobManager = JobManager(
       emitEvent: broadcastEvent,
     );
 
-    // P1-5 â€” session ownership manager. The digest function reuses the
+    // P1-5 — session ownership manager. The digest function reuses the
     // existing `computeServerFingerprint` helper so token-digest values
     // share the same domain-separated SHA-256 prefix as everywhere else
     // we hash a credential.
@@ -109,6 +109,7 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     _suggestionHandlers = SuggestionHandlers(container);
     _transientHandlers = TransientHandlers(container);
     _backupHandlers = BackupHandlers(container);
+    _syncHandlers = SyncHandlers(container);
     _framingHandlers = FramingHandlers(
       container,
       jobManager: _jobManager,
@@ -128,7 +129,7 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
     _schedulerHandlers = SchedulerHandlers(container);
     _focusModelHandlers = FocusModelHandlers(container);
 
-    // Wave 6 â€” broadcast controller that fans out NightshadeEvents from
+    // Wave 6 — broadcast controller that fans out NightshadeEvents from
     // the backend stream to every connected SSE subscriber. Created here
     // (rather than in `start()`) so it can be passed to the handler ctor
     // and survive a stop()/start() pair without rebuilding the handler.
@@ -138,13 +139,13 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
       eventBroadcast: _runWatchEventBroadcast!.stream,
     );
 
-    // Wave 7 Agent 2 â€” broadcast endpoint handler (live-stacking
+    // Wave 7 Agent 2 — broadcast endpoint handler (live-stacking
     // viewer for EAA / outreach). Lives independently of the run-watch
     // surface because the broadcast is public-by-default whereas
     // run-watch is paired-only.
     _broadcastHandlers = BroadcastHandlers(container: container);
 
-    // P2-10 â€” Hub owns the producer loop + subscriber registry across
+    // P2-10 — Hub owns the producer loop + subscriber registry across
     // socket churn so we never lose the "is anyone listening?" signal
     // between client reconnects. The handler is a thin wrapper that
     // exposes the WS upgrade callback to the router.
@@ -154,7 +155,7 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
       hub: _liveViewStreamHub,
     );
 
-    // Wave 7A â€” WebRTC live-view fan-out. Each session attaches to the
+    // Wave 7A — WebRTC live-view fan-out. Each session attaches to the
     // SAME hub via attachRaw with a custom sink that pushes binary
     // frames into an outbound RTCDataChannel. No re-encode, no second
     // producer loop.
@@ -163,16 +164,21 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
       hub: _liveViewStreamHub,
     );
 
-    // P1-14 â€” remote log retrieval/tail for mobile operators on
+    // P1-14 — remote log retrieval/tail for mobile operators on
     // headless deployments (Pi/embedded). The handler is stateless
     // beyond what's in the LoggingService it reads from the container.
     _logHandlers = LogHandlers(container);
 
-    // P1-10 â€” remote calibration library management. Stateless beyond the
+    // P1-10 — remote calibration library management. Stateless beyond the
     // DAOs it reads from the container; no upstream service to dispose.
     _calibrationHandlers = CalibrationHandlers(container);
 
-    // P1-12 â€” catalog management. The handler dispatches long-running
+    // v46 — unified Calibration Library Manager (browse / match / tag).
+    // Stateless beyond the CalibrationLibraryService it reads off the
+    // container.
+    _calibrationLibraryHandlers = CalibrationLibraryHandlers(container);
+
+    // P1-12 — catalog management. The handler dispatches long-running
     // downloads through the JobManager so the action POST returns
     // {jobId} immediately. Catalog lifecycle events are bridged onto
     // the WS event stream in start() below.
@@ -181,20 +187,20 @@ extension _HeadlessApiServerHandlerInitialization on HeadlessApiServer {
       logger: container.read(loggingServiceProvider),
     );
 
-    // P2-8 â€” db read endpoints. Reads from existing DAOs; no service
+    // P2-8 — db read endpoints. Reads from existing DAOs; no service
     // dependency, so construction is trivial.
     _dbReadHandlers = DbReadHandlers(container);
 
-    // P2-11 â€” plugin management endpoints. The service is fetched from
+    // P2-11 — plugin management endpoints. The service is fetched from
     // the container so test fixtures can override
     // `pluginManagementServiceProvider` to point at a temp directory.
     _pluginHandlers = PluginHandlers(container);
 
-    // P1-2 / P1-3 â€” REST surface for the JobManager that was constructed
+    // P1-2 / P1-3 — REST surface for the JobManager that was constructed
     // earlier (before the device handlers so they could be wired).
     _jobHandlers = JobHandlers(jobManager: _jobManager);
 
-    // P1-5 â€” REST surface for the SessionOwnershipManager.
+    // P1-5 — REST surface for the SessionOwnershipManager.
     _sessionOwnershipHandlers = SessionOwnershipHandlers(
       manager: _sessionOwnership,
       tokenResolver: _extractBearerToken,

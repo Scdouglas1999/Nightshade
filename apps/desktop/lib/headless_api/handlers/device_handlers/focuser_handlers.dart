@@ -66,8 +66,8 @@ extension FocuserDeviceHandlers on DeviceHandlers {
     // P1-4: register the command so any later event with a matching
     // operation kind picks up `correlatingCommandId`. We still register
     // even in the new job-model path because the event correlator's
-    // matching is independent of the job's own jobId â€” they evolve in
-    // parallel (the audit's Â§3 lays out the rationale).
+    // matching is independent of the job's own jobId — they evolve in
+    // parallel (the audit's §3 lays out the rationale).
     final commandId = commandCorrelator?.beginCommand(
       operation: 'focuser.autofocus.start',
       deviceId: deviceId,
@@ -89,7 +89,7 @@ extension FocuserDeviceHandlers on DeviceHandlers {
           sink.update(null, 'Starting autofocus');
           final backend = container.read(deviceBackendProvider);
           // The backend call is currently a long synchronous FFI
-          // operation â€” see audit Q6 â€” so cooperative cancellation has
+          // operation — see audit Q6 — so cooperative cancellation has
           // to wait for it to return. We race the work against the
           // cancellation token so the JobManager can flag the job as
           // cancelled even though the FFI side keeps running. A future

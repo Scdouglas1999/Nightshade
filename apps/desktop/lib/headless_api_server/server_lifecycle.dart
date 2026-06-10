@@ -4,7 +4,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
   Future<void> _startServer() async {
     final router = Router();
 
-    // Route table â€” per-domain declarative lists live under
+    // Route table — per-domain declarative lists live under
     // `headless_api/routes/`. Each handler class has a sibling
     // `routes/<name>_routes.dart` exporting a top-level
     // `build<Name>Routes(handler)`. The order below MIRRORS the
@@ -40,6 +40,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       ...buildSuggestionRoutes(_suggestionHandlers),
       ...buildTransientRoutes(_transientHandlers),
       ...buildBackupRoutes(_backupHandlers),
+      ...buildSyncRoutes(_syncHandlers),
       ...buildFramingRoutes(_framingHandlers),
       ...buildPlanetariumRoutes(_planetariumHandlers),
       ...buildDomeRoutes(_domeHandlers),
@@ -51,11 +52,11 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       ...buildSessionOwnershipRoutes(_sessionOwnershipHandlers),
     ];
 
-    // P1-11 â€” OTA update routes are only registered when the host has
+    // P1-11 — OTA update routes are only registered when the host has
     // wired an UpdateController via [setUpdateController]. Tests and
     // headless deployments that opt out of OTA leave the controller
     // unset, in which case these routes return 404 from the router
-    // itself â€” matching the legacy behaviour exactly.
+    // itself — matching the legacy behaviour exactly.
     final updateHandlers = _updateHandlers;
     if (updateHandlers != null) {
       allRoutes.addAll(buildUpdateRoutes(updateHandlers));
@@ -64,16 +65,17 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     // Continue appending the remaining per-domain route lists. These
     // come AFTER the OTA block above so the relative declaration order
     // of OTA routes vs. log / calibration / catalog routes is preserved
-    // exactly â€” shelf_router matches on registration order.
+    // exactly — shelf_router matches on registration order.
     allRoutes
       ..addAll(buildRunWatchRoutes(_runWatchHandlers))
       ..addAll(buildBroadcastRoutes(_broadcastHandlers))
       ..addAll(buildLogRoutes(_logHandlers))
       ..addAll(buildCalibrationRoutes(_calibrationHandlers))
+      ..addAll(buildCalibrationLibraryRoutes(_calibrationLibraryHandlers))
       ..addAll(buildCatalogRoutes(_catalogHandlers))
       ..addAll(buildDbReadRoutes(_dbReadHandlers))
       ..addAll(buildPluginRoutes(_pluginHandlers))
-      // Wave 7A â€” WebRTC live-view signalling. Must register before
+      // Wave 7A — WebRTC live-view signalling. Must register before
       // the static-file catch-all so `/api/webrtc/live-view/*` is not
       // shadowed by the SPA fallback.
       ..addAll(buildWebRtcLiveViewRoutes(_webRtcLiveViewHandlers))
@@ -106,7 +108,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       };
     }
 
-    // P2-10 â€” push-based live-view streaming. Distinct from the main
+    // P2-10 — push-based live-view streaming. Distinct from the main
     // event WS because (a) it carries binary JPEG frames, not JSON
     // events, and (b) the message protocol is a per-socket
     // subscribe/unsubscribe model rather than the always-on event
@@ -124,7 +126,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       liveViewHandler: liveViewHandler(),
     ));
 
-    // Single dispatch point â€” `registerRoutes` walks the list once and
+    // Single dispatch point — `registerRoutes` walks the list once and
     // calls the right `router.<verb>(...)` for each entry. See
     // `routes/headless_route.dart` for the typed-list design rationale.
     registerRoutes(router, allRoutes);
@@ -232,7 +234,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
         _collaborationManager.stream.listen(_broadcastCollaborationState);
 
     // P1-19: start the LAN UDP push broadcaster (when wired). We start it
-    // only when the server is non-loopback â€” loopback-only deployments
+    // only when the server is non-loopback — loopback-only deployments
     // have no LAN to fan out on, so the bind would just waste sockets.
     final broadcaster = _lanPushBroadcaster;
     if (broadcaster != null && !bindLocalOnly && !broadcaster.isStarted) {
@@ -243,11 +245,11 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
           '(port=${broadcaster.port}, interfaces=${broadcaster.activeSinkCount})',
         );
       } catch (e, st) {
-        // Bind failure is not fatal â€” UDP push is a supplement to the WS
+        // Bind failure is not fatal — UDP push is a supplement to the WS
         // fan-out. Surface a warning so the operator knows phones won't
         // wake on critical alerts when the WS is broken.
         _logWarning(
-          '[push] LAN push broadcaster failed to start: $e\n$st â€” '
+          '[push] LAN push broadcaster failed to start: $e\n$st — '
           'critical alerts will only reach phones via the WebSocket.',
         );
       }
@@ -263,7 +265,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
   /// `_pairedSessionTokens` map. Without this, every server restart evicts
   /// every HTTP-paired client (audit F-3 in 01-connection-auth.md). The
   /// hydrated scope is heuristic: the DB doesn't currently store the granted
-  /// scope per device, so we default to `control` â€” the same default the
+  /// scope per device, so we default to `control` — the same default the
   /// verify path uses when `requestedScope` is unset. Operators who pair as
   /// admin must re-pair if they want admin again after the next restart;
   /// this matches the verify-path default and is documented in the
@@ -274,7 +276,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
     // DB) or lazily constructed via [_ensurePairingService] on first use.
     // Constructing it eagerly inside `start()` would force every test that
     // does NOT exercise pairing to open the on-disk Drift DB, which in
-    // turn needs path_provider â€” which is unavailable in widget-test
+    // turn needs path_provider — which is unavailable in widget-test
     // bindings. The verify endpoint still lazy-creates the service on
     // first paired call.
     final service = _pairingService;
@@ -289,7 +291,7 @@ extension _HeadlessApiServerLifecycle on HeadlessApiServer {
       final rows = await service.tokenManager.getActiveUnexpiredPairedDevices();
       var restored = 0;
       for (final row in rows) {
-        // Default to `control` scope â€” see method-doc rationale above.
+        // Default to `control` scope — see method-doc rationale above.
         _pairedSessionTokens[row.sessionToken] = HeadlessTokenScope.control;
         restored++;
       }

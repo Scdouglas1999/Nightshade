@@ -21,7 +21,7 @@ extension DeviceConnectionHandlers on DeviceHandlers {
   //
   // It also left the per-device-type StateNotifier (`cameraStateProvider`,
   // `mountStateProvider`, ...) untouched, so any local UI listening to the
-  // Riverpod state still believed nothing was connected â€” exactly the same
+  // Riverpod state still believed nothing was connected — exactly the same
   // failure mode we just fixed for sequencer start (audit C3).
   //
   // The fix routes every connect through `DeviceService.connect<Type>` so
@@ -65,7 +65,7 @@ extension DeviceConnectionHandlers on DeviceHandlers {
         },
       );
     } catch (e, stackTrace) {
-      // The connect threw after passing discovery â€” most likely the
+      // The connect threw after passing discovery — most likely the
       // underlying driver refused (cable unplugged, ASCOM driver not
       // installed, INDI server unreachable, etc.). Surface a 502 with the
       // service's own message so the remote operator sees the same

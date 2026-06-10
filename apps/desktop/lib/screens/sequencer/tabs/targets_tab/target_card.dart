@@ -108,21 +108,29 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                         children: [
                           Row(
                             children: [
-                              Text(
-                                widget.target.catalogId ?? widget.target.name,
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w700,
-                                  color: widget.colors.textPrimary,
+                              Flexible(
+                                child: Text(
+                                  widget.target.catalogId ?? widget.target.name,
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: widget.colors.textPrimary,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                  maxLines: 1,
                                 ),
                               ),
                               if (widget.target.catalogId != null) ...[
                                 const SizedBox(width: 8),
-                                Text(
-                                  widget.target.name,
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: widget.colors.textSecondary,
+                                Flexible(
+                                  child: Text(
+                                    widget.target.name,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: widget.colors.textSecondary,
+                                    ),
+                                    overflow: TextOverflow.ellipsis,
+                                    maxLines: 1,
                                   ),
                                 ),
                               ],
@@ -154,7 +162,9 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          Row(
+                          Wrap(
+                            spacing: 16,
+                            runSpacing: 4,
                             children: [
                               _InfoChip(
                                 colors: widget.colors,
@@ -162,30 +172,25 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                                 value: CoordinateFormat.ra(widget.target.ra,
                                     seconds: SecondsPrecision.integerRounded),
                               ),
-                              const SizedBox(width: 16),
                               _InfoChip(
                                 colors: widget.colors,
                                 label: 'Dec',
                                 value: CoordinateFormat.dec(widget.target.dec,
                                     seconds: SecondsPrecision.integerRounded),
                               ),
-                              if (widget.target.magnitude != null) ...[
-                                const SizedBox(width: 16),
+                              if (widget.target.magnitude != null)
                                 _InfoChip(
                                   colors: widget.colors,
                                   label: 'Mag',
                                   value: widget.target.magnitude!
                                       .toStringAsFixed(1),
                                 ),
-                              ],
-                              if (widget.target.constellation != null) ...[
-                                const SizedBox(width: 16),
+                              if (widget.target.constellation != null)
                                 _InfoChip(
                                   colors: widget.colors,
                                   label: 'Con',
                                   value: widget.target.constellation!,
                                 ),
-                              ],
                             ],
                           ),
                         ],

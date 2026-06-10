@@ -1,4 +1,4 @@
-// Auth tokens must be printed to stdout transiently (NOT logged to file â€”
+// Auth tokens must be printed to stdout transiently (NOT logged to file —
 // see the security rationale around _logWarning below). These two prints
 // are the only legitimate stdout writes in this file.
 // ignore_for_file: avoid_print
@@ -58,7 +58,7 @@ class HeadlessApiServer {
   /// the authenticated bearer token. Set by [_authMiddleware] once a token
   /// resolves to a valid scope; consumed by the rate limiter and the
   /// WebSocket upgrade path. We never propagate the raw token through the
-  /// request context â€” only the digest â€” so a misbehaving handler that
+  /// request context — only the digest — so a misbehaving handler that
   /// dumps `request.context` for diagnostics cannot accidentally leak the
   /// secret to a log file.
   static const _authIdentityContextKey = ctx.authIdentityContextKey;
@@ -93,7 +93,7 @@ class HeadlessApiServer {
   /// (beyond same-origin to the bound host:port). Pass as e.g.
   /// `['http://192.168.1.50:3000']`. Why explicit list: the previous policy
   /// reflected any origin matching host:port, which let any local-loopback
-  /// app bypass CORS. See Â§2.27 in 2026-05-09-v250-audit-fixes.md.
+  /// app bypass CORS. See §2.27 in 2026-05-09-v250-audit-fixes.md.
   final List<String> corsAllowedOrigins;
 
   /// P0-3: when true, every successful `POST /api/pairing/start` prints the
@@ -108,7 +108,7 @@ class HeadlessApiServer {
   /// transport (HTTP + WebSocket upgrade) speaks HTTPS/WSS. Plain HTTP
   /// remains the default when null. The SHA-256 fingerprint surfaced via
   /// `/api/info` is rebased on the cert's SubjectPublicKeyInfo when this is
-  /// set â€” see [_serverFingerprint].
+  /// set — see [_serverFingerprint].
   final SecurityContext? tlsContext;
 
   /// P0-9: when TLS is active, the SHA-256 hex digest of the certificate's
@@ -129,7 +129,7 @@ class HeadlessApiServer {
   /// P2-15: SHA-256 digest of the bearer token that authenticated each
   /// connected socket. Populated at upgrade time from the request context
   /// that `_authMiddleware` stashed. Used as the canonical `viewerId` for
-  /// `collaboration.join` messages â€” any client-supplied value is ignored.
+  /// `collaboration.join` messages — any client-supplied value is ignored.
   /// Null entries are tolerated for sockets that connect when auth is
   /// disabled (no token configured); those still get a viewerId, but it
   /// falls back to whatever the client provides.
@@ -156,7 +156,7 @@ class HeadlessApiServer {
   /// endpoints without exhausting one shared counter, while still being
   /// throttled if it floods one route class. Keys are derived from the
   /// auth-identity digest computed by [_authMiddleware]; unauthenticated
-  /// requests bypass this limiter (they never reach it â€” auth rejects
+  /// requests bypass this limiter (they never reach it — auth rejects
   /// them first) so we can rely on a non-null token id at this point.
   final route_metadata.TokenBucketRateLimiter _tokenBucketLimiter =
       route_metadata.TokenBucketRateLimiter();
@@ -275,6 +275,8 @@ class HeadlessApiServer {
   late final SuggestionHandlers _suggestionHandlers;
   late final TransientHandlers _transientHandlers;
   late final BackupHandlers _backupHandlers;
+  // Cloud backup/sync — status + push-now (config lives in desktop settings).
+  late final SyncHandlers _syncHandlers;
   late final FramingHandlers _framingHandlers;
   late final FileSystemHandlers _fileSystemHandlers;
   late final ScienceHandlers _scienceHandlers;
@@ -291,7 +293,7 @@ class HeadlessApiServer {
   late final SchedulerHandlers _schedulerHandlers;
   late final FocusModelHandlers _focusModelHandlers;
 
-  // Wave 6 â€” Run-Watch (phone/tablet monitoring).
+  // Wave 6 — Run-Watch (phone/tablet monitoring).
   // The handler exposes /api/run-watch/{snapshot,frame-thumbnail,events}.
   // Backed by a fan-out broadcast stream over `backend.eventStream` so the
   // SSE handler can have any number of concurrent phone clients without
@@ -299,53 +301,58 @@ class HeadlessApiServer {
   late final RunWatchHandlers _runWatchHandlers;
   StreamController<NightshadeEvent>? _runWatchEventBroadcast;
 
-  // Wave 7 Agent 2 â€” live-stacking broadcast endpoints.
+  // Wave 7 Agent 2 — live-stacking broadcast endpoints.
   late final BroadcastHandlers _broadcastHandlers;
 
-  // P2-10 â€” push-based live-view streaming over /ws/live-view. Backed by
+  // P2-10 — push-based live-view streaming over /ws/live-view. Backed by
   // a long-lived [LiveViewStreamHub] so subscriber state survives socket
   // churn and the JPEG-encode pipeline only runs while >=1 subscriber is
   // attached.
   late final LiveViewStreamHandlers _liveViewStreamHandlers;
   late final LiveViewStreamHub _liveViewStreamHub;
 
-  // Wave 7A â€” WebRTC datachannel fan-out for the same producer. Sessions
+  // Wave 7A — WebRTC datachannel fan-out for the same producer. Sessions
   // attach to [_liveViewStreamHub] via its public attachRaw entry point
   // so we do NOT duplicate the JPEG-encode pipeline; the WebRTC handler
   // is just a parallel transport for the existing frames.
   late final WebRtcLiveViewHandlers _webRtcLiveViewHandlers;
 
-  // P1-2 / P1-3 â€” long-running job model handlers.
+  // P1-2 / P1-3 — long-running job model handlers.
   late final JobHandlers _jobHandlers;
 
-  // P1-5 â€” session ownership handlers.
+  // P1-5 — session ownership handlers.
   late final SessionOwnershipHandlers _sessionOwnershipHandlers;
 
-  // P1-14 â€” remote log retrieval + tail SSE for mobile diagnostics.
+  // P1-14 — remote log retrieval + tail SSE for mobile diagnostics.
   late final LogHandlers _logHandlers;
 
-  // P1-10 â€” remote calibration library management (darks / flats /
+  // P1-10 — remote calibration library management (darks / flats /
   // defect maps). Constructed unconditionally; the routes are always wired
   // because every deployment has the Drift tables backing them.
   late final CalibrationHandlers _calibrationHandlers;
 
-  // P1-12 â€” catalog management (download / upload / verify / uninstall /
+  // v46 — unified Calibration Library Manager (browse / match / tag) over the
+  // darks / flats / biases / defect maps. Distinct from the per-table P1-10
+  // surface above. Constructed unconditionally; routes always wired.
+  late final CalibrationLibraryHandlers _calibrationLibraryHandlers;
+
+  // P1-12 — catalog management (download / upload / verify / uninstall /
   // reload). Constructed unconditionally; downloads run via the
   // JobManager so the HTTP connection isn't held open.
   late final CatalogHandlers _catalogHandlers;
   StreamSubscription<CatalogEvent>? _catalogEventSubscription;
 
-  // P2-8 â€” read-only DB endpoints for tables the phone could not see
+  // P2-8 — read-only DB endpoints for tables the phone could not see
   // (sequence runs, notes journal, guide RMS history, polar alignment
   // history, dark library, flat history). Stateless beyond the DAOs it
   // reads off the container.
   late final DbReadHandlers _dbReadHandlers;
 
-  // P2-11 â€” plugin management. Owns the plugin archive directory under
+  // P2-11 — plugin management. Owns the plugin archive directory under
   // $appData/Nightshade/plugins and the SHA-256 verification path.
   late final PluginHandlers _pluginHandlers;
 
-  // P1-11 â€” OTA update endpoints. Null when no UpdateController was
+  // P1-11 — OTA update endpoints. Null when no UpdateController was
   // supplied (test fixtures that don't exercise the update surface);
   // routes are skipped in that case so a missing controller can't 500
   // the rest of the API.
@@ -410,7 +417,7 @@ class HeadlessApiServer {
       tokensByValue[_effectiveAuthToken!] = HeadlessTokenScope.admin;
       // Why: the auto-generated token must be visible to the operator once
       // so they can configure a client, but persisting it in the log file
-      // is a security defect â€” anyone with read access to logs would have
+      // is a security defect — anyone with read access to logs would have
       // permanent admin auth. Print full to stdout (transient), redact in
       // the structured log.
       print('[AUTH] Generated authentication token: $_effectiveAuthToken');
@@ -501,7 +508,7 @@ class HeadlessApiServer {
   // in-memory state.
 
   // ===========================================================================
-  // Pairing flow (Â§2.1) â€” first-run dashboard onboarding.
+  // Pairing flow (§2.1) — first-run dashboard onboarding.
   //
   // The desktop console prints the 6-digit code; the dashboard user retypes it
   // into the Pair sheet. Verifying the code mints a long-lived bearer token
@@ -541,7 +548,7 @@ class HeadlessApiServer {
 
   /// Whether [method] mutates state and therefore requires CSRF when the
   /// caller is using a cookie. Why uppercase compare: shelf passes the
-  /// raw method but middleware may have lowercased it elsewhere â€” be
+  /// raw method but middleware may have lowercased it elsewhere — be
   /// defensive. Stays inline because the auth middleware (which lives
   /// here) is the only consumer.
   static bool _methodNeedsCsrf(String method) {
@@ -587,7 +594,7 @@ class HeadlessApiServer {
 
   /// P1-1: inline UUID v4 generator used for the server-instance id. We
   /// deliberately avoid `package:uuid` so the server has no extra
-  /// dependency for this single call site. RFC 4122 Â§4.4.
+  /// dependency for this single call site. RFC 4122 §4.4.
   static String _generateUuidV4() {
     final rng = Random.secure();
     final bytes = List<int>.generate(16, (_) => rng.nextInt(256));

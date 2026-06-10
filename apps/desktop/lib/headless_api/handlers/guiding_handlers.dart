@@ -21,7 +21,7 @@ class GuidingHandlers {
   Future<Response> handlePhd2Connect(Request request) async {
     _logInfo('[API] POST /api/phd2/connect');
     // Route through DeviceService so the host auto-launches PHD2 when
-    // configured, matching the desktop Equipment â†’ Guider connect path.
+    // configured, matching the desktop Equipment → Guider connect path.
     // Raw backend.phd2Connect skips _ensurePhd2Running on the desktop.
     final deviceService = container.read(deviceServiceProvider);
     await deviceService.connectGuider('phd2_guider');

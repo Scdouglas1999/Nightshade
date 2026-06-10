@@ -118,6 +118,12 @@ Future<void> _runBackgroundServices(
     // eager read the router only existed once a UI surface that depends on it
     // was built, so at-idle external alerts were silently dead.
     container.read(notificationRouterProvider);
+
+    // v4 couch-grade remote: eager-mount the Home Assistant discovery
+    // service. Like the router above, it is a background MQTT publisher
+    // with no UI surface, so it must be read at startup to run. It is a
+    // no-op until the user enables discovery in Settings.
+    container.read(homeAssistantDiscoveryProvider);
   } catch (e) {
     logger.error(
       'Background services failed to initialise',

@@ -128,7 +128,7 @@ class DomeHandlers {
 
   /// POST /api/dome/sync
   ///
-  /// Body: `{ "deviceId": "...", "enable": true }` â€” enables/disables mount slaving.
+  /// Body: `{ "deviceId": "...", "enable": true }` — enables/disables mount slaving.
   Future<Response> handleDomeSync(Request request) async {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');

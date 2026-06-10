@@ -431,6 +431,25 @@ String requiredAuthScopeNameForEndpoint({
     // Fall through to default control for any other mutating method.
   }
 
+  // v46: unified Calibration Library Manager scope. Mirrors the per-table
+  // calibration surface above, but the prefix is hyphenated so it does NOT
+  // match the `/api/calibration/` block.
+  //
+  //   GET    /api/calibration-library            → view (list)
+  //   POST   /api/calibration-library/match      → control (read-only preview)
+  //   PUT    /api/calibration-library/.../tags   → control (annotate)
+  //   DELETE /api/calibration-library/...        → admin (destructive)
+  if (normalizedPath == '/api/calibration-library' ||
+      normalizedPath.startsWith('/api/calibration-library/')) {
+    if (normalizedMethod == 'GET') {
+      return 'view';
+    }
+    if (normalizedMethod == 'DELETE') {
+      return 'admin';
+    }
+    return 'control';
+  }
+
   // P1-12: catalog management scope.
   //
   //   GET    /api/catalog/status        → view
@@ -479,6 +498,9 @@ const _rateLimitedMethods = {'POST', 'PUT', 'PATCH', 'DELETE'};
 
 const _adminOnlyPathPrefixes = {
   '/api/backup',
+  // Cloud sync — POST /api/sync/push uploads the entire configuration
+  // bundle off-box, so mutating sync calls are admin-only like backup.
+  '/api/sync',
   '/api/files',
   '/api/settings',
   // P2-11 — plugin management. List (GET /api/plugins) is admin-scope

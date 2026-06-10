@@ -32,7 +32,7 @@ class SessionHandlers {
 
   /// Parse an integer ID from a URL path segment, raising BadRequestError on
   /// malformed input. Without this, `int.parse` throws FormatException and the
-  /// middleware would surface a 500 â€” but the caller's mistake is a 400.
+  /// middleware would surface a 500 — but the caller's mistake is a 400.
   int _parsePathId(String value, String field) {
     final id = int.tryParse(value);
     if (id == null) {
@@ -252,7 +252,7 @@ class SessionHandlers {
         ? DateTime.fromMillisecondsSinceEpoch(capturedAtMs)
         : DateTime.tryParse(capturedAtMs?.toString() ?? '') ?? DateTime.now();
 
-    // P0-5 #2 â€” honour fileSize from the payload if supplied; otherwise
+    // P0-5 #2 — honour fileSize from the payload if supplied; otherwise
     // try to stat the on-disk file. The latter only succeeds when the
     // POSTed filePath happens to be local to the server (e.g. a sidecar
     // helper that wrote the FITS via NFS and then registered the row);
@@ -266,11 +266,11 @@ class SessionHandlers {
           fileSize = await f.length();
         }
       } catch (e) {
-        // The file exists check passed but length() still failed â€”
+        // The file exists check passed but length() still failed —
         // unusual enough to log so the operator knows the row went in
         // without a size.
         _logger.warning(
-          'handleCreateImage: failed to stat $postedPath: $e â€” row will '
+          'handleCreateImage: failed to stat $postedPath: $e — row will '
           'be inserted with NULL file_size',
           source: 'SessionHandlers',
         );
@@ -333,7 +333,7 @@ class SessionHandlers {
 
     // P1-13: schedule fire-and-forget sidecar generation for the new row.
     // Skips when filePath is empty (no FITS to encode) or the file isn't
-    // on disk â€” the service logs both cases at warning severity. The
+    // on disk — the service logs both cases at warning severity. The
     // capture is fully recorded by this point so a sidecar failure does
     // not impact the response.
     if (postedPath.isNotEmpty) {
@@ -525,7 +525,7 @@ class SessionHandlers {
   /// FITS at insert time (best-effort, fire-and-forget). This handler
   /// serves that sidecar with strong-validator ETag headers so repeat
   /// gallery loads from a mobile client hit a `304 Not Modified` instead
-  /// of redoing the FITS â†’ JPEG encode.
+  /// of redoing the FITS → JPEG encode.
   ///
   /// Cold-read fallback: when the sidecar is missing (legacy row, or the
   /// fire-and-forget write hasn't landed yet), we synthesise the JPEG via
@@ -535,7 +535,7 @@ class SessionHandlers {
   /// Limitation (documented for ops): if the operator replaces a FITS
   /// out-of-band (e.g. a re-stretched copy), the sidecar's mtime is no
   /// longer a true validator. The `POST /api/images/{id}/regenerate-
-  /// thumbnail` endpoint is the escape hatch â€” it forces a re-encode and
+  /// thumbnail` endpoint is the escape hatch — it forces a re-encode and
   /// rewrites the sidecar so the ETag changes.
   Future<Response> _exportSessionFile(
     Request request,

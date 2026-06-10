@@ -24,6 +24,7 @@ export 'handlers/weather_handlers.dart';
 export 'handlers/suggestion_handlers.dart';
 export 'handlers/transient_handlers.dart';
 export 'handlers/backup_handlers.dart';
+export 'handlers/sync_handlers.dart';
 export 'handlers/framing_handlers.dart';
 export 'handlers/filesystem_handlers.dart';
 export 'handlers/science_handlers.dart';
@@ -66,6 +67,9 @@ export 'handlers/update_handlers.dart';
 
 // P1-10 — remote calibration library (dark/flat/defect-map) management
 export 'handlers/calibration_handlers.dart';
+
+// v46 — unified Calibration Library Manager (browse / match / tag)
+export 'handlers/calibration_library_handlers.dart';
 
 // P1-12 — catalog management (download/upload/verify/uninstall/reload)
 export 'handlers/catalog_handlers.dart';
