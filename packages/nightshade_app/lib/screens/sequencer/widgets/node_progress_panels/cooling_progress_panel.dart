@@ -42,9 +42,9 @@ class _CoolingProgressPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Parse detail string: "Cooling: 15.2Â°C â†’ -10.0Â°C (85% power)"
-    // or "At target: -10.3Â°C (45% power)"
-    final tempMatch = RegExp(r'(-?\d+\.?\d*)Â°C').allMatches(detail);
+    // Parse detail string: "Cooling: 15.2°C → -10.0°C (85% power)"
+    // or "At target: -10.3°C (45% power)"
+    final tempMatch = RegExp(r'(-?\d+\.?\d*)°C').allMatches(detail);
     final powerMatch = RegExp(r'(\d+\.?\d*)% power').firstMatch(detail);
 
     double? currentTemp;
@@ -156,7 +156,7 @@ class _TempDisplay extends StatelessWidget {
           ),
         ),
         Text(
-          temp != null ? '${temp!.toStringAsFixed(1)}Â°C' : '--Â°C',
+          temp != null ? '${temp!.toStringAsFixed(1)}°C' : '--°C',
           style: TextStyle(
             fontSize: NightshadeTypography.fontSize16,
             fontWeight: FontWeight.w700,

@@ -533,7 +533,9 @@ class _ConnectionDetailsSheetState
         border: Border(top: BorderSide(color: colors.border)),
         boxShadow: NightshadeTokens.shadowLg,
       ),
-      padding: NightshadeTokens.dialogPadding,
+      padding: NightshadeTokens.dialogPadding.add(
+        EdgeInsets.only(bottom: MediaQuery.viewPaddingOf(context).bottom),
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,

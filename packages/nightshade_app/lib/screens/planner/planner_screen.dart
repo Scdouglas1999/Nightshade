@@ -185,26 +185,42 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
     // tests assert the same invariant at runtime. Each tab carries an icon so
     // [AdaptiveTabBar] can collapse to icon-only on a compact phone rather than
     // overflowing the five tabs.
+    final l10n = context.l10n;
     final tabs = <(PlannerTab, AdaptiveTab)>[
       (
         PlannerTab.recommendation,
-        const AdaptiveTab(label: 'Recommendation', icon: LucideIcons.sparkles),
+        AdaptiveTab(
+          label: l10n.text('plannerTabRecommendation'),
+          icon: LucideIcons.sparkles,
+        ),
       ),
       (
         PlannerTab.projects,
-        const AdaptiveTab(label: 'Projects', icon: LucideIcons.folderKanban),
+        AdaptiveTab(
+          label: l10n.text('plannerTabProjects'),
+          icon: LucideIcons.folderKanban,
+        ),
       ),
       (
         PlannerTab.scheduler,
-        const AdaptiveTab(label: 'Target Queue', icon: LucideIcons.listOrdered),
+        AdaptiveTab(
+          label: l10n.text('plannerTabTargetQueue'),
+          icon: LucideIcons.listOrdered,
+        ),
       ),
       (
         PlannerTab.week,
-        const AdaptiveTab(label: 'This Week', icon: LucideIcons.calendarDays),
+        AdaptiveTab(
+          label: l10n.text('plannerTabThisWeek'),
+          icon: LucideIcons.calendarDays,
+        ),
       ),
       (
         PlannerTab.progress,
-        const AdaptiveTab(label: 'Progress', icon: LucideIcons.trendingUp),
+        AdaptiveTab(
+          label: l10n.text('plannerTabProgress'),
+          icon: LucideIcons.trendingUp,
+        ),
       ),
     ];
     assert(

@@ -92,6 +92,7 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
           context,
           designMaxWidth: 500,
         ),
+        child: SingleChildScrollView(
         child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
@@ -204,6 +205,7 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
               ],
             ),
           ],
+        ),
         ),
         ),
       ),

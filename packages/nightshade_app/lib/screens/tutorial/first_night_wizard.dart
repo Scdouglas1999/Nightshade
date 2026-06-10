@@ -13,6 +13,7 @@ import 'package:nightshade_core/nightshade_core.dart'
         FirstNightWizardModel;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../localization/nightshade_localizations.dart';
 import 'tutorial_step_widget.dart';
 
 /// First-night wizard — a 7-step modal walkthrough for new users.
@@ -63,6 +64,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
     final state = ref.watch(firstNightWizardProvider);
     final notifier = ref.read(firstNightWizardProvider.notifier);
     final colors = NightshadeColors.of(context);
+    final l10n = context.l10n;
 
     // Until the saved index has loaded from the DAO, show a small spinner
     // dialog. We intentionally do NOT render step 0 here — that would
@@ -70,7 +72,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
     // for a returning resumer.
     if (!state.isLoaded) {
       return NightshadeDialog(
-        title: 'First Night Walkthrough',
+        title: l10n.text('firstNightWizardTitle'),
         icon: NightshadeIcons.sparkle,
         width: 600,
         height: 400,
@@ -84,10 +86,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
     final currentStep = _steps[state.currentStepIndex];
 
     return NightshadeDialog(
-      // TODO(v2.5.x i18n): localize wizard chrome strings ("First Night
-      // Walkthrough", "Next", "Back", "Skip", "Done", etc.) in the
-      // nightshade_localizations sweep.
-      title: 'First Night Walkthrough',
+      title: l10n.text('firstNightWizardTitle'),
       icon: NightshadeIcons.sparkle,
       width: 640,
       height: 560,
@@ -120,9 +119,10 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
     FirstNightWizardState state,
     FirstNightWizardNotifier notifier,
   ) {
+    final l10n = context.l10n;
     return [
       NightshadeButton(
-        label: 'Skip forever',
+        label: l10n.text('firstNightWizardSkipForever'),
         variant: ButtonVariant.ghost,
         size: ButtonSize.small,
         onPressed: () => _handleSkipForever(context, notifier),
@@ -130,14 +130,14 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
       const SizedBox(width: 8),
       if (notifier.isFirstStep)
         NightshadeButton(
-          label: 'Show on next launch',
+          label: l10n.text('firstNightWizardShowNextLaunch'),
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
           onPressed: () => _handleShowOnNextLaunch(context, notifier),
         )
       else
         NightshadeButton(
-          label: 'Back',
+          label: l10n.text('commonBack'),
           icon: NightshadeIcons.chevronLeft,
           variant: ButtonVariant.outline,
           size: ButtonSize.small,
@@ -146,7 +146,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
       const SizedBox(width: 8),
       if (notifier.isLastStep)
         NightshadeButton(
-          label: 'Done',
+          label: l10n.text('commonDone'),
           icon: NightshadeIcons.check,
           variant: ButtonVariant.primary,
           size: ButtonSize.small,
@@ -154,7 +154,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
         )
       else
         NightshadeButton(
-          label: 'Next',
+          label: l10n.text('commonNext'),
           icon: NightshadeIcons.chevronRight,
           variant: ButtonVariant.primary,
           size: ButtonSize.small,

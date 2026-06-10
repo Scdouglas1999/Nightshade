@@ -290,7 +290,12 @@ class _CauseDrilldownDialog extends ConsumerWidget {
                   loading: () => const Center(
                     child: CircularProgressIndicator(),
                   ),
-                  error: (e, _) => Text('Error: $e'),
+                  error: (e, _) => Center(
+                    child: Text(
+                      'Could not load rejection details.',
+                      style: TextStyle(color: colors.textMuted),
+                    ),
+                  ),
                   data: (records) {
                     if (records.isEmpty) {
                       return Center(

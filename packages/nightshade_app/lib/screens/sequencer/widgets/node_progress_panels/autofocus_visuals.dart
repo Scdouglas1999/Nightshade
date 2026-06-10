@@ -354,7 +354,7 @@ class _VCurvePainter extends CustomPainter {
 
     // X-axis labels (focus range)
     final rangeLabel = TextPainter(
-      text: TextSpan(text: '${range.min} â†’ ${range.max}', style: textStyle),
+      text: TextSpan(text: '${range.min} → ${range.max}', style: textStyle),
       textDirection: TextDirection.ltr,
     );
     rangeLabel.layout();

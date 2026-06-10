@@ -11,6 +11,11 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
       GlobalKey<NavigatorState>();
 
   DiscoveredServer? _connectedServer;
+  // v4 couch-grade remote: when connected via a self-hosted relay, this holds
+  // the loopback tunnel that the whole session rides on. It MUST outlive the
+  // backend connect (it is the transport) and be torn down whenever the
+  // session ends. Null for direct LAN/Tailscale connections.
+  RelayTunnelClient? _activeRelayTunnel;
   bool _isDiscovering = false;
   String? _error;
   String _statusMessage = '';
@@ -177,6 +182,8 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
             // a re-pair can never be assumed already-registered. (Blocker #8.)
             _pushRegistration?.reset();
             ref.read(backendProvider.notifier).disconnect();
+            // v4 relay: the session is dead — drop the loopback tunnel too.
+            unawaited(_closeActiveRelayTunnel());
             ref.read(connectionStaleProvider.notifier).state = false;
             // Audit P1-18: reset the once-per-lifetime checkpoint flag so
             // a future reconnect re-runs the resume dialog if the server
@@ -399,6 +406,214 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
     }
 
     return result.token;
+  }
+
+  /// Close any active relay tunnel. Idempotent; safe to call from every
+  /// session-teardown path. The backend disconnect that accompanies a session
+  /// end races this close — that is fine, the loopback socket simply errors and
+  /// the tunnel completes.
+  Future<void> _closeActiveRelayTunnel() async {
+    final tunnel = _activeRelayTunnel;
+    _activeRelayTunnel = null;
+    if (tunnel != null) {
+      try {
+        await tunnel.close();
+      } catch (_) {
+        // Best-effort teardown only.
+      }
+    }
+  }
+
+  /// v4 couch-grade remote: connect to an appliance through a self-hosted
+  /// relay. The relay exposes the remote rig's headless API as a LOCAL
+  /// loopback port, so the rest of the connect flow (pairing, HMAC tokens,
+  /// the event WebSocket, even TLS if the appliance serves https) reuses the
+  /// existing [_connectToServer] path unchanged — the tunnel is just another
+  /// base URL pointing at 127.0.0.1.
+  ///
+  /// [relayUrl] is the operator's relay (ws(s)://host[:port]); [applianceId]
+  /// is the id the relay minted for the rig (printed by the daemon on first
+  /// contact). End-to-end auth is unchanged; the relay only splices bytes.
+  Future<void> _connectViaRelay({
+    required String relayUrl,
+    required String applianceId,
+    bool allowInsecureTls = false,
+  }) async {
+    setState(() {
+      _isDiscovering = true;
+      _error = null;
+      _statusMessage = 'Connecting via relay...';
+    });
+
+    final trimmedId = applianceId.trim();
+    if (!isValidApplianceId(trimmedId)) {
+      setState(() {
+        _isDiscovering = false;
+        _statusMessage = '';
+        _error = 'Appliance id must look like xxxx-xxxx-xxxx.';
+      });
+      return;
+    }
+
+    final Uri parsedRelay;
+    try {
+      parsedRelay = Uri.parse(relayUrl.trim());
+    } catch (e) {
+      setState(() {
+        _isDiscovering = false;
+        _statusMessage = '';
+        _error = 'Invalid relay URL: $e';
+      });
+      return;
+    }
+
+    // A fresh tunnel per connect attempt — drop any previous one first.
+    await _closeActiveRelayTunnel();
+
+    try {
+      final tunnel = await RelayTunnelClient.connect(
+        relayUrl: parsedRelay,
+        applianceId: trimmedId,
+        allowBadTlsCertificate: allowInsecureTls,
+        onLog: (message) => developer.log(message, name: 'Relay'),
+      );
+      _activeRelayTunnel = tunnel;
+
+      // If the relay/appliance drops, surface it: closing the backend kicks
+      // the user back to the connection screen through the normal monitor.
+      unawaited(tunnel.done.then((_) {
+        if (!mounted || !identical(_activeRelayTunnel, tunnel)) return;
+        _activeRelayTunnel = null;
+      }));
+
+      // The relay carries opaque bytes end-to-end; the appliance behind it may
+      // still serve plain http (typical) — the loopback hop is local-only, so
+      // dialling the tunnel over http is correct regardless of the appliance's
+      // own TLS. The appliance's pairing token / HMAC remain end-to-end.
+      final relayServer = DiscoveredServer(
+        name: 'Relay: $trimmedId',
+        host: '127.0.0.1',
+        webPort: tunnel.localPort,
+        signalingPort: tunnel.localPort,
+        version: '2.0.0',
+        mode: 'headless',
+        scheme: 'http',
+        authRequired: true,
+        pairingSupported: true,
+      );
+      await _connectToServer(relayServer);
+
+      // If the connect failed (no backend swap happened), tear the tunnel back
+      // down so we don't leak a loopback listener.
+      if (!mounted || ref.read(backendProvider) is! NetworkBackend) {
+        await _closeActiveRelayTunnel();
+      }
+    } on RelayTunnelException catch (e) {
+      await _closeActiveRelayTunnel();
+      if (!mounted) return;
+      setState(() {
+        _isDiscovering = false;
+        _statusMessage = '';
+        _error = 'Relay refused the connection (${e.code}): ${e.message}';
+      });
+    } catch (e) {
+      await _closeActiveRelayTunnel();
+      if (!mounted) return;
+      setState(() {
+        _isDiscovering = false;
+        _statusMessage = '';
+        _error = 'Could not reach the relay: $e';
+      });
+    }
+  }
+
+  /// Prompt for a relay URL + appliance id, then dial through the relay.
+  /// Uses the connection-screen navigator context (the same one the QR scanner
+  /// and pairing dialogs use) so the dialog mounts inside the MaterialApp.
+  Future<void> _showRelayConnectDialog() async {
+    final dialogContext = _connectionUiContext;
+    if (dialogContext == null) return;
+    final relayController = TextEditingController();
+    final idController = TextEditingController();
+    var allowInsecure = false;
+
+    final submitted = await showDialog<bool>(
+      context: dialogContext,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setLocal) => AlertDialog(
+            title: const Text('Connect via Relay'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Reach your rig from anywhere through a self-hosted '
+                  'Nightshade relay — no VPN or port forwarding. The appliance '
+                  'id is printed by the headless daemon on first connect.',
+                  style: TextStyle(fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: relayController,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  keyboardType: TextInputType.url,
+                  decoration: const InputDecoration(
+                    labelText: 'Relay URL',
+                    hintText: 'wss://relay.example.com',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  controller: idController,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  decoration: const InputDecoration(
+                    labelText: 'Appliance id',
+                    hintText: 'xxxx-xxxx-xxxx',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  value: allowInsecure,
+                  onChanged: (v) =>
+                      setLocal(() => allowInsecure = v ?? false),
+                  title: const Text(
+                    'Trust self-signed relay TLS',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                  controlAffinity: ListTileControlAffinity.leading,
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('Connect'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+
+    if (submitted != true) return;
+    final relayUrl = relayController.text.trim();
+    final applianceId = idController.text.trim();
+    if (relayUrl.isEmpty || applianceId.isEmpty) {
+      setState(() => _error = 'Enter both a relay URL and an appliance id.');
+      return;
+    }
+    await _connectViaRelay(
+      relayUrl: relayUrl,
+      applianceId: applianceId,
+      allowInsecureTls: allowInsecure,
+    );
   }
 
   Future<void> _connectToServer(DiscoveredServer server) async {
@@ -783,6 +998,8 @@ mixin _NightshadeMobileConnectionOps on ConsumerState<NightshadeMobileApp> {
     // assuming it is already registered there (Blocker #8).
     _pushRegistration?.reset();
     ref.read(backendProvider.notifier).disconnect();
+    // v4 relay: tear down any active loopback tunnel on explicit skip.
+    unawaited(_closeActiveRelayTunnel());
   }
 
   bool _checkpointChecked = false;

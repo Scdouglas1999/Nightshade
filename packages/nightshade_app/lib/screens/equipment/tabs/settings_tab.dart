@@ -182,7 +182,7 @@ class _FocuserSettingsCard extends ConsumerWidget {
     // DEV-P3-1: gate the Temp Compensation row on whether the connected
     // focuser reports `tempCompAvailable`. The toggle is a Nightshade-side
     // controller (we re-issue moves based on a coefficient), but it
-    // depends on the focuser publishing a temperature reading â€” drivers
+    // depends on the focuser publishing a temperature reading — drivers
     // without a probe will never provide one and the row would silently
     // do nothing. Use opacity-disable rather than visibility so the
     // setting remains discoverable; tooltip explains the reason.
@@ -330,7 +330,7 @@ class _GuiderSettingsCard extends ConsumerWidget {
 /// The card is shown whenever the Equipment Settings dialog is open so users
 /// can pre-configure the guider before assigning it to a profile. The Rust
 /// `get_config`/`set_config` calls succeed regardless of whether the guider
-/// is currently connected â€” they read/write the in-memory default config.
+/// is currently connected — they read/write the in-memory default config.
 class _BuiltinGuiderSettingsCard extends ConsumerStatefulWidget {
   const _BuiltinGuiderSettingsCard();
 
@@ -450,7 +450,7 @@ class _BuiltinGuiderSettingsCardState
       return;
     }
     if (calibrationMs < 50 || calibrationMs > 5000) {
-      context.showErrorSnackBar('Calibration pulse must be 50â€“5000 ms');
+      context.showErrorSnackBar('Calibration pulse must be 50–5000 ms');
       return;
     }
     if (minPulse < 0 || maxPulse <= minPulse) {

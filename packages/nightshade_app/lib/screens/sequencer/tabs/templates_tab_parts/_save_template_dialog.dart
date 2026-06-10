@@ -101,7 +101,8 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
         ),
         child: Padding(
           padding: EdgeInsets.all(isMobile ? 16 : 24),
-          child: Column(
+          child: SingleChildScrollView(
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -257,6 +258,7 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
                 ],
               ),
             ],
+          ),
           ),
         ),
       ),

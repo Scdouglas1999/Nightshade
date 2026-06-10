@@ -97,12 +97,16 @@ class ScienceSessionSummary extends ConsumerWidget {
                   Icon(LucideIcons.flaskConical,
                       size: 15, color: colors.primary),
                   const SizedBox(width: 8),
-                  Text(
-                    'Tonight\'s science',
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w700,
-                      fontSize: NightshadeTypography.fontSize13,
+                  Flexible(
+                    child: Text(
+                      'Tonight\'s science',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.textPrimary,
+                        fontWeight: FontWeight.w700,
+                        fontSize: NightshadeTypography.fontSize13,
+                      ),
                     ),
                   ),
                   const Spacer(),

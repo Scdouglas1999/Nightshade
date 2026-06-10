@@ -28,7 +28,10 @@ class _TelegramTransportSectionState
     final cfgAsync = ref.watch(telegramTransportConfigProvider);
     return cfgAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (e, _) => Text('Telegram error: $e'),
+      error: (e, _) => const NightshadeInlineBanner(
+        message: 'Could not load Telegram routing configuration.',
+        severity: NightshadeAlertSeverity.error,
+      ),
       data: (cfg) {
         if (!_initialized) {
           _bot.text = cfg.botToken;

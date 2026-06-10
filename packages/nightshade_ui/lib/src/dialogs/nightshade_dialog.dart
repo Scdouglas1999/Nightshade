@@ -226,14 +226,11 @@ class _Footer extends StatelessWidget {
         color: colors.surfaceAlt,
         border: Border(top: BorderSide(color: colors.border)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          for (var i = 0; i < actions.length; i++) ...[
-            if (i > 0) const SizedBox(width: NightshadeTokens.spaceSm),
-            actions[i],
-          ],
-        ],
+      child: Wrap(
+        alignment: WrapAlignment.end,
+        spacing: NightshadeTokens.spaceSm,
+        runSpacing: NightshadeTokens.spaceSm,
+        children: actions,
       ),
     );
   }

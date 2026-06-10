@@ -631,7 +631,7 @@ class _FilterRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           SizedBox(
-            width: dialogMaxWidth(context, 100),
+            width: 100,
             height: 32,
             child: TextField(
               controller: offsetController,

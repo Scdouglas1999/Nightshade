@@ -87,9 +87,11 @@ class BottomInfoBar extends ConsumerWidget {
         ];
 
         return Container(
-          padding: EdgeInsets.symmetric(
-            horizontal: horizontalPadding,
-            vertical: isCompact ? 8 : 12,
+          padding: EdgeInsets.fromLTRB(
+            horizontalPadding,
+            isCompact ? 8 : 12,
+            horizontalPadding,
+            (isCompact ? 8 : 12) + MediaQuery.viewPaddingOf(context).bottom,
           ),
           decoration: BoxDecoration(
             gradient: LinearGradient(

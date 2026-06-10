@@ -388,7 +388,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
 
   /// Build the info card that surfaces the SDK-reported recommendation.
   ///
-  /// All values are shown verbatim â€” the field is "Not reported" when the SDK
+  /// All values are shown verbatim — the field is "Not reported" when the SDK
   /// returns null for it (we never invent a value to fill the gap).
   Widget _buildRecommendationCard(
       NightshadeColors colors, CameraRecommendedSettings rec) {
@@ -500,7 +500,7 @@ extension _ProfileEditorFiltersAndCameraDefaults on _ProfileEditorDialogState {
       });
     } catch (e) {
       if (!mounted) return;
-      // Surface the failure to the user â€” never silently fall back.
+      // Surface the failure to the user — never silently fall back.
       context.showErrorSnackBar('Auto-detect failed: $e');
     } finally {
       if (mounted) {

@@ -71,7 +71,8 @@ class _RemoteDirectoryPickerDialogState
     } catch (e) {
       setState(() {
         _loading = false;
-        _error = e.toString();
+        _error = 'Could not browse host directories. '
+            'Check the connection to the imaging host and try again.';
       });
     }
   }
@@ -129,6 +130,8 @@ class _RemoteDirectoryPickerDialogState
                 child: Text(
                   _listing?.currentPath ?? 'Host roots',
                   style: const TextStyle(fontSize: 12),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             const SizedBox(height: 12),

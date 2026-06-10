@@ -162,8 +162,8 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     return EmptyState(
       icon: NightshadeIcons.imageOff,
       title: 'Result not found',
-      body: 'No stacked result exists for id ${widget.resultId}. It may have '
-          'been deleted.\n\n$error',
+      body: 'No stacked result exists for id ${widget.resultId}. '
+          'It may have been deleted.',
     );
   }
 

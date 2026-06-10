@@ -392,7 +392,9 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
             Wrap(children: filterChips),
           ],
           const SizedBox(height: 8),
-          Row(
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
             children: [
               _DecisionChip(
                 label: 'Resume',
@@ -402,7 +404,6 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
                 }),
                 colors: colors,
               ),
-              const SizedBox(width: 6),
               _DecisionChip(
                 label: 'Restart',
                 selected: decision == SessionHandoffDecision.restart,
@@ -411,7 +412,6 @@ class _SessionHandoffDialogState extends ConsumerState<SessionHandoffDialog> {
                 }),
                 colors: colors,
               ),
-              const SizedBox(width: 6),
               _DecisionChip(
                 label: 'Continue new',
                 selected: decision == SessionHandoffDecision.continueNew,

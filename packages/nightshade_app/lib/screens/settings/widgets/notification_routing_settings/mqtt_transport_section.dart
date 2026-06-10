@@ -37,7 +37,10 @@ class _MqttTransportSectionState extends ConsumerState<_MqttTransportSection> {
     final cfgAsync = ref.watch(mqttTransportConfigProvider);
     return cfgAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (e, _) => Text('MQTT error: $e'),
+      error: (e, _) => const NightshadeInlineBanner(
+        message: 'Could not load MQTT routing configuration.',
+        severity: NightshadeAlertSeverity.error,
+      ),
       data: (cfg) {
         if (!_initialized) {
           _host.text = cfg.host;

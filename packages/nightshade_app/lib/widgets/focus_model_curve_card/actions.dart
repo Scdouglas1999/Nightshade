@@ -249,3 +249,59 @@ class _ActionRow extends ConsumerWidget {
     }
   }
 }
+
+/// Last predictive-AF consultation: decision band, predicted vs actual
+/// position, and confidence. The model used to train and predict entirely
+/// silently — this row is the operator's only window into whether the
+/// per-filter focus model trusts itself yet.
+class _PredictiveAfRow extends ConsumerWidget {
+  const _PredictiveAfRow({required this.colors});
+
+  final NightshadeColors colors;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = ref.watch(lastPredictiveAfStatusProvider);
+    if (status == null) return const SizedBox.shrink();
+
+    final predicted = status.decision.targetPosition;
+    final confidence = status.decision.confidence;
+    final error = status.predictionErrorSteps;
+
+    final parts = <String>[
+      status.filterName,
+      status.decisionLabel,
+      if (predicted != null) 'predicted $predicted',
+      if (confidence != null) 'R² ${confidence.toStringAsFixed(2)}',
+      if (status.actualPosition != null) 'actual ${status.actualPosition}',
+      if (error != null) 'Δ ${error >= 0 ? '+' : ''}$error steps',
+    ];
+
+    final tone = switch (status.decision) {
+      ApplyDirect() => colors.success,
+      ApplyDampened() => colors.primary,
+      ForceAutofocus() => colors.warning,
+      InsufficientData() => colors.textMuted,
+    };
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+        children: [
+          Icon(LucideIcons.brainCircuit, size: 13, color: tone),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Predictive AF: ${parts.join(' · ')}',
+              style: TextStyle(
+                fontSize: NightshadeTypography.fontSize11,
+                color: colors.textSecondary,
+              ),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

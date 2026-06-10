@@ -134,7 +134,8 @@ class _PlateSolvingSettingsScreenState
                 Icon(LucideIcons.alertCircle, color: colors.error, size: 32),
                 const SizedBox(height: 12),
                 Text(
-                  'Plate-solver detection failed: $error',
+                  'Plate-solver detection failed. Check that your solver is '
+                  'installed, then retry.',
                   style: TextStyle(color: colors.textPrimary),
                   textAlign: TextAlign.center,
                 ),
@@ -154,7 +155,7 @@ class _PlateSolvingSettingsScreenState
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Text(
-                'Failed to load plate-solver preferences: $error',
+                'Could not load plate-solver preferences.',
                 style: TextStyle(color: colors.error),
                 textAlign: TextAlign.center,
               ),

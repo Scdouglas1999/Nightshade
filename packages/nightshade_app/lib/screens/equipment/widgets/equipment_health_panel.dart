@@ -439,6 +439,7 @@ class _DeviceHeartbeatChip extends ConsumerWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      constraints: const BoxConstraints(maxWidth: 220),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
         borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline8),
@@ -456,25 +457,30 @@ class _DeviceHeartbeatChip extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 6),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _resolveDeviceName(ref, snapshot.deviceId),
-                style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
-              ),
-              Text(
-                snapshot.isHealthy
-                    ? 'OK - ${_formatAge(age)} ago'
-                    : 'Unhealthy - last seen ${_formatAge(age)} ago',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize9,
-                  color: snapshot.isHealthy
-                      ? colors.textMuted
-                      : colors.error,
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  _resolveDeviceName(ref, snapshot.deviceId),
+                  overflow: TextOverflow.ellipsis,
+                  style: NightshadeTypography.labelStrongSm.copyWith(color: colors.textPrimary),
                 ),
-              ),
-            ],
+                Text(
+                  snapshot.isHealthy
+                      ? 'OK - ${_formatAge(age)} ago'
+                      : 'Unhealthy - last seen ${_formatAge(age)} ago',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize9,
+                    color: snapshot.isHealthy
+                        ? colors.textMuted
+                        : colors.error,
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),

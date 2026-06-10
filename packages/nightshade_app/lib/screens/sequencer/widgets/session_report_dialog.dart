@@ -28,7 +28,7 @@ class SessionReportDialog extends ConsumerWidget {
 
   const SessionReportDialog({super.key, required this.sessionId});
 
-  /// Convenience launcher â€” mirrors how the other sequencer dialogs in this
+  /// Convenience launcher — mirrors how the other sequencer dialogs in this
   /// folder are opened.
   static Future<void> show(BuildContext context, int sessionId) {
     return showDialog<void>(
@@ -164,7 +164,7 @@ class _ReportBody extends ConsumerWidget {
                 ],
                 // Surface the live warningMessages we accumulated during
                 // the run. Pre-patch these were collected by the
-                // executor but never rendered anywhere post-session â€”
+                // executor but never rendered anywhere post-session —
                 // "filter HÎ± could not be matched 14 times" used to be
                 // invisible the moment the run ended.
                 if (report.warningMessages.isNotEmpty) ...[
@@ -176,7 +176,7 @@ class _ReportBody extends ConsumerWidget {
                       titleColor: colors.warning),
                   ..._buildWarningList(),
                 ],
-                // Wave 4 Recovery Mode â€” list every recovery loop that
+                // Wave 4 Recovery Mode — list every recovery loop that
                 // fired during the run with its cause, attempt count,
                 // duration, and outcome. Pulled from the
                 // `recoveryHistoryProvider` populated in real time by
@@ -200,7 +200,7 @@ class _ReportBody extends ConsumerWidget {
                     ],
                   );
                 }),
-                // Wave 5 Agent 3 â€” Diagnostics section. Rendered last,
+                // Wave 5 Agent 3 — Diagnostics section. Rendered last,
                 // after warnings + recoveries. Combines the
                 // optical-train drift comparison (pre/post snapshot)
                 // with the equipment-health summary (USB disconnects,
@@ -260,7 +260,7 @@ class _ReportBody extends ConsumerWidget {
                     ],
                   );
                 }),
-                // Wave 7 â€” Post-session retrospective insights. Renders
+                // Wave 7 — Post-session retrospective insights. Renders
                 // after Diagnostics so the operator sees raw observations
                 // first, then "what to change next time" last. Each insight
                 // exposes Apply (when actionable) + Dismiss + sticky
@@ -305,7 +305,7 @@ class _ReportBody extends ConsumerWidget {
                     style: TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textSecondary),
                   ),
                 ],
-                // Wave 6 Agent 5 â€” Journal notes attached to either
+                // Wave 6 Agent 5 — Journal notes attached to either
                 // this session's run or its primary target. Renders
                 // the same `_NoteTile` rows the History tab and
                 // target card use, so an edit propagates everywhere.

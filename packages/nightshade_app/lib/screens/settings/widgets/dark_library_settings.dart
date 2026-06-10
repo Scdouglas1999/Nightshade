@@ -118,7 +118,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               ),
               error: (e, _) => Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text('Error loading stats: $e',
+                child: Text('Could not load dark library stats.',
                     style: TextStyle(color: NightshadeColors.of(context).error)),
               ),
               data: (stats) => Padding(
@@ -274,7 +274,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               ),
               error: (e, _) => Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text('Error: $e',
+                child: Text('Could not load dark frame groups.',
                     style: TextStyle(color: NightshadeColors.of(context).error)),
               ),
               data: (groups) {
@@ -343,7 +343,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               ),
               error: (e, _) => Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text('Error: $e',
+                child: Text('Could not load dark library entries.',
                     style: TextStyle(color: NightshadeColors.of(context).error)),
               ),
               data: (entries) {

@@ -12,6 +12,7 @@ import 'widgets/about_settings.dart';
 import 'widgets/ai_assistant_settings.dart';
 import 'widgets/annotation_settings.dart';
 import 'widgets/appearance_settings.dart';
+import 'widgets/calibration_library_settings.dart';
 import 'widgets/calibration_settings.dart';
 import 'widgets/connection_settings.dart';
 import 'widgets/dark_library_settings.dart';
@@ -146,7 +147,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
         ),
         SettingsSectionDef(
           key: 'files-storage',
-          label: 'Files & Storage',
+          label: t('settingsFilesStorage'),
           icon: LucideIcons.folder,
           keywords: const [
             'file paths',
@@ -318,7 +319,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
         ),
         SettingsSectionDef(
           key: 'adaptive-exposure',
-          label: 'Adaptive Exposure',
+          label: t('settingsAdaptiveExposure'),
           icon: LucideIcons.sun,
           keywords: const [
             'auto exposure',
@@ -331,7 +332,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
         ),
         SettingsSectionDef(
           key: 'image-grading',
-          label: 'Image Grading',
+          label: t('settingsImageGrading'),
           icon: LucideIcons.star,
           keywords: const [
             'hfr',
@@ -342,6 +343,23 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
             'grading thresholds',
           ],
           build: (isMobile) => ImageGradingSettings(isMobile: isMobile),
+        ),
+        SettingsSectionDef(
+          key: 'calibration-library',
+          label: t('settingsCalibrationLibrary'),
+          icon: LucideIcons.library,
+          keywords: const [
+            'darks',
+            'flats',
+            'bias',
+            'defect map',
+            'master',
+            'calibration',
+            'auto-match',
+            'tags',
+          ],
+          build: (isMobile) =>
+              CalibrationLibrarySettings(isMobile: isMobile),
         ),
         SettingsSectionDef(
           key: 'annotations',
@@ -393,7 +411,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
         ),
         SettingsSectionDef(
           key: 'preflight',
-          label: 'Pre-flight Checks',
+          label: t('settingsPreflight'),
           icon: LucideIcons.clipboardCheck,
           keywords: const [
             'preflight',
@@ -421,7 +439,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
         ),
         SettingsSectionDef(
           key: 'adaptive-conditions',
-          label: 'Adaptive Conditions',
+          label: t('settingsAdaptiveConditions'),
           icon: LucideIcons.cloud,
           keywords: const [
             'seeing',
@@ -505,7 +523,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
         ),
         SettingsSectionDef(
           key: 'integrations',
-          label: 'Integrations',
+          label: t('settingsIntegrations'),
           icon: LucideIcons.puzzle,
           keywords: const [
             'plugins',
@@ -519,7 +537,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
         ),
         SettingsSectionDef(
           key: 'ai-assistant',
-          label: 'AI Assistant',
+          label: t('settingsAiAssistant'),
           icon: LucideIcons.sparkles,
           keywords: const [
             'ai',
@@ -567,7 +585,7 @@ List<SettingsGroupDef> buildSettingsGroups(BuildContext context) {
         ),
         SettingsSectionDef(
           key: 'replay-debug',
-          label: 'Replay & Debug',
+          label: t('settingsReplayDebug'),
           icon: LucideIcons.bug,
           keywords: const [
             'replay',
@@ -696,7 +714,14 @@ const List<List<String>> _structuralGroups = [
     'calibration',
     'dark-library',
   ],
-  ['imaging', 'adaptive-exposure', 'image-grading', 'annotations', 'catalogs'],
+  [
+    'imaging',
+    'adaptive-exposure',
+    'image-grading',
+    'calibration-library',
+    'annotations',
+    'catalogs',
+  ],
   ['sequencer', 'preflight', 'weather-safety', 'adaptive-conditions'],
   ['science', 'observation-log', 'observing-lists'],
   ['notifications', 'integrations', 'ai-assistant', 'remote-access'],

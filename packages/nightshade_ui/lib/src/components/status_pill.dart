@@ -151,14 +151,17 @@ class _StatusPillState extends State<StatusPill>
                 color: colors.textSecondary,
               ),
               const SizedBox(width: 4),
-              Text(
-                widget.label.isEmpty
-                    ? widget.value
-                    : '${widget.label}: ${widget.value}',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: colors.textSecondary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+              Flexible(
+                child: Text(
+                  widget.label.isEmpty
+                      ? widget.value
+                      : '${widget.label}: ${widget.value}',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.textSecondary,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
                 ),
               ),
             ],

@@ -281,26 +281,31 @@ class _ExpandedStatusChip extends StatelessWidget {
             color: isConnected ? colors.success : colors.textMuted,
           ),
           const SizedBox(width: 6),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize10,
-                  fontWeight: FontWeight.w500,
-                  color: colors.textSecondary,
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 140),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize10,
+                    fontWeight: FontWeight.w500,
+                    color: colors.textSecondary,
+                  ),
                 ),
-              ),
-              Text(
-                isConnected ? (deviceName ?? 'Connected') : 'Not Connected',
-                style: TextStyle(
-                  fontSize: NightshadeTypography.fontSize9,
-                  color: isConnected ? colors.success : colors.textMuted,
+                Text(
+                  isConnected ? (deviceName ?? 'Connected') : 'Not Connected',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize9,
+                    color: isConnected ? colors.success : colors.textMuted,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ],
       ),

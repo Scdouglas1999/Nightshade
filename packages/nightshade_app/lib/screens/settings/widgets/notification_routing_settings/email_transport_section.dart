@@ -36,7 +36,10 @@ class _EmailTransportSectionState
     final cfgAsync = ref.watch(emailTransportConfigProvider);
     return cfgAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (e, _) => Text('Email config error: $e'),
+      error: (e, _) => const NightshadeInlineBanner(
+        message: 'Could not load email routing configuration.',
+        severity: NightshadeAlertSeverity.error,
+      ),
       data: (cfg) {
         if (!_initialized) {
           _host.text = cfg.smtpHost;

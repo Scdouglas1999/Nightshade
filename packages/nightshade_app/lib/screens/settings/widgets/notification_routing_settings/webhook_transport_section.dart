@@ -29,7 +29,10 @@ class _WebhookTransportSectionState
     final cfgAsync = ref.watch(webhookTransportConfigProvider);
     return cfgAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (e, _) => Text('Webhook config error: $e'),
+      error: (e, _) => const NightshadeInlineBanner(
+        message: 'Could not load webhook routing configuration.',
+        severity: NightshadeAlertSeverity.error,
+      ),
       data: (cfg) {
         if (!_initialized) {
           _url.text = cfg.url;

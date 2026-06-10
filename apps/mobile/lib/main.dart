@@ -608,6 +608,19 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
                       size: ButtonSize.small,
                     ),
                   ),
+                  const SizedBox(height: 8),
+                  // v4 couch-grade remote: reach a rig from anywhere through a
+                  // self-hosted relay (no VPN / port-forwarding). Collects the
+                  // relay URL + appliance id, then tunnels via _connectViaRelay.
+                  Center(
+                    child: NightshadeButton(
+                      onPressed: _showRelayConnectDialog,
+                      icon: LucideIcons.globe,
+                      label: l10n.text('relayConnect'),
+                      variant: ButtonVariant.ghost,
+                      size: ButtonSize.small,
+                    ),
+                  ),
                 ],
 
                 // Manual IP entry field

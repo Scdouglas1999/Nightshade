@@ -169,8 +169,10 @@ void main() {
         reason: 'Idle-and-not-capturing must show the standby hero in place of '
             'the tile grid.');
     expect(find.text('No run active'), findsOneWidget);
-    expect(find.text('Plan Tonight'), findsOneWidget,
-        reason: 'Standby offers the Plan Tonight CTA.');
+    expect(find.text('Image tonight'), findsOneWidget,
+        reason: 'Standby offers the one-tap Image tonight CTA.');
+    expect(find.text('Plan Tonight (advanced)'), findsOneWidget,
+        reason: 'Standby keeps the Smart Night wizard as the secondary CTA.');
   });
 
   testWidgets('cockpit (not standby) renders while a sequence is running',

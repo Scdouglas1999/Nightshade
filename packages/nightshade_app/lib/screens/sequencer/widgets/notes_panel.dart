@@ -283,7 +283,7 @@ class RunNotesSection extends ConsumerWidget {
       ),
       loading: () => const SizedBox.shrink(),
       error: (e, _) => Text(
-        'Notes unavailable: $e',
+        'Notes are temporarily unavailable.',
         style: TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.error),
       ),
     );

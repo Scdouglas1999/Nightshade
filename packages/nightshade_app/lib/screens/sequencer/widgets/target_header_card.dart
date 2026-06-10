@@ -217,6 +217,8 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                 Text(
                   node.displayName,
                   style: NightshadeTypography.h5.copyWith(color: widget.colors.textPrimary),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 if (node.mosaicPanel != null)
                   Text(
@@ -225,6 +227,8 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                       fontSize: NightshadeTypography.fontSize11,
                       color: widget.colors.textMuted,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
               ],
             ),

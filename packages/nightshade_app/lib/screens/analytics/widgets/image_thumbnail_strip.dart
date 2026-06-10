@@ -30,7 +30,7 @@ const double kAnalyticsThumbnailRailHeight = 120;
 /// Decorates each thumbnail with the existing quality badge plus a richer set
 /// of science badges (plate-solve checkmark, zero-point chip when available)
 /// and exposes an accept/reject context menu via long-press so users can flag
-/// poor frames without losing them â€” implements the P3.4 "manual quality
+/// poor frames without losing them — implements the P3.4 "manual quality
 /// gate, no auto-delete" pattern from the science gap list.
 class ImageThumbnailStrip extends StatefulWidget {
   final List<DbCapturedImage> images;
@@ -149,7 +149,7 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
         ),
         const SizedBox(height: 8),
         SizedBox(
-          // Thumbnail rail â€” fixed height (not chart-like).
+          // Thumbnail rail — fixed height (not chart-like).
           height: kAnalyticsThumbnailRailHeight,
           child: filteredImages.isEmpty
               ? Container(
@@ -781,7 +781,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
             _DetailRow('Calibrated', c.isCalibrated ? 'Yes' : 'No', colors),
             _DetailRow(
               'Zero point',
-              c.zeroPoint == null ? 'â€”' : c.zeroPoint!.toStringAsFixed(3),
+              c.zeroPoint == null ? '—' : c.zeroPoint!.toStringAsFixed(3),
               colors,
             ),
             _DetailRow(

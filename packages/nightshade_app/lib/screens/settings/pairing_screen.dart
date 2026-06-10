@@ -185,7 +185,8 @@ class PairingScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text(l10n.text('pairingTitle')),
       ),
-      body: SingleChildScrollView(
+      body: SafeArea(
+        child: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -202,6 +203,7 @@ class PairingScreen extends ConsumerWidget {
             const SizedBox(height: 32),
             _buildPairedDevicesSection(context, ref, state),
           ],
+        ),
         ),
       ),
     );

@@ -315,49 +315,54 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
   Widget _buildRelativeMoveSection(NightshadeColors colors) {
     final canMove = _isConnected && !_isMoving;
 
-    return Column(
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _RelativeMoveButton(
-              label: '-15°',
-              colors: colors,
-              onPressed: canMove ? () => _moveRelative(-15) : null,
-            ),
-            _RelativeMoveButton(
-              label: '-5°',
-              colors: colors,
-              onPressed: canMove ? () => _moveRelative(-5) : null,
-            ),
-            _RelativeMoveButton(
-              label: '-1°',
-              colors: colors,
-              onPressed: canMove ? () => _moveRelative(-1) : null,
-            ),
-            Container(
-              width: 1,
-              height: 24,
-              color: colors.border,
-            ),
-            _RelativeMoveButton(
-              label: '+1°',
-              colors: colors,
-              onPressed: canMove ? () => _moveRelative(1) : null,
-            ),
-            _RelativeMoveButton(
-              label: '+5°',
-              colors: colors,
-              onPressed: canMove ? () => _moveRelative(5) : null,
-            ),
-            _RelativeMoveButton(
-              label: '+15°',
-              colors: colors,
-              onPressed: canMove ? () => _moveRelative(15) : null,
-            ),
-          ],
-        ),
-      ],
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _RelativeMoveButton(
+            label: '-15°',
+            colors: colors,
+            onPressed: canMove ? () => _moveRelative(-15) : null,
+          ),
+          const SizedBox(width: 8),
+          _RelativeMoveButton(
+            label: '-5°',
+            colors: colors,
+            onPressed: canMove ? () => _moveRelative(-5) : null,
+          ),
+          const SizedBox(width: 8),
+          _RelativeMoveButton(
+            label: '-1°',
+            colors: colors,
+            onPressed: canMove ? () => _moveRelative(-1) : null,
+          ),
+          const SizedBox(width: 8),
+          Container(
+            width: 1,
+            height: 24,
+            color: colors.border,
+          ),
+          const SizedBox(width: 8),
+          _RelativeMoveButton(
+            label: '+1°',
+            colors: colors,
+            onPressed: canMove ? () => _moveRelative(1) : null,
+          ),
+          const SizedBox(width: 8),
+          _RelativeMoveButton(
+            label: '+5°',
+            colors: colors,
+            onPressed: canMove ? () => _moveRelative(5) : null,
+          ),
+          const SizedBox(width: 8),
+          _RelativeMoveButton(
+            label: '+15°',
+            colors: colors,
+            onPressed: canMove ? () => _moveRelative(15) : null,
+          ),
+        ],
+      ),
     );
   }
 }

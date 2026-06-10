@@ -8,6 +8,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../session_review/auto_integration_service.dart';
+import '../../localization/nightshade_localizations.dart';
 import '../../utils/sequence_mutator_helper.dart';
 import '../../widgets/animated_tab_bar_view.dart';
 import '../../widgets/contextual_tour_prompt.dart';
@@ -247,8 +248,8 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
     return ContextualTourPrompt(
       screenId: 'sequencer',
       tourCategory: TutorialCategory.sequencerTour,
-      title: 'Sequencer Tour',
-      description: 'Learn how to create and run automated imaging sequences.',
+      title: context.l10n.text('sequencerTourTitle'),
+      description: context.l10n.text('sequencerTourDescription'),
       durationMinutes: 4,
       alignment: Alignment.bottomRight,
       child: FadeTransition(

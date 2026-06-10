@@ -236,46 +236,54 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                         style: TextStyle(
                             fontSize: NightshadeTypography.fontSize11, color: widget.colors.textSecondary)),
                     const SizedBox(width: 8),
-                    ...[10, 50, 100, 500].map((step) {
-                      final isSelected = focusSettings.stepSize == step;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 6),
-                        child: GestureDetector(
-                          onTap: () => ref
-                              .read(focusSettingsProvider.notifier)
-                              .update(focusSettings.copyWith(stepSize: step)),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: isSelected
-                                ? NightshadeDecorations.selectedSurface(
-                                    widget.colors.primary,
-                                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
-                                    fillAlpha: 0.15,
-                                  )
-                                : BoxDecoration(
-                                    color: widget.colors.background,
-                                    borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
-                                    border: Border.all(
-                                      color: widget.colors.border,
+                    Expanded(
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: [10, 50, 100, 500].map((step) {
+                            final isSelected = focusSettings.stepSize == step;
+                            return Padding(
+                              padding: const EdgeInsets.only(right: 6),
+                              child: GestureDetector(
+                                onTap: () => ref
+                                    .read(focusSettingsProvider.notifier)
+                                    .update(
+                                        focusSettings.copyWith(stepSize: step)),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 8, vertical: 4),
+                                  decoration: isSelected
+                                      ? NightshadeDecorations.selectedSurface(
+                                          widget.colors.primary,
+                                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                                          fillAlpha: 0.15,
+                                        )
+                                      : BoxDecoration(
+                                          color: widget.colors.background,
+                                          borderRadius: BorderRadius.circular(NightshadeTokens.radiusInline4),
+                                          border: Border.all(
+                                            color: widget.colors.border,
+                                          ),
+                                        ),
+                                  child: Text(
+                                    '$step',
+                                    style: TextStyle(
+                                      fontSize: NightshadeTypography.fontSize10,
+                                      fontWeight: isSelected
+                                          ? FontWeight.w600
+                                          : FontWeight.normal,
+                                      color: isSelected
+                                          ? widget.colors.primary
+                                          : widget.colors.textSecondary,
                                     ),
                                   ),
-                            child: Text(
-                              '$step',
-                              style: TextStyle(
-                                fontSize: NightshadeTypography.fontSize10,
-                                fontWeight: isSelected
-                                    ? FontWeight.w600
-                                    : FontWeight.normal,
-                                color: isSelected
-                                    ? widget.colors.primary
-                                    : widget.colors.textSecondary,
+                                ),
                               ),
-                            ),
-                          ),
+                            );
+                          }).toList(),
                         ),
-                      );
-                    }),
+                      ),
+                    ),
                   ],
                 ),
                 const SizedBox(height: 12),

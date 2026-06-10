@@ -346,9 +346,13 @@ class _AddRigDialogState extends State<_AddRigDialog> {
     return AlertDialog(
       backgroundColor: colors.surface,
       title: Text('Add FOV Rig', style: TextStyle(color: colors.textPrimary)),
-      content: SizedBox(
-        width: 360,
-        child: Column(
+      content: ConstrainedBox(
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 360,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -438,6 +442,7 @@ class _AddRigDialogState extends State<_AddRigDialog> {
               ),
             ),
           ],
+        ),
         ),
       ),
       actions: [

@@ -156,23 +156,30 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
                   // page doesn't reflow when sessions resolve.
                   loading: () => const _SessionHistorySkeletonList(),
                   error: (err, stack) => Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(LucideIcons.alertCircle,
-                            size: 48, color: colors.error),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Error loading sessions',
-                          style: TextStyle(fontSize: NightshadeTypography.fontSize14, color: colors.error),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          err.toString(),
-                          style:
-                              TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
-                        ),
-                      ],
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(LucideIcons.alertCircle,
+                              size: 48, color: colors.error),
+                          const SizedBox(height: 16),
+                          Text(
+                            'Error loading sessions',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(fontSize: NightshadeTypography.fontSize14, color: colors.error),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            err.toString(),
+                            textAlign: TextAlign.center,
+                            maxLines: 4,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),

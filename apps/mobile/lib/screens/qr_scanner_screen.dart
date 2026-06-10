@@ -242,10 +242,12 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           if (_controller != null) ...[
             IconButton(
               icon: const Icon(Icons.flash_on),
+              tooltip: 'Toggle torch',
               onPressed: () => _controller?.toggleTorch(),
             ),
             IconButton(
               icon: const Icon(Icons.flip_camera_ios),
+              tooltip: 'Switch camera',
               onPressed: () => _controller?.switchCamera(),
             ),
           ],

@@ -831,6 +831,9 @@ class _BlinkView extends ConsumerWidget {
             '${sub.fileName} · ${sub.filter ?? 'L'} · '
             '${sub.exposureDuration.toInt()}s'
             '${sub.hfr != null ? ' · HFR ${sub.hfr!.toStringAsFixed(2)}' : ''}',
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
             style: NightshadeTypography.bodySm
                 .copyWith(color: colors.textSecondary),
           ),

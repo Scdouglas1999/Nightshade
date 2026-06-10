@@ -13,14 +13,14 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// bridge dispatch (`SequencerEvent::FrameAccepted` / `FrameRejected`).
 ///
 /// Pre-Pack-H this code parsed `InstructionProgress.detail` strings with
-/// regex. That parser has been deleted â€” every metric the panel needs
+/// regex. That parser has been deleted — every metric the panel needs
 /// (HFR, eccentricity, star count, reject reason, consecutive-reject
 /// counter) now arrives as typed data via [FrameGradeEvent.fromTypedData].
 ///
 /// Hidden when grading is disabled in settings AND no events have arrived
 /// (an idle dashboard stays clean).
 ///
-/// Wave 5 Agent 2 â€” the panel also surfaces the most recent sky-brightness
+/// Wave 5 Agent 2 — the panel also surfaces the most recent sky-brightness
 /// adaptive-exposure decision so the user sees live sky brightness +
 /// nominal/adapted exposure pair on the dashboard.
 class RunDashboardQualityPanel extends ConsumerWidget {
@@ -33,7 +33,7 @@ class RunDashboardQualityPanel extends ConsumerWidget {
     final adaptive = ref.watch(runDashboardAdaptiveExposureProvider);
 
     // Hidden when no grading has happened yet AND no adaptive event has
-    // landed â€” keeps an idle dashboard uncluttered. The panel auto-
+    // landed — keeps an idle dashboard uncluttered. The panel auto-
     // appears the moment the Rust path emits its first event.
     if (summary.total == 0 && adaptive == null) {
       return const SizedBox.shrink();
@@ -145,18 +145,43 @@ class RunDashboardQualityPanel extends ConsumerWidget {
 
           if (summary.hfrSparkline.length >= 3) ...[
             const SizedBox(height: NightshadeTokens.spaceMd),
+            Row(
+              children: [
+                Text(
+                  'HFR',
+                  style: TextStyle(
+                    fontSize: NightshadeTypography.fontSize10,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6,
+                    color: colors.textMuted,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${summary.hfrSparkline.reduce((a, b) => a < b ? a : b).toStringAsFixed(2)}'
+                  '–${summary.hfrSparkline.reduce((a, b) => a > b ? a : b).toStringAsFixed(2)} px',
+                  style: NightshadeTypography.withTabular(
+                    NightshadeTypography.labelSm
+                        .copyWith(color: colors.textMuted),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: NightshadeTokens.spaceXs),
             SizedBox(
-              height: 24,
+              height: 40,
               child: CustomPaint(
                 painter: _HfrSparklinePainter(
                   values: summary.hfrSparkline,
+                  accepted: summary.hfrSparklineAccepted,
                   color: colors.primary,
+                  rejectColor: colors.warning,
                 ),
                 size: Size.infinite,
               ),
             ),
           ],
-          // Wave 5 Agent 2 â€” adaptive-exposure status row. Embedded
+          // Wave 5 Agent 2 — adaptive-exposure status row. Embedded
           // inside the quality panel so the user has one place to look
           // for "is the rig adapting tonight?".
           if (adaptive != null) ...[
@@ -171,7 +196,7 @@ class RunDashboardQualityPanel extends ConsumerWidget {
   }
 }
 
-/// Wave 5 Agent 2 â€” slim banner used when adaptive-exposure has fired
+/// Wave 5 Agent 2 — slim banner used when adaptive-exposure has fired
 /// but no image-grading events have arrived yet (e.g. grading disabled).
 class _AdaptiveExposureBanner extends StatelessWidget {
   const _AdaptiveExposureBanner({required this.event, required this.colors});
@@ -188,7 +213,7 @@ class _AdaptiveExposureBanner extends StatelessWidget {
   }
 }
 
-/// Wave 5 Agent 2 â€” the inline body that renders the live adaptive-
+/// Wave 5 Agent 2 — the inline body that renders the live adaptive-
 /// exposure state for the quality panel.
 class _AdaptiveExposureInline extends StatelessWidget {
   const _AdaptiveExposureInline({
@@ -319,12 +344,22 @@ class _GradeRow extends StatelessWidget {
   }
 }
 
-/// Lightweight HFR-over-time sparkline. Renders the last N accepted-frame
-/// HFR values as a polyline. No axes â€” this is a sparkline, not a chart.
+/// Lightweight HFR-over-time sparkline. Renders the last N graded frames
+/// as a polyline; rejected frames additionally get a warning-coloured dot
+/// so a focus-collapse episode stays visible in the trend instead of
+/// disappearing with the rejections. No axes — the min–max range label
+/// above the chart provides the scale.
 class _HfrSparklinePainter extends CustomPainter {
-  _HfrSparklinePainter({required this.values, required this.color});
+  _HfrSparklinePainter({
+    required this.values,
+    required this.color,
+    this.accepted = const [],
+    this.rejectColor,
+  });
   final List<double> values;
+  final List<bool> accepted;
   final Color color;
+  final Color? rejectColor;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -338,28 +373,45 @@ class _HfrSparklinePainter extends CustomPainter {
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
-    final path = Path();
-    for (var i = 0; i < values.length; i++) {
-      final x = size.width * (i / (values.length - 1));
+    double xAt(int i) => size.width * (i / (values.length - 1));
+    double yAt(int i) {
       final normalized = (values[i] - min) / span;
       // Invert so smaller HFR draws at the top (better focus = up).
-      final y = size.height * (1 - normalized);
+      return size.height * (1 - normalized);
+    }
+
+    final path = Path();
+    for (var i = 0; i < values.length; i++) {
       if (i == 0) {
-        path.moveTo(x, y);
+        path.moveTo(xAt(i), yAt(i));
       } else {
-        path.lineTo(x, y);
+        path.lineTo(xAt(i), yAt(i));
       }
     }
     canvas.drawPath(path, paint);
+
+    if (rejectColor != null && accepted.length == values.length) {
+      final dotPaint = Paint()
+        ..color = rejectColor!
+        ..style = PaintingStyle.fill;
+      for (var i = 0; i < values.length; i++) {
+        if (!accepted[i]) {
+          canvas.drawCircle(Offset(xAt(i), yAt(i)), 2.5, dotPaint);
+        }
+      }
+    }
   }
 
   @override
   bool shouldRepaint(covariant _HfrSparklinePainter old) =>
-      old.values != values || old.color != color;
+      old.values != values ||
+      old.accepted != accepted ||
+      old.color != color ||
+      old.rejectColor != rejectColor;
 }
 
 // ============================================================================
-// Provider â€” accumulates grading events into a per-run summary.
+// Provider — accumulates grading events into a per-run summary.
 // ============================================================================
 
 /// Maximum recent events retained for the dashboard. Older events scroll
@@ -396,7 +448,7 @@ class _QualityNotifier extends StateNotifier<FrameGradeRunSummary> {
       return;
     }
     // Pack H: only the typed grading variants drive the panel. We no
-    // longer parse `InstructionProgress.detail` strings â€” the regex
+    // longer parse `InstructionProgress.detail` strings — the regex
     // pipeline has been removed entirely.
     if (event.eventType != 'FrameAccepted' &&
         event.eventType != 'FrameRejected') {
@@ -410,16 +462,22 @@ class _QualityNotifier extends StateNotifier<FrameGradeRunSummary> {
       nextRecent.removeRange(0, nextRecent.length - _kQualityRecentLimit);
     }
 
-    // Sparkline only tracks accepted-frame HFRs because reject HFR may
-    // be a known-bad outlier. The typed event carries the HFR directly
-    // â€” no parsing â€” so we can populate the trend line honestly.
+    // The sparkline tracks ALL graded frames, rejected included. A focus
+    // collapse that drives rejections is exactly the trend the user needs
+    // to see — recording only accepted frames hid the evidence until
+    // acceptance resumed. Rejected samples render distinctly (dots).
     final nextSparkline = List<double>.from(state.hfrSparkline);
-    if (grade.decision == FrameGradeDecision.accepted && grade.hfr != null) {
+    final nextSparklineAccepted = List<bool>.from(state.hfrSparklineAccepted);
+    if (grade.hfr != null) {
       nextSparkline.add(grade.hfr!);
+      nextSparklineAccepted
+          .add(grade.decision == FrameGradeDecision.accepted);
       // Cap the sparkline to a reasonable window so memory + paint cost
       // stay bounded across long sessions.
       if (nextSparkline.length > 200) {
         nextSparkline.removeRange(0, nextSparkline.length - 200);
+        nextSparklineAccepted.removeRange(
+            0, nextSparklineAccepted.length - 200);
       }
     }
 
@@ -430,6 +488,7 @@ class _QualityNotifier extends StateNotifier<FrameGradeRunSummary> {
       rejected: grade.rejectedTotal,
       recent: nextRecent,
       hfrSparkline: nextSparkline,
+      hfrSparklineAccepted: nextSparklineAccepted,
     );
   }
 
@@ -443,7 +502,7 @@ class _QualityNotifier extends StateNotifier<FrameGradeRunSummary> {
 
 /// Per-run quality summary fed by the backend event stream.
 ///
-/// Pack H: removed the duplicate `ref.onDispose(notifier.dispose)` â€”
+/// Pack H: removed the duplicate `ref.onDispose(notifier.dispose)` —
 /// Riverpod's StateNotifierProvider already auto-disposes the notifier
 /// when the container shuts down, so the manual hook was triggering
 /// `Bad state: Tried to use _QualityNotifier after dispose was called`
@@ -454,7 +513,7 @@ final runDashboardQualitySummaryProvider =
 });
 
 // ============================================================================
-// Wave 5 Agent 2 â€” Sky-brightness adaptive exposure surface
+// Wave 5 Agent 2 — Sky-brightness adaptive exposure surface
 // ============================================================================
 //
 // Mirrors the `_QualityNotifier` pattern: subscribe to the active backend

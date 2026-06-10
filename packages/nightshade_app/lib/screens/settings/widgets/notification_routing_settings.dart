@@ -30,6 +30,7 @@ part 'notification_routing_settings/pushover_transport_section.dart';
 part 'notification_routing_settings/telegram_transport_section.dart';
 part 'notification_routing_settings/discord_transport_section.dart';
 part 'notification_routing_settings/mqtt_transport_section.dart';
+part 'notification_routing_settings/home_assistant_section.dart';
 
 class NotificationRoutingSettings extends ConsumerWidget {
   final bool isMobile;
@@ -51,7 +52,7 @@ class NotificationRoutingSettings extends ConsumerWidget {
       ),
       error: (e, _) => Padding(
         padding: const EdgeInsets.all(16),
-        child: Text('Failed to load routing matrix: $e',
+        child: Text('Could not load the notification routing matrix.',
             style: TextStyle(color: colors.error)),
       ),
       data: (matrix) => _build(context, ref, matrix),

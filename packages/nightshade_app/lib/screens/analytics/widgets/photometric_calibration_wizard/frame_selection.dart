@@ -98,6 +98,8 @@ extension _PhotometricWizardFrameSelection
         ),
       ),
       error: (error, _) => Text('Error loading images: $error',
+          maxLines: 3,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(color: colors.error)),
       data: (imageList) {
         final solvedImages = imageList

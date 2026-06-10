@@ -20,6 +20,12 @@ class NightshadeLocalizations {
     GlobalCupertinoLocalizations.delegate,
   ];
 
+  /// The raw locale -> key -> value table, exposed only for the translation
+  /// completeness test (every key in `en` must exist in every other locale).
+  @visibleForTesting
+  static Map<String, Map<String, String>> get debugLocalizedValues =>
+      _localizedValues;
+
   static NightshadeLocalizations of(BuildContext context) {
     final localizations = Localizations.of<NightshadeLocalizations>(
       context,

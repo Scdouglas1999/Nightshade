@@ -162,6 +162,7 @@ class _FocusModelCurveCardState extends ConsumerState<FocusModelCurveCard> {
             colors: colors,
           ),
           const SizedBox(height: 12),
+          _PredictiveAfRow(colors: colors),
           _FilterOffsetsStrip(
             profileId: profileId,
             colors: colors,

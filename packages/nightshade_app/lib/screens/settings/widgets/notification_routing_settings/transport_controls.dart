@@ -15,6 +15,7 @@ class _TransportsSection extends ConsumerWidget {
         _TelegramTransportSection(isMobile: isMobile),
         _DiscordRoutingSection(isMobile: isMobile),
         _MqttTransportSection(isMobile: isMobile),
+        _HomeAssistantSection(isMobile: isMobile),
       ],
     );
   }

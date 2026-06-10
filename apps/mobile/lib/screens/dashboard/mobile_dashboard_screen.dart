@@ -322,12 +322,18 @@ class _NavSlot extends StatelessWidget {
           children: [
             Icon(tab.icon, size: 22, color: tint),
             const SizedBox(height: 4),
-            Text(
-              tab.label,
-              style: TextStyle(
-                fontSize: 11,
-                color: tint,
-                fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Text(
+                tab.label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: tint,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
               ),
             ),
           ],

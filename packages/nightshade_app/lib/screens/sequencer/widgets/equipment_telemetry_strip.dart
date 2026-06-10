@@ -149,92 +149,110 @@ class _HorizontalStrip extends StatelessWidget {
           const SizedBox(width: 16),
           _TelemetrySeparator(colors: colors),
           const SizedBox(width: 12),
-          if (camera.connectionState == DeviceConnectionState.connected)
-            _TelemetryItem(
-              colors: colors,
-              icon: LucideIcons.thermometer,
-              label: 'Cam',
-              value: camera.temperature != null
-                  ? '${camera.temperature!.toStringAsFixed(1)}°C'
-                  : '--',
-              valueColor: _tempColor(camera.temperature, colors),
-            ),
-          if (focuser.connectionState == DeviceConnectionState.connected)
-            _TelemetryItem(
-              colors: colors,
-              icon: LucideIcons.focus,
-              label: 'Focus',
-              value: focuser.position?.toString() ?? '--',
-              valueColor: focuser.isMoving ? colors.warning : null,
-            ),
-          if (filterWheel.connectionState == DeviceConnectionState.connected)
-            _TelemetryItem(
-              colors: colors,
-              icon: LucideIcons.filter,
-              label: 'Filter',
-              value: filterWheel.currentFilterName ??
-                  'Pos ${filterWheel.currentPosition ?? '?'}',
-              valueColor: filterWheel.isMoving ? colors.warning : null,
-            ),
-          if (guider.connectionState == DeviceConnectionState.connected)
-            _TelemetryItem(
-              colors: colors,
-              icon: LucideIcons.crosshair,
-              label: 'RMS',
-              value: guider.isGuiding
-                  ? (guider.rmsTotal != null
-                      ? '${guider.rmsTotal!.toStringAsFixed(2)}"'
-                      : 'Guiding')
-                  : 'Idle',
-              valueColor: _guidingRmsColor(guider, colors),
-            ),
-          if (mount.connectionState == DeviceConnectionState.connected)
-            _TelemetryItem(
-              colors: colors,
-              icon: LucideIcons.locateFixed,
-              label: 'Mount',
-              value: mount.isSlewing
-                  ? 'Slewing'
-                  : mount.isTracking
-                      ? 'Tracking'
-                      : mount.isParked
-                          ? 'Parked'
+          // Telemetry items scroll horizontally so the strip never overflows
+          // when many devices are connected on a narrow window.
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  if (camera.connectionState ==
+                      DeviceConnectionState.connected)
+                    _TelemetryItem(
+                      colors: colors,
+                      icon: LucideIcons.thermometer,
+                      label: 'Cam',
+                      value: camera.temperature != null
+                          ? '${camera.temperature!.toStringAsFixed(1)}°C'
+                          : '--',
+                      valueColor: _tempColor(camera.temperature, colors),
+                    ),
+                  if (focuser.connectionState ==
+                      DeviceConnectionState.connected)
+                    _TelemetryItem(
+                      colors: colors,
+                      icon: LucideIcons.focus,
+                      label: 'Focus',
+                      value: focuser.position?.toString() ?? '--',
+                      valueColor: focuser.isMoving ? colors.warning : null,
+                    ),
+                  if (filterWheel.connectionState ==
+                      DeviceConnectionState.connected)
+                    _TelemetryItem(
+                      colors: colors,
+                      icon: LucideIcons.filter,
+                      label: 'Filter',
+                      value: filterWheel.currentFilterName ??
+                          'Pos ${filterWheel.currentPosition ?? '?'}',
+                      valueColor: filterWheel.isMoving ? colors.warning : null,
+                    ),
+                  if (guider.connectionState ==
+                      DeviceConnectionState.connected)
+                    _TelemetryItem(
+                      colors: colors,
+                      icon: LucideIcons.crosshair,
+                      label: 'RMS',
+                      value: guider.isGuiding
+                          ? (guider.rmsTotal != null
+                              ? '${guider.rmsTotal!.toStringAsFixed(2)}"'
+                              : 'Guiding')
                           : 'Idle',
-              valueColor: mount.isSlewing
-                  ? colors.warning
-                  : mount.isTracking
-                      ? colors.success
-                      : mount.isParked
-                          ? colors.textMuted
-                          : colors.error,
+                      valueColor: _guidingRmsColor(guider, colors),
+                    ),
+                  if (mount.connectionState ==
+                      DeviceConnectionState.connected)
+                    _TelemetryItem(
+                      colors: colors,
+                      icon: LucideIcons.locateFixed,
+                      label: 'Mount',
+                      value: mount.isSlewing
+                          ? 'Slewing'
+                          : mount.isTracking
+                              ? 'Tracking'
+                              : mount.isParked
+                                  ? 'Parked'
+                                  : 'Idle',
+                      valueColor: mount.isSlewing
+                          ? colors.warning
+                          : mount.isTracking
+                              ? colors.success
+                              : mount.isParked
+                                  ? colors.textMuted
+                                  : colors.error,
+                    ),
+                  if (dome.connectionState ==
+                      DeviceConnectionState.connected)
+                    _TelemetryItem(
+                      colors: colors,
+                      icon: LucideIcons.warehouse,
+                      label: 'Dome',
+                      value: observatoryDomeShutterLabel(dome),
+                      valueColor: observatoryDomeShutterColor(dome, colors),
+                    ),
+                  if (cover.connectionState ==
+                          DeviceConnectionState.connected &&
+                      cover.hasCover)
+                    _TelemetryItem(
+                      colors: colors,
+                      icon: LucideIcons.panelTopClose,
+                      label: 'Cover',
+                      value: observatoryCoverStatusLabel(cover.coverStatus),
+                      valueColor:
+                          observatoryCoverStatusColor(cover.coverStatus, colors),
+                    ),
+                  if (switchDevice.connectionState ==
+                          DeviceConnectionState.connected &&
+                      switchDevice.channelCount > 0)
+                    _TelemetryItem(
+                      colors: colors,
+                      icon: LucideIcons.toggleLeft,
+                      label: 'Switch',
+                      value: observatorySwitchSummaryLabel(switchDevice),
+                    ),
+                ],
+              ),
             ),
-          if (dome.connectionState == DeviceConnectionState.connected)
-            _TelemetryItem(
-              colors: colors,
-              icon: LucideIcons.warehouse,
-              label: 'Dome',
-              value: observatoryDomeShutterLabel(dome),
-              valueColor: observatoryDomeShutterColor(dome, colors),
-            ),
-          if (cover.connectionState == DeviceConnectionState.connected &&
-              cover.hasCover)
-            _TelemetryItem(
-              colors: colors,
-              icon: LucideIcons.panelTopClose,
-              label: 'Cover',
-              value: observatoryCoverStatusLabel(cover.coverStatus),
-              valueColor: observatoryCoverStatusColor(cover.coverStatus, colors),
-            ),
-          if (switchDevice.connectionState ==
-                  DeviceConnectionState.connected &&
-              switchDevice.channelCount > 0)
-            _TelemetryItem(
-              colors: colors,
-              icon: LucideIcons.toggleLeft,
-              label: 'Switch',
-              value: observatorySwitchSummaryLabel(switchDevice),
-            ),
-          const Spacer(),
+          ),
         ],
       ),
     );

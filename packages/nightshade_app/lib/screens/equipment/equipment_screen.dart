@@ -16,6 +16,7 @@ import 'tabs/settings_tab.dart';
 import 'utils/connect_all_summary.dart';
 import 'utils/driver_error_pretty.dart';
 import 'utils/equipment_disconnect.dart';
+import '../../localization/nightshade_localizations.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/tutorial_keys/equipment_keys.dart';
 import '../../widgets/contextual_tour_prompt.dart';
@@ -115,9 +116,8 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     return ContextualTourPrompt(
       screenId: 'equipment',
       tourCategory: TutorialCategory.equipmentTour,
-      title: 'Equipment Tour',
-      description:
-          'Learn how to connect and manage your astrophotography equipment.',
+      title: context.l10n.text('equipmentTourTitle'),
+      description: context.l10n.text('equipmentTourDescription'),
       durationMinutes: 3,
       alignment: Alignment.bottomRight,
       child: LayoutBuilder(
@@ -248,7 +248,10 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       ref.read(selectedEquipmentProfileIdProvider.notifier).state = profileId;
     } catch (e) {
       if (mounted) {
-        context.showErrorSnackBar('Failed to create profile: $e');
+        context.showErrorSnackBar(
+          context.l10n.text('equipmentCreateProfileFailed',
+              params: {'error': '$e'}),
+        );
       }
     }
   }
@@ -271,11 +274,15 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
           .read(equipmentProfilesProvider.notifier)
           .setDefaultProfile(profile.id, makeActive: true);
       if (mounted) {
-        context.showSuccessSnackBar('Default profile set');
+        context.showSuccessSnackBar(
+          context.l10n.text('equipmentDefaultProfileSet'),
+        );
       }
     } catch (e) {
       if (mounted) {
-        context.showErrorSnackBar('Failed to set default: $e');
+        context.showErrorSnackBar(
+          context.l10n.text('equipmentSetDefaultFailed', params: {'error': '$e'}),
+        );
       }
     }
   }
@@ -295,11 +302,15 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       // Select the newly duplicated profile
       ref.read(selectedEquipmentProfileIdProvider.notifier).state = newId;
       if (mounted) {
-        context.showSuccessSnackBar('Profile duplicated');
+        context.showSuccessSnackBar(
+          context.l10n.text('equipmentProfileDuplicated'),
+        );
       }
     } catch (e) {
       if (mounted) {
-        context.showErrorSnackBar('Failed to duplicate: $e');
+        context.showErrorSnackBar(
+          context.l10n.text('equipmentDuplicateFailed', params: {'error': '$e'}),
+        );
       }
     }
   }
@@ -337,10 +348,11 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
         messenger.hideCurrentSnackBar();
         messenger.showSnackBar(
           SnackBar(
-            content: Text('Deleted "${deletedProfile.name}"'),
+            content: Text(context.l10n.text('equipmentProfileDeleted',
+                params: {'name': deletedProfile.name})),
             duration: const Duration(seconds: 6),
             action: SnackBarAction(
-              label: 'Undo',
+              label: context.l10n.text('commonUndo'),
               onPressed: () {
                 unawaited(_restoreDeletedProfile(
                   deletedProfileJson,
@@ -354,7 +366,9 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       }
     } catch (e) {
       if (mounted) {
-        context.showErrorSnackBar('Failed to delete: $e');
+        context.showErrorSnackBar(
+          context.l10n.text('equipmentDeleteFailed', params: {'error': '$e'}),
+        );
       }
     }
   }
@@ -410,11 +424,15 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
       }
       ref.read(selectedEquipmentProfileIdProvider.notifier).state = restoredId;
       if (mounted) {
-        context.showSuccessSnackBar('Profile restored');
+        context.showSuccessSnackBar(
+          context.l10n.text('equipmentProfileRestored'),
+        );
       }
     } catch (e) {
       if (mounted) {
-        context.showErrorSnackBar('Failed to restore profile: $e');
+        context.showErrorSnackBar(
+          context.l10n.text('equipmentRestoreFailed', params: {'error': '$e'}),
+        );
       }
     }
   }
@@ -444,7 +462,9 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
 
     if (deviceIds.isEmpty) {
       if (mounted) {
-        context.showWarningSnackBar('No devices configured in this profile');
+        context.showWarningSnackBar(
+          context.l10n.text('equipmentNoDevicesConfigured'),
+        );
       }
       return;
     }
@@ -567,11 +587,16 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     if (!mounted) return;
 
     for (final failure in summary.failures) {
-      context.showErrorSnackBar('Failed to disconnect $failure');
+      context.showErrorSnackBar(
+        context.l10n
+            .text('equipmentDisconnectFailed', params: {'device': failure}),
+      );
     }
 
     if (summary.successCount > 0 && summary.failures.isEmpty) {
-      context.showSuccessSnackBar('All devices disconnected');
+      context.showSuccessSnackBar(
+        context.l10n.text('equipmentAllDevicesDisconnected'),
+      );
     }
   }
 
@@ -595,10 +620,10 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
             backgroundColor: colors.background,
             appBar: AppBar(
               backgroundColor: colors.surface,
-              title: const Text('Equipment Settings'),
+              title: Text(modalContext.l10n.text('equipmentSettingsTitle')),
               leading: IconButton(
                 icon: const Icon(LucideIcons.x),
-                tooltip: 'Close',
+                tooltip: modalContext.l10n.text('commonClose'),
                 onPressed: () => Navigator.of(modalContext).pop(),
               ),
             ),
@@ -611,8 +636,8 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
 
     showDialog(
       context: context,
-      builder: (context) => const NightshadeDialog(
-        title: 'Equipment Settings',
+      builder: (dialogContext) => NightshadeDialog(
+        title: dialogContext.l10n.text('equipmentSettingsTitle'),
         icon: LucideIcons.settings,
         width: 700,
         height: 500,
@@ -620,7 +645,7 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
         // dialog scaffold must not double-wrap it in a SingleChildScrollView.
         scrollableBody: false,
         bodyPadding: EdgeInsets.zero,
-        child: EquipmentSettingsTab(),
+        child: const EquipmentSettingsTab(),
       ),
     );
   }

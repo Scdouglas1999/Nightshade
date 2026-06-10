@@ -3,6 +3,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../localization/nightshade_localizations.dart';
+
 /// Reusable body for a single first-night wizard step.
 ///
 /// Renders inside the [NightshadeDialog] scaffold owned by the parent
@@ -69,6 +71,7 @@ class TutorialStepWidget extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
+    final l10n = context.l10n;
     final icon = _resolveIcon(step.iconName);
 
     return Column(
@@ -95,9 +98,10 @@ class TutorialStepWidget extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    // TODO(v2.5.x i18n): localize wizard step labels in the
-                    // nightshade_localizations sweep.
-                    'Step ${currentIndex + 1} of $totalSteps',
+                    l10n.text('firstNightWizardStepLabel', params: {
+                      'current': '${currentIndex + 1}',
+                      'total': '$totalSteps',
+                    }),
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize11,
                       color: colors.textMuted,
@@ -140,7 +144,8 @@ class TutorialStepWidget extends StatelessWidget {
         // hidden rather than rendered with a disabled-looking state.
         if (step.hasDeepLink)
           NightshadeButton(
-            label: 'Show me on the ${_routeLabel(step.deepLinkRoute)} screen',
+            label: l10n.text('firstNightWizardShowMeOnScreen',
+                params: {'screen': _routeLabel(step.deepLinkRoute)}),
             icon: NightshadeIcons.externalLink,
             variant: ButtonVariant.outline,
             size: ButtonSize.small,

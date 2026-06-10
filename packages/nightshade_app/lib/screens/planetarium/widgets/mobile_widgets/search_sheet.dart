@@ -198,9 +198,15 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
               ),
             ),
           ),
-          error: (e, _) => Center(
-            child:
-                Text('Error: $e', style: TextStyle(color: widget.colors.error)),
+          error: (e, _) => Padding(
+            padding: const EdgeInsets.all(24),
+            child: Center(
+              child: Text(
+                'Could not load tonight’s targets',
+                textAlign: TextAlign.center,
+                style: TextStyle(color: widget.colors.textMuted),
+              ),
+            ),
           ),
         ),
       ],
@@ -275,10 +281,14 @@ class MobileSearchResultTile extends StatelessWidget {
                 children: [
                   Text(
                     displayName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: NightshadeTypography.h5.copyWith(color: colors.textPrimary),
                   ),
                   Text(
                     typeName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: NightshadeTypography.fontSize11,
                       color: colors.textMuted,

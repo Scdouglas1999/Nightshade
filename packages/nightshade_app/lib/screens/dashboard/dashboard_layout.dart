@@ -55,6 +55,7 @@ extension DashboardZoneX on DashboardZone {
       DashboardWidgetId.cockpitAdaptiveConditions => DashboardZone.secondary,
       DashboardWidgetId.cockpitLightCurve => DashboardZone.secondary,
       DashboardWidgetId.cockpitObservatory => DashboardZone.secondary,
+      DashboardWidgetId.cockpitSecondaryRig => DashboardZone.secondary,
 
       // Primary zone: main content area (hero widgets)
       DashboardWidgetId.livePreview => DashboardZone.primary,
@@ -101,6 +102,7 @@ enum DashboardWidgetId {
   cockpitAdaptiveConditions,
   cockpitLightCurve,
   cockpitObservatory,
+  cockpitSecondaryRig,
 
   // Legacy control/info cards. Kept for migration + power users, but disabled
   // by default now that the cockpit panels own the dashboard.
@@ -141,6 +143,7 @@ extension DashboardWidgetIdX on DashboardWidgetId {
         'cockpitAdaptiveConditions',
       DashboardWidgetId.cockpitLightCurve => 'cockpitLightCurve',
       DashboardWidgetId.cockpitObservatory => 'cockpitObservatory',
+      DashboardWidgetId.cockpitSecondaryRig => 'cockpitSecondaryRig',
       DashboardWidgetId.livePreview => 'livePreview',
       DashboardWidgetId.captureSettings => 'captureSettings',
       DashboardWidgetId.sequenceStatus => 'sequenceStatus',
@@ -178,6 +181,7 @@ extension DashboardWidgetIdX on DashboardWidgetId {
         DashboardWidgetId.cockpitAdaptiveConditions,
       'cockpitLightCurve' => DashboardWidgetId.cockpitLightCurve,
       'cockpitObservatory' => DashboardWidgetId.cockpitObservatory,
+      'cockpitSecondaryRig' => DashboardWidgetId.cockpitSecondaryRig,
       'livePreview' => DashboardWidgetId.livePreview,
       'captureSettings' => DashboardWidgetId.captureSettings,
       'sequenceStatus' => DashboardWidgetId.sequenceStatus,
@@ -682,6 +686,17 @@ class DashboardLayout {
         size: DashboardTileSize.medium,
         enabled: false,
         order: 29,
+        zone: DashboardZone.secondary,
+      ),
+
+      // Dual-rig secondary camera control. Disabled by default because most
+      // setups are single-camera; piggyback operators enable it via Edit
+      // Dashboard.
+      const DashboardTileConfig(
+        widgetId: DashboardWidgetId.cockpitSecondaryRig,
+        size: DashboardTileSize.medium,
+        enabled: false,
+        order: 30,
         zone: DashboardZone.secondary,
       ),
     ];

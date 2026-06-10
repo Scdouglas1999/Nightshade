@@ -49,8 +49,11 @@ class _StatRow extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label,
-            style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary)),
+        Expanded(
+          child: Text(label,
+              style: TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary)),
+        ),
+        const SizedBox(width: 8),
         Text(
           value,
           style: NightshadeTypography.labelSm.copyWith(color: valueColor ?? colors.textPrimary),

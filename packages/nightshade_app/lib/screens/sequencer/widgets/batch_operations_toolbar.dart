@@ -46,82 +46,99 @@ class BatchOperationsToolbar extends ConsumerWidget {
 
           const SizedBox(width: 12),
 
-          // Copy
-          _ToolbarButton(
-            colors: colors,
-            icon: LucideIcons.copy,
-            label: 'Copy',
-            onPressed: () {
-              ref.read(multiSelectedNodeIdsProvider.notifier).copySelected();
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('$count node(s) copied'),
-                  duration: const Duration(seconds: 2),
-                  backgroundColor: colors.info,
-                ),
-              );
-            },
-          ),
+          // Batch actions scroll horizontally so the toolbar never overflows
+          // on narrow windows / phones.
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  // Copy
+                  _ToolbarButton(
+                    colors: colors,
+                    icon: LucideIcons.copy,
+                    label: 'Copy',
+                    onPressed: () {
+                      ref
+                          .read(multiSelectedNodeIdsProvider.notifier)
+                          .copySelected();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('$count node(s) copied'),
+                          duration: const Duration(seconds: 2),
+                          backgroundColor: colors.info,
+                        ),
+                      );
+                    },
+                  ),
 
-          const SizedBox(width: 4),
+                  const SizedBox(width: 4),
 
-          // Paste
-          _ToolbarButton(
-            colors: colors,
-            icon: LucideIcons.clipboardPaste,
-            label: 'Paste',
-            enabled: hasClipboard,
-            onPressed: hasClipboard
-                ? () {
-                    ref
-                        .read(multiSelectedNodeIdsProvider.notifier)
-                        .pasteFromClipboard();
-                  }
-                : null,
+                  // Paste
+                  _ToolbarButton(
+                    colors: colors,
+                    icon: LucideIcons.clipboardPaste,
+                    label: 'Paste',
+                    enabled: hasClipboard,
+                    onPressed: hasClipboard
+                        ? () {
+                            ref
+                                .read(multiSelectedNodeIdsProvider.notifier)
+                                .pasteFromClipboard();
+                          }
+                        : null,
+                  ),
+
+                  const SizedBox(width: 8),
+                  Container(width: 1, height: 20, color: colors.border),
+                  const SizedBox(width: 8),
+
+                  // Enable
+                  _ToolbarButton(
+                    colors: colors,
+                    icon: LucideIcons.eye,
+                    label: 'Enable',
+                    onPressed: () {
+                      ref
+                          .read(multiSelectedNodeIdsProvider.notifier)
+                          .enableSelected();
+                    },
+                  ),
+
+                  const SizedBox(width: 4),
+
+                  // Disable
+                  _ToolbarButton(
+                    colors: colors,
+                    icon: LucideIcons.eyeOff,
+                    label: 'Disable',
+                    onPressed: () {
+                      ref
+                          .read(multiSelectedNodeIdsProvider.notifier)
+                          .disableSelected();
+                    },
+                  ),
+
+                  const SizedBox(width: 8),
+                  Container(width: 1, height: 20, color: colors.border),
+                  const SizedBox(width: 8),
+
+                  // Delete
+                  _ToolbarButton(
+                    colors: colors,
+                    icon: LucideIcons.trash2,
+                    label: 'Delete',
+                    color: colors.error,
+                    onPressed: () {
+                      _confirmDelete(context, ref, count);
+                    },
+                  ),
+                ],
+              ),
+            ),
           ),
 
           const SizedBox(width: 8),
-          Container(width: 1, height: 20, color: colors.border),
-          const SizedBox(width: 8),
-
-          // Enable
-          _ToolbarButton(
-            colors: colors,
-            icon: LucideIcons.eye,
-            label: 'Enable',
-            onPressed: () {
-              ref.read(multiSelectedNodeIdsProvider.notifier).enableSelected();
-            },
-          ),
-
-          const SizedBox(width: 4),
-
-          // Disable
-          _ToolbarButton(
-            colors: colors,
-            icon: LucideIcons.eyeOff,
-            label: 'Disable',
-            onPressed: () {
-              ref.read(multiSelectedNodeIdsProvider.notifier).disableSelected();
-            },
-          ),
-
-          const SizedBox(width: 8),
-          Container(width: 1, height: 20, color: colors.border),
-          const SizedBox(width: 8),
-
-          // Delete
-          _ToolbarButton(
-            colors: colors,
-            icon: LucideIcons.trash2,
-            label: 'Delete',
-            color: colors.error,
-            onPressed: () {
-              _confirmDelete(context, ref, count);
-            },
-          ),
-
-          const Spacer(),
 
           // Clear selection
           _ToolbarButton(

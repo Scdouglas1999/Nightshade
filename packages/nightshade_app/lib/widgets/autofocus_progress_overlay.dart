@@ -88,7 +88,10 @@ class _AutofocusProgressOverlayState
     final colors = NightshadeColors.of(context);
     final isMinimized = overlayState.isMinimized;
 
-    final width = isMinimized ? _minimizedWidth : _expandedWidth;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final maxWidth = math.max(0.0, screenWidth - 16);
+    final width =
+        math.min(isMinimized ? _minimizedWidth : _expandedWidth, maxWidth);
     final height = isMinimized ? _minimizedHeight : _expandedHeight;
     final useBottomNav =
         ShellChrome.useBottomNavigation(MediaQuery.sizeOf(context).width);
@@ -351,6 +354,7 @@ class _AutofocusProgressOverlayState
           // Minimize button
           _buildIconButton(
             icon: LucideIcons.minus,
+            tooltip: 'Minimize',
             onPressed: () => ref
                 .read(autofocusOverlayProvider.notifier)
                 .toggleMinimized(),
@@ -411,8 +415,9 @@ class _AutofocusProgressOverlayState
     required IconData icon,
     required VoidCallback onPressed,
     required NightshadeColors colors,
+    String? tooltip,
   }) {
-    return Material(
+    final button = Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onPressed,
@@ -424,11 +429,14 @@ class _AutofocusProgressOverlayState
         ),
       ),
     );
+    if (tooltip == null) return button;
+    return Tooltip(message: tooltip, child: button);
   }
 
   Widget _buildCloseButton(NightshadeColors colors) {
     return _buildIconButton(
       icon: LucideIcons.x,
+      tooltip: 'Close',
       onPressed: () => ref.read(autofocusOverlayProvider.notifier).dismiss(),
       colors: colors,
     );

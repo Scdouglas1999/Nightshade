@@ -66,6 +66,7 @@ class _FakeIntegrationService implements PostSessionIntegrationService {
     int? targetId,
     String? targetName,
     String? biasPath,
+    ResolvedCalibration? pinnedCalibration,
     bool generatePreview = true,
     double? hintRaHours,
     double? hintDecDegrees,

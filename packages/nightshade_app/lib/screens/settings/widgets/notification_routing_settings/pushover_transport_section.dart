@@ -29,7 +29,10 @@ class _PushoverRoutingSectionState
     final cfgAsync = ref.watch(pushoverTransportConfigProvider);
     return cfgAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (e, _) => Text('Pushover error: $e'),
+      error: (e, _) => const NightshadeInlineBanner(
+        message: 'Could not load Pushover routing configuration.',
+        severity: NightshadeAlertSeverity.error,
+      ),
       data: (cfg) {
         if (!_initialized) {
           _token.text = cfg.apiToken;

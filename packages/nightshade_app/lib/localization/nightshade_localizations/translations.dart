@@ -50,6 +50,8 @@ final Map<String, Map<String, String>> _localizedValues = {
     'mobileSkipConnection': 'Skip Connection (View UI Only)',
     // Tailscale connect (setup sheet + connection-screen button).
     'tailscaleConnect': 'Connect over Tailscale',
+    // v4 couch-grade remote: self-hosted relay connect (connection-screen).
+    'relayConnect': 'Connect via Relay',
     'tailscaleConnectSubtitle':
         'Reach this rig from anywhere — no port forwarding.',
     'tailscaleClose': 'Close',
@@ -469,6 +471,59 @@ final Map<String, Map<String, String>> _localizedValues = {
     'equipmentProfilesLoadFailedTitle': 'Failed to load profiles',
     'equipmentProfilesLoadFailedBody':
         'Nightshade could not load your saved equipment profiles.',
+    // Common buttons / verbs (shared across dialogs, snackbars, wizards).
+    'commonNext': 'Next',
+    'commonBack': 'Back',
+    'commonDone': 'Done',
+    'commonSkip': 'Skip',
+    'commonUndo': 'Undo',
+    'commonClose': 'Close',
+    'commonDelete': 'Delete',
+    'commonRename': 'Rename',
+    'commonDuplicate': 'Duplicate',
+    // First-night wizard chrome (replay-only walkthrough).
+    'firstNightWizardTitle': 'First Night Walkthrough',
+    'firstNightWizardSkipForever': 'Skip forever',
+    'firstNightWizardShowNextLaunch': 'Show on next launch',
+    'firstNightWizardStepLabel': 'Step {current} of {total}',
+    'firstNightWizardShowMeOnScreen': 'Show me on the {screen} screen',
+    // Tour prompts for screens that previously hard-coded their copy.
+    'equipmentTourTitle': 'Equipment Tour',
+    'equipmentTourDescription':
+        'Learn how to connect and manage your astrophotography equipment.',
+    'sequencerTourTitle': 'Sequencer Tour',
+    'sequencerTourDescription':
+        'Learn how to create and run automated imaging sequences.',
+    // Equipment screen profile management (snackbars + dialogs).
+    'equipmentSettingsTitle': 'Equipment Settings',
+    'equipmentDefaultProfileSet': 'Default profile set',
+    'equipmentProfileDuplicated': 'Profile duplicated',
+    'equipmentProfileRestored': 'Profile restored',
+    'equipmentProfileDeleted': 'Deleted "{name}"',
+    'equipmentAllDevicesDisconnected': 'All devices disconnected',
+    'equipmentDisconnectFailed': 'Failed to disconnect {device}',
+    'equipmentNoDevicesConfigured': 'No devices configured in this profile',
+    'equipmentCreateProfileFailed': 'Failed to create profile: {error}',
+    'equipmentSetDefaultFailed': 'Failed to set default: {error}',
+    'equipmentDuplicateFailed': 'Failed to duplicate: {error}',
+    'equipmentDeleteFailed': 'Failed to delete: {error}',
+    'equipmentRestoreFailed': 'Failed to restore profile: {error}',
+    // Planner (Plan Tonight) sub-tab labels.
+    'plannerTabRecommendation': 'Recommendation',
+    'plannerTabProjects': 'Projects',
+    'plannerTabTargetQueue': 'Target Queue',
+    'plannerTabThisWeek': 'This Week',
+    'plannerTabProgress': 'Progress',
+    // Settings catalog section labels that were previously hard-coded.
+    'settingsFilesStorage': 'Files & Storage',
+    'settingsAdaptiveExposure': 'Adaptive Exposure',
+    'settingsImageGrading': 'Image Grading',
+    'settingsCalibrationLibrary': 'Calibration Library',
+    'settingsPreflight': 'Pre-flight Checks',
+    'settingsAdaptiveConditions': 'Adaptive Conditions',
+    'settingsIntegrations': 'Integrations',
+    'settingsAiAssistant': 'AI Assistant',
+    'settingsReplayDebug': 'Replay & Debug',
   },
   'es': {
     'appTitle': 'Nightshade',
@@ -520,6 +575,8 @@ final Map<String, Map<String, String>> _localizedValues = {
     'mobileSkipConnection': 'Omitir conexi\u00F3n (solo ver la interfaz)',
     // Conexi\u00F3n por Tailscale.
     'tailscaleConnect': 'Conectar por Tailscale',
+    // Conexi\u00F3n mediante rel\u00E9 autoalojado (v4).
+    'relayConnect': 'Conectar mediante rel\u00E9',
     'tailscaleConnectSubtitle':
         'Accede a este equipo desde cualquier lugar, sin redirecci\u00F3n de puertos.',
     'tailscaleClose': 'Cerrar',
@@ -953,5 +1010,60 @@ final Map<String, Map<String, String>> _localizedValues = {
     'equipmentProfilesLoadFailedTitle': 'No se pudieron cargar los perfiles',
     'equipmentProfilesLoadFailedBody':
         'Nightshade no pudo cargar tus perfiles de equipo guardados.',
+    // Common buttons / verbs (shared across dialogs, snackbars, wizards).
+    'commonNext': 'Siguiente',
+    'commonBack': 'Atrás',
+    'commonDone': 'Listo',
+    'commonSkip': 'Omitir',
+    'commonUndo': 'Deshacer',
+    'commonClose': 'Cerrar',
+    'commonDelete': 'Eliminar',
+    'commonRename': 'Renombrar',
+    'commonDuplicate': 'Duplicar',
+    // First-night wizard chrome (replay-only walkthrough).
+    'firstNightWizardTitle': 'Guía de la primera noche',
+    'firstNightWizardSkipForever': 'Omitir para siempre',
+    'firstNightWizardShowNextLaunch': 'Mostrar al iniciar de nuevo',
+    'firstNightWizardStepLabel': 'Paso {current} de {total}',
+    'firstNightWizardShowMeOnScreen': 'Muéstrame en la pantalla {screen}',
+    // Tour prompts for screens that previously hard-coded their copy.
+    'equipmentTourTitle': 'Tour de equipo',
+    'equipmentTourDescription':
+        'Aprende a conectar y administrar tu equipo de astrofotografía.',
+    'sequencerTourTitle': 'Tour del secuenciador',
+    'sequencerTourDescription':
+        'Aprende a crear y ejecutar secuencias de captura automatizadas.',
+    // Equipment screen profile management (snackbars + dialogs).
+    'equipmentSettingsTitle': 'Ajustes de equipo',
+    'equipmentDefaultProfileSet': 'Perfil predeterminado establecido',
+    'equipmentProfileDuplicated': 'Perfil duplicado',
+    'equipmentProfileRestored': 'Perfil restaurado',
+    'equipmentProfileDeleted': 'Se eliminó "{name}"',
+    'equipmentAllDevicesDisconnected': 'Todos los dispositivos desconectados',
+    'equipmentDisconnectFailed': 'No se pudo desconectar {device}',
+    'equipmentNoDevicesConfigured':
+        'No hay dispositivos configurados en este perfil',
+    'equipmentCreateProfileFailed': 'No se pudo crear el perfil: {error}',
+    'equipmentSetDefaultFailed':
+        'No se pudo establecer el predeterminado: {error}',
+    'equipmentDuplicateFailed': 'No se pudo duplicar: {error}',
+    'equipmentDeleteFailed': 'No se pudo eliminar: {error}',
+    'equipmentRestoreFailed': 'No se pudo restaurar el perfil: {error}',
+    // Planner (Plan Tonight) sub-tab labels.
+    'plannerTabRecommendation': 'Recomendación',
+    'plannerTabProjects': 'Proyectos',
+    'plannerTabTargetQueue': 'Cola de objetivos',
+    'plannerTabThisWeek': 'Esta semana',
+    'plannerTabProgress': 'Progreso',
+    // Settings catalog section labels that were previously hard-coded.
+    'settingsFilesStorage': 'Archivos y almacenamiento',
+    'settingsAdaptiveExposure': 'Exposición adaptativa',
+    'settingsImageGrading': 'Clasificación de imágenes',
+    'settingsCalibrationLibrary': 'Biblioteca de calibración',
+    'settingsPreflight': 'Comprobaciones previas',
+    'settingsAdaptiveConditions': 'Condiciones adaptativas',
+    'settingsIntegrations': 'Integraciones',
+    'settingsAiAssistant': 'Asistente de IA',
+    'settingsReplayDebug': 'Reproducción y depuración',
   },
 };

@@ -37,14 +37,19 @@ class _SliderControl extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: showLabel ? 13 : 11,
-                fontWeight: showLabel ? FontWeight.w500 : FontWeight.normal,
-                color: showLabel ? colors.textSecondary : colors.textMuted,
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: showLabel ? 13 : 11,
+                  fontWeight: showLabel ? FontWeight.w500 : FontWeight.normal,
+                  color: showLabel ? colors.textSecondary : colors.textMuted,
+                ),
               ),
             ),
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
@@ -128,14 +133,19 @@ class _RangeSliderControl extends StatelessWidget {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: showLabel ? 13 : 11,
-                fontWeight: showLabel ? FontWeight.w500 : FontWeight.normal,
-                color: showLabel ? colors.textSecondary : colors.textMuted,
+            Flexible(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: showLabel ? 13 : 11,
+                  fontWeight: showLabel ? FontWeight.w500 : FontWeight.normal,
+                  color: showLabel ? colors.textSecondary : colors.textMuted,
+                ),
               ),
             ),
+            const SizedBox(width: 8),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [

@@ -128,9 +128,33 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
               loading: () => Center(
                   child: CircularProgressIndicator(color: colors.primary)),
               error: (err, _) => Center(
-                child: Text(
-                  'Failed to load history: $err',
-                  style: TextStyle(color: colors.error),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(LucideIcons.alertTriangle,
+                        size: 48, color: colors.error),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Failed to load history',
+                      style: TextStyle(
+                          color: colors.textPrimary,
+                          fontSize: NightshadeTypography.fontSize16),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      err.toString(),
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                          color: colors.textMuted,
+                          fontSize: NightshadeTypography.fontSize12),
+                    ),
+                    const SizedBox(height: 16),
+                    NightshadeButton(
+                      label: 'Retry',
+                      icon: LucideIcons.refreshCw,
+                      onPressed: () => ref.invalidate(sequenceRunsProvider),
+                    ),
+                  ],
                 ),
               ),
             ),
@@ -456,13 +480,15 @@ class _RunCard extends ConsumerWidget {
                   ],
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: RunNotesSection(
-                  sequenceRunId: run.id,
-                  targetId: primaryTarget!,
-                  colors: colors,
-                  embedded: true,
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: RunNotesSection(
+                    sequenceRunId: run.id,
+                    targetId: primaryTarget!,
+                    colors: colors,
+                    embedded: true,
+                  ),
                 ),
               ),
             ],

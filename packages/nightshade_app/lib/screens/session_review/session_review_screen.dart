@@ -55,7 +55,9 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
 
     return Scaffold(
       backgroundColor: colors.background,
-      body: Column(
+      body: SafeArea(
+        bottom: false,
+        child: Column(
         children: [
           ScreenHeader(
             title: state.title,
@@ -88,6 +90,7 @@ class _SessionReviewScreenState extends ConsumerState<SessionReviewScreen> {
                     : WorkbenchView(scope: widget.scope),
           ),
         ],
+        ),
       ),
     );
   }

@@ -1,4 +1,4 @@
-﻿// Wave 7.5 â€” Run-dashboard live light-curve panel for the
+﻿// Wave 7.5 — Run-dashboard live light-curve panel for the
 // SciencePhotometryNode (Wave 7 Agent 4).
 //
 // Data flow:
@@ -47,7 +47,7 @@ class LightCurvePanel extends ConsumerWidget {
         colors,
         child: _emptyState(
           colors,
-          'No active session yet â€” waiting for the executor to '
+          'No active session yet — waiting for the executor to '
           'announce a Photometry burst.',
         ),
       );
@@ -57,7 +57,7 @@ class LightCurvePanel extends ConsumerWidget {
     if (targetDesignation == null || targetDesignation.isEmpty) {
       return _buildShell(
         colors,
-        child: _emptyState(colors, 'Awaiting first photometry frameâ€¦'),
+        child: _emptyState(colors, 'Awaiting first photometry frame…'),
       );
     }
 
@@ -199,13 +199,13 @@ class _SummaryRow extends StatelessWidget {
         const SizedBox(width: NightshadeTokens.spaceLg),
         _Metric(
           label: 'Î”mag',
-          value: mag == 0 ? 'â€”' : mag.toStringAsFixed(3),
+          value: mag == 0 ? '—' : mag.toStringAsFixed(3),
           colors: colors,
         ),
         const SizedBox(width: NightshadeTokens.spaceLg),
         _Metric(
           label: 'snr',
-          value: snr == 0 ? 'â€”' : snr.toStringAsFixed(0),
+          value: snr == 0 ? '—' : snr.toStringAsFixed(0),
           colors: colors,
         ),
         const Spacer(),
@@ -269,7 +269,7 @@ class _Metric extends StatelessWidget {
 }
 
 // ============================================================================
-// Painter â€” magnitude (Î”mag) vs time
+// Painter — magnitude (Î”mag) vs time
 // ============================================================================
 
 class _LightCurvePainter extends CustomPainter {
@@ -338,7 +338,7 @@ class _LightCurvePainter extends CustomPainter {
     );
 
     if (sorted.length == 1) {
-      // Single point â†’ draw a dot centered horizontally.
+      // Single point → draw a dot centered horizontally.
       final v = values.first;
       final yNorm = (v - yMin) / ySpan;
       final y = (1.0 - yNorm) * size.height;
@@ -402,7 +402,7 @@ class _LightCurvePainter extends CustomPainter {
 }
 
 // ============================================================================
-// Activity provider â€” listens for Science Photometry executor events
+// Activity provider — listens for Science Photometry executor events
 // ============================================================================
 
 /// Snapshot of what the light-curve panel knows about the currently-
@@ -478,7 +478,7 @@ class _LightCurveActivityNotifier extends StateNotifier<LightCurveActivity> {
   void _onEvent(NightshadeEvent event) {
     if (event.category != EventCategory.sequencer) return;
     if (event.eventType == 'Started') {
-      // New run â€” reset state so a fresh sequence doesn't render the
+      // New run — reset state so a fresh sequence doesn't render the
       // previous run's curve.
       state = LightCurveActivity.empty;
       return;
@@ -516,7 +516,7 @@ class _LightCurveActivityNotifier extends StateNotifier<LightCurveActivity> {
     }
 
     if (detail.contains('burst complete')) {
-      // Summary line â€” keep the activity surface live (panel still
+      // Summary line — keep the activity surface live (panel still
       // visible) but bump the frame count if it parses cleanly.
       state = state.copyWith(
         hasSeenPhotometry: true,
@@ -527,7 +527,7 @@ class _LightCurveActivityNotifier extends StateNotifier<LightCurveActivity> {
 
     // PhotometryFrame fast path: split on " frame " to recover the
     // target designation, then the trailing token before " | " is the
-    // filter. We deliberately do not parse SNR / FWHM / airmass â€” the
+    // filter. We deliberately do not parse SNR / FWHM / airmass — the
     // chart's authoritative values come from the DB row.
     final frameIdx = detail.indexOf(' frame ');
     if (frameIdx <= 0) return;

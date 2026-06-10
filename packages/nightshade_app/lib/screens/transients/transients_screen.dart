@@ -38,7 +38,9 @@ class TransientsScreen extends ConsumerWidget {
 
     return Scaffold(
       backgroundColor: colors.background,
-      body: Column(
+      body: SafeArea(
+        bottom: false,
+        child: Column(
         children: [
           // Header with title and actions
           _TransientsHeader(
@@ -67,6 +69,7 @@ class TransientsScreen extends ConsumerWidget {
             ),
           ),
         ],
+        ),
       ),
     );
   }
@@ -373,19 +376,22 @@ class _FilterTabBar extends StatelessWidget {
         color: colors.surface,
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
-      child: Row(
-        children: TransientFilter.values.map((filter) {
-          final isSelected = filter == currentFilter;
-          return Padding(
-            padding: const EdgeInsets.only(right: NightshadeTokens.spaceSm),
-            child: _FilterChip(
-              label: filter.label,
-              isSelected: isSelected,
-              colors: colors,
-              onTap: () => onFilterChanged(filter),
-            ),
-          );
-        }).toList(),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: TransientFilter.values.map((filter) {
+            final isSelected = filter == currentFilter;
+            return Padding(
+              padding: const EdgeInsets.only(right: NightshadeTokens.spaceSm),
+              child: _FilterChip(
+                label: filter.label,
+                isSelected: isSelected,
+                colors: colors,
+                onTap: () => onFilterChanged(filter),
+              ),
+            );
+          }).toList(),
+        ),
       ),
     );
   }

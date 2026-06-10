@@ -25,28 +25,35 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
     return Row(
       children: [
         // Title
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Sequence Library',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize24,
-                fontWeight: FontWeight.w700,
-                color: widget.colors.textPrimary,
+        Flexible(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Sequence Library',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize24,
+                  fontWeight: FontWeight.w700,
+                  color: widget.colors.textPrimary,
+                ),
               ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Browse and load your saved imaging sequences',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize13,
-                color: widget.colors.textMuted,
+              const SizedBox(height: 4),
+              Text(
+                'Browse and load your saved imaging sequences',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize13,
+                  color: widget.colors.textMuted,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
 
+        const SizedBox(width: 16),
         const Spacer(),
 
         // Sort dropdown
@@ -96,8 +103,9 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
         const SizedBox(width: 16),
 
         // Search
-        Container(
-          width: 250,
+        Flexible(
+          child: Container(
+          constraints: const BoxConstraints(maxWidth: 250),
           padding: const EdgeInsets.symmetric(horizontal: 14),
           decoration: BoxDecoration(
             color: widget.colors.surfaceAlt,
@@ -141,6 +149,7 @@ class _LibraryHeaderState extends ConsumerState<_LibraryHeader> {
                 ),
             ],
           ),
+        ),
         ),
 
         const SizedBox(width: 16),

@@ -6,6 +6,8 @@ import 'package:file_selector/file_selector.dart';
 
 import '../../utils/confirm_dialog.dart';
 import '../../utils/snackbar_helper.dart';
+import 'widgets/deep_star_catalog_card.dart';
+import 'widgets/element_refresh_card.dart';
 
 part 'catalog_settings_screen/card_builders.dart';
 
@@ -303,6 +305,14 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen>
 
         // Annotation catalog section
         _buildAnnotationCatalogSection(context),
+        const SizedBox(height: 32),
+
+        // Deep-star tier (downloadable Tycho-2 / Gaia subset).
+        const DeepStarCatalogCard(),
+        const SizedBox(height: 16),
+
+        // Live MPC / TLE element refresh.
+        const ElementRefreshCard(),
         const SizedBox(height: 32),
 
         // Download section

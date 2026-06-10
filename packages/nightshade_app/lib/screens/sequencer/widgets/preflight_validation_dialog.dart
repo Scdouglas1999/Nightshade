@@ -17,7 +17,7 @@ part 'preflight_validation_dialog/issue_section.dart';
 // =============================================================================
 //
 // UI shell for the canonical sequence validator. The validation engine
-// lives in `nightshade_core/.../sequence/sequence_validation.dart` â€” this
+// lives in `nightshade_core/.../sequence/sequence_validation.dart` — this
 // file only renders the result.
 //
 // Previously this file defined its own ValidationIssue / ValidationSeverity
@@ -46,7 +46,7 @@ class _PreFlightValidationDialogState
   String? _simulationUnavailableReason;
   bool _isValidating = true;
 
-  /// Wave 6 Pack O â€” diff vs the most recent COMPLETED run of this
+  /// Wave 6 Pack O — diff vs the most recent COMPLETED run of this
   /// sequence. `null` either means we haven't computed it yet, or there
   /// is no previous run to compare against (fresh sequence, or first
   /// successful run still pending). When non-null AND non-empty we
@@ -113,7 +113,7 @@ class _PreFlightValidationDialogState
 
   /// Resolve the most recent COMPLETED run of the current sequence and
   /// compute a structural diff against the in-editor copy. The diff is
-  /// informational only â€” pre-flight does NOT block on it; the link
+  /// informational only — pre-flight does NOT block on it; the link
   /// just lets the operator review what's changed since the last
   /// known-good run.
   ///
@@ -126,7 +126,7 @@ class _PreFlightValidationDialogState
       if (sequence == null) return;
       final sequenceDbId = sequence.databaseId;
       if (sequenceDbId == null) {
-        // Sequence has never been persisted â€” no run history to diff.
+        // Sequence has never been persisted — no run history to diff.
         return;
       }
       final dao = ref.read(sequenceRunsDaoProvider);
@@ -161,14 +161,14 @@ class _PreFlightValidationDialogState
       if (!mounted) return;
       setState(() => _previousRunDiff = result);
     } catch (_) {
-      // Quietly skip â€” pre-flight is not the place to bubble up
+      // Quietly skip — pre-flight is not the place to bubble up
       // diff-resolution errors. The link just won't appear.
     }
   }
 
   /// Handle starting the sequence, checking for mount parking first.
   ///
-  /// Wave 7 â€” Before kicking off the mount-unpark flow we surface the
+  /// Wave 7 — Before kicking off the mount-unpark flow we surface the
   /// multi-night carry-over dialog when (a) at least one target has
   /// recent unfinished integration and (b) the
   /// `sessionHandoffAutoPrompt` setting is on. The decision is recorded
@@ -187,7 +187,7 @@ class _PreFlightValidationDialogState
       Navigator.of(context).pop();
     }
 
-    // Wave 7 â€” Surface the carry-over banner when enabled.
+    // Wave 7 — Surface the carry-over banner when enabled.
     if (mounted) {
       final autoPrompt = ref.read(sessionHandoffAutoPromptProvider);
       if (autoPrompt) {
@@ -206,7 +206,7 @@ class _PreFlightValidationDialogState
           // because the carry-over is informational only.
           if (!mounted) return;
           if (decisions == null) {
-            // User cancelled the handoff dialog entirely â€” abort the
+            // User cancelled the handoff dialog entirely — abort the
             // sequence start in case they intended to back out.
             return;
           }
@@ -368,7 +368,7 @@ class _PreFlightValidationDialogState
     final result = _result!;
     final hasSimulationIssues = _simulation?.issues.isNotEmpty ?? false;
 
-    // Wave 5 Agent 3 â€” partition issues into the three new pre-flight
+    // Wave 5 Agent 3 — partition issues into the three new pre-flight
     // groups (Dark Library, Equipment Health, Optical Train) so each
     // gets its own collapsible section, then a "General" bucket for
     // the existing categories (structure / equipment / settings / etc).
@@ -393,7 +393,7 @@ class _PreFlightValidationDialogState
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Wave 6 Pack O â€” info banner when the sequence has changed
+          // Wave 6 Pack O — info banner when the sequence has changed
           // since the last completed run. Informational only; not a
           // pre-flight blocker.
           if (_previousRunDiff != null && !_previousRunDiff!.isEmpty) ...[
@@ -565,7 +565,7 @@ class _PreFlightValidationDialogState
   /// Deep-link to the dark library / calibration tools. The exact route
   /// name is defined in `apps/desktop/lib/app_routes.dart` (and matched
   /// on mobile). We deliberately do not build the capture sequence
-  /// here â€” opening the existing tool keeps the responsibility with the
+  /// here — opening the existing tool keeps the responsibility with the
   /// dark-library screen.
   void _openCalibrationCenter() {
     Navigator.of(context).pop();
@@ -797,7 +797,7 @@ class _PreFlightValidationDialogState
     );
   }
 
-  /// Wave 6 Pack O â€” info-severity banner shown when the in-editor
+  /// Wave 6 Pack O — info-severity banner shown when the in-editor
   /// sequence differs structurally from the most recent COMPLETED run
   /// of the same sequence. Tapping "View N changes" pops the structural
   /// diff dialog.

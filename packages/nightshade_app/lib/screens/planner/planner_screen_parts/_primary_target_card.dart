@@ -86,12 +86,16 @@ class _PrimaryTargetCard extends ConsumerWidget {
           children: [
             Icon(LucideIcons.locate, size: 14, color: colors.textMuted),
             const SizedBox(width: 6),
-            Text(
-              '$raFormatted  /  $decFormatted',
-              style: TextStyle(
-                fontSize: NightshadeTypography.fontSize12,
-                fontFamily: 'monospace',
-                color: colors.textSecondary,
+            Flexible(
+              child: Text(
+                '$raFormatted  /  $decFormatted',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: NightshadeTypography.fontSize12,
+                  fontFamily: 'monospace',
+                  color: colors.textSecondary,
+                ),
               ),
             ),
           ],

@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../utils/confirm_dialog.dart';
 import '../../utils/snackbar_helper.dart';
+import 'widgets/cloud_sync_settings.dart';
 
 class BackupScreen extends ConsumerStatefulWidget {
   const BackupScreen({super.key});
@@ -250,6 +251,13 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
                     onCreateBackup: _isCreatingBackup ? null : _createBackup,
                     onImportBackup: _isRestoring ? null : _importBackup,
                   ),
+                  // Cloud Backup & Sync — local mode only: sync runs against
+                  // the local database; in remote mode the connected host
+                  // owns its own sync configuration.
+                  if (!isRemoteMode) ...[
+                    const SizedBox(height: 24),
+                    const CloudSyncCard(),
+                  ],
                   const SizedBox(height: 24),
                   _RecentBackupsCard(
                     isLoading: _isLoadingBackups,
@@ -355,7 +363,7 @@ class _AutoSaveStatusCard extends ConsumerWidget {
           ),
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (error, _) => Text(
-            'Error loading status: $error',
+            'Could not load auto-save status.',
             style: TextStyle(color: colors.error),
           ),
         ),

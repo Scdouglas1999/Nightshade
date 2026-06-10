@@ -371,7 +371,7 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
       await ref.read(deviceServiceProvider).setFilterWheelPosition(position);
     } catch (e) {
       if (mounted) {
-        context.showErrorSnackBar('Failed to change filter: $e');
+        context.showErrorSnackBar('Could not change the filter. Please try again.');
       }
     }
   }

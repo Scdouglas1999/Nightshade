@@ -98,7 +98,7 @@ class SettingsInfoRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceXs),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 100,
@@ -108,10 +108,12 @@ class SettingsInfoRow extends StatelessWidget {
                   .copyWith(color: colors.textMuted),
             ),
           ),
-          Text(
-            value,
-            style: NightshadeTypography.monoSm
-                .copyWith(color: colors.textSecondary),
+          Expanded(
+            child: Text(
+              value,
+              style: NightshadeTypography.monoSm
+                  .copyWith(color: colors.textSecondary),
+            ),
           ),
         ],
       ),

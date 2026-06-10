@@ -72,7 +72,7 @@ class _AdaptiveExposureSettingsState
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Padding(
         padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
-        child: Text('Failed to load settings: $e',
+        child: Text('Could not load adaptive exposure settings.',
             style: TextStyle(color: colors.error)),
       ),
       data: (settings) {

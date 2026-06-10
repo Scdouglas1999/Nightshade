@@ -133,6 +133,8 @@ class _Body extends StatelessWidget {
                     ),
                     Text(
                       rollup.targetName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style:
                           TextStyle(fontSize: NightshadeTypography.fontSize13, color: colors.textMuted),
                     ),
@@ -455,16 +457,24 @@ class _FilterRow extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               if (filter.hasGoal)
-                Text(
-                  '${filter.capturedFrames}/${filter.goalFrames} frames',
-                  style:
-                      TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+                Flexible(
+                  child: Text(
+                    '${filter.capturedFrames}/${filter.goalFrames} frames',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
+                  ),
                 )
               else
-                Text(
-                  '${filter.capturedFrames} frames captured (no goal)',
-                  style:
-                      TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                Flexible(
+                  child: Text(
+                    '${filter.capturedFrames} frames captured (no goal)',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style:
+                        TextStyle(fontSize: NightshadeTypography.fontSize12, color: colors.textMuted),
+                  ),
                 ),
               const Spacer(),
               Text(
@@ -566,6 +576,8 @@ class _SessionRow extends StatelessWidget {
                   children: [
                     Text(
                       session.sessionName ?? 'Session ${session.sessionId}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: NightshadeTypography.labelStrong.copyWith(
                         color: colors.textPrimary,
                       ),
@@ -573,6 +585,8 @@ class _SessionRow extends StatelessWidget {
                     const SizedBox(height: 2),
                     Text(
                       '${formatDateTime(session.startTime)} | $durationLabel | ${(session.sessionIntegrationSecs / 3600.0).toStringAsFixed(2)}h integration',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style:
                           TextStyle(fontSize: NightshadeTypography.fontSize11, color: colors.textMuted),
                     ),

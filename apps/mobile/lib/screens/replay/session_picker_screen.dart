@@ -214,6 +214,8 @@ class _RunRow extends StatelessWidget {
                         fontSize: 15,
                         color: colors.textPrimary,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -222,6 +224,8 @@ class _RunRow extends StatelessWidget {
                         fontSize: 12,
                         color: colors.textSecondary,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Row(

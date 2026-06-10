@@ -25,7 +25,21 @@ class _EquipmentProfilesScreenState
 
     return profilesAsync.when(
       loading: () => const Center(child: CircularProgressIndicator()),
-      error: (error, stack) => Center(child: Text('Error: $error')),
+      error: (error, stack) => Center(
+        child: EmptyState.compact(
+          icon: LucideIcons.alertTriangle,
+          title: 'Could not load profiles',
+          body: 'Something went wrong reading your equipment profiles. '
+              'Pull to refresh or try again.',
+          action: NightshadeButton(
+            label: 'Retry',
+            icon: LucideIcons.refreshCw,
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
+            onPressed: () => ref.invalidate(equipmentProfilesProvider),
+          ),
+        ),
+      ),
       data: (state) {
         // Auto-select active profile if none selected (desktop only)
         if (!widget.isMobile &&
@@ -190,7 +204,8 @@ class _EquipmentProfilesScreenState
         backgroundColor: colors.surface,
         title: Text('Create New Profile',
             style: TextStyle(color: colors.textPrimary)),
-        content: Column(
+        content: SingleChildScrollView(
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
@@ -229,6 +244,7 @@ class _EquipmentProfilesScreenState
               ),
             ),
           ],
+          ),
         ),
         actions: [
           NightshadeButton(

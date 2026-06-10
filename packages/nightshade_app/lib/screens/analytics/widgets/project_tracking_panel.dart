@@ -211,9 +211,15 @@ class _ProjectTrackingPanelState extends ConsumerState<ProjectTrackingPanel> {
       // Shimmer card placeholders so the panel keeps its real geometry.
       loading: () => _ProjectsLoadingSkeleton(colors: colors),
       error: (error, stackTrace) => Center(
-        child: Text(
-          'Error loading projects: $error',
-          style: TextStyle(color: colors.error),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            'Error loading projects: $error',
+            textAlign: TextAlign.center,
+            maxLines: 4,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(color: colors.error),
+          ),
         ),
       ),
     );
@@ -663,6 +669,8 @@ class _EnhancedProjectCard extends ConsumerWidget {
                     children: [
                       Text(
                         progress.target.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: NightshadeTypography.fontSize15,
                           fontWeight: FontWeight.w600,
@@ -675,6 +683,8 @@ class _EnhancedProjectCard extends ConsumerWidget {
                           progress.target.catalogId ??
                               progress.target.objectType ??
                               '',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: NightshadeTypography.fontSize12,
                             color: colors.textSecondary,

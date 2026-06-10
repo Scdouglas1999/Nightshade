@@ -1,4 +1,4 @@
-// Wave 5 Agent 1 â€” Mosaic Wizard powered by the planetarium's mosaic
+// Wave 5 Agent 1 — Mosaic Wizard powered by the planetarium's mosaic
 // planner.
 //
 // The visual planner draws a grid of camera-FOV-shaped panels over a
@@ -14,7 +14,7 @@
 // The generated `MosaicConfig` shape is identical to the pre-Wave-5
 // wizard, so the executor and resume logic don't change.
 //
-// The Wave 4 Mosaic-Resume banner remains at the top of the dialog â€”
+// The Wave 4 Mosaic-Resume banner remains at the top of the dialog —
 // see `_buildResumeBanner` below.
 
 import 'dart:async';
@@ -110,12 +110,16 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   }
 
   Future<void> _resumeInterruptedMosaic() async {
-    final backend = ref.read(sequencerBackendProvider);
     try {
-      await backend.resumeFromCheckpoint();
+      // Route through the SequenceExecutor provider — it re-seeds the
+      // runtime config from current settings and issues the
+      // sequencerStart() that actually begins execution. Calling the
+      // backend's resumeFromCheckpoint() directly only prepares the
+      // native tree and leaves the executor idle.
+      await ref.read(sequenceExecutorProvider).resumeFromCheckpoint();
       if (mounted) {
         Navigator.of(context).pop();
-        context.showSuccessSnackBar('Resuming mosaic from checkpointâ€¦');
+        context.showSuccessSnackBar('Resuming mosaic from checkpoint…');
       }
     } catch (e) {
       if (mounted) {
@@ -142,7 +146,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   /// Compute panel positions for the visual planner.
   ///
   /// Delegates to the planetarium's `MosaicPlanner.generateRectangularMosaic`
-  /// for the actual spherical geometry â€” that ensures the on-screen
+  /// for the actual spherical geometry — that ensures the on-screen
   /// preview matches the framing-view's mosaic overlay (the
   /// planetarium uses the same planner to render its own mosaic
   /// preview). The wizard then maps those panels into the local
@@ -238,7 +242,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
 
     final nodes = mosaicService.createMosaicSequence(
       mosaicName:
-          'Mosaic ${_centerRa.toStringAsFixed(2)}h ${_centerDec.toStringAsFixed(1)}Â°',
+          'Mosaic ${_centerRa.toStringAsFixed(2)}h ${_centerDec.toStringAsFixed(1)}°',
       config: config,
       exposure: exposure,
       options: options,
@@ -578,9 +582,9 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                     colors: colors,
                     activePanels: _panelsHorizontal * _panelsVertical -
                         _disabledPanels.length,
-                    gridLabel: '$_panelsHorizontalÃ—$_panelsVertical',
+                    gridLabel: '$_panelsHorizontal×$_panelsVertical',
                     panelArcminLabel:
-                        '${(_panelWidthArcmin / 60).toStringAsFixed(2)}Â° Ã— ${(_panelHeightArcmin / 60).toStringAsFixed(2)}Â°',
+                        '${(_panelWidthArcmin / 60).toStringAsFixed(2)}° × ${(_panelHeightArcmin / 60).toStringAsFixed(2)}°',
                     overlapLabel: '${_overlapPercent.toStringAsFixed(0)}%',
                     exposureSeconds: exposure.exposureSeconds,
                     exposuresPerPanel: exposure.exposuresPerPanel,

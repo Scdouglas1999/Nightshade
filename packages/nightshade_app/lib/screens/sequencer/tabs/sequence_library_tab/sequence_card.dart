@@ -121,26 +121,25 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                   ],
                   const SizedBox(height: 8),
                   // Stats
-                  Row(
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 6,
                     children: [
                       _StatChip(
                         colors: widget.colors,
                         icon: LucideIcons.layers,
                         label: '${widget.sequence.nodes.length} nodes',
                       ),
-                      const SizedBox(width: 12),
                       _StatChip(
                         colors: widget.colors,
                         icon: LucideIcons.target,
                         label: '$targetCount targets',
                       ),
-                      const SizedBox(width: 12),
                       _StatChip(
                         colors: widget.colors,
                         icon: LucideIcons.camera,
                         label: '$exposureCount exposures',
                       ),
-                      const SizedBox(width: 12),
                       _StatChip(
                         colors: widget.colors,
                         icon: LucideIcons.timer,

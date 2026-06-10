@@ -31,6 +31,7 @@ import '../../sequencer/widgets/run_dashboard/cloud_motion_panel.dart';
 import '../../sequencer/widgets/run_dashboard/adaptive_conditions_panel.dart';
 import '../../sequencer/widgets/run_dashboard/light_curve_panel.dart';
 import '../../sequencer/widgets/run_dashboard/observatory_panel.dart';
+import '../../sequencer/widgets/secondary_rig_card.dart';
 import 'cockpit_recent_frames.dart';
 import 'cockpit_now_imaging.dart';
 import 'cockpit_frames.dart';
@@ -229,6 +230,15 @@ const dashboardWidgetRegistry = <DashboardWidgetDefinition>[
     defaultZone: DashboardZone.secondary,
     selfChromed: true,
     builder: _buildCockpitObservatory,
+  ),
+  DashboardWidgetDefinition(
+    id: DashboardWidgetId.cockpitSecondaryRig,
+    title: 'Secondary Rig',
+    subtitle: 'Piggyback camera loop with dither-coordinated capture',
+    icon: LucideIcons.camera,
+    defaultZone: DashboardZone.secondary,
+    selfChromed: true,
+    builder: _buildCockpitSecondaryRig,
   ),
 
   // ===========================================================================
@@ -481,6 +491,14 @@ Widget _buildCockpitObservatory(
   AnimationController pulseController,
 ) {
   return const RunDashboardObservatoryPanel();
+}
+
+Widget _buildCockpitSecondaryRig(
+  BuildContext context,
+  NightshadeColors colors,
+  AnimationController pulseController,
+) {
+  return const SecondaryRigCard();
 }
 
 Widget _buildLivePreview(

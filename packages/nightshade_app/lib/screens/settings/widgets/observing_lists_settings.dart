@@ -66,7 +66,7 @@ class ObservingListsSettings extends ConsumerWidget {
               child: Padding(
                 padding: const EdgeInsets.all(32),
                 child: Text(
-                  'Error loading lists: $e',
+                  'Could not load observing lists.',
                   style: TextStyle(color: colors.error),
                 ),
               ),

@@ -507,7 +507,9 @@ class _InsertNodePicker extends ConsumerWidget {
             border: Border(top: BorderSide(color: colors.border)),
             boxShadow: NightshadeTokens.shadowLg,
           ),
-          child: Column(
+          child: SafeArea(
+            top: false,
+            child: Column(
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
@@ -612,6 +614,7 @@ class _InsertNodePicker extends ConsumerWidget {
                 ),
               ),
             ],
+          ),
           ),
         );
       },

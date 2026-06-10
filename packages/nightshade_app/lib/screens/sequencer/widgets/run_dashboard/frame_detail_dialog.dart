@@ -1,4 +1,4 @@
-﻿/// Wave 8 â€” Frame-Failure Forensics: detail dialog.
+﻿/// Wave 8 — Frame-Failure Forensics: detail dialog.
 ///
 /// Modal that shows the rejected frame's preview, the grader's reason
 /// string, the classifier's verdict + evidence bullets, and the
@@ -6,9 +6,9 @@
 ///
 /// Opens from two surfaces:
 ///
-/// * The thumbnail strip (Wave 6 Agent 4) â€” tapping a rejected
+/// * The thumbnail strip (Wave 6 Agent 4) — tapping a rejected
 ///   thumbnail.
-/// * The Forensics panel â€” tapping a row.
+/// * The Forensics panel — tapping a row.
 ///
 /// Both call `showDialog(builder: (_) => FrameDetailDialog(record: r))`.
 ///
@@ -201,7 +201,7 @@ class _Header extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                'Frame ${record.frameIndex}/${record.totalFrames} â€¢ '
+                'Frame ${record.frameIndex}/${record.totalFrames} • '
                 'Captured ${_formatDateTime(record.createdAt)}',
                 style: TextStyle(
                   fontSize: NightshadeTypography.fontSize11,
@@ -410,7 +410,7 @@ class _DetailSidePanel extends StatelessWidget {
         const SizedBox(height: NightshadeTokens.spaceSm),
         if (record.evidence.isEmpty)
           Text(
-            'No structured evidence â€” classifier could not muster a verdict.',
+            'No structured evidence — classifier could not muster a verdict.',
             style: TextStyle(
               fontSize: NightshadeTypography.fontSize11,
               fontStyle: FontStyle.italic,
@@ -457,7 +457,7 @@ class _DetailSidePanel extends StatelessWidget {
           rows: [
             ('HFR', _formatNumber(record.hfr, ' px')),
             ('Eccentricity', _formatNumber(record.eccentricity, '')),
-            ('Star count', record.starCount?.toString() ?? 'â€”'),
+            ('Star count', record.starCount?.toString() ?? '—'),
           ],
           colors: colors,
         ),
@@ -486,7 +486,7 @@ class _DetailSidePanel extends StatelessWidget {
               ),
               ('Wind', _formatNumber(env.windKph, ' km/h', digits: 0)),
               ('Guide RMS', _formatNumber(env.guideRmsArcsec, '"')),
-              ('Sensor temp', _formatNumber(env.sensorTempC, ' Â°C')),
+              ('Sensor temp', _formatNumber(env.sensorTempC, ' °C')),
             ],
             colors: colors,
           ),
@@ -565,7 +565,7 @@ class _MetricsGrid extends StatelessWidget {
 }
 
 String _formatNumber(double? value, String suffix, {int digits = 2}) {
-  if (value == null || value.isNaN || value.isInfinite) return 'â€”';
+  if (value == null || value.isNaN || value.isInfinite) return '—';
   return '${value.toStringAsFixed(digits)}$suffix';
 }
 

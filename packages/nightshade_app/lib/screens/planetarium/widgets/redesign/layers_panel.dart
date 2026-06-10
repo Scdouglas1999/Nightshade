@@ -44,6 +44,12 @@ class LayersPanel extends ConsumerWidget {
                     onChanged: (_) => notifier.toggleStars(),
                   ),
                   _LayerSwitch(
+                    label: 'Deep stars (Tycho-2 / Gaia tier)',
+                    value: ref.watch(showDeepStarsProvider),
+                    onChanged: (v) =>
+                        ref.read(showDeepStarsProvider.notifier).state = v,
+                  ),
+                  _LayerSwitch(
                     label: 'Deep-sky objects',
                     value: config.showDSOs,
                     onChanged: (_) => notifier.toggleDSOs(),

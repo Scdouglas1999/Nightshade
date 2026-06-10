@@ -66,7 +66,7 @@ class _ObservationLogSettingsState
             data: (stats) => _buildStats(stats, colors),
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Text(
-              'Failed to load stats: $e',
+              'Could not load observation log stats.',
               style: TextStyle(color: colors.error),
             ),
           ),
@@ -169,7 +169,7 @@ class _ObservationLogSettingsState
             },
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Text(
-              'Failed to load observation logs: $e',
+              'Could not load observation logs.',
               style: TextStyle(color: colors.error),
             ),
           ),

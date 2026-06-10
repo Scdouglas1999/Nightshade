@@ -11,9 +11,9 @@ import '../../scheduler/widgets/integration_goals_editor.dart';
 import '../../scheduler/widgets/target_constraints_editor.dart';
 import '../../scheduler/widgets/target_score_row.dart';
 
-/// Body of the RoboTarget-class dynamic scheduler â€” hoisted out of
+/// Body of the RoboTarget-class dynamic scheduler — hoisted out of
 /// `SchedulerScreen` when the Scheduler became a tab under Plan Tonight
-/// (Â§UX consolidation). The shell `SchedulerScreen` and the
+/// (§UX consolidation). The shell `SchedulerScreen` and the
 /// `/planner?tab=scheduler` tab both mount this widget so the standalone
 /// route keeps working for one release while every entry point shares the
 /// same code path.
@@ -42,7 +42,7 @@ class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
     with WidgetsBindingObserver {
   // Drives the countdown text to next-evaluation; rebuilds once per second
   // when running. Suspended when the app is backgrounded so a hidden
-  // scheduler tab doesn't repaint every second (Â§4.33).
+  // scheduler tab doesn't repaint every second (§4.33).
   Timer? _countdownTimer;
   int _editingTargetId = 0; // 0 means no editor open
 

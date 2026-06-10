@@ -27,7 +27,10 @@ class _DiscordRoutingSectionState
     final cfgAsync = ref.watch(discordTransportConfigProvider);
     return cfgAsync.when(
       loading: () => const SizedBox.shrink(),
-      error: (e, _) => Text('Discord error: $e'),
+      error: (e, _) => const NightshadeInlineBanner(
+        message: 'Could not load Discord routing configuration.',
+        severity: NightshadeAlertSeverity.error,
+      ),
       data: (cfg) {
         if (!_initialized) {
           _url.text = cfg.webhookUrl;

@@ -197,9 +197,13 @@ class _LiveViewStreamCardState extends ConsumerState<_LiveViewStreamCard> {
               ),
               const Spacer(),
               if (latest != null)
-                Text(
-                  '${latest.width}×${latest.height} • #${latest.frameNumber}',
-                  style: TextStyle(color: colors.textMuted, fontSize: 11),
+                Flexible(
+                  child: Text(
+                    '${latest.width}×${latest.height} • #${latest.frameNumber}',
+                    style: TextStyle(color: colors.textMuted, fontSize: 11),
+                    overflow: TextOverflow.ellipsis,
+                    textAlign: TextAlign.end,
+                  ),
                 ),
             ],
           ),
@@ -534,10 +538,14 @@ class _ExposureControlsState extends ConsumerState<_ExposureControls> {
                 ),
               ),
               const Spacer(),
-              Text(
-                '${widget.settings.exposureTime.toStringAsFixed(1)} s • '
-                'gain ${widget.settings.gain}',
-                style: TextStyle(color: colors.textMuted, fontSize: 12),
+              Flexible(
+                child: Text(
+                  '${widget.settings.exposureTime.toStringAsFixed(1)} s • '
+                  'gain ${widget.settings.gain}',
+                  style: TextStyle(color: colors.textMuted, fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.end,
+                ),
               ),
             ],
           ),
@@ -565,12 +573,30 @@ class _ExposureControlsState extends ConsumerState<_ExposureControls> {
                           TextStyle(color: colors.textSecondary, fontSize: 12)),
               ],
             ),
-          ] else if (hfr != null && hfr > 0) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Last HFR ${hfr.toStringAsFixed(2)} px',
-              style: TextStyle(color: colors.textSecondary, fontSize: 12),
-            ),
+          ] else ...[
+            // Couch-glance stats row: last-frame quality plus live guide
+            // RMS, so the phone answers "is the rig healthy?" without a
+            // walk to the desktop.
+            Builder(builder: (context) {
+              final stars = lastStats?.starCount;
+              final ecc = lastStats?.eccentricity;
+              final guider = ref.watch(guiderStateProvider);
+              final rms = guider.isGuiding ? guider.rmsTotal : null;
+              final parts = <String>[
+                if (hfr != null && hfr > 0) 'HFR ${hfr.toStringAsFixed(2)} px',
+                if (stars != null && stars > 0) '$stars stars',
+                if (ecc != null) 'ecc ${ecc.toStringAsFixed(2)}',
+                if (rms != null && rms > 0) 'RMS ${rms.toStringAsFixed(2)}',
+              ];
+              if (parts.isEmpty) return const SizedBox.shrink();
+              return Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  parts.join('  •  '),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 12),
+                ),
+              );
+            }),
           ],
           const SizedBox(height: 12),
           Row(

@@ -41,7 +41,12 @@ class MosaicPanelGrid extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         const spacing = NightshadeTokens.spaceSm;
-        final columns = cols.clamp(1, panels.length);
+        const minTileWidth = 120.0;
+        final fitColumns =
+            ((constraints.maxWidth + spacing) / (minTileWidth + spacing))
+                .floor()
+                .clamp(1, panels.length);
+        final columns = cols.clamp(1, panels.length).clamp(1, fitColumns);
         final tileWidth =
             (constraints.maxWidth - spacing * (columns - 1)) / columns;
         return Wrap(

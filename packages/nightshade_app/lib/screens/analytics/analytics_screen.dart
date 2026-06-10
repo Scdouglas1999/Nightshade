@@ -32,7 +32,7 @@ part 'analytics_screen/equipment_stats.dart';
 part 'analytics_screen/skeletons.dart';
 
 /// Identifies an Analytics sub-tab for deep-linking via `?tab=` query param.
-/// Order here matches the rendered tab order â€” Diagnostics is right-most.
+/// Order here matches the rendered tab order — Diagnostics is right-most.
 enum AnalyticsTab {
   session,
   history,

@@ -261,7 +261,12 @@ class _AppShellState extends ConsumerState<AppShell> {
       if (!mounted) return;
 
       if (result == true) {
-        await backend.resumeFromCheckpoint();
+        // Route through the SequenceExecutor provider — it re-seeds the
+        // runtime config from current settings and issues the
+        // sequencerStart() that actually begins execution. Calling the
+        // backend's resumeFromCheckpoint() directly only prepares the
+        // native tree and leaves the executor idle.
+        await ref.read(sequenceExecutorProvider).resumeFromCheckpoint();
       } else {
         await backend.discardCheckpoint();
       }
@@ -360,13 +365,13 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     // Activate the error notification bridge so backend errors show as toast notifications
     ref.watch(errorNotificationBridgeProvider);
-    // Why (audit-handoff Â§1.2): keep the meridian-flip disconnect guard alive
+    // Why (audit-handoff §1.2): keep the meridian-flip disconnect guard alive
     // for the shell's lifetime so a mount disconnect during an in-flight flip
     // resets `flipExecutionStateProvider` to `aborted` and unsticks the UI.
     ref.watch(meridianFlipDisconnectGuardProvider);
-    // Why (audit-handoff Â§1.2): the standalone meridian monitor must be kept
+    // Why (audit-handoff §1.2): the standalone meridian monitor must be kept
     // alive while the shell is mounted so the Sequencer Settings ->
-    // "Standalone monitoring" toggle actually does something â€” when enabled,
+    // "Standalone monitoring" toggle actually does something — when enabled,
     // it polls mount HA against the configured trigger and alerts the
     // operator when the meridian is crossed outside of a sequence run.
     ref.watch(meridianFlipStandaloneMonitorProvider);
@@ -417,7 +422,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             body: Column(
               children: [
                 // Desktop title bar (window drag + global actions). Hidden on
-                // mobile â€” bottom nav covers primary routes; saves vertical space.
+                // mobile — bottom nav covers primary routes; saves vertical space.
                 if (!useBottomNav) const TitleBar(),
 
                 // Disconnected banner — DESKTOP ONLY. On phone the dedicated
@@ -439,7 +444,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     ),
                   ),
 
-                // iOS background-monitoring advisory (audit Â§3.2). Renders
+                // iOS background-monitoring advisory (audit §3.2). Renders
                 // above the weather banner so it's the first thing the
                 // operator sees while a sequence is running on iOS.
                 const IosBackgroundBanner(),
@@ -450,7 +455,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 // wake them and points to System Settings.
                 const AndroidNotificationsBanner(),
 
-                // Stale-connection advisory (audit Â§3.6). Visible during
+                // Stale-connection advisory (audit §3.6). Visible during
                 // the WS reconnect grace window so the operator knows
                 // controls may be momentarily out of date.
                 const ConnectionStaleBanner(),
@@ -479,14 +484,14 @@ class _AppShellState extends ConsumerState<AppShell> {
                             TutorialKeys.navWeather,
                             TutorialKeys.navPlanner,
                             // Scheduler merged into Plan Tonight as a tab
-                            // (Â§UX consolidation, W8-SCHED-MERGE), so its
+                            // (§UX consolidation, W8-SCHED-MERGE), so its
                             // top-level nav slot is gone. TutorialKeys.
                             // navScheduler still exists for one release so a
                             // stale deep-link from the previous onboarding
                             // tour does not crash; the onboarding step now
                             // targets TutorialKeys.navPlanner instead.
                             // Diagnostics moved into Analytics as a tab
-                            // (Â§UX consolidation), so its top-level nav slot
+                            // (§UX consolidation), so its top-level nav slot
                             // (and tutorial key) are no longer wired here.
                           ],
                           currentIndex: currentIndex,
@@ -526,7 +531,15 @@ class _AppShellState extends ConsumerState<AppShell> {
                           ),
                           child: Stack(
                             children: [
-                              widget.child,
+                              // On phone there is no desktop TitleBar above the
+                              // content, so inset the top edge clear of the
+                              // status bar / notch. Desktop keeps zero inset
+                              // (the TitleBar already owns that space).
+                              SafeArea(
+                                top: useBottomNav,
+                                bottom: false,
+                                child: widget.child,
+                              ),
                               // Mobile sequence overlay (only on mobile and sequencer screen)
                               if (useBottomNav &&
                                   currentLocation.split('?').first ==

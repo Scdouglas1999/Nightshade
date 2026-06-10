@@ -37,6 +37,8 @@ class _SessionDetailDialog extends ConsumerWidget {
                       children: [
                         Text(
                           session.name ?? l10n.text('analyticsUnnamedSession'),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: NightshadeTypography.h4.copyWith(
                             color: colors.textPrimary,
                           ),
@@ -45,52 +47,72 @@ class _SessionDetailDialog extends ConsumerWidget {
                         Text(
                           DateFormat('MMM d, yyyy HH:mm')
                               .format(session.startTime),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                               fontSize: NightshadeTypography.fontSize12, color: colors.textSecondary),
                         ),
                       ],
                     ),
                   ),
-                  // Open the Session Review / Morning Report (cull + integrate).
-                  IconButton(
-                    icon: const Icon(LucideIcons.sparkles, size: 18),
-                    onPressed: () {
-                      Navigator.of(context).pop();
-                      context.go('/session-review?session=${session.id}');
-                    },
-                    tooltip: 'Review & Integrate',
-                  ),
-                  // View the rich Feature-A session report.
-                  IconButton(
-                    icon: const Icon(LucideIcons.fileBarChart, size: 18),
-                    onPressed: () =>
-                        SessionReportDialog.show(context, session.id),
-                    tooltip: 'Session Report',
-                  ),
-                  // Export buttons
-                  IconButton(
-                    icon: const Icon(LucideIcons.fileJson, size: 18),
-                    onPressed: () => _exportJson(context, ref),
-                    tooltip: l10n.text('analyticsExportJson'),
-                  ),
-                  IconButton(
-                    icon: const Icon(LucideIcons.fileSpreadsheet, size: 18),
-                    onPressed: () => _exportCsv(context, ref),
-                    tooltip: l10n.text('analyticsExportCsv'),
-                  ),
-                  IconButton(
-                    icon: const Icon(LucideIcons.fileText, size: 18),
-                    onPressed: () => _exportReport(context, ref),
-                    tooltip: l10n.text('analyticsExportHtml'),
-                  ),
-                  IconButton(
-                    icon: const Icon(LucideIcons.share, size: 18),
-                    onPressed: () => _exportAndShare(context, ref),
-                    tooltip: l10n.text('share'),
-                  ),
-                  IconButton(
-                    icon: const Icon(LucideIcons.x, size: 18),
-                    onPressed: () => Navigator.of(context).pop(),
+                  // Action buttons scroll horizontally so they never overflow
+                  // the header on narrow (phone-width) dialogs.
+                  Flexible(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      reverse: true,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Open the Session Review / Morning Report (cull +
+                          // integrate).
+                          IconButton(
+                            icon: const Icon(LucideIcons.sparkles, size: 18),
+                            onPressed: () {
+                              Navigator.of(context).pop();
+                              context
+                                  .go('/session-review?session=${session.id}');
+                            },
+                            tooltip: 'Review & Integrate',
+                          ),
+                          // View the rich Feature-A session report.
+                          IconButton(
+                            icon: const Icon(LucideIcons.fileBarChart, size: 18),
+                            onPressed: () =>
+                                SessionReportDialog.show(context, session.id),
+                            tooltip: 'Session Report',
+                          ),
+                          // Export buttons
+                          IconButton(
+                            icon: const Icon(LucideIcons.fileJson, size: 18),
+                            onPressed: () => _exportJson(context, ref),
+                            tooltip: l10n.text('analyticsExportJson'),
+                          ),
+                          IconButton(
+                            icon: const Icon(
+                                LucideIcons.fileSpreadsheet,
+                                size: 18),
+                            onPressed: () => _exportCsv(context, ref),
+                            tooltip: l10n.text('analyticsExportCsv'),
+                          ),
+                          IconButton(
+                            icon: const Icon(LucideIcons.fileText, size: 18),
+                            onPressed: () => _exportReport(context, ref),
+                            tooltip: l10n.text('analyticsExportHtml'),
+                          ),
+                          IconButton(
+                            icon: const Icon(LucideIcons.share, size: 18),
+                            onPressed: () => _exportAndShare(context, ref),
+                            tooltip: l10n.text('share'),
+                          ),
+                          IconButton(
+                            icon: const Icon(LucideIcons.x, size: 18),
+                            onPressed: () => Navigator.of(context).pop(),
+                            tooltip: l10n.text('commonClose'),
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ],
               ),

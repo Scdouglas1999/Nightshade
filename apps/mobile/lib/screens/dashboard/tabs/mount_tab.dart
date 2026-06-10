@@ -9,13 +9,13 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/error_snackbar.dart';
 
-/// Mount tab â€” phone-native mount control:
+/// Mount tab — phone-native mount control:
 ///   * Live RA/Dec/Alt/Az from `mountStateProvider`.
-///   * Press-and-hold d-pad (port of the Â§2.7 web dashboard pattern).
+///   * Press-and-hold d-pad (port of the §2.7 web dashboard pattern).
 ///   * Park/unpark + tracking on/off.
 ///   * Slew-to-target by NGC/IC/Messier name or manual RA/Dec.
 ///
-/// All hardware calls go through `DeviceService` â€” this widget is pure UI
+/// All hardware calls go through `DeviceService` — this widget is pure UI
 /// with the d-pad lifecycle (pointer capture, axis stop on release) as the
 /// only stateful piece.
 class MountTab extends ConsumerStatefulWidget {
@@ -26,13 +26,13 @@ class MountTab extends ConsumerStatefulWidget {
 }
 
 class _MountTabState extends ConsumerState<MountTab> {
-  /// Slew rate multiplier (deg/s) â€” mirrors the desktop dashboard's
-  /// 0.5Ã—/1Ã—/2Ã—/4Ã—/8Ã— preset menu.
+  /// Slew rate multiplier (deg/s) — mirrors the desktop dashboard's
+  /// 0.5×/1×/2×/4×/8× preset menu.
   double _slewRate = 2.0;
 
   /// Track which axis is currently held down so we can issue the matching
-  /// stop on pointer release, matching Â§2.7 ("release == stop, no implicit
-  /// timeout"). Map of axis â†’ direction.
+  /// stop on pointer release, matching §2.7 ("release == stop, no implicit
+  /// timeout"). Map of axis → direction.
   final Map<int, int> _activeAxes = {};
 
   /// Cached device id so the dispose hook can stop motion without
@@ -175,14 +175,14 @@ class _PositionCard extends StatelessWidget {
               Expanded(
                 child: _MetricCell(
                   label: 'RA',
-                  value: ra != null ? _formatRa(ra) : 'â€”',
+                  value: ra != null ? _formatRa(ra) : '—',
                   colors: colors,
                 ),
               ),
               Expanded(
                 child: _MetricCell(
                   label: 'Dec',
-                  value: dec != null ? _formatDec(dec) : 'â€”',
+                  value: dec != null ? _formatDec(dec) : '—',
                   colors: colors,
                 ),
               ),
@@ -194,14 +194,14 @@ class _PositionCard extends StatelessWidget {
               Expanded(
                 child: _MetricCell(
                   label: 'Alt',
-                  value: alt != null ? '${alt.toStringAsFixed(1)}Â°' : 'â€”',
+                  value: alt != null ? '${alt.toStringAsFixed(1)}°' : '—',
                   colors: colors,
                 ),
               ),
               Expanded(
                 child: _MetricCell(
                   label: 'Az',
-                  value: az != null ? '${az.toStringAsFixed(1)}Â°' : 'â€”',
+                  value: az != null ? '${az.toStringAsFixed(1)}°' : '—',
                   colors: colors,
                 ),
               ),
@@ -295,11 +295,11 @@ class _SlewRateSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     const options = <(double, String)>[
-      (0.5, '0.5Ã—'),
-      (1.0, '1Ã—'),
-      (2.0, '2Ã—'),
-      (4.0, '4Ã—'),
-      (8.0, '8Ã—'),
+      (0.5, '0.5×'),
+      (1.0, '1×'),
+      (2.0, '2×'),
+      (4.0, '4×'),
+      (8.0, '8×'),
     ];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -378,7 +378,7 @@ class _RateChip extends StatelessWidget {
 }
 
 /// Press-and-hold d-pad. Each direction starts a slew on pointer down and
-/// stops it on pointer up / leave / cancel. Mirrors Â§2.7 of the web
+/// stops it on pointer up / leave / cancel. Mirrors §2.7 of the web
 /// dashboard so the runaway-slew failure mode (start without matching
 /// stop) cannot occur on a phone either.
 class _Dpad extends StatelessWidget {
@@ -538,7 +538,7 @@ class _DpadButtonState extends State<_DpadButton> {
       enabled: widget.enabled,
       child: Listener(
         // Listener (vs GestureDetector) is what guarantees we get a
-        // pointer-up event even when the finger drifts to a sibling â€” the
+        // pointer-up event even when the finger drifts to a sibling — the
         // hit-target is the pointer's initial widget. We additionally
         // listen for pointer-cancel to recover from system pre-empts
         // (notification shade pulled down, etc.).
@@ -621,7 +621,7 @@ class _ControlsRow extends ConsumerWidget {
         await fn();
       } catch (e) {
         if (context.mounted) {
-          // [Wave 6D error parsing] â€” typed envelope so park/unpark/track
+          // [Wave 6D error parsing] — typed envelope so park/unpark/track
           // failures surface the server's machine code (e.g.
           // "Mount is currently slewing (mount_busy)").
           showApiError(context, e);
@@ -784,7 +784,7 @@ class _SlewToTargetState extends ConsumerState<_SlewToTarget> {
           SizedBox(
             width: double.infinity,
             child: NightshadeButton(
-              label: _searching ? 'Searchingâ€¦' : 'Look up',
+              label: _searching ? 'Searching…' : 'Look up',
               icon: LucideIcons.search,
               size: ButtonSize.large,
               variant: ButtonVariant.outline,
@@ -827,7 +827,7 @@ class _SlewToTargetState extends ConsumerState<_SlewToTarget> {
                   controller: _decCtrl,
                   decoration: InputDecoration(
                     labelText: 'Dec',
-                    hintText: '+41Â°16\'',
+                    hintText: '+41°16\'',
                     border: const OutlineInputBorder(),
                     isDense: true,
                     filled: true,
@@ -888,14 +888,19 @@ class _HitTile extends StatelessWidget {
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
                 Text(
                   '${hit.type}  ${_formatRa(hit.ra / 15.0)}  ${_formatDec(hit.dec)}',
                   style: TextStyle(color: colors.textMuted, fontSize: 11),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
             ),
           ),
+          const SizedBox(width: 8),
           NightshadeButton(
             label: 'Slew',
             size: ButtonSize.small,
@@ -921,5 +926,5 @@ String _formatDec(double decDeg) {
   final a = decDeg.abs();
   final d = a.floor();
   final m = ((a - d) * 60).round();
-  return '$sign${d.toString().padLeft(2, '0')}Â°${m.toString().padLeft(2, '0')}\'';
+  return '$sign${d.toString().padLeft(2, '0')}°${m.toString().padLeft(2, '0')}\'';
 }
