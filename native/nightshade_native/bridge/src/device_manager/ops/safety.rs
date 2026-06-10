@@ -26,13 +26,18 @@ impl DeviceManager {
                 if let Some(safety) = safety_devs.get(device_id) {
                     return safety.is_safe().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca safety monitor {} not found", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca safety monitor {} not found", device_id),
+                ))
             }
             Some(DriverType::Indi) => {
                 // Parse INDI device ID: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID format"));
+                    return Err(DeviceOpError::invalid_device_id(
+                        "Invalid INDI device ID format",
+                    ));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -43,10 +48,10 @@ impl DeviceManager {
                     let safety = IndiSafetyMonitor::new(client.clone(), &device_name);
                     return safety.is_safe().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!(
-                    "INDI client not connected for server {}",
-                    server_key
-                )))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("INDI client not connected for server {}", server_key),
+                ))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -56,17 +61,25 @@ impl DeviceManager {
                         let safety_guard = safety.read().await;
                         return safety_guard.is_safe().await.map_err(DeviceOpError::driver);
                     }
-                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM safety monitor {} not found", device_id)))
+                    Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("ASCOM safety monitor {} not found", device_id),
+                    ))
                 }
                 #[cfg(not(windows))]
-                Err(DeviceOpError::unsupported("ASCOM is only available on Windows"))
+                Err(DeviceOpError::unsupported(
+                    "ASCOM is only available on Windows",
+                ))
             }
             Some(DriverType::Native) => {
                 let native_safety = self.native_safety_monitors.read().await;
                 if let Some(safety) = native_safety.get(device_id) {
                     return safety.is_safe().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native safety monitor not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native safety monitor not connected",
+                ))
             }
             Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
                 crate::device_manager::ops::sim_gate::unsupported_simulator_device(

@@ -106,6 +106,47 @@ Future<CheckpointInfoApi?> apiSequencerGetCheckpointInfo() =>
 Future<void> apiSequencerResumeFromCheckpoint() =>
     RustLib.instance.api.crateApiSequencerApiSequencerResumeFromCheckpoint();
 
+/// Standalone meridian flip — runs the canonical [`MeridianFlipExecutor`]
+/// OUTSIDE any running sequence.
+///
+/// Why this exists: the Dart-side standalone meridian monitor previously
+/// could only alert (the flip engine was reachable solely through the
+/// sequencer's trigger path), so an attended non-sequencer session got a
+/// notification while the mount tracked into the pier. This API gives that
+/// monitor a real flip with the exact same engine, timeouts, altitude
+/// check, re-center and refocus semantics as the in-sequence path.
+///
+/// Refuses while the sequence executor is Running/Paused/Stopping/
+/// Recovering — two engines commanding one mount is how pier crashes
+/// happen; the in-sequence trigger owns flips there.
+Future<void> apiPerformMeridianFlip({
+  required String mountId,
+  String? cameraId,
+  String? focuserId,
+  String? coverCalibratorId,
+  required String targetName,
+  required double targetRaHours,
+  required double targetDecDegrees,
+  required bool pauseGuiding,
+  required bool autoCenter,
+  required bool refocusAfter,
+  required bool resumeGuiding,
+  required double settleTimeSecs,
+}) => RustLib.instance.api.crateApiSequencerApiPerformMeridianFlip(
+  mountId: mountId,
+  cameraId: cameraId,
+  focuserId: focuserId,
+  coverCalibratorId: coverCalibratorId,
+  targetName: targetName,
+  targetRaHours: targetRaHours,
+  targetDecDegrees: targetDecDegrees,
+  pauseGuiding: pauseGuiding,
+  autoCenter: autoCenter,
+  refocusAfter: refocusAfter,
+  resumeGuiding: resumeGuiding,
+  settleTimeSecs: settleTimeSecs,
+);
+
 /// Save current execution state as checkpoint
 Future<void> apiSequencerSaveCheckpoint() =>
     RustLib.instance.api.crateApiSequencerApiSequencerSaveCheckpoint();

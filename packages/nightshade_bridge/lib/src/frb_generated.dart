@@ -31,6 +31,7 @@ import 'api/phd2.dart';
 import 'api/plate_solve.dart';
 import 'api/polar_alignment.dart';
 import 'api/post_session.dart';
+import 'api/secondary_rig.dart';
 import 'api/sequencer.dart';
 import 'api/session.dart';
 import 'api/storage.dart';
@@ -101,7 +102,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1528165636;
+  int get rustContentHash => 459524578;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -960,6 +961,21 @@ abstract class RustLibApi extends BaseApi {
     required String deviceId,
   });
 
+  Future<void> crateApiSequencerApiPerformMeridianFlip({
+    required String mountId,
+    String? cameraId,
+    String? focuserId,
+    String? coverCalibratorId,
+    required String targetName,
+    required double targetRaHours,
+    required double targetDecDegrees,
+    required bool pauseGuiding,
+    required bool autoCenter,
+    required bool refocusAfter,
+    required bool resumeGuiding,
+    required double settleTimeSecs,
+  });
+
   Future<void> crateApiPhd2ApiPhd2ClearCalibration({required String which});
 
   Future<void> crateApiPhd2ApiPhd2Connect({String? host, int? port});
@@ -1169,6 +1185,16 @@ abstract class RustLibApi extends BaseApi {
     required List<int> data,
     required List<(String, String)> properties,
   });
+
+  Future<SecondaryRigStatusApi> crateApiSecondaryRigApiSecondaryRigGetStatus();
+
+  Future<bool> crateApiSecondaryRigApiSecondaryRigIsArmed();
+
+  Future<void> crateApiSecondaryRigApiSecondaryRigStart({
+    required SecondaryRigConfigApi config,
+  });
+
+  Future<void> crateApiSecondaryRigApiSecondaryRigStop();
 
   Future<void> crateApiImagingApiSequencerApplyDefectMap({
     required String cameraId,
@@ -1706,6 +1732,9 @@ abstract class RustLibApi extends BaseApi {
     required List<int> data,
     required FitsWriteHeaderRich headerData,
   });
+
+  Future<SecondaryRigStatusApi>
+  crateApiSecondaryRigSecondaryRigStatusApiDefault();
 
   Future<void> crateApiDevicesCameraSetCameraCooler({
     required String deviceId,
@@ -7859,6 +7888,95 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiSequencerApiPerformMeridianFlip({
+    required String mountId,
+    String? cameraId,
+    String? focuserId,
+    String? coverCalibratorId,
+    required String targetName,
+    required double targetRaHours,
+    required double targetDecDegrees,
+    required bool pauseGuiding,
+    required bool autoCenter,
+    required bool refocusAfter,
+    required bool resumeGuiding,
+    required double settleTimeSecs,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_String(mountId);
+          var arg1 = cst_encode_opt_String(cameraId);
+          var arg2 = cst_encode_opt_String(focuserId);
+          var arg3 = cst_encode_opt_String(coverCalibratorId);
+          var arg4 = cst_encode_String(targetName);
+          var arg5 = cst_encode_f_64(targetRaHours);
+          var arg6 = cst_encode_f_64(targetDecDegrees);
+          var arg7 = cst_encode_bool(pauseGuiding);
+          var arg8 = cst_encode_bool(autoCenter);
+          var arg9 = cst_encode_bool(refocusAfter);
+          var arg10 = cst_encode_bool(resumeGuiding);
+          var arg11 = cst_encode_f_64(settleTimeSecs);
+          return wire.wire__crate__api__sequencer__api_perform_meridian_flip(
+            port_,
+            arg0,
+            arg1,
+            arg2,
+            arg3,
+            arg4,
+            arg5,
+            arg6,
+            arg7,
+            arg8,
+            arg9,
+            arg10,
+            arg11,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_unit,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiSequencerApiPerformMeridianFlipConstMeta,
+        argValues: [
+          mountId,
+          cameraId,
+          focuserId,
+          coverCalibratorId,
+          targetName,
+          targetRaHours,
+          targetDecDegrees,
+          pauseGuiding,
+          autoCenter,
+          refocusAfter,
+          resumeGuiding,
+          settleTimeSecs,
+        ],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSequencerApiPerformMeridianFlipConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_perform_meridian_flip",
+        argNames: [
+          "mountId",
+          "cameraId",
+          "focuserId",
+          "coverCalibratorId",
+          "targetName",
+          "targetRaHours",
+          "targetDecDegrees",
+          "pauseGuiding",
+          "autoCenter",
+          "refocusAfter",
+          "resumeGuiding",
+          "settleTimeSecs",
+        ],
+      );
+
+  @override
   Future<void> crateApiPhd2ApiPhd2ClearCalibration({required String which}) {
     return handler.executeNormal(
       NormalTask(
@@ -9394,6 +9512,113 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         debugName: "api_save_xisf_file",
         argNames: ["filePath", "width", "height", "data", "properties"],
       );
+
+  @override
+  Future<SecondaryRigStatusApi> crateApiSecondaryRigApiSecondaryRigGetStatus() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          return wire
+              .wire__crate__api__secondary_rig__api_secondary_rig_get_status(
+                port_,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_secondary_rig_status_api,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSecondaryRigApiSecondaryRigGetStatusConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSecondaryRigApiSecondaryRigGetStatusConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_secondary_rig_get_status",
+        argNames: [],
+      );
+
+  @override
+  Future<bool> crateApiSecondaryRigApiSecondaryRigIsArmed() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          return wire
+              .wire__crate__api__secondary_rig__api_secondary_rig_is_armed(
+                port_,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_bool,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSecondaryRigApiSecondaryRigIsArmedConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSecondaryRigApiSecondaryRigIsArmedConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_secondary_rig_is_armed",
+        argNames: [],
+      );
+
+  @override
+  Future<void> crateApiSecondaryRigApiSecondaryRigStart({
+    required SecondaryRigConfigApi config,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          var arg0 = cst_encode_box_autoadd_secondary_rig_config_api(config);
+          return wire.wire__crate__api__secondary_rig__api_secondary_rig_start(
+            port_,
+            arg0,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_unit,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiSecondaryRigApiSecondaryRigStartConstMeta,
+        argValues: [config],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSecondaryRigApiSecondaryRigStartConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_secondary_rig_start",
+        argNames: ["config"],
+      );
+
+  @override
+  Future<void> crateApiSecondaryRigApiSecondaryRigStop() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          return wire.wire__crate__api__secondary_rig__api_secondary_rig_stop(
+            port_,
+          );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_unit,
+          decodeErrorData: dco_decode_nightshade_error,
+        ),
+        constMeta: kCrateApiSecondaryRigApiSecondaryRigStopConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiSecondaryRigApiSecondaryRigStopConstMeta =>
+      const TaskConstMeta(debugName: "api_secondary_rig_stop", argNames: []);
 
   @override
   Future<void> crateApiImagingApiSequencerApplyDefectMap({
@@ -13595,6 +13820,35 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<SecondaryRigStatusApi>
+  crateApiSecondaryRigSecondaryRigStatusApiDefault() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          return wire
+              .wire__crate__api__secondary_rig__secondary_rig_status_api_default(
+                port_,
+              );
+        },
+        codec: DcoCodec(
+          decodeSuccessData: dco_decode_secondary_rig_status_api,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiSecondaryRigSecondaryRigStatusApiDefaultConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiSecondaryRigSecondaryRigStatusApiDefaultConstMeta =>
+      const TaskConstMeta(
+        debugName: "secondary_rig_status_api_default",
+        argNames: [],
+      );
+
+  @override
   Future<void> crateApiDevicesCameraSetCameraCooler({
     required String deviceId,
     required int enabled,
@@ -14485,6 +14739,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SecondaryRigConfigApi dco_decode_box_autoadd_secondary_rig_config_api(
+    dynamic raw,
+  ) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_secondary_rig_config_api(raw);
+  }
+
+  @protected
   SequenceDefinitionApi dco_decode_box_autoadd_sequence_definition_api(
     dynamic raw,
   ) {
@@ -15305,8 +15567,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   FitsWriteHeaderRich dco_decode_fits_write_header_rich(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 50)
-      throw Exception('unexpected arr length: expect 50 but see ${arr.length}');
+    if (arr.length != 51)
+      throw Exception('unexpected arr length: expect 51 but see ${arr.length}');
     return FitsWriteHeaderRich(
       objectName: dco_decode_opt_String(arr[0]),
       exposureTime: dco_decode_f_64(arr[1]),
@@ -15361,6 +15623,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       photometryDifferentialMag: dco_decode_opt_box_autoadd_f_64(arr[47]),
       photometryFwhmArcsec: dco_decode_opt_box_autoadd_f_64(arr[48]),
       photometrySnr: dco_decode_opt_box_autoadd_f_64(arr[49]),
+      rigLabel: dco_decode_opt_String(arr[50]),
     );
   }
 
@@ -16790,6 +17053,63 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SecondaryRigConfigApi dco_decode_secondary_rig_config_api(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 25)
+      throw Exception('unexpected arr length: expect 25 but see ${arr.length}');
+    return SecondaryRigConfigApi(
+      cameraId: dco_decode_String(arr[0]),
+      exposureSecs: dco_decode_f_64(arr[1]),
+      gain: dco_decode_opt_box_autoadd_i_32(arr[2]),
+      offset: dco_decode_opt_box_autoadd_i_32(arr[3]),
+      binX: dco_decode_i_32(arr[4]),
+      binY: dco_decode_i_32(arr[5]),
+      frameCount: dco_decode_opt_box_autoadd_u_32(arr[6]),
+      filterName: dco_decode_opt_String(arr[7]),
+      targetTempC: dco_decode_opt_box_autoadd_f_64(arr[8]),
+      rigLabel: dco_decode_String(arr[9]),
+      cameraMake: dco_decode_opt_String(arr[10]),
+      cameraModel: dco_decode_opt_String(arr[11]),
+      telescopeName: dco_decode_opt_String(arr[12]),
+      telescopeFocalLengthMm: dco_decode_opt_box_autoadd_f_64(arr[13]),
+      telescopeApertureMm: dco_decode_opt_box_autoadd_f_64(arr[14]),
+      ditherMaxWaitSecs: dco_decode_f_64(arr[15]),
+      inFlightPolicy: dco_decode_String(arr[16]),
+      saveBasePath: dco_decode_opt_String(arr[17]),
+      targetName: dco_decode_opt_String(arr[18]),
+      targetRaHours: dco_decode_opt_box_autoadd_f_64(arr[19]),
+      targetDecDegrees: dco_decode_opt_box_autoadd_f_64(arr[20]),
+      observerName: dco_decode_opt_String(arr[21]),
+      siteLatitudeDeg: dco_decode_opt_box_autoadd_f_64(arr[22]),
+      siteLongitudeDeg: dco_decode_opt_box_autoadd_f_64(arr[23]),
+      siteElevationM: dco_decode_opt_box_autoadd_f_64(arr[24]),
+    );
+  }
+
+  @protected
+  SecondaryRigStatusApi dco_decode_secondary_rig_status_api(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 12)
+      throw Exception('unexpected arr length: expect 12 but see ${arr.length}');
+    return SecondaryRigStatusApi(
+      armed: dco_decode_bool(arr[0]),
+      running: dco_decode_bool(arr[1]),
+      cameraId: dco_decode_opt_String(arr[2]),
+      rigLabel: dco_decode_String(arr[3]),
+      framesCaptured: dco_decode_u_32(arr[4]),
+      framesAborted: dco_decode_u_32(arr[5]),
+      plannedFrames: dco_decode_opt_box_autoadd_u_32(arr[6]),
+      waitingForDither: dco_decode_bool(arr[7]),
+      exposing: dco_decode_bool(arr[8]),
+      ditherPending: dco_decode_bool(arr[9]),
+      forcedProceeds: dco_decode_u_32(arr[10]),
+      lastError: dco_decode_opt_String(arr[11]),
+    );
+  }
+
+  @protected
   SequenceDefinitionApi dco_decode_sequence_definition_api(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -17954,6 +18274,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SecondaryRigConfigApi sse_decode_box_autoadd_secondary_rig_config_api(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_secondary_rig_config_api(deserializer));
+  }
+
+  @protected
   SequenceDefinitionApi sse_decode_box_autoadd_sequence_definition_api(
     SseDeserializer deserializer,
   ) {
@@ -19111,6 +19439,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       deserializer,
     );
     var var_photometrySnr = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_rigLabel = sse_decode_opt_String(deserializer);
     return FitsWriteHeaderRich(
       objectName: var_objectName,
       exposureTime: var_exposureTime,
@@ -19162,6 +19491,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       photometryDifferentialMag: var_photometryDifferentialMag,
       photometryFwhmArcsec: var_photometryFwhmArcsec,
       photometrySnr: var_photometrySnr,
+      rigLabel: var_rigLabel,
     );
   }
 
@@ -21164,6 +21494,100 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SecondaryRigConfigApi sse_decode_secondary_rig_config_api(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_cameraId = sse_decode_String(deserializer);
+    var var_exposureSecs = sse_decode_f_64(deserializer);
+    var var_gain = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_offset = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_binX = sse_decode_i_32(deserializer);
+    var var_binY = sse_decode_i_32(deserializer);
+    var var_frameCount = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_filterName = sse_decode_opt_String(deserializer);
+    var var_targetTempC = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_rigLabel = sse_decode_String(deserializer);
+    var var_cameraMake = sse_decode_opt_String(deserializer);
+    var var_cameraModel = sse_decode_opt_String(deserializer);
+    var var_telescopeName = sse_decode_opt_String(deserializer);
+    var var_telescopeFocalLengthMm = sse_decode_opt_box_autoadd_f_64(
+      deserializer,
+    );
+    var var_telescopeApertureMm = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_ditherMaxWaitSecs = sse_decode_f_64(deserializer);
+    var var_inFlightPolicy = sse_decode_String(deserializer);
+    var var_saveBasePath = sse_decode_opt_String(deserializer);
+    var var_targetName = sse_decode_opt_String(deserializer);
+    var var_targetRaHours = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_targetDecDegrees = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_observerName = sse_decode_opt_String(deserializer);
+    var var_siteLatitudeDeg = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_siteLongitudeDeg = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_siteElevationM = sse_decode_opt_box_autoadd_f_64(deserializer);
+    return SecondaryRigConfigApi(
+      cameraId: var_cameraId,
+      exposureSecs: var_exposureSecs,
+      gain: var_gain,
+      offset: var_offset,
+      binX: var_binX,
+      binY: var_binY,
+      frameCount: var_frameCount,
+      filterName: var_filterName,
+      targetTempC: var_targetTempC,
+      rigLabel: var_rigLabel,
+      cameraMake: var_cameraMake,
+      cameraModel: var_cameraModel,
+      telescopeName: var_telescopeName,
+      telescopeFocalLengthMm: var_telescopeFocalLengthMm,
+      telescopeApertureMm: var_telescopeApertureMm,
+      ditherMaxWaitSecs: var_ditherMaxWaitSecs,
+      inFlightPolicy: var_inFlightPolicy,
+      saveBasePath: var_saveBasePath,
+      targetName: var_targetName,
+      targetRaHours: var_targetRaHours,
+      targetDecDegrees: var_targetDecDegrees,
+      observerName: var_observerName,
+      siteLatitudeDeg: var_siteLatitudeDeg,
+      siteLongitudeDeg: var_siteLongitudeDeg,
+      siteElevationM: var_siteElevationM,
+    );
+  }
+
+  @protected
+  SecondaryRigStatusApi sse_decode_secondary_rig_status_api(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_armed = sse_decode_bool(deserializer);
+    var var_running = sse_decode_bool(deserializer);
+    var var_cameraId = sse_decode_opt_String(deserializer);
+    var var_rigLabel = sse_decode_String(deserializer);
+    var var_framesCaptured = sse_decode_u_32(deserializer);
+    var var_framesAborted = sse_decode_u_32(deserializer);
+    var var_plannedFrames = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_waitingForDither = sse_decode_bool(deserializer);
+    var var_exposing = sse_decode_bool(deserializer);
+    var var_ditherPending = sse_decode_bool(deserializer);
+    var var_forcedProceeds = sse_decode_u_32(deserializer);
+    var var_lastError = sse_decode_opt_String(deserializer);
+    return SecondaryRigStatusApi(
+      armed: var_armed,
+      running: var_running,
+      cameraId: var_cameraId,
+      rigLabel: var_rigLabel,
+      framesCaptured: var_framesCaptured,
+      framesAborted: var_framesAborted,
+      plannedFrames: var_plannedFrames,
+      waitingForDither: var_waitingForDither,
+      exposing: var_exposing,
+      ditherPending: var_ditherPending,
+      forcedProceeds: var_forcedProceeds,
+      lastError: var_lastError,
+    );
+  }
+
+  @protected
   SequenceDefinitionApi sse_decode_sequence_definition_api(
     SseDeserializer deserializer,
   ) {
@@ -22726,6 +23150,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_secondary_rig_config_api(
+    SecondaryRigConfigApi self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_secondary_rig_config_api(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_sequence_definition_api(
     SequenceDefinitionApi self,
     SseSerializer serializer,
@@ -23604,6 +24037,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_f_64(self.photometryDifferentialMag, serializer);
     sse_encode_opt_box_autoadd_f_64(self.photometryFwhmArcsec, serializer);
     sse_encode_opt_box_autoadd_f_64(self.photometrySnr, serializer);
+    sse_encode_opt_String(self.rigLabel, serializer);
   }
 
   @protected
@@ -25311,6 +25745,59 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_64(self.totalScore, serializer);
     sse_encode_bool(self.runnable, serializer);
     sse_encode_opt_String(self.reason, serializer);
+  }
+
+  @protected
+  void sse_encode_secondary_rig_config_api(
+    SecondaryRigConfigApi self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.cameraId, serializer);
+    sse_encode_f_64(self.exposureSecs, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.gain, serializer);
+    sse_encode_opt_box_autoadd_i_32(self.offset, serializer);
+    sse_encode_i_32(self.binX, serializer);
+    sse_encode_i_32(self.binY, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.frameCount, serializer);
+    sse_encode_opt_String(self.filterName, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.targetTempC, serializer);
+    sse_encode_String(self.rigLabel, serializer);
+    sse_encode_opt_String(self.cameraMake, serializer);
+    sse_encode_opt_String(self.cameraModel, serializer);
+    sse_encode_opt_String(self.telescopeName, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.telescopeFocalLengthMm, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.telescopeApertureMm, serializer);
+    sse_encode_f_64(self.ditherMaxWaitSecs, serializer);
+    sse_encode_String(self.inFlightPolicy, serializer);
+    sse_encode_opt_String(self.saveBasePath, serializer);
+    sse_encode_opt_String(self.targetName, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.targetRaHours, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.targetDecDegrees, serializer);
+    sse_encode_opt_String(self.observerName, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.siteLatitudeDeg, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.siteLongitudeDeg, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.siteElevationM, serializer);
+  }
+
+  @protected
+  void sse_encode_secondary_rig_status_api(
+    SecondaryRigStatusApi self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.armed, serializer);
+    sse_encode_bool(self.running, serializer);
+    sse_encode_opt_String(self.cameraId, serializer);
+    sse_encode_String(self.rigLabel, serializer);
+    sse_encode_u_32(self.framesCaptured, serializer);
+    sse_encode_u_32(self.framesAborted, serializer);
+    sse_encode_opt_box_autoadd_u_32(self.plannedFrames, serializer);
+    sse_encode_bool(self.waitingForDither, serializer);
+    sse_encode_bool(self.exposing, serializer);
+    sse_encode_bool(self.ditherPending, serializer);
+    sse_encode_u_32(self.forcedProceeds, serializer);
+    sse_encode_opt_String(self.lastError, serializer);
   }
 
   @protected

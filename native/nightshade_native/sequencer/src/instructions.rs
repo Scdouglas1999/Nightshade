@@ -426,6 +426,13 @@ pub struct InstructionContext {
     /// emitted DecisionEvent so persistence can write the FK without
     /// re-joining on wall-clock windows.
     pub active_sequence_run_id: Arc<parking_lot::RwLock<Option<i64>>>,
+    /// Dual-rig — shared dither-coordination barrier (see
+    /// [`crate::dual_rig::DitherBarrier`]). `None` for single-rig sequences.
+    /// When `Some`, the dither call sites (`execute_dither` + the inline burst
+    /// dither in `execute_exposure`) announce + release on this barrier so a
+    /// piggybacking secondary camera is never mid-exposure during the mount
+    /// pulse.
+    pub dither_barrier: Option<Arc<crate::dual_rig::DitherBarrier>>,
 }
 
 impl InstructionContext {
@@ -1163,21 +1170,38 @@ pub async fn execute_center(
             }
         };
 
+        // Hard cap on the solver call: a hung solver process (stalled IO,
+        // bad catalog, zombie child) would otherwise block this select
+        // indefinitely — cancellation is the only other exit, and an
+        // unattended night never presses cancel. Treated exactly like a
+        // failed solve so the attempt loop's retry applies.
+        const PLATE_SOLVE_TIMEOUT: Duration = Duration::from_secs(180);
         let solve_result = tokio::select! {
-            result = ctx.device_ops.plate_solve(
-                &image_data,
-                Some(target_ra_deg),
-                Some(target_dec),
-                None,
+            result = tokio::time::timeout(
+                PLATE_SOLVE_TIMEOUT,
+                ctx.device_ops.plate_solve(
+                    &image_data,
+                    Some(target_ra_deg),
+                    Some(target_dec),
+                    None,
+                ),
             ) => {
                 match result {
-                    Ok(result) if result.success => result,
-                    Ok(_) => {
+                    Ok(Ok(result)) if result.success => result,
+                    Ok(Ok(_)) => {
                         tracing::warn!("Plate solve failed on attempt {}", attempt);
                         continue;
                     }
-                    Err(e) => {
+                    Ok(Err(e)) => {
                         tracing::warn!("Plate solve error on attempt {}: {}", attempt, e);
+                        continue;
+                    }
+                    Err(_) => {
+                        tracing::warn!(
+                            "Plate solve timed out after {}s on attempt {}",
+                            PLATE_SOLVE_TIMEOUT.as_secs(),
+                            attempt
+                        );
                         continue;
                     }
                 }
@@ -1403,6 +1427,86 @@ async fn apply_center_rotation(
     Ok(())
 }
 
+/// N.I.N.A.-style pre-exposure meridian-flip gate.
+///
+/// When a MinutesPastMeridian flip trigger is armed and the next frame would
+/// still be exposing at the moment the trigger fires, hold here (polling the
+/// shared trigger state) until the trigger-driven flip completes, instead of
+/// starting a frame the flip slew would ruin mid-exposure.
+///
+/// Returns `None` to proceed with the exposure, `Some(cancelled)` when the
+/// sequence was cancelled while holding. Bounded: gives up with a loud
+/// warning after [`MERIDIAN_GATE_MAX_WAIT`] so a failed or disabled flip can
+/// never deadlock the night — the post-crossing trigger remains the backstop
+/// exactly as before this gate existed.
+async fn wait_for_meridian_flip_window(
+    ctx: &InstructionContext,
+    exposure_secs: f64,
+) -> Option<InstructionResult> {
+    /// Margin between predicted frame end and predicted trigger fire.
+    const SAFETY_MARGIN_SECS: f64 = 30.0;
+    const POLL_INTERVAL: Duration = Duration::from_secs(5);
+    const MERIDIAN_GATE_MAX_WAIT: Duration = Duration::from_secs(30 * 60);
+
+    let lock = ctx.trigger_state.as_ref()?;
+    let started = tokio::time::Instant::now();
+    let mut announced = false;
+    loop {
+        if let Some(result) = ctx.check_cancelled() {
+            return Some(result);
+        }
+        let (threshold_min, ha, flipped, pier) = {
+            let state = lock.read().await;
+            (
+                state.meridian_flip_minutes_past,
+                state.current_hour_angle,
+                state.has_flipped_this_target,
+                state.pier_side,
+            )
+        };
+        // No MinutesPastMeridian trigger armed / already flipped / no HA yet
+        // (mount poll hasn't run) — nothing predictable to gate on.
+        let threshold_min = threshold_min?;
+        if flipped {
+            return None;
+        }
+        let ha = ha?;
+        // Mirror the trigger's pre-flip-side logic: pier East is the
+        // post-flip side, where the trigger can no longer fire.
+        if matches!(pier, Some(crate::PierSide::East)) {
+            return None;
+        }
+
+        let fire_in_secs = (threshold_min - ha * 60.0) * 60.0;
+        if fire_in_secs > exposure_secs + SAFETY_MARGIN_SECS {
+            return None; // frame finishes comfortably before the flip fires
+        }
+        if started.elapsed() > MERIDIAN_GATE_MAX_WAIT {
+            tracing::warn!(
+                "Meridian gate held the next exposure for {}s without observing a \
+                 completed flip — proceeding anyway (the flip trigger remains the backstop)",
+                started.elapsed().as_secs()
+            );
+            return None;
+        }
+        if !announced {
+            tracing::info!(
+                "Holding next {:.0}s exposure: meridian flip fires in ~{:.0}s and would \
+                 interrupt it — waiting for the flip to complete",
+                exposure_secs,
+                fire_in_secs.max(0.0)
+            );
+            announced = true;
+        }
+        tokio::select! {
+            _ = sleep(POLL_INTERVAL) => {}
+            _ = wait_for_cancellation(ctx.cancellation_token.clone()) => {
+                return Some(InstructionResult::cancelled("Exposure cancelled"));
+            }
+        }
+    }
+}
+
 /// Calculate separation between two coordinates in arcseconds
 fn calculate_separation_arcsec(ra1_deg: f64, dec1_deg: f64, ra2_deg: f64, dec2_deg: f64) -> f64 {
     let dec1_rad = dec1_deg.to_radians();
@@ -1626,6 +1730,19 @@ pub async fn execute_exposure_with_renderer(
     for frame in 1..=config.count {
         if let Some(result) = ctx.check_cancelled() {
             return result;
+        }
+
+        // Pre-frame meridian gate (N.I.N.A.-style): when the flip trigger
+        // would fire while this frame is still exposing, hold here until the
+        // trigger-driven flip completes instead of starting a frame the slew
+        // would ruin. Only science-target lights are gated — the flip
+        // trigger itself only ever fires for a tracked target.
+        if ctx.target_ra.is_some() && ctx.mount_id.is_some() {
+            if let Some(result) =
+                wait_for_meridian_flip_window(ctx, config.duration_secs).await
+            {
+                return result;
+            }
         }
 
         tracing::info!(
@@ -2058,16 +2175,18 @@ pub async fn execute_exposure_with_renderer(
         if let Some(dither_every) = config.dither_every {
             if dither_every > 0 && frame % dither_every == 0 && frame < config.count {
                 tracing::info!("Dithering...");
-                if let Err(e) = ctx
-                    .device_ops
-                    .guider_dither(
+                // Dual-rig — guard the burst dither so a piggybacking secondary
+                // camera is clear before the mount pulses (no-op single-rig).
+                if let Err(e) = dither_guarded(ctx, || {
+                    ctx.device_ops.guider_dither(
                         config.dither_pixels,
                         config.dither_settle_pixels,
                         config.dither_settle_time,
                         config.dither_settle_timeout,
                         config.dither_ra_only,
                     )
-                    .await
+                })
+                .await
                 {
                     // Fail closed, matching the standalone Dither node. A dither
                     // / settle failure usually means guiding lost the star, so
@@ -3596,17 +3715,23 @@ pub async fn execute_dither(
         cb(70.0, "Waiting for guiding to settle".to_string());
     }
 
-    match ctx
-        .device_ops
-        .guider_dither(
+    // Dual-rig — coordinate with a piggybacking secondary capture loop (if
+    // any). `dither_guarded` announces the pending dither, waits (bounded) for
+    // the secondary to clear its in-flight exposure, runs the closure (the
+    // actual mount pulse + settle), then releases the barrier so the secondary
+    // resumes. With no barrier installed this is a plain pass-through.
+    let dither_result = dither_guarded(ctx, || {
+        ctx.device_ops.guider_dither(
             dither_pixels,
             config.settle_pixels,
             config.settle_time,
             config.settle_timeout,
             ra_only,
         )
-        .await
-    {
+    })
+    .await;
+
+    match dither_result {
         Ok(_) => {
             if let Some(cb) = progress_callback {
                 cb(100.0, "Dither complete".to_string());
@@ -3622,6 +3747,63 @@ pub async fn execute_dither(
         }
         Err(e) => InstructionResult::failure(format!("Dither failed: {}", e)),
     }
+}
+
+/// Dual-rig dither coordination wrapper.
+///
+/// Wraps a guider-dither call (the mount-moving pulse + settle) so a
+/// piggybacking secondary camera is never mid-exposure during the pulse:
+///
+///   1. announce "dither pending" on the shared barrier — secondary stops
+///      launching new exposures;
+///   2. wait (bounded by the barrier's max-wait) for the secondary to clear
+///      its in-flight exposure — a stuck secondary can NEVER stall the primary
+///      past max-wait (we log and proceed);
+///   3. run the actual dither;
+///   4. release the barrier — secondary resumes its loop.
+///
+/// When `ctx.dither_barrier` is `None` (single-rig — the common case) this is a
+/// plain `closure().await` with zero overhead. The barrier is released even if
+/// the dither itself fails, so a failed pulse never leaves the secondary parked
+/// forever.
+pub(crate) async fn dither_guarded<F, Fut>(
+    ctx: &InstructionContext,
+    dither_call: F,
+) -> DeviceResult<()>
+where
+    F: FnOnce() -> Fut,
+    Fut: std::future::Future<Output = DeviceResult<()>>,
+{
+    let Some(barrier) = ctx.dither_barrier.clone() else {
+        return dither_call().await;
+    };
+
+    barrier.begin_dither();
+    let cleared = barrier.wait_for_secondary_clear().await;
+    if !cleared {
+        tracing::warn!(
+            "Dual-rig: secondary did not clear within {:.0}s max-wait; \
+             dithering anyway (secondary frame may be discarded). \
+             forced_proceeds={}",
+            barrier.max_wait_secs(),
+            barrier.forced_proceed_count(),
+        );
+        if let Some(event_tx) = &ctx.event_tx {
+            let _ = event_tx.send(crate::executor::ExecutorEvent::Error {
+                message: format!(
+                    "Dual-rig: secondary camera did not clear within {:.0}s; \
+                     dithered anyway",
+                    barrier.max_wait_secs(),
+                ),
+            });
+        }
+    }
+
+    let result = dither_call().await;
+    // Always release, even on dither failure — otherwise a failed pulse would
+    // leave the secondary parked indefinitely.
+    barrier.end_dither();
+    result
 }
 
 // =============================================================================

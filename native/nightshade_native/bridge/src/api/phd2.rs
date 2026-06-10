@@ -410,17 +410,15 @@ pub async fn api_phd2_dither(
     // fails CLOSED: a non-zero PHD2 settle status, a settle timeout, or a
     // disconnect all surface as an error so the sequencer never resumes
     // exposing mid-settle (which trailed every dithered sub).
-    let wait =
-        nightshade_imaging::Phd2Client::settle_wait_duration(settle_time, settle_timeout);
+    let wait = nightshade_imaging::Phd2Client::settle_wait_duration(settle_time, settle_timeout);
     let settle = tokio::task::spawn_blocking(move || waiter.wait(wait))
         .await
         .map_err(|e| {
             NightshadeError::OperationFailed(format!("Dither settle task failed: {}", e))
         })?;
 
-    settle.map_err(|e| {
-        NightshadeError::OperationFailed(format!("Dither did not settle: {}", e))
-    })?;
+    settle
+        .map_err(|e| NightshadeError::OperationFailed(format!("Dither did not settle: {}", e)))?;
 
     get_state().publish_guiding_event(GuidingEvent::Settled { rms: 0.0 }, EventSeverity::Info);
 
@@ -994,6 +992,11 @@ pub async fn api_builtin_guider_set_config(
         settle_sleep_ms,
         min_pulse_ms,
         max_pulse_ms,
+        // RA/Dec aggressiveness, min-move and Dec backlash compensation are
+        // internal guiding-quality params with tuned defaults; they are not
+        // surfaced through the FFI setter (the bridge struct stays stable) so we
+        // keep the existing defaults here.
+        ..crate::builtin_guider::GuiderConfig::default()
     };
     crate::builtin_guider::set_config(config).await;
     Ok(())

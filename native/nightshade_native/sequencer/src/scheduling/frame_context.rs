@@ -232,6 +232,19 @@ pub struct FrameContext {
     pub photometry_differential_mag: Option<f64>,
     pub photometry_fwhm_arcsec: Option<f64>,
     pub photometry_snr: Option<f64>,
+
+    // -------------------------------------------------------------------
+    // Dual-rig — frame attribution by rig.
+    //
+    // When set, identifies which optical train / camera produced this
+    // frame in a multi-camera (primary + secondary piggyback) session.
+    // `None` for the (overwhelmingly common) single-rig case, in which
+    // the FITS writer omits the keyword entirely. The secondary capture
+    // loop ([`crate::dual_rig`]) stamps its `rig_label` here so subs are
+    // attributable to the right rig and the session stats can be split.
+    // Surfaced as the custom FITS keyword `NS-RIG`.
+    // -------------------------------------------------------------------
+    pub rig_label: Option<String>,
 }
 
 impl FrameContext {

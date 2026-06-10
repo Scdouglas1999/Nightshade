@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1528165636;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 459524578;
 
 // Section: executor
 
@@ -4819,6 +4819,66 @@ fn wire__crate__api__devices__simulation__api_mount_unpark_impl(
         },
     )
 }
+fn wire__crate__api__sequencer__api_perform_meridian_flip_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    mount_id: impl CstDecode<String>,
+    camera_id: impl CstDecode<Option<String>>,
+    focuser_id: impl CstDecode<Option<String>>,
+    cover_calibrator_id: impl CstDecode<Option<String>>,
+    target_name: impl CstDecode<String>,
+    target_ra_hours: impl CstDecode<f64>,
+    target_dec_degrees: impl CstDecode<f64>,
+    pause_guiding: impl CstDecode<bool>,
+    auto_center: impl CstDecode<bool>,
+    refocus_after: impl CstDecode<bool>,
+    resume_guiding: impl CstDecode<bool>,
+    settle_time_secs: impl CstDecode<f64>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_perform_meridian_flip",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_mount_id = mount_id.cst_decode();
+            let api_camera_id = camera_id.cst_decode();
+            let api_focuser_id = focuser_id.cst_decode();
+            let api_cover_calibrator_id = cover_calibrator_id.cst_decode();
+            let api_target_name = target_name.cst_decode();
+            let api_target_ra_hours = target_ra_hours.cst_decode();
+            let api_target_dec_degrees = target_dec_degrees.cst_decode();
+            let api_pause_guiding = pause_guiding.cst_decode();
+            let api_auto_center = auto_center.cst_decode();
+            let api_refocus_after = refocus_after.cst_decode();
+            let api_resume_guiding = resume_guiding.cst_decode();
+            let api_settle_time_secs = settle_time_secs.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::sequencer::api_perform_meridian_flip(
+                            api_mount_id,
+                            api_camera_id,
+                            api_focuser_id,
+                            api_cover_calibrator_id,
+                            api_target_name,
+                            api_target_ra_hours,
+                            api_target_dec_degrees,
+                            api_pause_guiding,
+                            api_auto_center,
+                            api_refocus_after,
+                            api_resume_guiding,
+                            api_settle_time_secs,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__phd2__api_phd2_clear_calibration_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     which: impl CstDecode<String>,
@@ -6178,6 +6238,101 @@ fn wire__crate__api__imaging__api_save_xisf_file_impl(
                             api_properties,
                         )
                         .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__secondary_rig__api_secondary_rig_get_status_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_secondary_rig_get_status",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            move |context| async move {
+                transform_result_dco::<_, _, ()>(
+                    (move || async move {
+                        let output_ok = Result::<_, ()>::Ok(
+                            crate::api::secondary_rig::api_secondary_rig_get_status().await,
+                        )?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__secondary_rig__api_secondary_rig_is_armed_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_secondary_rig_is_armed",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            move |context| async move {
+                transform_result_dco::<_, _, ()>(
+                    (move || async move {
+                        let output_ok = Result::<_, ()>::Ok(
+                            crate::api::secondary_rig::api_secondary_rig_is_armed().await,
+                        )?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__secondary_rig__api_secondary_rig_start_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    config: impl CstDecode<crate::api::secondary_rig::SecondaryRigConfigApi>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_secondary_rig_start",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_config = config.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::secondary_rig::api_secondary_rig_start(api_config).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__secondary_rig__api_secondary_rig_stop_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_secondary_rig_stop",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::secondary_rig::api_secondary_rig_stop().await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -9707,6 +9862,27 @@ fn wire__crate__api__imaging__save_fits_file_rich_impl(
         },
     )
 }
+fn wire__crate__api__secondary_rig__secondary_rig_status_api_default_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_normal::<flutter_rust_bridge::for_generated::DcoCodec, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "secondary_rig_status_api_default",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            move |context| {
+                transform_result_dco::<_, _, ()>((move || {
+                    let output_ok = Result::<_, ()>::Ok(
+                        crate::api::secondary_rig::SecondaryRigStatusApi::default(),
+                    )?;
+                    Ok(output_ok)
+                })())
+            }
+        },
+    )
+}
 fn wire__crate__api__devices__camera__set_camera_cooler_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     device_id: impl CstDecode<String>,
@@ -11767,6 +11943,7 @@ impl SseDecode for crate::api::imaging::FitsWriteHeaderRich {
         let mut var_photometryDifferentialMag = <Option<f64>>::sse_decode(deserializer);
         let mut var_photometryFwhmArcsec = <Option<f64>>::sse_decode(deserializer);
         let mut var_photometrySnr = <Option<f64>>::sse_decode(deserializer);
+        let mut var_rigLabel = <Option<String>>::sse_decode(deserializer);
         return crate::api::imaging::FitsWriteHeaderRich {
             object_name: var_objectName,
             exposure_time: var_exposureTime,
@@ -11818,6 +11995,7 @@ impl SseDecode for crate::api::imaging::FitsWriteHeaderRich {
             photometry_differential_mag: var_photometryDifferentialMag,
             photometry_fwhm_arcsec: var_photometryFwhmArcsec,
             photometry_snr: var_photometrySnr,
+            rig_label: var_rigLabel,
         };
     }
 }
@@ -13902,6 +14080,96 @@ impl SseDecode for crate::event::SchedulerScoreEntry {
             total_score: var_totalScore,
             runnable: var_runnable,
             reason: var_reason,
+        };
+    }
+}
+
+impl SseDecode for crate::api::secondary_rig::SecondaryRigConfigApi {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_cameraId = <String>::sse_decode(deserializer);
+        let mut var_exposureSecs = <f64>::sse_decode(deserializer);
+        let mut var_gain = <Option<i32>>::sse_decode(deserializer);
+        let mut var_offset = <Option<i32>>::sse_decode(deserializer);
+        let mut var_binX = <i32>::sse_decode(deserializer);
+        let mut var_binY = <i32>::sse_decode(deserializer);
+        let mut var_frameCount = <Option<u32>>::sse_decode(deserializer);
+        let mut var_filterName = <Option<String>>::sse_decode(deserializer);
+        let mut var_targetTempC = <Option<f64>>::sse_decode(deserializer);
+        let mut var_rigLabel = <String>::sse_decode(deserializer);
+        let mut var_cameraMake = <Option<String>>::sse_decode(deserializer);
+        let mut var_cameraModel = <Option<String>>::sse_decode(deserializer);
+        let mut var_telescopeName = <Option<String>>::sse_decode(deserializer);
+        let mut var_telescopeFocalLengthMm = <Option<f64>>::sse_decode(deserializer);
+        let mut var_telescopeApertureMm = <Option<f64>>::sse_decode(deserializer);
+        let mut var_ditherMaxWaitSecs = <f64>::sse_decode(deserializer);
+        let mut var_inFlightPolicy = <String>::sse_decode(deserializer);
+        let mut var_saveBasePath = <Option<String>>::sse_decode(deserializer);
+        let mut var_targetName = <Option<String>>::sse_decode(deserializer);
+        let mut var_targetRaHours = <Option<f64>>::sse_decode(deserializer);
+        let mut var_targetDecDegrees = <Option<f64>>::sse_decode(deserializer);
+        let mut var_observerName = <Option<String>>::sse_decode(deserializer);
+        let mut var_siteLatitudeDeg = <Option<f64>>::sse_decode(deserializer);
+        let mut var_siteLongitudeDeg = <Option<f64>>::sse_decode(deserializer);
+        let mut var_siteElevationM = <Option<f64>>::sse_decode(deserializer);
+        return crate::api::secondary_rig::SecondaryRigConfigApi {
+            camera_id: var_cameraId,
+            exposure_secs: var_exposureSecs,
+            gain: var_gain,
+            offset: var_offset,
+            bin_x: var_binX,
+            bin_y: var_binY,
+            frame_count: var_frameCount,
+            filter_name: var_filterName,
+            target_temp_c: var_targetTempC,
+            rig_label: var_rigLabel,
+            camera_make: var_cameraMake,
+            camera_model: var_cameraModel,
+            telescope_name: var_telescopeName,
+            telescope_focal_length_mm: var_telescopeFocalLengthMm,
+            telescope_aperture_mm: var_telescopeApertureMm,
+            dither_max_wait_secs: var_ditherMaxWaitSecs,
+            in_flight_policy: var_inFlightPolicy,
+            save_base_path: var_saveBasePath,
+            target_name: var_targetName,
+            target_ra_hours: var_targetRaHours,
+            target_dec_degrees: var_targetDecDegrees,
+            observer_name: var_observerName,
+            site_latitude_deg: var_siteLatitudeDeg,
+            site_longitude_deg: var_siteLongitudeDeg,
+            site_elevation_m: var_siteElevationM,
+        };
+    }
+}
+
+impl SseDecode for crate::api::secondary_rig::SecondaryRigStatusApi {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_armed = <bool>::sse_decode(deserializer);
+        let mut var_running = <bool>::sse_decode(deserializer);
+        let mut var_cameraId = <Option<String>>::sse_decode(deserializer);
+        let mut var_rigLabel = <String>::sse_decode(deserializer);
+        let mut var_framesCaptured = <u32>::sse_decode(deserializer);
+        let mut var_framesAborted = <u32>::sse_decode(deserializer);
+        let mut var_plannedFrames = <Option<u32>>::sse_decode(deserializer);
+        let mut var_waitingForDither = <bool>::sse_decode(deserializer);
+        let mut var_exposing = <bool>::sse_decode(deserializer);
+        let mut var_ditherPending = <bool>::sse_decode(deserializer);
+        let mut var_forcedProceeds = <u32>::sse_decode(deserializer);
+        let mut var_lastError = <Option<String>>::sse_decode(deserializer);
+        return crate::api::secondary_rig::SecondaryRigStatusApi {
+            armed: var_armed,
+            running: var_running,
+            camera_id: var_cameraId,
+            rig_label: var_rigLabel,
+            frames_captured: var_framesCaptured,
+            frames_aborted: var_framesAborted,
+            planned_frames: var_plannedFrames,
+            waiting_for_dither: var_waitingForDither,
+            exposing: var_exposing,
+            dither_pending: var_ditherPending,
+            forced_proceeds: var_forcedProceeds,
+            last_error: var_lastError,
         };
     }
 }
@@ -16206,6 +16474,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::imaging::FitsWriteHeaderRich 
                 .into_dart(),
             self.photometry_fwhm_arcsec.into_into_dart().into_dart(),
             self.photometry_snr.into_into_dart().into_dart(),
+            self.rig_label.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -17628,6 +17897,81 @@ impl flutter_rust_bridge::IntoIntoDart<crate::event::SchedulerScoreEntry>
     for crate::event::SchedulerScoreEntry
 {
     fn into_into_dart(self) -> crate::event::SchedulerScoreEntry {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::secondary_rig::SecondaryRigConfigApi {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.camera_id.into_into_dart().into_dart(),
+            self.exposure_secs.into_into_dart().into_dart(),
+            self.gain.into_into_dart().into_dart(),
+            self.offset.into_into_dart().into_dart(),
+            self.bin_x.into_into_dart().into_dart(),
+            self.bin_y.into_into_dart().into_dart(),
+            self.frame_count.into_into_dart().into_dart(),
+            self.filter_name.into_into_dart().into_dart(),
+            self.target_temp_c.into_into_dart().into_dart(),
+            self.rig_label.into_into_dart().into_dart(),
+            self.camera_make.into_into_dart().into_dart(),
+            self.camera_model.into_into_dart().into_dart(),
+            self.telescope_name.into_into_dart().into_dart(),
+            self.telescope_focal_length_mm.into_into_dart().into_dart(),
+            self.telescope_aperture_mm.into_into_dart().into_dart(),
+            self.dither_max_wait_secs.into_into_dart().into_dart(),
+            self.in_flight_policy.into_into_dart().into_dart(),
+            self.save_base_path.into_into_dart().into_dart(),
+            self.target_name.into_into_dart().into_dart(),
+            self.target_ra_hours.into_into_dart().into_dart(),
+            self.target_dec_degrees.into_into_dart().into_dart(),
+            self.observer_name.into_into_dart().into_dart(),
+            self.site_latitude_deg.into_into_dart().into_dart(),
+            self.site_longitude_deg.into_into_dart().into_dart(),
+            self.site_elevation_m.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::secondary_rig::SecondaryRigConfigApi
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::secondary_rig::SecondaryRigConfigApi>
+    for crate::api::secondary_rig::SecondaryRigConfigApi
+{
+    fn into_into_dart(self) -> crate::api::secondary_rig::SecondaryRigConfigApi {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::secondary_rig::SecondaryRigStatusApi {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.armed.into_into_dart().into_dart(),
+            self.running.into_into_dart().into_dart(),
+            self.camera_id.into_into_dart().into_dart(),
+            self.rig_label.into_into_dart().into_dart(),
+            self.frames_captured.into_into_dart().into_dart(),
+            self.frames_aborted.into_into_dart().into_dart(),
+            self.planned_frames.into_into_dart().into_dart(),
+            self.waiting_for_dither.into_into_dart().into_dart(),
+            self.exposing.into_into_dart().into_dart(),
+            self.dither_pending.into_into_dart().into_dart(),
+            self.forced_proceeds.into_into_dart().into_dart(),
+            self.last_error.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::secondary_rig::SecondaryRigStatusApi
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::secondary_rig::SecondaryRigStatusApi>
+    for crate::api::secondary_rig::SecondaryRigStatusApi
+{
+    fn into_into_dart(self) -> crate::api::secondary_rig::SecondaryRigStatusApi {
         self
     }
 }
@@ -19642,6 +19986,7 @@ impl SseEncode for crate::api::imaging::FitsWriteHeaderRich {
         <Option<f64>>::sse_encode(self.photometry_differential_mag, serializer);
         <Option<f64>>::sse_encode(self.photometry_fwhm_arcsec, serializer);
         <Option<f64>>::sse_encode(self.photometry_snr, serializer);
+        <Option<String>>::sse_encode(self.rig_label, serializer);
     }
 }
 
@@ -21258,6 +21603,55 @@ impl SseEncode for crate::event::SchedulerScoreEntry {
     }
 }
 
+impl SseEncode for crate::api::secondary_rig::SecondaryRigConfigApi {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.camera_id, serializer);
+        <f64>::sse_encode(self.exposure_secs, serializer);
+        <Option<i32>>::sse_encode(self.gain, serializer);
+        <Option<i32>>::sse_encode(self.offset, serializer);
+        <i32>::sse_encode(self.bin_x, serializer);
+        <i32>::sse_encode(self.bin_y, serializer);
+        <Option<u32>>::sse_encode(self.frame_count, serializer);
+        <Option<String>>::sse_encode(self.filter_name, serializer);
+        <Option<f64>>::sse_encode(self.target_temp_c, serializer);
+        <String>::sse_encode(self.rig_label, serializer);
+        <Option<String>>::sse_encode(self.camera_make, serializer);
+        <Option<String>>::sse_encode(self.camera_model, serializer);
+        <Option<String>>::sse_encode(self.telescope_name, serializer);
+        <Option<f64>>::sse_encode(self.telescope_focal_length_mm, serializer);
+        <Option<f64>>::sse_encode(self.telescope_aperture_mm, serializer);
+        <f64>::sse_encode(self.dither_max_wait_secs, serializer);
+        <String>::sse_encode(self.in_flight_policy, serializer);
+        <Option<String>>::sse_encode(self.save_base_path, serializer);
+        <Option<String>>::sse_encode(self.target_name, serializer);
+        <Option<f64>>::sse_encode(self.target_ra_hours, serializer);
+        <Option<f64>>::sse_encode(self.target_dec_degrees, serializer);
+        <Option<String>>::sse_encode(self.observer_name, serializer);
+        <Option<f64>>::sse_encode(self.site_latitude_deg, serializer);
+        <Option<f64>>::sse_encode(self.site_longitude_deg, serializer);
+        <Option<f64>>::sse_encode(self.site_elevation_m, serializer);
+    }
+}
+
+impl SseEncode for crate::api::secondary_rig::SecondaryRigStatusApi {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.armed, serializer);
+        <bool>::sse_encode(self.running, serializer);
+        <Option<String>>::sse_encode(self.camera_id, serializer);
+        <String>::sse_encode(self.rig_label, serializer);
+        <u32>::sse_encode(self.frames_captured, serializer);
+        <u32>::sse_encode(self.frames_aborted, serializer);
+        <Option<u32>>::sse_encode(self.planned_frames, serializer);
+        <bool>::sse_encode(self.waiting_for_dither, serializer);
+        <bool>::sse_encode(self.exposing, serializer);
+        <bool>::sse_encode(self.dither_pending, serializer);
+        <u32>::sse_encode(self.forced_proceeds, serializer);
+        <Option<String>>::sse_encode(self.last_error, serializer);
+    }
+}
+
 impl SseEncode for crate::api::sequencer::SequenceDefinitionApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -22519,6 +22913,15 @@ mod io {
                 .into()
         }
     }
+    impl CstDecode<crate::api::secondary_rig::SecondaryRigConfigApi>
+        for *mut wire_cst_secondary_rig_config_api
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::secondary_rig::SecondaryRigConfigApi {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::secondary_rig::SecondaryRigConfigApi>::cst_decode(*wrap).into()
+        }
+    }
     impl CstDecode<crate::api::sequencer::SequenceDefinitionApi>
         for *mut wire_cst_sequence_definition_api
     {
@@ -23323,6 +23726,7 @@ mod io {
                 photometry_differential_mag: self.photometry_differential_mag.cst_decode(),
                 photometry_fwhm_arcsec: self.photometry_fwhm_arcsec.cst_decode(),
                 photometry_snr: self.photometry_snr.cst_decode(),
+                rig_label: self.rig_label.cst_decode(),
             }
         }
     }
@@ -24610,6 +25014,61 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::api::secondary_rig::SecondaryRigConfigApi>
+        for wire_cst_secondary_rig_config_api
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::secondary_rig::SecondaryRigConfigApi {
+            crate::api::secondary_rig::SecondaryRigConfigApi {
+                camera_id: self.camera_id.cst_decode(),
+                exposure_secs: self.exposure_secs.cst_decode(),
+                gain: self.gain.cst_decode(),
+                offset: self.offset.cst_decode(),
+                bin_x: self.bin_x.cst_decode(),
+                bin_y: self.bin_y.cst_decode(),
+                frame_count: self.frame_count.cst_decode(),
+                filter_name: self.filter_name.cst_decode(),
+                target_temp_c: self.target_temp_c.cst_decode(),
+                rig_label: self.rig_label.cst_decode(),
+                camera_make: self.camera_make.cst_decode(),
+                camera_model: self.camera_model.cst_decode(),
+                telescope_name: self.telescope_name.cst_decode(),
+                telescope_focal_length_mm: self.telescope_focal_length_mm.cst_decode(),
+                telescope_aperture_mm: self.telescope_aperture_mm.cst_decode(),
+                dither_max_wait_secs: self.dither_max_wait_secs.cst_decode(),
+                in_flight_policy: self.in_flight_policy.cst_decode(),
+                save_base_path: self.save_base_path.cst_decode(),
+                target_name: self.target_name.cst_decode(),
+                target_ra_hours: self.target_ra_hours.cst_decode(),
+                target_dec_degrees: self.target_dec_degrees.cst_decode(),
+                observer_name: self.observer_name.cst_decode(),
+                site_latitude_deg: self.site_latitude_deg.cst_decode(),
+                site_longitude_deg: self.site_longitude_deg.cst_decode(),
+                site_elevation_m: self.site_elevation_m.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::secondary_rig::SecondaryRigStatusApi>
+        for wire_cst_secondary_rig_status_api
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::secondary_rig::SecondaryRigStatusApi {
+            crate::api::secondary_rig::SecondaryRigStatusApi {
+                armed: self.armed.cst_decode(),
+                running: self.running.cst_decode(),
+                camera_id: self.camera_id.cst_decode(),
+                rig_label: self.rig_label.cst_decode(),
+                frames_captured: self.frames_captured.cst_decode(),
+                frames_aborted: self.frames_aborted.cst_decode(),
+                planned_frames: self.planned_frames.cst_decode(),
+                waiting_for_dither: self.waiting_for_dither.cst_decode(),
+                exposing: self.exposing.cst_decode(),
+                dither_pending: self.dither_pending.cst_decode(),
+                forced_proceeds: self.forced_proceeds.cst_decode(),
+                last_error: self.last_error.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::api::sequencer::SequenceDefinitionApi> for wire_cst_sequence_definition_api {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::api::sequencer::SequenceDefinitionApi {
@@ -25840,6 +26299,7 @@ mod io {
                 photometry_differential_mag: core::ptr::null_mut(),
                 photometry_fwhm_arcsec: core::ptr::null_mut(),
                 photometry_snr: core::ptr::null_mut(),
+                rig_label: core::ptr::null_mut(),
             }
         }
     }
@@ -26664,6 +27124,65 @@ mod io {
         }
     }
     impl Default for wire_cst_scheduler_score_entry {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_secondary_rig_config_api {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                camera_id: core::ptr::null_mut(),
+                exposure_secs: Default::default(),
+                gain: core::ptr::null_mut(),
+                offset: core::ptr::null_mut(),
+                bin_x: Default::default(),
+                bin_y: Default::default(),
+                frame_count: core::ptr::null_mut(),
+                filter_name: core::ptr::null_mut(),
+                target_temp_c: core::ptr::null_mut(),
+                rig_label: core::ptr::null_mut(),
+                camera_make: core::ptr::null_mut(),
+                camera_model: core::ptr::null_mut(),
+                telescope_name: core::ptr::null_mut(),
+                telescope_focal_length_mm: core::ptr::null_mut(),
+                telescope_aperture_mm: core::ptr::null_mut(),
+                dither_max_wait_secs: Default::default(),
+                in_flight_policy: core::ptr::null_mut(),
+                save_base_path: core::ptr::null_mut(),
+                target_name: core::ptr::null_mut(),
+                target_ra_hours: core::ptr::null_mut(),
+                target_dec_degrees: core::ptr::null_mut(),
+                observer_name: core::ptr::null_mut(),
+                site_latitude_deg: core::ptr::null_mut(),
+                site_longitude_deg: core::ptr::null_mut(),
+                site_elevation_m: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_secondary_rig_config_api {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_secondary_rig_status_api {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                armed: Default::default(),
+                running: Default::default(),
+                camera_id: core::ptr::null_mut(),
+                rig_label: core::ptr::null_mut(),
+                frames_captured: Default::default(),
+                frames_aborted: Default::default(),
+                planned_frames: core::ptr::null_mut(),
+                waiting_for_dither: Default::default(),
+                exposing: Default::default(),
+                dither_pending: Default::default(),
+                forced_proceeds: Default::default(),
+                last_error: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_secondary_rig_status_api {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -28819,6 +29338,39 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__sequencer__api_perform_meridian_flip(
+        port_: i64,
+        mount_id: *mut wire_cst_list_prim_u_8_strict,
+        camera_id: *mut wire_cst_list_prim_u_8_strict,
+        focuser_id: *mut wire_cst_list_prim_u_8_strict,
+        cover_calibrator_id: *mut wire_cst_list_prim_u_8_strict,
+        target_name: *mut wire_cst_list_prim_u_8_strict,
+        target_ra_hours: f64,
+        target_dec_degrees: f64,
+        pause_guiding: bool,
+        auto_center: bool,
+        refocus_after: bool,
+        resume_guiding: bool,
+        settle_time_secs: f64,
+    ) {
+        wire__crate__api__sequencer__api_perform_meridian_flip_impl(
+            port_,
+            mount_id,
+            camera_id,
+            focuser_id,
+            cover_calibrator_id,
+            target_name,
+            target_ra_hours,
+            target_dec_degrees,
+            pause_guiding,
+            auto_center,
+            refocus_after,
+            resume_guiding,
+            settle_time_secs,
+        )
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__phd2__api_phd2_clear_calibration(
         port_: i64,
         which: *mut wire_cst_list_prim_u_8_strict,
@@ -29292,6 +29844,35 @@ mod io {
         wire__crate__api__imaging__api_save_xisf_file_impl(
             port_, file_path, width, height, data, properties,
         )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_get_status(
+        port_: i64,
+    ) {
+        wire__crate__api__secondary_rig__api_secondary_rig_get_status_impl(port_)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_is_armed(
+        port_: i64,
+    ) {
+        wire__crate__api__secondary_rig__api_secondary_rig_is_armed_impl(port_)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_start(
+        port_: i64,
+        config: *mut wire_cst_secondary_rig_config_api,
+    ) {
+        wire__crate__api__secondary_rig__api_secondary_rig_start_impl(port_, config)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_stop(
+        port_: i64,
+    ) {
+        wire__crate__api__secondary_rig__api_secondary_rig_stop_impl(port_)
     }
 
     #[unsafe(no_mangle)]
@@ -30570,6 +31151,13 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__secondary_rig__secondary_rig_status_api_default(
+        port_: i64,
+    ) {
+        wire__crate__api__secondary_rig__secondary_rig_status_api_default_impl(port_)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__devices__camera__set_camera_cooler(
         port_: i64,
         device_id: *mut wire_cst_list_prim_u_8_strict,
@@ -31006,6 +31594,14 @@ mod io {
     ) -> *mut wire_cst_safety_monitor_capabilities {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(
             wire_cst_safety_monitor_capabilities::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_secondary_rig_config_api(
+    ) -> *mut wire_cst_secondary_rig_config_api {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_secondary_rig_config_api::new_with_null_ptr(),
         )
     }
 
@@ -32271,6 +32867,7 @@ mod io {
         photometry_differential_mag: *mut f64,
         photometry_fwhm_arcsec: *mut f64,
         photometry_snr: *mut f64,
+        rig_label: *mut wire_cst_list_prim_u_8_strict,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -33326,6 +33923,51 @@ mod io {
         total_score: f64,
         runnable: bool,
         reason: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_secondary_rig_config_api {
+        camera_id: *mut wire_cst_list_prim_u_8_strict,
+        exposure_secs: f64,
+        gain: *mut i32,
+        offset: *mut i32,
+        bin_x: i32,
+        bin_y: i32,
+        frame_count: *mut u32,
+        filter_name: *mut wire_cst_list_prim_u_8_strict,
+        target_temp_c: *mut f64,
+        rig_label: *mut wire_cst_list_prim_u_8_strict,
+        camera_make: *mut wire_cst_list_prim_u_8_strict,
+        camera_model: *mut wire_cst_list_prim_u_8_strict,
+        telescope_name: *mut wire_cst_list_prim_u_8_strict,
+        telescope_focal_length_mm: *mut f64,
+        telescope_aperture_mm: *mut f64,
+        dither_max_wait_secs: f64,
+        in_flight_policy: *mut wire_cst_list_prim_u_8_strict,
+        save_base_path: *mut wire_cst_list_prim_u_8_strict,
+        target_name: *mut wire_cst_list_prim_u_8_strict,
+        target_ra_hours: *mut f64,
+        target_dec_degrees: *mut f64,
+        observer_name: *mut wire_cst_list_prim_u_8_strict,
+        site_latitude_deg: *mut f64,
+        site_longitude_deg: *mut f64,
+        site_elevation_m: *mut f64,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_secondary_rig_status_api {
+        armed: bool,
+        running: bool,
+        camera_id: *mut wire_cst_list_prim_u_8_strict,
+        rig_label: *mut wire_cst_list_prim_u_8_strict,
+        frames_captured: u32,
+        frames_aborted: u32,
+        planned_frames: *mut u32,
+        waiting_for_dither: bool,
+        exposing: bool,
+        dither_pending: bool,
+        forced_proceeds: u32,
+        last_error: *mut wire_cst_list_prim_u_8_strict,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

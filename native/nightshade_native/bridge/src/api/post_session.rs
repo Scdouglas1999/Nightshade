@@ -437,7 +437,11 @@ pub fn api_master_accumulate(args_json: String) -> Result<String, String> {
         "add" => master_add(&args_json)?,
         "finalize" => master_finalize(&args_json)?,
         "info" => master_info(&args_json)?,
-        other => return Err(format!("unknown master op '{other}'; expected create/add/finalize/info")),
+        other => {
+            return Err(format!(
+                "unknown master op '{other}'; expected create/add/finalize/info"
+            ))
+        }
     };
     serde_json::to_string(&result).map_err(|e| format!("failed to encode result: {e}"))
 }
@@ -496,10 +500,16 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
 
     // --- Load + calibrate every light. ---
     let total_lights = args.light_paths.len() as u32;
-    emit_integration_progress("calibrating", FRACTION_CALIBRATE, Some(0), Some(total_lights));
+    emit_integration_progress(
+        "calibrating",
+        FRACTION_CALIBRATE,
+        Some(0),
+        Some(total_lights),
+    );
     let mut loaded: Vec<LoadedLight> = Vec::with_capacity(args.light_paths.len());
     for (i, path) in args.light_paths.iter().enumerate() {
-        let read = read_image(Path::new(path)).map_err(|e| format!("failed to read '{path}': {e}"))?;
+        let read =
+            read_image(Path::new(path)).map_err(|e| format!("failed to read '{path}': {e}"))?;
         let mut image = read.image;
         if image.pixel_type != PixelType::U16 {
             return Err(format!(
@@ -569,7 +579,12 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
         transform: Option<TransformModel>,
     }
 
-    emit_integration_progress("registering", FRACTION_REGISTER, Some(0), Some(total_lights));
+    emit_integration_progress(
+        "registering",
+        FRACTION_REGISTER,
+        Some(0),
+        Some(total_lights),
+    );
     let mut registered: Vec<Registered> = Vec::with_capacity(loaded.len());
     for (i, light) in loaded.iter().enumerate() {
         // Register phase spans 0.20..0.60; emit per frame (cheap), never per
@@ -606,7 +621,11 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
         match register_frame(reference, &light.image, &reg_cfg) {
             Ok(reg) => {
                 let pixels = image_to_f64(&reg.aligned);
-                let coverage = CoverageMask::from_zero_fill(&derive_luma_f64(&pixels, locations, chan), width as usize, height as usize);
+                let coverage = CoverageMask::from_zero_fill(
+                    &derive_luma_f64(&pixels, locations, chan),
+                    width as usize,
+                    height as usize,
+                );
                 let quality = aligned_quality(&reg.aligned, &q_cfg);
                 registered.push(Registered {
                     path: light.path.clone(),
@@ -744,21 +763,27 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
     // stitcher can place this panel without a post-hoc solve. Best-effort: a
     // reference with no WCS leaves the master WCS-less (the stitch gates it out).
     let reference_wcs = reference_wcs_from_fits(&loaded[ref_index].path);
-    let header = build_master_header(sub_count, &args.settings.integration, reference_wcs.as_ref());
+    let header = build_master_header(
+        sub_count,
+        &args.settings.integration,
+        reference_wcs.as_ref(),
+    );
     write_fits(master_path, &output.master, &header)
         .map_err(|e| format!("failed to write master FITS: {e:?}"))?;
 
     // --- Optional rejection map FITS. ---
-    let rejection_map_path = if let (Some(p), Some(map)) =
-        (args.output.rejection_map_path.as_ref(), output.rejection_map.as_ref())
-    {
+    let rejection_map_path = if let (Some(p), Some(map)) = (
+        args.output.rejection_map_path.as_ref(),
+        output.rejection_map.as_ref(),
+    ) {
         if !p.trim().is_empty() {
             let path = Path::new(p);
             ensure_parent_dir(path)?;
             let mut h = FitsHeader::new();
             h.set_string("IMAGETYP", "REJECTION_MAP");
             h.add_history("Nightshade post-session rejection-count map");
-            write_fits(path, map, &h).map_err(|e| format!("failed to write rejection map: {e:?}"))?;
+            write_fits(path, map, &h)
+                .map_err(|e| format!("failed to write rejection map: {e:?}"))?;
             Some(p.clone())
         } else {
             None
@@ -783,7 +808,8 @@ fn integrate_session(args: IntegrateSessionArgs) -> Result<IntegrateSessionResul
 
     // --- Assemble per-frame stats + aggregate residual. ---
     // Map normalized weights back to the accepted frames by position.
-    let mut weight_by_index: std::collections::HashMap<usize, f64> = std::collections::HashMap::new();
+    let mut weight_by_index: std::collections::HashMap<usize, f64> =
+        std::collections::HashMap::new();
     for (pos, &i) in accepted_idx.iter().enumerate() {
         weight_by_index.insert(i, weights[pos]);
     }
@@ -958,7 +984,10 @@ fn master_create(args_json: &str) -> Result<MasterAccumulateResult, String> {
         .map_err(|e| format!("failed to read reference '{}': {e}", args.reference_path))?;
     let reference = read.image;
 
-    let clip = match (args.settings.online_clip_low, args.settings.online_clip_high) {
+    let clip = match (
+        args.settings.online_clip_low,
+        args.settings.online_clip_high,
+    ) {
         (Some(low), Some(high)) => Some(OnlineClip { low, high }),
         _ => None,
     };
@@ -1016,8 +1045,8 @@ fn master_add(args_json: &str) -> Result<MasterAccumulateResult, String> {
 
     let sidecar = Path::new(&args.sidecar_path);
     let bytes = std::fs::read(sidecar).map_err(|e| format!("failed to read sidecar: {e}"))?;
-    let mut master = IntegratedMaster::deserialize(&bytes)
-        .map_err(|e| format!("corrupt sidecar: {e}"))?;
+    let mut master =
+        IntegratedMaster::deserialize(&bytes).map_err(|e| format!("corrupt sidecar: {e}"))?;
 
     let geom = master.geometry.clone();
     let width = geom.width;
@@ -1067,10 +1096,14 @@ fn master_add(args_json: &str) -> Result<MasterAccumulateResult, String> {
     });
 
     for (i, path) in args.light_paths.iter().enumerate() {
-        let read = read_image(Path::new(path)).map_err(|e| format!("failed to read '{path}': {e}"))?;
+        let read =
+            read_image(Path::new(path)).map_err(|e| format!("failed to read '{path}': {e}"))?;
         let mut image = read.image;
         if image.pixel_type != PixelType::U16 {
-            return Err(format!("light '{path}' is {:?}; expected U16", image.pixel_type));
+            return Err(format!(
+                "light '{path}' is {:?}; expected U16",
+                image.pixel_type
+            ));
         }
         if dark.is_some() || flat.is_some() || bias.is_some() {
             image = nightshade_imaging::calibration::calibrate_frame(
@@ -1088,8 +1121,7 @@ fn master_add(args_json: &str) -> Result<MasterAccumulateResult, String> {
         let reg = register_frame(&ref_image, &image, &reg_cfg)
             .map_err(|e| format!("registration of '{path}' failed: {e}"))?;
         // Geometry guard: aligned frame must match the master grid.
-        frame_buffer_for_master(i, &reg.aligned, &geom)
-            .map_err(|e| format!("'{path}': {e}"))?;
+        frame_buffer_for_master(i, &reg.aligned, &geom).map_err(|e| format!("'{path}': {e}"))?;
 
         let mut pixels = image_to_f64(&reg.aligned);
         let coverage = CoverageMask::from_zero_fill(
@@ -1179,8 +1211,10 @@ fn master_finalize(args_json: &str) -> Result<MasterAccumulateResult, String> {
     if args.sidecar_path.trim().is_empty() || args.master_fits_path.trim().is_empty() {
         return Err("finalize requires sidecarPath and masterFitsPath".to_string());
     }
-    let bytes = std::fs::read(&args.sidecar_path).map_err(|e| format!("failed to read sidecar: {e}"))?;
-    let master = IntegratedMaster::deserialize(&bytes).map_err(|e| format!("corrupt sidecar: {e}"))?;
+    let bytes =
+        std::fs::read(&args.sidecar_path).map_err(|e| format!("failed to read sidecar: {e}"))?;
+    let master =
+        IntegratedMaster::deserialize(&bytes).map_err(|e| format!("corrupt sidecar: {e}"))?;
 
     let image = master.finalize();
     let master_path = Path::new(&args.master_fits_path);
@@ -1202,7 +1236,8 @@ fn master_finalize(args_json: &str) -> Result<MasterAccumulateResult, String> {
         master.metadata.total_frames,
         master.metadata.folds.len()
     ));
-    write_fits(master_path, &image, &header).map_err(|e| format!("failed to write master: {e:?}"))?;
+    write_fits(master_path, &image, &header)
+        .map_err(|e| format!("failed to write master: {e:?}"))?;
 
     let preview_path = if let Some(p) = args.preview_png_path.as_ref() {
         if !p.trim().is_empty() {
@@ -1233,8 +1268,10 @@ fn master_finalize(args_json: &str) -> Result<MasterAccumulateResult, String> {
 fn master_info(args_json: &str) -> Result<MasterAccumulateResult, String> {
     let args: MasterInfoArgs =
         serde_json::from_str(args_json).map_err(|e| format!("invalid info args: {e}"))?;
-    let bytes = std::fs::read(&args.sidecar_path).map_err(|e| format!("failed to read sidecar: {e}"))?;
-    let master = IntegratedMaster::deserialize(&bytes).map_err(|e| format!("corrupt sidecar: {e}"))?;
+    let bytes =
+        std::fs::read(&args.sidecar_path).map_err(|e| format!("failed to read sidecar: {e}"))?;
+    let master =
+        IntegratedMaster::deserialize(&bytes).map_err(|e| format!("corrupt sidecar: {e}"))?;
     Ok(MasterAccumulateResult {
         sidecar_path: args.sidecar_path,
         master_path: None,
@@ -1341,15 +1378,26 @@ fn build_master_flat_impl(args: BuildMasterFlatArgs) -> Result<BuildMasterFlatRe
     };
     let method = match args.method.trim().to_ascii_lowercase().as_str() {
         "" | "sigmaclip" | "sigma_clip" => CombineMethod::SigmaClip {
-            kappa: if args.sigma_kappa > 0.0 { args.sigma_kappa } else { 3.0 },
-            iterations: if args.sigma_iterations > 0 { args.sigma_iterations } else { 5 },
+            kappa: if args.sigma_kappa > 0.0 {
+                args.sigma_kappa
+            } else {
+                3.0
+            },
+            iterations: if args.sigma_iterations > 0 {
+                args.sigma_iterations
+            } else {
+                5
+            },
         }, // sigma_iterations is u32 (see SigmaClip below)
         "median" => CombineMethod::Median,
         "mean" => CombineMethod::Mean,
         other => return Err(format!("unknown combine method '{other}'")),
     };
 
-    let config = MasterFlatConfig { method, output_type };
+    let config = MasterFlatConfig {
+        method,
+        output_type,
+    };
     let master = build_master_flat(&flats, pedestal.as_ref(), config)
         .map_err(|e| format!("master-flat build failed: {e}"))?;
 
@@ -1363,7 +1411,8 @@ fn build_master_flat_impl(args: BuildMasterFlatArgs) -> Result<BuildMasterFlatRe
     // FITS keywords are capped at 8 chars (see `fits::is_valid_keyword`).
     header.set_float("INMEAN", master.input_mean);
     header.set_float("OUTMEAN", master.output_mean);
-    write_fits(out_path, &master.image, &header).map_err(|e| format!("failed to write flat: {e:?}"))?;
+    write_fits(out_path, &master.image, &header)
+        .map_err(|e| format!("failed to write flat: {e:?}"))?;
 
     Ok(BuildMasterFlatResult {
         output_path: args.output_path,
@@ -1473,7 +1522,8 @@ fn save_fits_master_impl(args: SaveFitsMasterArgs) -> Result<SaveFitsMasterResul
     if let Some(s) = args.total_integration_sec {
         header.set_float("EXPTIME", s);
     }
-    write_fits(out_path, &image, &header).map_err(|e| format!("failed to write FITS master: {e:?}"))?;
+    write_fits(out_path, &image, &header)
+        .map_err(|e| format!("failed to write FITS master: {e:?}"))?;
 
     Ok(SaveFitsMasterResult {
         output_path: args.output_path,
@@ -1641,10 +1691,7 @@ fn build_registration_config(a: &AlignArgs) -> Result<RegistrationConfig, String
 
 /// Apply non-zero star-detection overrides onto a base [`StarDetectionConfig`],
 /// leaving each unset (zero) knob at its production default.
-fn apply_detection_overrides(
-    cfg: &mut nightshade_imaging::StarDetectionConfig,
-    d: &DetectionArgs,
-) {
+fn apply_detection_overrides(cfg: &mut nightshade_imaging::StarDetectionConfig, d: &DetectionArgs) {
     if d.detection_sigma > 0.0 {
         cfg.detection_sigma = d.detection_sigma;
     }
@@ -1699,7 +1746,10 @@ fn build_normalization_config(a: &NormalizationArgs) -> Result<NormalizationConf
     })
 }
 
-fn build_integration_config(a: &IntegrationArgs, sub_count: usize) -> Result<IntegrationConfig, String> {
+fn build_integration_config(
+    a: &IntegrationArgs,
+    sub_count: usize,
+) -> Result<IntegrationConfig, String> {
     let combine = match a.combine.trim().to_ascii_lowercase().as_str() {
         "" | "mean" => Combine::Mean,
         "median" => Combine::Median,
@@ -1881,7 +1931,8 @@ pub(crate) fn write_preview_png(master: &ImageData, path: &Path) -> Result<(), S
         let eight = apply_stretch(&u16_master, &params);
         let img = image::GrayImage::from_raw(width, height, eight)
             .ok_or_else(|| "failed to build preview buffer".to_string())?;
-        img.save(path).map_err(|e| format!("failed to write preview PNG: {e}"))
+        img.save(path)
+            .map_err(|e| format!("failed to write preview PNG: {e}"))
     } else if channels == 3 {
         let rgb = u16_master
             .as_u16()
@@ -1890,7 +1941,8 @@ pub(crate) fn write_preview_png(master: &ImageData, path: &Path) -> Result<(), S
         let eight = apply_stretch_rgb_per_channel(&rgb, width, height, &r, &g, &b);
         let img: image::RgbImage = image::ImageBuffer::from_raw(width, height, eight)
             .ok_or_else(|| "failed to build RGB preview buffer".to_string())?;
-        img.save(path).map_err(|e| format!("failed to write preview PNG: {e}"))
+        img.save(path)
+            .map_err(|e| format!("failed to write preview PNG: {e}"))
     } else {
         Err(format!("unsupported channel count {channels} for preview"))
     }
@@ -2078,7 +2130,10 @@ mod tests {
         let resp = api_integrate_session(args.to_string()).expect("integration should succeed");
         let result: IntegrateSessionResult = serde_json::from_str(&resp).unwrap();
 
-        assert_eq!(result.frames_integrated, 3, "all three subs should integrate");
+        assert_eq!(
+            result.frames_integrated, 3,
+            "all three subs should integrate"
+        );
         assert_eq!(result.frames_rejected, 0);
         assert_eq!(result.width, size);
         assert_eq!(result.height, size);
@@ -2213,7 +2268,11 @@ mod tests {
         api_integrate_session(args.to_string()).expect("integration should succeed");
 
         let (_img, h) = read_fits(master_path.as_path()).expect("read master");
-        assert_eq!(h.get_float("CRVAL1"), None, "no WCS to carry → none stamped");
+        assert_eq!(
+            h.get_float("CRVAL1"),
+            None,
+            "no WCS to carry → none stamped"
+        );
         assert_eq!(h.get_float("CD1_1"), None);
 
         let _ = std::fs::remove_file(&master_path);
@@ -2419,14 +2478,23 @@ mod tests {
         // Every accepted sub carries a positive, finite noise + snr — the inputs
         // the optimizer's variance sums need. (Pre-fix: `noise` did not exist on
         // the record, so it crossed the FFI as 0 and killed the curve.)
-        let accepted: Vec<&PerFrameRecord> =
-            result.per_frame_stats.iter().filter(|r| r.accepted).collect();
+        let accepted: Vec<&PerFrameRecord> = result
+            .per_frame_stats
+            .iter()
+            .filter(|r| r.accepted)
+            .collect();
         assert!(accepted.len() >= 2, "need ≥2 accepted subs to form a curve");
         for r in &accepted {
             let noise = r.noise.expect("accepted sub must surface measured noise");
-            assert!(noise.is_finite() && noise > 0.0, "noise must be positive: {noise}");
+            assert!(
+                noise.is_finite() && noise > 0.0,
+                "noise must be positive: {noise}"
+            );
             let snr = r.snr.expect("accepted sub must surface measured snr");
-            assert!(snr.is_finite() && snr >= 0.0, "snr must be finite/non-negative: {snr}");
+            assert!(
+                snr.is_finite() && snr >= 0.0,
+                "snr must be finite/non-negative: {snr}"
+            );
         }
 
         // Build the exact `qualities` payload the Dart `_analyzeAndStoreCurve`
@@ -2466,7 +2534,11 @@ mod tests {
         let night: serde_json::Value = serde_json::from_str(&night_resp).unwrap();
 
         let points = night["curve"].as_array().expect("curve points array");
-        assert_eq!(points.len(), accepted.len(), "one curve point per accepted sub");
+        assert_eq!(
+            points.len(),
+            accepted.len(),
+            "one curve point per accepted sub"
+        );
 
         // The curve is POSITIVE and monotone-non-decreasing in SNR (more subs
         // never lowers the predicted stack SNR), and the full-night anchor SNR is
@@ -2474,7 +2546,10 @@ mod tests {
         let mut prev = -1.0_f64;
         for (i, p) in points.iter().enumerate() {
             let snr = p["snr"].as_f64().expect("point snr");
-            assert!(snr.is_finite() && snr > 0.0, "curve point {i} snr must be > 0: {snr}");
+            assert!(
+                snr.is_finite() && snr > 0.0,
+                "curve point {i} snr must be > 0: {snr}"
+            );
             assert!(
                 snr + 1e-9 >= prev,
                 "curve must be monotone-non-decreasing at point {i}: {snr} < {prev}"

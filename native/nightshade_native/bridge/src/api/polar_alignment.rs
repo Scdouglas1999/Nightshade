@@ -1211,6 +1211,8 @@ pub async fn api_start_all_sky_polar_alignment(
             device_disconnect_recovery_pending: std::sync::Arc::new(
                 std::sync::atomic::AtomicBool::new(false),
             ),
+            // Dual-rig — polar alignment runs standalone, no secondary coord.
+            dither_barrier: None,
         };
 
         let status_cb = |status: String, _progress: Option<f64>| {
@@ -1323,7 +1325,10 @@ mod polar_error_tests {
         let medium = polar_axis_error_arcsec(30.0, 89.0, 90.0).2;
         let large = polar_axis_error_arcsec(30.0, 87.0, 90.0).2;
         assert!(small < medium && medium < large, "{small} {medium} {large}");
-        assert!(large > 10_000.0, "3° misalignment must be a large arcsec value");
+        assert!(
+            large > 10_000.0,
+            "3° misalignment must be a large arcsec value"
+        );
     }
 
     /// Works for the south celestial pole too (axis_dec near -90).
@@ -1332,6 +1337,9 @@ mod polar_error_tests {
         let aligned = polar_axis_error_arcsec(0.0, -90.0, -90.0).2;
         assert!(aligned.abs() < 1e-6, "south-pole aligned should be ~0");
         let off = polar_axis_error_arcsec(0.0, -89.0, -90.0).2;
-        assert!((off - 3600.0).abs() < 1.0, "1° south offset = 3600\", got {off}");
+        assert!(
+            (off - 3600.0).abs() < 1.0,
+            "1° south offset = 3600\", got {off}"
+        );
     }
 }

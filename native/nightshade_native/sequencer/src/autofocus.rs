@@ -145,8 +145,22 @@ impl VCurveAutofocus {
         // streak, cosmic ray) that would otherwise distort the V's minimum.
         // sigma=0 means "trust every point" — used by tests with synthetic
         // perfect curves.
+        //
+        // Fail-soft: when rejection eliminates too many points (poor seeing
+        // can legitimately flag half the sweep), fitting the raw samples is
+        // a far better night outcome than aborting AF — an abort leaves the
+        // focuser wherever the sweep ended, which is maximally defocused.
         let filtered_points = if self.config.outlier_rejection_sigma > 0.0 {
-            self.reject_outliers(&data_points)?
+            match self.reject_outliers(&data_points) {
+                Ok(points) => points,
+                Err(e) => {
+                    tracing::warn!(
+                        "Outlier rejection failed ({}); fitting raw sweep data instead",
+                        e
+                    );
+                    data_points.clone()
+                }
+            }
         } else {
             data_points.clone()
         };
@@ -155,10 +169,36 @@ impl VCurveAutofocus {
             return Err("Not enough valid data points after outlier rejection".to_string());
         }
 
-        let (best_position, curve_quality) = match self.config.method {
-            AutofocusMethod::VCurve => self.fit_vcurve(&filtered_points)?,
-            AutofocusMethod::Quadratic => self.fit_parabola(&filtered_points)?,
-            AutofocusMethod::Hyperbolic => self.fit_hyperbola(&filtered_points)?,
+        // Fail-soft on the curve fit too: a parabola opening the wrong way
+        // (a <= 0) or a degenerate hyperbola means the model is wrong for
+        // tonight's data, not that the sweep was useless. Falling back to
+        // the minimum-HFR *sampled* position with quality 0.0 mirrors
+        // N.I.N.A.'s behaviour; downstream only warns on low R² and the
+        // verification exposure remains the backstop.
+        let fit_result = match self.config.method {
+            AutofocusMethod::VCurve => self.fit_vcurve(&filtered_points),
+            AutofocusMethod::Quadratic => self.fit_parabola(&filtered_points),
+            AutofocusMethod::Hyperbolic => self.fit_hyperbola(&filtered_points),
+        };
+        let (best_position, curve_quality) = match fit_result {
+            Ok(fit) => fit,
+            Err(e) => {
+                let min_point = filtered_points
+                    .iter()
+                    .min_by(|a, b| {
+                        a.hfr
+                            .partial_cmp(&b.hfr) /* §4.3: f64 NaN orders Equal — see module-level policy */
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    })
+                    .ok_or_else(|| "No valid HFR values found".to_string())?;
+                tracing::warn!(
+                    "{:?} curve fit failed ({}); falling back to minimum-HFR sampled position {} (R²=0.0)",
+                    self.config.method,
+                    e,
+                    min_point.position
+                );
+                (min_point.position, 0.0)
+            }
         };
 
         // The reported best_hfr is the minimum sampled HFR, not the

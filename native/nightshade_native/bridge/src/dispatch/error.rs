@@ -118,10 +118,7 @@ impl DeviceOpError {
     }
 
     /// Driver handle absent. `detail` is the exact legacy phrasing for the arm.
-    pub(crate) fn not_connected(
-        device_id: Option<String>,
-        detail: impl Into<String>,
-    ) -> Self {
+    pub(crate) fn not_connected(device_id: Option<String>, detail: impl Into<String>) -> Self {
         DeviceOpError::NotConnected {
             device_id,
             detail: detail.into(),

@@ -1635,6 +1635,10 @@ class FitsWriteHeaderRich {
   final double? photometryFwhmArcsec;
   final double? photometrySnr;
 
+  /// Dual-rig — optical-train / camera attribution for multi-camera
+  /// sessions (FITS `NS-RIG`). `None` for the single-rig case.
+  final String? rigLabel;
+
   const FitsWriteHeaderRich({
     this.objectName,
     required this.exposureTime,
@@ -1686,6 +1690,7 @@ class FitsWriteHeaderRich {
     this.photometryDifferentialMag,
     this.photometryFwhmArcsec,
     this.photometrySnr,
+    this.rigLabel,
   });
 
   static Future<FitsWriteHeaderRich> default_() =>
@@ -1742,7 +1747,8 @@ class FitsWriteHeaderRich {
       photometryInstrumentalMag.hashCode ^
       photometryDifferentialMag.hashCode ^
       photometryFwhmArcsec.hashCode ^
-      photometrySnr.hashCode;
+      photometrySnr.hashCode ^
+      rigLabel.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1798,7 +1804,8 @@ class FitsWriteHeaderRich {
           photometryInstrumentalMag == other.photometryInstrumentalMag &&
           photometryDifferentialMag == other.photometryDifferentialMag &&
           photometryFwhmArcsec == other.photometryFwhmArcsec &&
-          photometrySnr == other.photometrySnr;
+          photometrySnr == other.photometrySnr &&
+          rigLabel == other.rigLabel;
 }
 
 /// A single focus data point (position and HFR)

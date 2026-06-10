@@ -16,10 +16,13 @@ async fn indi_weather_conditions(
     max_age: Duration,
 ) -> Result<WeatherConditions, DeviceOpError> {
     if weather.has_weather_parameters().await && weather.is_parameters_stale(max_age).await {
-        return Err(DeviceOpError::hardware(Some(device_id.to_string()), format!(
-            "INDI weather parameters for {} are stale or have never updated",
-            device_id
-        )));
+        return Err(DeviceOpError::hardware(
+            Some(device_id.to_string()),
+            format!(
+                "INDI weather parameters for {} are stale or have never updated",
+                device_id
+            ),
+        ));
     }
 
     Ok(WeatherConditions {
@@ -68,7 +71,10 @@ impl DeviceManager {
                         rain_rate: weather.rain_rate().await.ok(),
                     });
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca weather device {} not found", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca weather device {} not found", device_id),
+                ))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -91,7 +97,10 @@ impl DeviceManager {
                     )
                     .await;
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI weather device not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "INDI weather device not connected",
+                ))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -112,10 +121,15 @@ impl DeviceManager {
                             rain_rate: weather_guard.rain_rate().await.ok(),
                         });
                     }
-                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM weather device {} not found", device_id)))
+                    Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("ASCOM weather device {} not found", device_id),
+                    ))
                 }
                 #[cfg(not(windows))]
-                Err(DeviceOpError::unsupported("ASCOM is only available on Windows"))
+                Err(DeviceOpError::unsupported(
+                    "ASCOM is only available on Windows",
+                ))
             }
             Some(DriverType::Native) => {
                 let native_weather = self.native_weather.read().await;
@@ -133,11 +147,14 @@ impl DeviceManager {
                         rain_rate: weather.get_rain_rate().await.ok().flatten(),
                     });
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native weather device not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native weather device not connected",
+                ))
             }
-            Some(DriverType::Simulator) => {
-                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("weather")))
-            }
+            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
+                crate::device_manager::ops::sim_gate::unsupported_simulator_device("weather"),
+            )),
             None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
@@ -191,6 +208,8 @@ mod tests {
                 last_successful_comm: None,
                 heartbeat_active: false,
                 api_version: None,
+                desired_cooler: None,
+                desired_tracking: None,
             },
         );
 

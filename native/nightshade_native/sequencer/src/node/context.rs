@@ -413,6 +413,14 @@ pub struct ExecutionContext {
     /// [`Self::scheduler_filter_cycle_override`].
     pub active_target_end_trigger:
         Arc<parking_lot::RwLock<Option<crate::scheduling::TargetTrigger>>>,
+    /// Dual-rig — optional dither-coordination barrier shared with a running
+    /// secondary capture loop. `None` (the common single-rig case) makes every
+    /// dither call site a plain pass-through. `Some` means a secondary camera
+    /// is piggybacking: the primary announces a pending dither on this barrier,
+    /// waits (bounded) for the secondary to clear its in-flight exposure,
+    /// pulses the guider, then releases the barrier so the secondary resumes.
+    /// See [`crate::dual_rig::DitherBarrier`].
+    pub dither_barrier: Option<Arc<crate::dual_rig::DitherBarrier>>,
 }
 
 /// Wave 8 — runtime adaptive-swap accounting. Hot-mutated by the
@@ -623,6 +631,9 @@ impl ExecutionContext {
             // dispatch.
             scheduler_filter_cycle_override: Arc::new(parking_lot::RwLock::new(None)),
             active_target_end_trigger: Arc::new(parking_lot::RwLock::new(None)),
+            // Dual-rig — no secondary camera by default; single-rig sequences
+            // leave this None and every dither is a plain pass-through.
+            dither_barrier: None,
         }
     }
 
@@ -1138,6 +1149,10 @@ impl ExecutionContext {
             // function was first written.
             decision_tx: self.decision_tx.clone(),
             active_sequence_run_id: self.active_sequence_run_id.clone(),
+            // Dual-rig — share the barrier Arc so the dither call sites in
+            // `instructions::{execute_dither, execute_exposure}` can coordinate
+            // with the secondary capture loop.
+            dither_barrier: self.dither_barrier.clone(),
         }
     }
 }

@@ -264,6 +264,8 @@ pub async fn api_run_autofocus(
         device_disconnect_recovery_pending: std::sync::Arc::new(
             std::sync::atomic::AtomicBool::new(false),
         ),
+        // Dual-rig — standalone autofocus runs with no secondary coordination.
+        dither_barrier: None,
     };
 
     // Execute (no progress callback when called directly from API)
@@ -3033,6 +3035,9 @@ pub struct FitsWriteHeaderRich {
     pub photometry_differential_mag: Option<f64>,
     pub photometry_fwhm_arcsec: Option<f64>,
     pub photometry_snr: Option<f64>,
+    /// Dual-rig — optical-train / camera attribution for multi-camera
+    /// sessions (FITS `NS-RIG`). `None` for the single-rig case.
+    pub rig_label: Option<String>,
 }
 
 impl From<FitsWriteHeader> for FitsWriteHeaderRich {
@@ -3143,6 +3148,8 @@ impl FitsWriteHeaderRich {
             photometry_differential_mag: ctx.photometry_differential_mag,
             photometry_fwhm_arcsec: ctx.photometry_fwhm_arcsec,
             photometry_snr: ctx.photometry_snr,
+            // Dual-rig — carry the rig attribution into the FITS header.
+            rig_label: ctx.rig_label.clone(),
         }
     }
 }
@@ -3494,6 +3501,11 @@ pub async fn save_fits_file_rich(
     }
     if let Some(total) = header_data.mosaic_total_panels {
         header.set_int("NS-NPAN", total as i64);
+    }
+    // Dual-rig — optical-train / camera attribution for multi-camera sessions.
+    // Omitted for the single-rig case so existing frames are unchanged.
+    if let Some(rig) = &header_data.rig_label {
+        header.set_string("NS-RIG", rig);
     }
 
     // ------------------------------------------------------------------

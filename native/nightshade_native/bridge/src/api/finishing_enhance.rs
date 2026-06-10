@@ -28,9 +28,7 @@
 //! they already return a same-layout frame.
 
 use nightshade_imaging::background_extraction::{self, BackgroundConfig};
-use nightshade_imaging::deconvolution::{
-    self, DeconvConfig, PsfEstimateConfig, PsfKind, PsfModel,
-};
+use nightshade_imaging::deconvolution::{self, DeconvConfig, PsfEstimateConfig, PsfKind, PsfModel};
 use nightshade_imaging::star_reduction::{self, StarReduceMethod, StarReductionConfig};
 use nightshade_imaging::{read_fits, write_fits, FitsHeader, ImageData, PixelType};
 use serde::{Deserialize, Serialize};
@@ -52,8 +50,8 @@ use std::path::Path;
 /// background samples, a singular fit, or a write error — surfaces as
 /// `Err(String)`.
 pub fn api_extract_background(args_json: String) -> Result<String, String> {
-    let args: ExtractBackgroundArgs = serde_json::from_str(&args_json)
-        .map_err(|e| format!("invalid background args: {e}"))?;
+    let args: ExtractBackgroundArgs =
+        serde_json::from_str(&args_json).map_err(|e| format!("invalid background args: {e}"))?;
     let result = extract_background_impl(args)?;
     serde_json::to_string(&result).map_err(|e| format!("failed to encode result: {e}"))
 }
@@ -71,8 +69,8 @@ pub fn api_extract_background(args_json: String) -> Result<String, String> {
 /// stars for estimation, a malformed PSF, or a write error — surfaces as
 /// `Err(String)`.
 pub fn api_deconvolve_preview(args_json: String) -> Result<String, String> {
-    let args: DeconvolvePreviewArgs = serde_json::from_str(&args_json)
-        .map_err(|e| format!("invalid deconvolve args: {e}"))?;
+    let args: DeconvolvePreviewArgs =
+        serde_json::from_str(&args_json).map_err(|e| format!("invalid deconvolve args: {e}"))?;
     let result = deconvolve_preview_impl(args)?;
     serde_json::to_string(&result).map_err(|e| format!("failed to encode result: {e}"))
 }
@@ -87,8 +85,8 @@ pub fn api_deconvolve_preview(args_json: String) -> Result<String, String> {
 /// unreadable input, an empty frame, an out-of-range strength, or a write
 /// error — surfaces as `Err(String)`.
 pub fn api_reduce_stars_preview(args_json: String) -> Result<String, String> {
-    let args: ReduceStarsPreviewArgs = serde_json::from_str(&args_json)
-        .map_err(|e| format!("invalid reduce-stars args: {e}"))?;
+    let args: ReduceStarsPreviewArgs =
+        serde_json::from_str(&args_json).map_err(|e| format!("invalid reduce-stars args: {e}"))?;
     let result = reduce_stars_preview_impl(args)?;
     serde_json::to_string(&result).map_err(|e| format!("failed to encode result: {e}"))
 }
@@ -142,9 +140,7 @@ struct ExtractBackgroundResult {
     mean_level: Vec<f64>,
 }
 
-fn extract_background_impl(
-    args: ExtractBackgroundArgs,
-) -> Result<ExtractBackgroundResult, String> {
+fn extract_background_impl(args: ExtractBackgroundArgs) -> Result<ExtractBackgroundResult, String> {
     if args.input_fits.trim().is_empty() {
         return Err("inputFits is required".to_string());
     }
@@ -279,9 +275,7 @@ struct DeconvolvePreviewResult {
     psf: PsfReport,
 }
 
-fn deconvolve_preview_impl(
-    args: DeconvolvePreviewArgs,
-) -> Result<DeconvolvePreviewResult, String> {
+fn deconvolve_preview_impl(args: DeconvolvePreviewArgs) -> Result<DeconvolvePreviewResult, String> {
     if args.input_fits.trim().is_empty() {
         return Err("inputFits is required".to_string());
     }
@@ -349,7 +343,10 @@ fn deconvolve_preview_impl(
 /// Gaussian of the requested FWHM. Returns `Err` if `fwhm`/`size` are unusable.
 fn build_psf_model(args: &PsfArgs) -> Result<PsfModel, String> {
     if !(args.fwhm.is_finite()) || args.fwhm <= 0.0 {
-        return Err(format!("psf.fwhm must be a positive finite value, got {}", args.fwhm));
+        return Err(format!(
+            "psf.fwhm must be a positive finite value, got {}",
+            args.fwhm
+        ));
     }
     // Odd side, floored at 5 (mirrors estimate_psf's crop handling).
     let size = {
@@ -366,7 +363,11 @@ fn build_psf_model(args: &PsfArgs) -> Result<PsfModel, String> {
         // Empirical cannot be rendered analytically; serve a Gaussian.
         "" | "gaussian" | "empirical" => PsfKind::Gaussian,
         "moffat" => PsfKind::Moffat,
-        other => return Err(format!("unknown psf.kind '{other}'; expected gaussian/moffat")),
+        other => {
+            return Err(format!(
+                "unknown psf.kind '{other}'; expected gaussian/moffat"
+            ))
+        }
     };
 
     // FWHM → σ for a Gaussian: FWHM = 2·√(2 ln 2)·σ.

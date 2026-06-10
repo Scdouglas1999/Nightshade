@@ -283,8 +283,7 @@ mod tests {
     #[test]
     fn none_gain_offset_leaves_camera_unchanged() {
         let mut cam = SpyCamera::new();
-        apply_exposure_params(&mut cam, 1, 1, None, None, &None)
-            .expect("apply should succeed");
+        apply_exposure_params(&mut cam, 1, 1, None, None, &None).expect("apply should succeed");
 
         assert!(
             index_of(&cam.calls, "set_gain").is_none(),
@@ -305,8 +304,7 @@ mod tests {
     #[test]
     fn bin_one_still_calls_binning_setters() {
         let mut cam = SpyCamera::new();
-        apply_exposure_params(&mut cam, 1, 1, None, None, &None)
-            .expect("apply should succeed");
+        apply_exposure_params(&mut cam, 1, 1, None, None, &None).expect("apply should succeed");
 
         assert_eq!(cam.set_bin_x, Some(1), "set_bin_x(1) must be called");
         assert_eq!(cam.set_bin_y, Some(1), "set_bin_y(1) must be called");
@@ -357,7 +355,10 @@ mod tests {
     fn binning_over_max_is_rejected() {
         let mut cam = SpyCamera::new();
         let result = apply_exposure_params(&mut cam, 8, 8, None, None, &None);
-        assert!(result.is_err(), "8x8 binning over a 4x4 max must be rejected");
+        assert!(
+            result.is_err(),
+            "8x8 binning over a 4x4 max must be rejected"
+        );
         assert!(
             cam.calls.is_empty(),
             "no setter should run when binning is out of range (got {:?})",
@@ -397,6 +398,9 @@ mod tests {
             height: 100,
         };
         let result = apply_exposure_params(&mut cam, 2, 2, None, None, &Some(sf));
-        assert!(result.is_err(), "subframe past binned bounds must be rejected");
+        assert!(
+            result.is_err(),
+            "subframe past binned bounds must be rejected"
+        );
     }
 }

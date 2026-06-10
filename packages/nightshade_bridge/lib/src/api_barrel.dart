@@ -32,6 +32,7 @@ export 'api/phd2.dart';
 export 'api/plate_solve.dart';
 export 'api/polar_alignment.dart';
 export 'api/post_session.dart';
+export 'api/secondary_rig.dart';
 export 'api/sequencer.dart';
 export 'api/session.dart';
 export 'api/storage.dart';

@@ -886,6 +886,50 @@ extension _NativeBridgeSequencerOperations on _NativeBridgeImplementation {
     }
   }
 
+  /// Standalone meridian flip (canonical flip engine, outside a sequence).
+  Future<void> performMeridianFlip({
+    required String mountId,
+    String? cameraId,
+    String? focuserId,
+    String? coverCalibratorId,
+    required String targetName,
+    required double targetRaHours,
+    required double targetDecDegrees,
+    required bool pauseGuiding,
+    required bool autoCenter,
+    required bool refocusAfter,
+    required bool resumeGuiding,
+    required double settleTimeSecs,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('performMeridianFlip');
+    }
+
+    try {
+      await gen_api.apiPerformMeridianFlip(
+        mountId: mountId,
+        cameraId: cameraId,
+        focuserId: focuserId,
+        coverCalibratorId: coverCalibratorId,
+        targetName: targetName,
+        targetRaHours: targetRaHours,
+        targetDecDegrees: targetDecDegrees,
+        pauseGuiding: pauseGuiding,
+        autoCenter: autoCenter,
+        refocusAfter: refocusAfter,
+        resumeGuiding: resumeGuiding,
+        settleTimeSecs: settleTimeSecs,
+      );
+    } catch (e) {
+      developer.log(
+        '[Bridge] Standalone meridian flip failed: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
+      rethrow;
+    }
+  }
+
   /// Resume from checkpoint
   Future<void> sequencerResumeFromCheckpoint() async {
     if (!_nativeAvailable) {

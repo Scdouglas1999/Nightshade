@@ -49,8 +49,35 @@ use tokio::task::JoinHandle;
 
 const BUILTIN_GUIDER_ID: &str = "native:builtin_guider:multi_star";
 const GUIDE_MAX_MATCH_DISTANCE_PX: f64 = 20.0;
-const GUIDE_MAX_TRACKED_STARS: usize = 8;
+/// Up to this many guide stars are tracked per frame. Raised from 8 to 12 so the
+/// sigma-clipped weighted centroid (see [`measure_offset`]) has enough samples
+/// to drop one or two outliers and still average over a healthy set.
+const GUIDE_MAX_TRACKED_STARS: usize = 12;
 const GUIDE_MIN_STAR_SEPARATION_PX: f64 = 10.0;
+/// A tracked star whose centroid lands within this many pixels of the frame edge
+/// is rejected at selection time: stars partially off-sensor have biased
+/// centroids and are the first to vanish under field rotation.
+const GUIDE_EDGE_MARGIN_PX: f64 = 12.0;
+/// Stars dimmer than this SNR are not used as guide references — too noisy to
+/// contribute a reliable per-star displacement.
+const GUIDE_MIN_REFERENCE_SNR: f64 = 6.0;
+/// Stars rounder-than-this (eccentricity) are preferred; above this they are
+/// rejected because an elongated detection (blended pair / hot column) gives a
+/// centroid that walks with seeing rather than with the mount.
+const GUIDE_MAX_REFERENCE_ECCENTRICITY: f64 = 0.6;
+/// Peak ADU at/above which a star is treated as saturated and rejected: a
+/// clipped core flattens the centroid and biases the displacement toward zero.
+const GUIDE_SATURATION_PEAK_ADU: f64 = 60000.0;
+/// Sigma multiplier for the robust (sigma-clipped) offset: per-star
+/// displacements more than this many MADs from the median are dropped as
+/// outliers (a star that jumped — cloud edge, cosmic ray, misassociation).
+const GUIDE_OUTLIER_SIGMA: f64 = 2.5;
+/// Below this many surviving stars the robust centroid is not trustworthy; the
+/// guider falls back to the plain weighted mean over whatever matched.
+const GUIDE_MIN_STARS_FOR_CLIP: usize = 4;
+/// 1.4826 * MAD ≈ standard deviation for a normal distribution. Used to scale
+/// the median-absolute-deviation into a sigma-equivalent for outlier rejection.
+const MAD_TO_SIGMA: f64 = 1.4826;
 
 /// Configurable parameters for the built-in guider.
 ///
@@ -73,6 +100,16 @@ pub struct GuiderConfig {
     pub min_pulse_ms: f64,
     /// Maximum guide pulse length in milliseconds (pulses are clamped to this)
     pub max_pulse_ms: f64,
+    /// RA correction aggressiveness (0..1+). Each computed RA pulse is scaled by
+    /// this before clamping. 1.0 = full correction; lower values damp chasing
+    /// seeing. Defaults to a slightly conservative value.
+    pub ra_aggressiveness: f64,
+    /// Dec correction aggressiveness (0..1+). Dec is usually run softer than RA
+    /// because it only fights drift and is the axis with backlash.
+    pub dec_aggressiveness: f64,
+    /// Minimum guide displacement (pixels) below which no correction is issued.
+    /// Avoids chasing centroid noise frame-to-frame.
+    pub min_move_px: f64,
 }
 
 impl Default for GuiderConfig {
@@ -86,6 +123,9 @@ impl Default for GuiderConfig {
             settle_sleep_ms: 200,
             min_pulse_ms: 75.0,
             max_pulse_ms: 1200.0,
+            ra_aggressiveness: 0.7,
+            dec_aggressiveness: 0.6,
+            min_move_px: 0.15,
         }
     }
 }
@@ -118,9 +158,51 @@ struct GuideReferenceStar {
 
 #[derive(Clone, Copy, Debug)]
 struct GuideCalibration {
+    /// Measured pixel displacement produced by one `pulse_ms` pulse on the RA+
+    /// (east) axis. Direction encodes the RA axis angle; magnitude/`pulse_ms`
+    /// gives the RA rate (px/ms).
     east: Vec2,
+    /// Measured pixel displacement produced by one `pulse_ms` pulse on the Dec+
+    /// (north) axis.
     north: Vec2,
     pulse_ms: f64,
+    /// Dec backlash, in pulse-milliseconds: the dead-band the Dec gear takes up
+    /// on the first pulse after a direction reversal. Measured during
+    /// calibration as the shortfall of the first reverse pulse versus the
+    /// established forward rate. 0 when no backlash was detected.
+    dec_backlash_ms: f64,
+    /// Angle between the measured RA and Dec axes, in degrees. A healthy mount is
+    /// near 90°; large departures are logged as a calibration-quality warning but
+    /// do not block guiding (the full 2×2 solve still applies).
+    orthogonality_deg: f64,
+}
+
+impl GuideCalibration {
+    /// RA rate in pixels per millisecond (magnitude of the east response per ms).
+    fn ra_rate(&self) -> f64 {
+        if self.pulse_ms > 0.0 {
+            self.east.magnitude() / self.pulse_ms
+        } else {
+            0.0
+        }
+    }
+
+    /// Dec rate in pixels per millisecond.
+    fn dec_rate(&self) -> f64 {
+        if self.pulse_ms > 0.0 {
+            self.north.magnitude() / self.pulse_ms
+        } else {
+            0.0
+        }
+    }
+}
+
+/// Which way Dec was last commanded, so the next correction can pay the backlash
+/// dead-band exactly once on a reversal (not every Dec pulse).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum DecDirection {
+    North,
+    South,
 }
 
 #[derive(Clone, Debug)]
@@ -205,6 +287,10 @@ pub struct BuiltinGuideTrackedStar {
     /// Per-star residual magnitude (pixels) on the most recent matched frame, or
     /// `None` before the star has been matched at least once.
     pub residual: Option<f64>,
+    /// Relative weight this star carries in the sigma-clipped weighted centroid
+    /// (flux/SNR derived). Higher means a brighter, cleaner star that pulls the
+    /// aggregate offset harder. Surfaced so the UI can show contribution.
+    pub weight: f64,
 }
 
 /// Per-star tracked-star snapshot. Serialized to JSON and exposed through the
@@ -255,6 +341,7 @@ fn build_tracked_stars(state: &BuiltinGuiderState) -> BuiltinGuideTrackedStars {
             snr: r.snr,
             is_lock: Some(i) == lock_index,
             residual: r.last_residual.map(|v| v.magnitude()),
+            weight: guide_reference_weight(r),
         })
         .collect::<Vec<_>>();
 
@@ -295,6 +382,15 @@ struct BuiltinGuiderState {
     /// Absolute deadline after which settling is considered failed
     settle_timeout_deadline: Option<Instant>,
     dither_pending: bool,
+    /// Last Dec direction actually pulsed, used to apply backlash compensation
+    /// exactly on a reversal. `None` until the first Dec correction.
+    last_dec_direction: Option<DecDirection>,
+    /// Monotonic dither step count, advancing the spiral pattern so successive
+    /// dithers walk to fresh pixels instead of re-treading the same ones.
+    dither_step: u32,
+    /// Recent per-frame total RMS (pixels), newest last, capped in length. Drives
+    /// adaptive dither settle tolerance (poorer seeing -> looser settle).
+    rms_history: Vec<f64>,
     stop_flag: Option<Arc<std::sync::atomic::AtomicBool>>,
     task: Option<JoinHandle<()>>,
     config: GuiderConfig,
@@ -319,12 +415,18 @@ impl Default for BuiltinGuiderState {
             settle_deadline: None,
             settle_timeout_deadline: None,
             dither_pending: false,
+            last_dec_direction: None,
+            dither_step: 0,
+            rms_history: Vec::new(),
             stop_flag: None,
             task: None,
             config: GuiderConfig::default(),
         }
     }
 }
+
+/// Maximum number of recent RMS samples retained for adaptive dither.
+const RMS_HISTORY_LEN: usize = 20;
 
 static BUILTIN_GUIDER: OnceLock<Arc<RwLock<BuiltinGuiderState>>> = OnceLock::new();
 
@@ -552,6 +654,8 @@ async fn stop_locked() -> Result<(), NightshadeError> {
         guard.settle_deadline = None;
         guard.settle_timeout_deadline = None;
         guard.dither_pending = false;
+        guard.last_dec_direction = None;
+        guard.rms_history.clear();
         guard.last_status.state = if guard.connected {
             "Connected".to_string()
         } else {
@@ -571,6 +675,44 @@ async fn stop_locked() -> Result<(), NightshadeError> {
     Ok(())
 }
 
+/// Golden angle (radians) — successive multiples spread points evenly around the
+/// circle without ever repeating, the basis of the sunflower/spiral dither.
+const DITHER_GOLDEN_ANGLE: f64 = 2.399_963_229_728_653;
+
+/// Compute the next dither offset.
+///
+/// Uses a sunflower spiral: step `n`'s angle is `n * golden_angle` and its radius
+/// grows as `amount * sqrt(n+1)`, so consecutive dithers land on fresh,
+/// non-overlapping pixels rather than re-walking a fixed grid or random jitter
+/// around one spot. The radius is additionally scaled up when `recent_rms` shows
+/// poor seeing (adaptive: a bigger move stays distinguishable from guiding noise
+/// and gives a cleaner settle target). `ra_only` collapses the move to the RA
+/// (x) axis with a deterministic sign alternation so it still walks both ways.
+fn dither_offset(amount: f64, ra_only: bool, step: u32, recent_rms: Option<f64>) -> Vec2 {
+    // Adaptive scale: 1.0 in good seeing, growing with recent RMS up to ~2x.
+    let rms = recent_rms.unwrap_or(0.0).max(0.0);
+    let adaptive = (1.0 + rms.min(amount.max(1.0)) / amount.max(1.0)).clamp(1.0, 2.0);
+    let base = amount * adaptive;
+
+    if ra_only {
+        // Alternate sign and grow slowly so repeated RA-only dithers still spread.
+        let sign = if step % 2 == 0 { 1.0 } else { -1.0 };
+        let radius = base * (1.0 + (step / 2) as f64 * 0.5);
+        return Vec2 {
+            x: sign * radius,
+            y: 0.0,
+        };
+    }
+
+    let n = step as f64;
+    let angle = n * DITHER_GOLDEN_ANGLE;
+    let radius = base * (n + 1.0).sqrt();
+    Vec2 {
+        x: radius * angle.cos(),
+        y: radius * angle.sin(),
+    }
+}
+
 pub async fn dither(
     amount: f64,
     ra_only: bool,
@@ -579,21 +721,9 @@ pub async fn dither(
     settle_timeout: f64,
 ) -> Result<(), NightshadeError> {
     ensure_connected().await?;
-    let seed = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_nanos() as f64;
-    let angle = if ra_only {
-        0.0
-    } else {
-        (seed % 6283.185307179586) / 1000.0
-    };
-    let offset = Vec2 {
-        x: amount * angle.cos(),
-        y: if ra_only { 0.0 } else { amount * angle.sin() },
-    };
 
     let timeout_secs = settle_timeout.max(settle_time + 1.0);
+    let offset;
     {
         let mut guard = state().write().await;
         // A dither only settles if the guiding loop is actually running to drive
@@ -604,6 +734,16 @@ pub async fn dither(
                 "Built-in guider dither requires active guiding; not guiding".to_string(),
             ));
         }
+        // Spiral step: advance a monotonic counter so each dither walks to fresh
+        // pixels instead of re-treading the same spot (a fixed/random small jump
+        // re-walks the same neighbourhood). Adaptive: scale by recent RMS so the
+        // dither moves further when seeing is poor, keeping it distinguishable
+        // from guiding noise.
+        let step = guard.dither_step;
+        guard.dither_step = step.wrapping_add(1);
+        let rms = recent_rms(&guard.rms_history);
+        offset = dither_offset(amount, ra_only, step, rms);
+
         guard.desired_offset = Vec2 {
             x: guard.desired_offset.x + offset.x,
             y: guard.desired_offset.y + offset.y,
@@ -611,13 +751,16 @@ pub async fn dither(
         guard.dither_pending = true;
         // Reset settle state and arm the timeout for this dither settle
         guard.settle_deadline = None;
-        guard.settle_timeout_deadline = Some(Instant::now() + Duration::from_secs_f64(timeout_secs));
+        guard.settle_timeout_deadline =
+            Some(Instant::now() + Duration::from_secs_f64(timeout_secs));
         // Store settle params so the guiding loop's apply_settle_state can use them
         // (settle_pixels and settle_time are already threaded through run_guiding_loop)
         let _ = (settle_pixels, settle_time); // used by the guiding loop that's already running
     }
     get_state().publish_guiding_event(
-        GuidingEvent::DitherStarted { pixels: amount },
+        GuidingEvent::DitherStarted {
+            pixels: offset.magnitude(),
+        },
         EventSeverity::Info,
     );
 
@@ -679,7 +822,11 @@ pub async fn find_star() -> Result<(f64, f64), NightshadeError> {
 
     let mut guard = state().write().await;
     guard.manual_lock = Some(selected_pos);
-    guard.reference_stars = select_reference_stars(&guide_frame.stars);
+    guard.reference_stars = select_reference_stars(
+        &guide_frame.stars,
+        guide_frame.image.width,
+        guide_frame.image.height,
+    );
     update_snapshot_from_frame(&mut guard, &guide_frame, 50);
     get_state().publish_guiding_event(
         GuidingEvent::StarSelected {
@@ -736,7 +883,11 @@ pub async fn set_lock_position(x: f64, y: f64) -> Result<(), NightshadeError> {
 
     let mut guard = state().write().await;
     guard.manual_lock = Some(selected_pos);
-    guard.reference_stars = select_reference_stars(&guide_frame.stars);
+    guard.reference_stars = select_reference_stars(
+        &guide_frame.stars,
+        guide_frame.image.width,
+        guide_frame.image.height,
+    );
     update_snapshot_from_frame(&mut guard, &guide_frame, 50);
     get_state().publish_guiding_event(
         GuidingEvent::StarSelected {
@@ -825,12 +976,12 @@ pub async fn get_calibration_data() -> Result<crate::api::phd2::Phd2CalibrationD
     // Pulse magnitude divided by configured calibration_ms gives pixels/ms,
     // which we surface in the same shape PHD2 uses (rate as pixels/ms).
     let ra_rate = if calib.pulse_ms > 0.0 {
-        Some((calib.east.x.hypot(calib.east.y)) / calib.pulse_ms)
+        Some(calib.ra_rate())
     } else {
         None
     };
     let dec_rate = if calib.pulse_ms > 0.0 {
-        Some((calib.north.x.hypot(calib.north.y)) / calib.pulse_ms)
+        Some(calib.dec_rate())
     } else {
         None
     };
@@ -1048,7 +1199,8 @@ async fn run_guiding_loop(
         let offset = {
             let mut guard = controller.write().await;
             if guard.reference_stars.is_empty() {
-                guard.reference_stars = select_reference_stars(&frame.stars);
+                guard.reference_stars =
+                    select_reference_stars(&frame.stars, frame.image.width, frame.image.height);
             }
             guard.manual_lock = Some(Vec2 {
                 x: selected.x,
@@ -1091,6 +1243,10 @@ async fn run_guiding_loop(
             EventSeverity::Info,
         );
 
+        // Record this frame's RMS so adaptive dither can loosen settle tolerance
+        // when recent seeing is poor.
+        push_rms_sample(&controller, offset.magnitude()).await;
+
         apply_settle_state(
             controller.clone(),
             offset.magnitude(),
@@ -1099,7 +1255,7 @@ async fn run_guiding_loop(
             settle_timeout,
         )
         .await?;
-        apply_guide_correction(calibration, offset).await?;
+        apply_guide_correction(calibration, offset, &controller).await?;
     }
 
     Ok(())
@@ -1111,7 +1267,8 @@ async fn calibrate_mount_response(
     let baseline = capture_guide_frame().await?;
     {
         let mut guard = controller.write().await;
-        guard.reference_stars = select_reference_stars(&baseline.stars);
+        guard.reference_stars =
+            select_reference_stars(&baseline.stars, baseline.image.width, baseline.image.height);
         guard.manual_lock = choose_lock_star(&baseline.stars, None, None).map(|star| Vec2 {
             x: star.x,
             y: star.y,
@@ -1121,8 +1278,44 @@ async fn calibrate_mount_response(
     }
 
     let east = calibrate_axis_response("east", "west", &baseline).await?;
-    let north = calibrate_axis_response("north", "south", &baseline).await?;
+    // After the RA round-trip the scope is back near baseline. Recapture so the
+    // Dec calibration measures from the current position (RA backlash/PE during
+    // the RA round-trip would otherwise contaminate the Dec baseline).
+    let dec_baseline = capture_guide_frame().await?;
+    let (north, dec_backlash_ms) = calibrate_dec_response("north", "south", &dec_baseline).await?;
 
+    let config = controller.read().await.config.clone();
+    let pulse_ms = config.calibration_ms as f64;
+    let calibration = build_calibration(east, north, pulse_ms, dec_backlash_ms)?;
+
+    if (calibration.orthogonality_deg - 90.0).abs() > 25.0 {
+        tracing::warn!(
+            "Built-in guider calibration axes are non-orthogonal ({:.1}°); guiding will still \
+             apply the full 2x2 solve but accuracy may be degraded",
+            calibration.orthogonality_deg
+        );
+    }
+    if dec_backlash_ms > 0.0 {
+        tracing::info!(
+            "Built-in guider measured Dec backlash of {:.0}ms",
+            dec_backlash_ms
+        );
+    }
+
+    Ok(calibration)
+}
+
+/// Pure construction of the calibration model from the two measured axis-response
+/// vectors. Validates non-singularity, derives the inter-axis angle, and carries
+/// the measured Dec backlash. Extracted from [`calibrate_mount_response`] so the
+/// calibration math (angles/rates/orthogonality/backlash plumbing) is unit
+/// testable without driving a mount.
+fn build_calibration(
+    east: Vec2,
+    north: Vec2,
+    pulse_ms: f64,
+    dec_backlash_ms: f64,
+) -> Result<GuideCalibration, NightshadeError> {
     let determinant = east.x * north.y - east.y * north.x;
     if determinant.abs() < 1e-3 {
         return Err(NightshadeError::OperationFailed(
@@ -1131,12 +1324,136 @@ async fn calibrate_mount_response(
         ));
     }
 
-    let config = controller.read().await.config.clone();
+    // Angle between the RA and Dec response vectors, in [0, 180].
+    let dot = east.x * north.x + east.y * north.y;
+    let mag = east.magnitude() * north.magnitude();
+    let orthogonality_deg = if mag > 1e-9 {
+        (dot / mag).clamp(-1.0, 1.0).acos().to_degrees()
+    } else {
+        90.0
+    };
+
     Ok(GuideCalibration {
         east,
         north,
-        pulse_ms: config.calibration_ms as f64,
+        pulse_ms,
+        dec_backlash_ms: dec_backlash_ms.max(0.0),
+        orthogonality_deg,
     })
+}
+
+/// Calibrate the Dec axis and measure first-reversal backlash.
+///
+/// Pulses Dec+ twice (to establish the forward rate past any initial slack),
+/// then reverses to Dec- and measures the FIRST reverse-pulse response. The
+/// shortfall of that first reverse displacement versus the established
+/// per-pulse forward rate is the backlash dead-band: the gear took up slack
+/// before the scope moved, so it travelled less than a clean pulse would. The
+/// backlash is reported in equivalent pulse-milliseconds (`shortfall_px /
+/// rate_px_per_ms`).
+async fn calibrate_dec_response(
+    positive_direction: &str,
+    negative_direction: &str,
+    baseline: &GuideFrame,
+) -> Result<(Vec2, f64), NightshadeError> {
+    let (_, mount_id) = resolve_devices().await?;
+    let config = state().read().await.config.clone();
+    let device_manager = get_device_manager();
+    let refs = select_reference_stars(&baseline.stars, baseline.image.width, baseline.image.height);
+
+    // --- Forward leg: two pulses to get past initial slack and establish rate.
+    for _ in 0..2 {
+        device_manager
+            .mount_pulse_guide(
+                &mount_id,
+                positive_direction.to_string(),
+                config.calibration_ms,
+            )
+            .await
+            .map_err(NightshadeError::from)?;
+        tokio::time::sleep(Duration::from_millis(config.settle_sleep_ms)).await;
+    }
+    let fwd_frame = capture_guide_frame().await?;
+    let fwd_offset = measure_offset(&refs, &fwd_frame.stars, Vec2::default()).ok_or_else(|| {
+        NightshadeError::OperationFailed("Dec calibration forward star match failed".to_string())
+    })?;
+    // Per-pulse forward response (two pulses were issued).
+    let north = Vec2 {
+        x: fwd_offset.x / 2.0,
+        y: fwd_offset.y / 2.0,
+    };
+
+    if north.magnitude() < 0.2 {
+        return Err(NightshadeError::OperationFailed(format!(
+            "Calibration response on {positive_direction} axis was too small ({:.3}px/pulse)",
+            north.magnitude()
+        )));
+    }
+
+    // --- Reverse leg: one pulse, measure the first-reversal response.
+    let refs_after_fwd = select_reference_stars(
+        &fwd_frame.stars,
+        fwd_frame.image.width,
+        fwd_frame.image.height,
+    );
+    device_manager
+        .mount_pulse_guide(
+            &mount_id,
+            negative_direction.to_string(),
+            config.calibration_ms,
+        )
+        .await
+        .map_err(NightshadeError::from)?;
+    tokio::time::sleep(Duration::from_millis(config.settle_sleep_ms)).await;
+    let rev_frame = capture_guide_frame().await?;
+    let rev_offset =
+        measure_offset(&refs_after_fwd, &rev_frame.stars, Vec2::default()).unwrap_or_default();
+
+    let dec_backlash_ms = estimate_dec_backlash_ms(north, rev_offset, config.calibration_ms as f64);
+
+    // Restore toward baseline: issue a second reverse pulse so we end roughly
+    // where we started (the forward leg moved two pulses, we have reversed one).
+    device_manager
+        .mount_pulse_guide(
+            &mount_id,
+            negative_direction.to_string(),
+            config.calibration_ms,
+        )
+        .await
+        .map_err(NightshadeError::from)?;
+    tokio::time::sleep(Duration::from_millis(config.settle_sleep_ms)).await;
+
+    Ok((north, dec_backlash_ms))
+}
+
+/// Estimate Dec backlash (in pulse-ms) from the per-pulse forward response and
+/// the measured first-reversal response, given the calibration pulse width.
+///
+/// The first reverse pulse travels less than a clean pulse by the dead band the
+/// gear takes up. We project the reverse displacement onto the (negated) forward
+/// axis to get the effective reverse travel, compute the shortfall versus the
+/// clean per-pulse magnitude, and convert that pixel shortfall back to ms using
+/// the forward rate. A negative/zero shortfall means no measurable backlash.
+fn estimate_dec_backlash_ms(forward_per_pulse: Vec2, reverse_first: Vec2, pulse_ms: f64) -> f64 {
+    let fwd_mag = forward_per_pulse.magnitude();
+    if fwd_mag < 1e-6 || pulse_ms <= 0.0 {
+        return 0.0;
+    }
+    // Unit vector along the reverse (negative-forward) direction.
+    let inv = 1.0 / fwd_mag;
+    let rx = -forward_per_pulse.x * inv;
+    let ry = -forward_per_pulse.y * inv;
+    // Effective reverse travel along the axis (projection).
+    let reverse_travel = reverse_first.x * rx + reverse_first.y * ry;
+    let shortfall = fwd_mag - reverse_travel;
+    if shortfall <= 0.0 {
+        return 0.0;
+    }
+    let rate_px_per_ms = fwd_mag / pulse_ms;
+    if rate_px_per_ms <= 0.0 {
+        return 0.0;
+    }
+    (shortfall / rate_px_per_ms).max(0.0)
 }
 
 async fn calibrate_axis_response(
@@ -1159,7 +1476,7 @@ async fn calibrate_axis_response(
     tokio::time::sleep(Duration::from_millis(config.settle_sleep_ms)).await;
     let moved_frame = capture_guide_frame().await?;
     let offset = measure_offset(
-        &select_reference_stars(&baseline.stars),
+        &select_reference_stars(&baseline.stars, baseline.image.width, baseline.image.height),
         &moved_frame.stars,
         Vec2::default(),
     )
@@ -1186,35 +1503,166 @@ async fn calibrate_axis_response(
     Ok(offset)
 }
 
-fn measure_offset(
+/// One reference star's matched per-frame displacement plus its weight, the raw
+/// material for the robust centroid.
+#[derive(Clone, Copy)]
+struct StarDisplacement {
+    delta: Vec2,
+    weight: f64,
+}
+
+/// Match each reference star to its nearest detection on the current frame and
+/// return the per-star displacement (`detected - expected`) with its weight.
+/// Unmatched references (star lost behind cloud / off-edge under rotation) are
+/// simply omitted, which is what lets the guider tolerate individual star loss.
+fn matched_displacements(
     reference_stars: &[GuideReferenceStar],
     current_stars: &[DetectedStar],
     desired_offset: Vec2,
-) -> Option<Vec2> {
-    let mut weighted_x = 0.0;
-    let mut weighted_y = 0.0;
-    let mut total_weight = 0.0;
+) -> Vec<StarDisplacement> {
+    let mut out = Vec::with_capacity(reference_stars.len());
     for reference in reference_stars {
         let expected = Vec2 {
             x: reference.x + desired_offset.x,
             y: reference.y + desired_offset.y,
         };
         if let Some(star) = nearest_star(current_stars, expected, GUIDE_MAX_MATCH_DISTANCE_PX) {
-            let weight = guide_reference_weight(reference);
-            weighted_x += (star.x - expected.x) * weight;
-            weighted_y += (star.y - expected.y) * weight;
-            total_weight += weight;
+            out.push(StarDisplacement {
+                delta: Vec2 {
+                    x: star.x - expected.x,
+                    y: star.y - expected.y,
+                },
+                weight: guide_reference_weight(reference),
+            });
         }
     }
+    out
+}
 
-    if total_weight <= 0.0 {
+/// Median of a slice (sorted copy). Empty slice -> 0.0.
+fn median(values: &[f64]) -> f64 {
+    if values.is_empty() {
+        return 0.0;
+    }
+    let mut sorted = values.to_vec();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let mid = sorted.len() / 2;
+    if sorted.len() % 2 == 0 {
+        (sorted[mid - 1] + sorted[mid]) / 2.0
+    } else {
+        sorted[mid]
+    }
+}
+
+/// Robust, mass-weighted guide offset.
+///
+/// The aggregate offset is the SIGMA-CLIPPED, flux/SNR-WEIGHTED mean of the
+/// per-star displacements: per-star distances from the median displacement are
+/// scaled by 1.4826·MAD into a sigma-equivalent, and any star beyond
+/// [`GUIDE_OUTLIER_SIGMA`] is dropped before the weighted mean is taken. This
+/// makes a single star that jumps (cloud edge, cosmic ray, misassociation) not
+/// move the reported offset.
+///
+/// Clipping only engages with at least [`GUIDE_MIN_STARS_FOR_CLIP`] matched
+/// stars; below that (down to a single star) it degrades gracefully to the plain
+/// weighted mean so the guider keeps running on a sparse field. Returns `None`
+/// only when no reference matched at all.
+fn measure_offset(
+    reference_stars: &[GuideReferenceStar],
+    current_stars: &[DetectedStar],
+    desired_offset: Vec2,
+) -> Option<Vec2> {
+    let displacements = matched_displacements(reference_stars, current_stars, desired_offset);
+    robust_weighted_offset(&displacements)
+}
+
+/// Compute the sigma-clipped, weighted-mean offset from a set of matched per-star
+/// displacements. Factored out of [`measure_offset`] so the tests can exercise
+/// the robust-centroid math directly without constructing detection lists.
+fn robust_weighted_offset(displacements: &[StarDisplacement]) -> Option<Vec2> {
+    if displacements.is_empty() {
         return None;
     }
 
+    // Sigma-clip on displacement magnitude relative to the median, but only when
+    // we have enough samples for the spread estimate to be meaningful.
+    let kept: Vec<&StarDisplacement> = if displacements.len() >= GUIDE_MIN_STARS_FOR_CLIP {
+        let mags: Vec<f64> = displacements.iter().map(|d| d.delta.magnitude()).collect();
+        let med = median(&mags);
+        let abs_dev: Vec<f64> = mags.iter().map(|m| (m - med).abs()).collect();
+        let mad = median(&abs_dev);
+        let mut sigma = mad * MAD_TO_SIGMA;
+        // Robustness fallback: MAD collapses to ~0 when a majority of stars share
+        // an identical displacement (a clean field with one outlier — the common
+        // "one star jumped" case, and what synthetic tests produce). In that
+        // degenerate case fall back to the standard deviation about the median so
+        // the lone outlier is still clipped.
+        if sigma <= 1e-9 {
+            let n = mags.len() as f64;
+            let var = abs_dev.iter().map(|d| d * d).sum::<f64>() / n;
+            sigma = var.sqrt();
+        }
+        if sigma > 1e-9 {
+            let cutoff = GUIDE_OUTLIER_SIGMA * sigma;
+            let kept: Vec<&StarDisplacement> = displacements
+                .iter()
+                .zip(mags.iter())
+                .filter(|(_, &m)| (m - med).abs() <= cutoff)
+                .map(|(d, _)| d)
+                .collect();
+            // Never clip everything away; if the cutoff was pathologically tight
+            // keep the full set.
+            if kept.is_empty() {
+                displacements.iter().collect()
+            } else {
+                kept
+            }
+        } else {
+            // All displacements essentially identical: nothing to clip.
+            displacements.iter().collect()
+        }
+    } else {
+        displacements.iter().collect()
+    };
+
+    let mut weighted_x = 0.0;
+    let mut weighted_y = 0.0;
+    let mut total_weight = 0.0;
+    for d in kept {
+        weighted_x += d.delta.x * d.weight;
+        weighted_y += d.delta.y * d.weight;
+        total_weight += d.weight;
+    }
+    if total_weight <= 0.0 {
+        return None;
+    }
     Some(Vec2 {
         x: weighted_x / total_weight,
         y: weighted_y / total_weight,
     })
+}
+
+/// Append a frame's total RMS to the rolling history (capped length), for
+/// adaptive dither sizing.
+async fn push_rms_sample(controller: &Arc<RwLock<BuiltinGuiderState>>, rms: f64) {
+    if !rms.is_finite() {
+        return;
+    }
+    let mut guard = controller.write().await;
+    guard.rms_history.push(rms);
+    let len = guard.rms_history.len();
+    if len > RMS_HISTORY_LEN {
+        guard.rms_history.drain(0..len - RMS_HISTORY_LEN);
+    }
+}
+
+/// Mean of the recent RMS history, or `None` when no samples yet.
+fn recent_rms(history: &[f64]) -> Option<f64> {
+    if history.is_empty() {
+        None
+    } else {
+        Some(history.iter().sum::<f64>() / history.len() as f64)
+    }
 }
 
 /// Update each reference star's `last_residual` from its matched detection on
@@ -1253,16 +1701,45 @@ fn guide_reference_weight(reference: &GuideReferenceStar) -> f64 {
     }
 }
 
-async fn apply_guide_correction(
+/// A single computed pulse command for one axis: signed milliseconds (sign =
+/// direction) after aggressiveness, min-move, max-clamp, and (for Dec) backlash
+/// compensation. `None` means "no pulse" (below min-move / min-pulse).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+struct AxisPulse {
+    ra_ms: Option<f64>,
+    dec_ms: Option<f64>,
+    /// The Dec direction this correction commands, if any — recorded so the next
+    /// correction can detect a reversal and avoid re-paying backlash.
+    new_dec_direction: Option<DecDirection>,
+}
+
+/// Pure correction math: convert a measured guide `offset` (pixels) into signed
+/// per-axis pulse durations using the calibration model.
+///
+/// Steps: invert the 2×2 calibration to get RA/Dec pulse-ms that would null the
+/// offset; apply per-axis aggressiveness; drop the axis when the corresponding
+/// offset component is below `min_move_px` (noise floor); clamp magnitude to
+/// `[min_pulse_ms, max_pulse_ms]` (dropping sub-min pulses); and, on a Dec
+/// direction reversal versus `last_dec_direction`, add the calibrated backlash
+/// dead-band to the Dec pulse so the first reverse pulse actually moves the
+/// scope.
+///
+/// Extracted as a pure function so aggressiveness, clamps, and backlash
+/// compensation are unit-testable without a mount.
+fn compute_pulse_durations(
     calibration: GuideCalibration,
     offset: Vec2,
-) -> Result<(), NightshadeError> {
+    config: &GuiderConfig,
+    last_dec_direction: Option<DecDirection>,
+) -> AxisPulse {
     let determinant =
         calibration.east.x * calibration.north.y - calibration.east.y * calibration.north.x;
     if determinant.abs() < 1e-6 {
-        return Ok(());
+        return AxisPulse::default();
     }
 
+    // Solve for the pulse scales (in units of one calibration pulse) that move
+    // the scope by `-offset`, then convert to milliseconds.
     let target = Vec2 {
         x: -offset.x,
         y: -offset.y,
@@ -1271,22 +1748,98 @@ async fn apply_guide_correction(
         (target.x * calibration.north.y - target.y * calibration.north.x) / determinant;
     let north_scale = (calibration.east.x * target.y - calibration.east.y * target.x) / determinant;
 
-    pulse_from_scale("east", "west", east_scale * calibration.pulse_ms).await?;
-    pulse_from_scale("north", "south", north_scale * calibration.pulse_ms).await?;
+    let ra_ms_raw = east_scale * calibration.pulse_ms * config.ra_aggressiveness;
+    let mut dec_ms_raw = north_scale * calibration.pulse_ms * config.dec_aggressiveness;
+
+    // Project the measured offset onto each calibration axis so the min-move
+    // threshold is evaluated in the axis frame (matches how the correction is
+    // applied), not the raw pixel x/y.
+    let ra_axis_move = project_offset(offset, calibration.east);
+    let dec_axis_move = project_offset(offset, calibration.north);
+
+    // --- Dec backlash compensation on direction reversal.
+    let new_dec_direction = if dec_ms_raw >= 0.0 {
+        DecDirection::North
+    } else {
+        DecDirection::South
+    };
+    let reversing = last_dec_direction
+        .map(|prev| prev != new_dec_direction)
+        .unwrap_or(true); // first-ever Dec pulse pays backlash once
+    if reversing && calibration.dec_backlash_ms > 0.0 && dec_ms_raw.abs() >= 1e-9 {
+        let sign = if dec_ms_raw >= 0.0 { 1.0 } else { -1.0 };
+        dec_ms_raw += sign * calibration.dec_backlash_ms;
+    }
+
+    let ra_ms = clamp_axis_pulse(ra_ms_raw, ra_axis_move, config);
+    let dec_ms = clamp_axis_pulse(dec_ms_raw, dec_axis_move, config);
+
+    AxisPulse {
+        ra_ms,
+        dec_ms,
+        new_dec_direction: dec_ms.map(|_| new_dec_direction),
+    }
+}
+
+/// Signed projection of a pixel offset onto a calibration axis vector, giving the
+/// offset component along that axis in pixels.
+fn project_offset(offset: Vec2, axis: Vec2) -> f64 {
+    let mag = axis.magnitude();
+    if mag < 1e-9 {
+        return 0.0;
+    }
+    (offset.x * axis.x + offset.y * axis.y) / mag
+}
+
+/// Apply min-move (in pixels along the axis) and min/max pulse clamps to a signed
+/// pulse duration. Returns `None` when the axis move is below the noise floor or
+/// the resulting pulse is below the minimum pulse length.
+fn clamp_axis_pulse(pulse_ms: f64, axis_move_px: f64, config: &GuiderConfig) -> Option<f64> {
+    if axis_move_px.abs() < config.min_move_px {
+        return None;
+    }
+    let magnitude = pulse_ms.abs();
+    if magnitude < config.min_pulse_ms {
+        return None;
+    }
+    let clamped = magnitude.clamp(config.min_pulse_ms, config.max_pulse_ms);
+    Some(if pulse_ms >= 0.0 { clamped } else { -clamped })
+}
+
+async fn apply_guide_correction(
+    calibration: GuideCalibration,
+    offset: Vec2,
+    controller: &Arc<RwLock<BuiltinGuiderState>>,
+) -> Result<(), NightshadeError> {
+    let (config, last_dec) = {
+        let guard = controller.read().await;
+        (guard.config.clone(), guard.last_dec_direction)
+    };
+
+    let plan = compute_pulse_durations(calibration, offset, &config, last_dec);
+
+    if let Some(ra_ms) = plan.ra_ms {
+        pulse_axis("east", "west", ra_ms, &config).await?;
+    }
+    if let Some(dec_ms) = plan.dec_ms {
+        pulse_axis("north", "south", dec_ms, &config).await?;
+    }
+    if let Some(dir) = plan.new_dec_direction {
+        controller.write().await.last_dec_direction = Some(dir);
+    }
     Ok(())
 }
 
-async fn pulse_from_scale(
+/// Issue a single mount pulse for an already-computed signed duration. The
+/// duration has already passed min-move/min-pulse gating in
+/// [`compute_pulse_durations`]; this only resolves direction and rounds to ms.
+async fn pulse_axis(
     positive_direction: &str,
     negative_direction: &str,
     pulse_ms: f64,
+    config: &GuiderConfig,
 ) -> Result<(), NightshadeError> {
-    let config = state().read().await.config.clone();
     let magnitude = pulse_ms.abs();
-    if magnitude < config.min_pulse_ms {
-        return Ok(());
-    }
-
     let (_, mount_id) = resolve_devices().await?;
     let duration = magnitude
         .clamp(config.min_pulse_ms, config.max_pulse_ms)
@@ -1366,11 +1919,56 @@ async fn apply_settle_state(
     Ok(())
 }
 
-fn select_reference_stars(stars: &[DetectedStar]) -> Vec<GuideReferenceStar> {
+/// Decide whether a detected star is usable as a guide reference. Rejects
+/// saturated cores (clipped centroid), too-faint stars (noisy displacement),
+/// elongated/blended detections (centroid walks with seeing, not the mount), and
+/// stars too close to the frame edge (partial PSF + first to leave under field
+/// rotation). `width`/`height` are the guide-frame dimensions in pixels; when
+/// both are 0 the edge check is skipped (e.g. unit tests that work in star-space).
+fn is_usable_reference(star: &DetectedStar, width: u32, height: u32) -> bool {
+    if star.snr < GUIDE_MIN_REFERENCE_SNR {
+        return false;
+    }
+    if star.peak >= GUIDE_SATURATION_PEAK_ADU {
+        return false;
+    }
+    if star.eccentricity > GUIDE_MAX_REFERENCE_ECCENTRICITY {
+        return false;
+    }
+    if !star.x.is_finite() || !star.y.is_finite() {
+        return false;
+    }
+    if width > 0 && height > 0 {
+        let w = width as f64;
+        let h = height as f64;
+        if star.x < GUIDE_EDGE_MARGIN_PX
+            || star.y < GUIDE_EDGE_MARGIN_PX
+            || star.x > w - GUIDE_EDGE_MARGIN_PX
+            || star.y > h - GUIDE_EDGE_MARGIN_PX
+        {
+            return false;
+        }
+    }
+    true
+}
+
+/// Select up to [`GUIDE_MAX_TRACKED_STARS`] guide references from a detected-star
+/// list. Input is assumed brightest-first (callers sort by flux). Stars are
+/// filtered by [`is_usable_reference`] and spaced at least
+/// [`GUIDE_MIN_STAR_SEPARATION_PX`] apart so two detections of a blended pair are
+/// not both tracked. `width`/`height` are the frame dimensions for edge rejection.
+fn select_reference_stars(
+    stars: &[DetectedStar],
+    width: u32,
+    height: u32,
+) -> Vec<GuideReferenceStar> {
     let mut selected = Vec::new();
     for star in stars {
         if selected.len() >= GUIDE_MAX_TRACKED_STARS {
             break;
+        }
+        if !is_usable_reference(star, width, height) {
+            continue;
         }
         let is_far_enough = selected.iter().all(|existing: &GuideReferenceStar| {
             let dx = existing.x - star.x;
@@ -1544,7 +2142,7 @@ mod tests {
             star(12.0, 11.0, 900.0),
             star(40.0, 40.0, 800.0),
         ];
-        let refs = select_reference_stars(&stars);
+        let refs = select_reference_stars(&stars, 0, 0);
         assert_eq!(refs.len(), 2);
     }
 
@@ -1652,7 +2250,10 @@ mod tests {
         assert_eq!(dto.count, 2);
         assert_eq!(dto.stars[0].id, 0);
         assert!(!dto.stars[0].is_lock);
-        assert!(dto.stars[1].is_lock, "nearest reference to lock is the lock");
+        assert!(
+            dto.stars[1].is_lock,
+            "nearest reference to lock is the lock"
+        );
         // residual magnitude of (0.3,-0.4) is 0.5
         assert!((dto.stars[0].residual.expect("residual") - 0.5).abs() < 1e-6);
         assert!(dto.stars[1].residual.is_none());
@@ -1685,6 +2286,383 @@ mod tests {
         assert_eq!(crop.width, 2);
         assert_eq!(crop.height, 2);
         assert_eq!(crop.pixels.len(), 8);
+    }
+
+    // =========================================================================
+    // Multi-star guider math (star selection, robust centroid, calibration,
+    // backlash, correction clamps, adaptive/spiral dither).
+    //
+    // These exercise the pure functions directly with synthetic star fields so
+    // the guiding-quality logic is validated without a mount or camera. Honest
+    // gap: none of this is a substitute for an on-sky calibration/guiding run,
+    // which belongs in the on-sky campaign.
+    // =========================================================================
+
+    /// Build a `DetectedStar` with explicit quality fields for selection tests.
+    fn star_q(x: f64, y: f64, flux: f64, snr: f64, peak: f64, ecc: f64) -> DetectedStar {
+        DetectedStar {
+            x,
+            y,
+            flux,
+            hfr: 2.0,
+            fwhm: 4.7,
+            peak,
+            background: 100.0,
+            snr,
+            eccentricity: ecc,
+            sharpness: 0.4,
+        }
+    }
+
+    /// A clean synthetic star field: a grid of well-separated, good-quality
+    /// stars away from the edges of a `w x h` frame.
+    fn synthetic_field(w: u32, h: u32, count: usize) -> Vec<DetectedStar> {
+        let mut stars = Vec::new();
+        let cols = (count as f64).sqrt().ceil() as usize;
+        let mut i = 0;
+        for r in 0..cols {
+            for c in 0..cols {
+                if i >= count {
+                    break;
+                }
+                let x = 40.0 + c as f64 * 40.0;
+                let y = 40.0 + r as f64 * 40.0;
+                // Brightest first is enforced by the caller's sort; vary flux a bit.
+                let flux = 5000.0 - i as f64 * 50.0;
+                stars.push(star_q(x, y, flux, 20.0, flux, 0.1));
+                i += 1;
+            }
+        }
+        let _ = (w, h);
+        stars
+    }
+
+    /// Shift every star by `(dx, dy)` to simulate a known mount/field displacement.
+    fn shift_field(stars: &[DetectedStar], dx: f64, dy: f64) -> Vec<DetectedStar> {
+        stars
+            .iter()
+            .map(|s| {
+                let mut s = s.clone();
+                s.x += dx;
+                s.y += dy;
+                s
+            })
+            .collect()
+    }
+
+    fn refs_from(stars: &[DetectedStar]) -> Vec<GuideReferenceStar> {
+        select_reference_stars(stars, 800, 800)
+    }
+
+    // --- Star selection ------------------------------------------------------
+
+    #[test]
+    fn selection_rejects_saturated_faint_elongated_and_edge_stars() {
+        let stars = vec![
+            star_q(100.0, 100.0, 5000.0, 20.0, 5000.0, 0.1), // good
+            star_q(200.0, 200.0, 5000.0, 20.0, 65000.0, 0.1), // saturated peak
+            star_q(300.0, 300.0, 50.0, 3.0, 50.0, 0.1),      // too faint (SNR<6)
+            star_q(400.0, 400.0, 5000.0, 20.0, 5000.0, 0.9), // too elongated
+            star_q(2.0, 400.0, 5000.0, 20.0, 5000.0, 0.1),   // off left edge
+            star_q(400.0, 799.0, 5000.0, 20.0, 5000.0, 0.1), // off bottom edge
+        ];
+        let refs = select_reference_stars(&stars, 800, 800);
+        assert_eq!(refs.len(), 1, "only the one good star should be selected");
+        assert_eq!(refs[0].x, 100.0);
+    }
+
+    #[test]
+    fn selection_caps_at_max_tracked_stars() {
+        let mut stars = synthetic_field(800, 800, 30);
+        stars.sort_by(|a, b| b.flux.partial_cmp(&a.flux).unwrap());
+        let refs = select_reference_stars(&stars, 800, 800);
+        assert_eq!(refs.len(), GUIDE_MAX_TRACKED_STARS);
+    }
+
+    // --- Robust weighted centroid -------------------------------------------
+
+    #[test]
+    fn weighted_centroid_recovers_known_displacement() {
+        let field = synthetic_field(800, 800, 9);
+        let refs = refs_from(&field);
+        let moved = shift_field(&field, 2.3, -1.1);
+        let offset = measure_offset(&refs, &moved, Vec2::default()).expect("offset");
+        assert!((offset.x - 2.3).abs() < 1e-6, "x={}", offset.x);
+        assert!((offset.y + 1.1).abs() < 1e-6, "y={}", offset.y);
+    }
+
+    #[test]
+    fn one_star_jump_does_not_move_robust_offset() {
+        // All stars shifted by a true (1.0, 0.5); one star additionally "jumps"
+        // by a large spurious amount. The sigma-clipped offset must reject it.
+        let field = synthetic_field(800, 800, 9);
+        let refs = refs_from(&field);
+        let mut moved = shift_field(&field, 1.0, 0.5);
+        // Make the first detection jump far (within match distance of its ref+true
+        // shift so it still associates, but as an outlier displacement).
+        moved[0].x += 8.0;
+        moved[0].y += 8.0;
+
+        let robust = measure_offset(&refs, &moved, Vec2::default()).expect("offset");
+        assert!(
+            (robust.x - 1.0).abs() < 0.15 && (robust.y - 0.5).abs() < 0.15,
+            "robust offset should reject the jumped star: got ({}, {})",
+            robust.x,
+            robust.y
+        );
+
+        // A naive (non-clipped) mean would be visibly pulled by the outlier.
+        let naive = {
+            let disps = matched_displacements(&refs, &moved, Vec2::default());
+            let mut sx = 0.0;
+            let mut sy = 0.0;
+            for d in &disps {
+                sx += d.delta.x;
+                sy += d.delta.y;
+            }
+            Vec2 {
+                x: sx / disps.len() as f64,
+                y: sy / disps.len() as f64,
+            }
+        };
+        assert!(
+            naive.x > robust.x + 0.3,
+            "naive mean should be pulled by the outlier (naive={}, robust={})",
+            naive.x,
+            robust.x
+        );
+    }
+
+    #[test]
+    fn star_loss_continuity_keeps_guiding_with_two_stars() {
+        let field = synthetic_field(800, 800, 9);
+        let refs = refs_from(&field);
+        // Only two of the nine stars are still detectable (clouds ate the rest).
+        let moved_full = shift_field(&field, 1.5, -2.0);
+        let surviving: Vec<DetectedStar> = moved_full.into_iter().take(2).collect();
+        let offset = measure_offset(&refs, &surviving, Vec2::default())
+            .expect("offset should survive on two stars");
+        assert!((offset.x - 1.5).abs() < 1e-6);
+        assert!((offset.y + 2.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn no_matched_stars_yields_no_offset() {
+        let field = synthetic_field(800, 800, 9);
+        let refs = refs_from(&field);
+        // Detections far from every reference: nothing matches.
+        let far = vec![star_q(2000.0, 2000.0, 5000.0, 20.0, 5000.0, 0.1)];
+        assert!(measure_offset(&refs, &far, Vec2::default()).is_none());
+    }
+
+    #[test]
+    fn single_star_falls_back_to_plain_weighted_mean() {
+        // Below the clip threshold, a single matched star is used directly.
+        let refs = vec![GuideReferenceStar {
+            x: 100.0,
+            y: 100.0,
+            flux: 5000.0,
+            snr: 20.0,
+            last_residual: None,
+        }];
+        let moved = vec![star_q(103.0, 98.0, 5000.0, 20.0, 5000.0, 0.1)];
+        let offset = measure_offset(&refs, &moved, Vec2::default()).expect("offset");
+        assert!((offset.x - 3.0).abs() < 1e-6);
+        assert!((offset.y + 2.0).abs() < 1e-6);
+    }
+
+    // --- Calibration math ----------------------------------------------------
+
+    #[test]
+    fn calibration_recovers_angles_rates_and_orthogonality() {
+        // RA along +x at 4 px/pulse, Dec along +y at 3 px/pulse: orthogonal.
+        let east = Vec2 { x: 4.0, y: 0.0 };
+        let north = Vec2 { x: 0.0, y: 3.0 };
+        let calib = build_calibration(east, north, 250.0, 0.0).expect("calib");
+        assert!((calib.ra_rate() - 4.0 / 250.0).abs() < 1e-9);
+        assert!((calib.dec_rate() - 3.0 / 250.0).abs() < 1e-9);
+        assert!((calib.orthogonality_deg - 90.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn calibration_measures_non_orthogonal_axes() {
+        // RA along +x, Dec at 60° from RA.
+        let east = Vec2 { x: 4.0, y: 0.0 };
+        let north = Vec2 {
+            x: 3.0 * 60f64.to_radians().cos(),
+            y: 3.0 * 60f64.to_radians().sin(),
+        };
+        let calib = build_calibration(east, north, 250.0, 0.0).expect("calib");
+        assert!((calib.orthogonality_deg - 60.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn calibration_rejects_singular_axes() {
+        // Both axes parallel -> singular -> error.
+        let east = Vec2 { x: 4.0, y: 0.0 };
+        let north = Vec2 { x: 2.0, y: 0.0 };
+        assert!(build_calibration(east, north, 250.0, 0.0).is_err());
+    }
+
+    #[test]
+    fn dec_backlash_recovered_from_short_first_reversal() {
+        // Forward 3 px/pulse; the first reverse pulse only travelled 2.1 px, i.e.
+        // 0.9 px short. At 3 px / 250 ms = 0.012 px/ms, that is 75 ms of backlash.
+        let fwd = Vec2 { x: 0.0, y: 3.0 };
+        let rev_first = Vec2 { x: 0.0, y: -2.1 };
+        let backlash = estimate_dec_backlash_ms(fwd, rev_first, 250.0);
+        assert!((backlash - 75.0).abs() < 1.0, "backlash={backlash}");
+    }
+
+    #[test]
+    fn no_backlash_when_reversal_is_full() {
+        let fwd = Vec2 { x: 0.0, y: 3.0 };
+        let rev_first = Vec2 { x: 0.0, y: -3.0 };
+        assert_eq!(estimate_dec_backlash_ms(fwd, rev_first, 250.0), 0.0);
+    }
+
+    // --- Corrections: aggressiveness, clamps, backlash compensation ----------
+
+    fn ortho_calib(backlash_ms: f64) -> GuideCalibration {
+        // RA +x, Dec +y, 1 px/pulse on each, pulse = 100 ms.
+        build_calibration(
+            Vec2 { x: 1.0, y: 0.0 },
+            Vec2 { x: 0.0, y: 1.0 },
+            100.0,
+            backlash_ms,
+        )
+        .expect("calib")
+    }
+
+    #[test]
+    fn correction_applies_aggressiveness() {
+        let calib = ortho_calib(0.0);
+        let mut config = GuiderConfig {
+            ra_aggressiveness: 0.5,
+            dec_aggressiveness: 0.5,
+            min_move_px: 0.0,
+            min_pulse_ms: 0.0,
+            ..GuiderConfig::default()
+        };
+        config.max_pulse_ms = 100000.0;
+        // Offset of (10, 10) px -> to null it, pulse -10 px each axis = -1000 ms
+        // raw; at 0.5 aggressiveness => -500 ms.
+        let plan = compute_pulse_durations(calib, Vec2 { x: 10.0, y: 10.0 }, &config, None);
+        let ra = plan.ra_ms.expect("ra");
+        // First Dec pulse pays backlash, but backlash=0 here.
+        let dec = plan.dec_ms.expect("dec");
+        assert!((ra + 500.0).abs() < 1e-6, "ra={ra}");
+        assert!((dec + 500.0).abs() < 1e-6, "dec={dec}");
+    }
+
+    #[test]
+    fn correction_min_move_suppresses_tiny_offset() {
+        let calib = ortho_calib(0.0);
+        let config = GuiderConfig {
+            min_move_px: 0.5,
+            ..GuiderConfig::default()
+        };
+        // 0.1 px offset is below min_move -> no pulses.
+        let plan = compute_pulse_durations(calib, Vec2 { x: 0.1, y: 0.1 }, &config, None);
+        assert!(plan.ra_ms.is_none());
+        assert!(plan.dec_ms.is_none());
+    }
+
+    #[test]
+    fn correction_clamps_to_max_pulse() {
+        let calib = ortho_calib(0.0);
+        let config = GuiderConfig {
+            ra_aggressiveness: 1.0,
+            dec_aggressiveness: 1.0,
+            min_move_px: 0.0,
+            max_pulse_ms: 300.0,
+            ..GuiderConfig::default()
+        };
+        // 50 px offset -> 5000 ms raw, clamped to 300 ms.
+        let plan = compute_pulse_durations(calib, Vec2 { x: 50.0, y: 0.0 }, &config, None);
+        assert!((plan.ra_ms.expect("ra").abs() - 300.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn dec_backlash_added_only_on_reversal() {
+        let calib = ortho_calib(120.0); // 120 ms backlash
+        let config = GuiderConfig {
+            ra_aggressiveness: 1.0,
+            dec_aggressiveness: 1.0,
+            min_move_px: 0.0,
+            min_pulse_ms: 0.0,
+            max_pulse_ms: 100000.0,
+            ..GuiderConfig::default()
+        };
+        // Offset (0, 5) -> null with Dec -500 ms (South). Coming from North => reversal.
+        let reversal = compute_pulse_durations(
+            calib,
+            Vec2 { x: 0.0, y: 5.0 },
+            &config,
+            Some(DecDirection::North),
+        );
+        let dec_rev = reversal.dec_ms.expect("dec");
+        assert!(
+            (dec_rev + 620.0).abs() < 1e-6,
+            "reversal should add 120ms backlash: {dec_rev}"
+        );
+        assert_eq!(reversal.new_dec_direction, Some(DecDirection::South));
+
+        // Same correction but already moving South => no backlash added.
+        let same_dir = compute_pulse_durations(
+            calib,
+            Vec2 { x: 0.0, y: 5.0 },
+            &config,
+            Some(DecDirection::South),
+        );
+        assert!((same_dir.dec_ms.expect("dec") + 500.0).abs() < 1e-6);
+    }
+
+    // --- Adaptive / spiral dither -------------------------------------------
+
+    #[test]
+    fn dither_spiral_walks_to_fresh_pixels() {
+        let p0 = dither_offset(5.0, false, 0, None);
+        let p1 = dither_offset(5.0, false, 1, None);
+        let p2 = dither_offset(5.0, false, 2, None);
+        // Successive steps are well separated (not re-treading one spot).
+        let d01 = (Vec2 {
+            x: p0.x - p1.x,
+            y: p0.y - p1.y,
+        })
+        .magnitude();
+        let d12 = (Vec2 {
+            x: p1.x - p2.x,
+            y: p1.y - p2.y,
+        })
+        .magnitude();
+        assert!(d01 > 1.0 && d12 > 1.0, "steps too close: {d01}, {d12}");
+        // Radius grows with step (sunflower spiral expands).
+        assert!(p2.magnitude() > p0.magnitude());
+    }
+
+    #[test]
+    fn dither_adapts_to_poor_seeing() {
+        let good = dither_offset(5.0, false, 3, Some(0.0));
+        let poor = dither_offset(5.0, false, 3, Some(10.0));
+        assert!(
+            poor.magnitude() > good.magnitude(),
+            "poor seeing should dither larger: good={}, poor={}",
+            good.magnitude(),
+            poor.magnitude()
+        );
+    }
+
+    #[test]
+    fn dither_ra_only_stays_on_ra_axis_and_alternates() {
+        let s0 = dither_offset(4.0, true, 0, None);
+        let s1 = dither_offset(4.0, true, 1, None);
+        assert_eq!(s0.y, 0.0);
+        assert_eq!(s1.y, 0.0);
+        assert!(
+            s0.x.signum() != s1.x.signum(),
+            "RA-only should alternate sign"
+        );
     }
 
     // =========================================================================

@@ -1351,6 +1351,10 @@ fn build_trigger_autofocus_context(
         // decision_tx into this helper.
         decision_tx: None,
         active_sequence_run_id: std::sync::Arc::new(parking_lot::RwLock::new(None)),
+        // Dual-rig — trigger-initiated dither/recenter is not coordinated with
+        // the secondary loop in v1 (the secondary only gates on the main-burst
+        // dither path); start None.
+        dither_barrier: None,
     }
 }
 
@@ -2402,6 +2406,11 @@ impl SequenceExecutor {
                 let skip_to_node_for_recovery = context.skip_to_node.clone();
                 context.is_cancelled = is_cancelled.clone();
                 context.is_paused = is_paused_clone;
+                // Dual-rig — pick up the process-wide dither barrier if a
+                // secondary capture loop is armed, so the primary's dither
+                // call sites coordinate with it. `None` (single-rig) makes
+                // every dither a plain pass-through.
+                context.dither_barrier = crate::dual_rig::active_barrier();
                 context.skip_to_next_target = skip_to_next_target_clone;
                 // Trust-patch §7: wire shared SkipToNode slot into the
                 // execution context so the node tree sees commands posted

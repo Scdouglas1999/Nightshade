@@ -31,6 +31,7 @@ import 'api/phd2.dart';
 import 'api/plate_solve.dart';
 import 'api/polar_alignment.dart';
 import 'api/post_session.dart';
+import 'api/secondary_rig.dart';
 import 'api/sequencer.dart';
 import 'api/session.dart';
 import 'api/storage.dart';
@@ -286,6 +287,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SafetyMonitorCapabilities dco_decode_box_autoadd_safety_monitor_capabilities(
+    dynamic raw,
+  );
+
+  @protected
+  SecondaryRigConfigApi dco_decode_box_autoadd_secondary_rig_config_api(
     dynamic raw,
   );
 
@@ -801,6 +807,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   SchedulerScoreEntry dco_decode_scheduler_score_entry(dynamic raw);
 
   @protected
+  SecondaryRigConfigApi dco_decode_secondary_rig_config_api(dynamic raw);
+
+  @protected
+  SecondaryRigStatusApi dco_decode_secondary_rig_status_api(dynamic raw);
+
+  @protected
   SequenceDefinitionApi dco_decode_sequence_definition_api(dynamic raw);
 
   @protected
@@ -1160,6 +1172,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SafetyMonitorCapabilities sse_decode_box_autoadd_safety_monitor_capabilities(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  SecondaryRigConfigApi sse_decode_box_autoadd_secondary_rig_config_api(
     SseDeserializer deserializer,
   );
 
@@ -1809,6 +1826,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  SecondaryRigConfigApi sse_decode_secondary_rig_config_api(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  SecondaryRigStatusApi sse_decode_secondary_rig_status_api(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   SequenceDefinitionApi sse_decode_sequence_definition_api(
     SseDeserializer deserializer,
   );
@@ -2328,6 +2355,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     // Codec=Cst (C-struct based), see doc to use other codecs
     final ptr = wire.cst_new_box_autoadd_safety_monitor_capabilities();
     cst_api_fill_to_wire_safety_monitor_capabilities(raw, ptr.ref);
+    return ptr;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_secondary_rig_config_api>
+  cst_encode_box_autoadd_secondary_rig_config_api(SecondaryRigConfigApi raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_secondary_rig_config_api();
+    cst_api_fill_to_wire_secondary_rig_config_api(raw, ptr.ref);
     return ptr;
   }
 
@@ -3377,6 +3413,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_box_autoadd_secondary_rig_config_api(
+    SecondaryRigConfigApi apiObj,
+    ffi.Pointer<wire_cst_secondary_rig_config_api> wireObj,
+  ) {
+    cst_api_fill_to_wire_secondary_rig_config_api(apiObj, wireObj.ref);
+  }
+
+  @protected
   void cst_api_fill_to_wire_box_autoadd_sequence_definition_api(
     SequenceDefinitionApi apiObj,
     ffi.Pointer<wire_cst_sequence_definition_api> wireObj,
@@ -4348,6 +4392,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.photometry_snr = cst_encode_opt_box_autoadd_f_64(
       apiObj.photometrySnr,
     );
+    wireObj.rig_label = cst_encode_opt_String(apiObj.rigLabel);
   }
 
   @protected
@@ -5516,6 +5561,73 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_secondary_rig_config_api(
+    SecondaryRigConfigApi apiObj,
+    wire_cst_secondary_rig_config_api wireObj,
+  ) {
+    wireObj.camera_id = cst_encode_String(apiObj.cameraId);
+    wireObj.exposure_secs = cst_encode_f_64(apiObj.exposureSecs);
+    wireObj.gain = cst_encode_opt_box_autoadd_i_32(apiObj.gain);
+    wireObj.offset = cst_encode_opt_box_autoadd_i_32(apiObj.offset);
+    wireObj.bin_x = cst_encode_i_32(apiObj.binX);
+    wireObj.bin_y = cst_encode_i_32(apiObj.binY);
+    wireObj.frame_count = cst_encode_opt_box_autoadd_u_32(apiObj.frameCount);
+    wireObj.filter_name = cst_encode_opt_String(apiObj.filterName);
+    wireObj.target_temp_c = cst_encode_opt_box_autoadd_f_64(apiObj.targetTempC);
+    wireObj.rig_label = cst_encode_String(apiObj.rigLabel);
+    wireObj.camera_make = cst_encode_opt_String(apiObj.cameraMake);
+    wireObj.camera_model = cst_encode_opt_String(apiObj.cameraModel);
+    wireObj.telescope_name = cst_encode_opt_String(apiObj.telescopeName);
+    wireObj.telescope_focal_length_mm = cst_encode_opt_box_autoadd_f_64(
+      apiObj.telescopeFocalLengthMm,
+    );
+    wireObj.telescope_aperture_mm = cst_encode_opt_box_autoadd_f_64(
+      apiObj.telescopeApertureMm,
+    );
+    wireObj.dither_max_wait_secs = cst_encode_f_64(apiObj.ditherMaxWaitSecs);
+    wireObj.in_flight_policy = cst_encode_String(apiObj.inFlightPolicy);
+    wireObj.save_base_path = cst_encode_opt_String(apiObj.saveBasePath);
+    wireObj.target_name = cst_encode_opt_String(apiObj.targetName);
+    wireObj.target_ra_hours = cst_encode_opt_box_autoadd_f_64(
+      apiObj.targetRaHours,
+    );
+    wireObj.target_dec_degrees = cst_encode_opt_box_autoadd_f_64(
+      apiObj.targetDecDegrees,
+    );
+    wireObj.observer_name = cst_encode_opt_String(apiObj.observerName);
+    wireObj.site_latitude_deg = cst_encode_opt_box_autoadd_f_64(
+      apiObj.siteLatitudeDeg,
+    );
+    wireObj.site_longitude_deg = cst_encode_opt_box_autoadd_f_64(
+      apiObj.siteLongitudeDeg,
+    );
+    wireObj.site_elevation_m = cst_encode_opt_box_autoadd_f_64(
+      apiObj.siteElevationM,
+    );
+  }
+
+  @protected
+  void cst_api_fill_to_wire_secondary_rig_status_api(
+    SecondaryRigStatusApi apiObj,
+    wire_cst_secondary_rig_status_api wireObj,
+  ) {
+    wireObj.armed = cst_encode_bool(apiObj.armed);
+    wireObj.running = cst_encode_bool(apiObj.running);
+    wireObj.camera_id = cst_encode_opt_String(apiObj.cameraId);
+    wireObj.rig_label = cst_encode_String(apiObj.rigLabel);
+    wireObj.frames_captured = cst_encode_u_32(apiObj.framesCaptured);
+    wireObj.frames_aborted = cst_encode_u_32(apiObj.framesAborted);
+    wireObj.planned_frames = cst_encode_opt_box_autoadd_u_32(
+      apiObj.plannedFrames,
+    );
+    wireObj.waiting_for_dither = cst_encode_bool(apiObj.waitingForDither);
+    wireObj.exposing = cst_encode_bool(apiObj.exposing);
+    wireObj.dither_pending = cst_encode_bool(apiObj.ditherPending);
+    wireObj.forced_proceeds = cst_encode_u_32(apiObj.forcedProceeds);
+    wireObj.last_error = cst_encode_opt_String(apiObj.lastError);
+  }
+
+  @protected
   void cst_api_fill_to_wire_sequence_definition_api(
     SequenceDefinitionApi apiObj,
     wire_cst_sequence_definition_api wireObj,
@@ -6669,6 +6781,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_secondary_rig_config_api(
+    SecondaryRigConfigApi self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_sequence_definition_api(
     SequenceDefinitionApi self,
     SseSerializer serializer,
@@ -7504,6 +7622,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_scheduler_score_entry(
     SchedulerScoreEntry self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_secondary_rig_config_api(
+    SecondaryRigConfigApi self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_secondary_rig_status_api(
+    SecondaryRigStatusApi self,
     SseSerializer serializer,
   );
 
@@ -12886,6 +13016,80 @@ class RustLibWire implements BaseWire {
             void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)
           >();
 
+  void wire__crate__api__sequencer__api_perform_meridian_flip(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> mount_id,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> camera_id,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> focuser_id,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> cover_calibrator_id,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> target_name,
+    double target_ra_hours,
+    double target_dec_degrees,
+    bool pause_guiding,
+    bool auto_center,
+    bool refocus_after,
+    bool resume_guiding,
+    double settle_time_secs,
+  ) {
+    return _wire__crate__api__sequencer__api_perform_meridian_flip(
+      port_,
+      mount_id,
+      camera_id,
+      focuser_id,
+      cover_calibrator_id,
+      target_name,
+      target_ra_hours,
+      target_dec_degrees,
+      pause_guiding,
+      auto_center,
+      refocus_after,
+      resume_guiding,
+      settle_time_secs,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_perform_meridian_flipPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Double,
+            ffi.Double,
+            ffi.Bool,
+            ffi.Bool,
+            ffi.Bool,
+            ffi.Bool,
+            ffi.Double,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_perform_meridian_flip',
+      );
+  late final _wire__crate__api__sequencer__api_perform_meridian_flip =
+      _wire__crate__api__sequencer__api_perform_meridian_flipPtr
+          .asFunction<
+            void Function(
+              int,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              double,
+              double,
+              bool,
+              bool,
+              bool,
+              bool,
+              double,
+            )
+          >();
+
   void wire__crate__api__phd2__api_phd2_clear_calibration(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> which,
@@ -14193,6 +14397,73 @@ class RustLibWire implements BaseWire {
               ffi.Pointer<wire_cst_list_record_string_string>,
             )
           >();
+
+  void wire__crate__api__secondary_rig__api_secondary_rig_get_status(
+    int port_,
+  ) {
+    return _wire__crate__api__secondary_rig__api_secondary_rig_get_status(
+      port_,
+    );
+  }
+
+  late final _wire__crate__api__secondary_rig__api_secondary_rig_get_statusPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+        'frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_get_status',
+      );
+  late final _wire__crate__api__secondary_rig__api_secondary_rig_get_status =
+      _wire__crate__api__secondary_rig__api_secondary_rig_get_statusPtr
+          .asFunction<void Function(int)>();
+
+  void wire__crate__api__secondary_rig__api_secondary_rig_is_armed(int port_) {
+    return _wire__crate__api__secondary_rig__api_secondary_rig_is_armed(port_);
+  }
+
+  late final _wire__crate__api__secondary_rig__api_secondary_rig_is_armedPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+        'frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_is_armed',
+      );
+  late final _wire__crate__api__secondary_rig__api_secondary_rig_is_armed =
+      _wire__crate__api__secondary_rig__api_secondary_rig_is_armedPtr
+          .asFunction<void Function(int)>();
+
+  void wire__crate__api__secondary_rig__api_secondary_rig_start(
+    int port_,
+    ffi.Pointer<wire_cst_secondary_rig_config_api> config,
+  ) {
+    return _wire__crate__api__secondary_rig__api_secondary_rig_start(
+      port_,
+      config,
+    );
+  }
+
+  late final _wire__crate__api__secondary_rig__api_secondary_rig_startPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_secondary_rig_config_api>,
+          )
+        >
+      >(
+        'frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_start',
+      );
+  late final _wire__crate__api__secondary_rig__api_secondary_rig_start =
+      _wire__crate__api__secondary_rig__api_secondary_rig_startPtr
+          .asFunction<
+            void Function(int, ffi.Pointer<wire_cst_secondary_rig_config_api>)
+          >();
+
+  void wire__crate__api__secondary_rig__api_secondary_rig_stop(int port_) {
+    return _wire__crate__api__secondary_rig__api_secondary_rig_stop(port_);
+  }
+
+  late final _wire__crate__api__secondary_rig__api_secondary_rig_stopPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+        'frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_stop',
+      );
+  late final _wire__crate__api__secondary_rig__api_secondary_rig_stop =
+      _wire__crate__api__secondary_rig__api_secondary_rig_stopPtr
+          .asFunction<void Function(int)>();
 
   void wire__crate__api__imaging__api_sequencer_apply_defect_map(
     int port_,
@@ -17627,6 +17898,22 @@ class RustLibWire implements BaseWire {
             )
           >();
 
+  void wire__crate__api__secondary_rig__secondary_rig_status_api_default(
+    int port_,
+  ) {
+    return _wire__crate__api__secondary_rig__secondary_rig_status_api_default(
+      port_,
+    );
+  }
+
+  late final _wire__crate__api__secondary_rig__secondary_rig_status_api_defaultPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+        'frbgen_nightshade_bridge_wire__crate__api__secondary_rig__secondary_rig_status_api_default',
+      );
+  late final _wire__crate__api__secondary_rig__secondary_rig_status_api_default =
+      _wire__crate__api__secondary_rig__secondary_rig_status_api_defaultPtr
+          .asFunction<void Function(int)>();
+
   void wire__crate__api__devices__camera__set_camera_cooler(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
@@ -18543,6 +18830,25 @@ class RustLibWire implements BaseWire {
             ffi.Pointer<wire_cst_safety_monitor_capabilities> Function()
           >();
 
+  ffi.Pointer<wire_cst_secondary_rig_config_api>
+  cst_new_box_autoadd_secondary_rig_config_api() {
+    return _cst_new_box_autoadd_secondary_rig_config_api();
+  }
+
+  late final _cst_new_box_autoadd_secondary_rig_config_apiPtr =
+      _lookup<
+        ffi.NativeFunction<
+          ffi.Pointer<wire_cst_secondary_rig_config_api> Function()
+        >
+      >(
+        'frbgen_nightshade_bridge_cst_new_box_autoadd_secondary_rig_config_api',
+      );
+  late final _cst_new_box_autoadd_secondary_rig_config_api =
+      _cst_new_box_autoadd_secondary_rig_config_apiPtr
+          .asFunction<
+            ffi.Pointer<wire_cst_secondary_rig_config_api> Function()
+          >();
+
   ffi.Pointer<wire_cst_sequence_definition_api>
   cst_new_box_autoadd_sequence_definition_api() {
     return _cst_new_box_autoadd_sequence_definition_api();
@@ -19445,6 +19751,62 @@ final class wire_cst_list_record_string_string extends ffi.Struct {
   external int len;
 }
 
+final class wire_cst_secondary_rig_config_api extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> camera_id;
+
+  @ffi.Double()
+  external double exposure_secs;
+
+  external ffi.Pointer<ffi.Int32> gain;
+
+  external ffi.Pointer<ffi.Int32> offset;
+
+  @ffi.Int32()
+  external int bin_x;
+
+  @ffi.Int32()
+  external int bin_y;
+
+  external ffi.Pointer<ffi.Uint32> frame_count;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> filter_name;
+
+  external ffi.Pointer<ffi.Double> target_temp_c;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> rig_label;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> camera_make;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> camera_model;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> telescope_name;
+
+  external ffi.Pointer<ffi.Double> telescope_focal_length_mm;
+
+  external ffi.Pointer<ffi.Double> telescope_aperture_mm;
+
+  @ffi.Double()
+  external double dither_max_wait_secs;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> in_flight_policy;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> save_base_path;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> target_name;
+
+  external ffi.Pointer<ffi.Double> target_ra_hours;
+
+  external ffi.Pointer<ffi.Double> target_dec_degrees;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> observer_name;
+
+  external ffi.Pointer<ffi.Double> site_latitude_deg;
+
+  external ffi.Pointer<ffi.Double> site_longitude_deg;
+
+  external ffi.Pointer<ffi.Double> site_elevation_m;
+}
+
 final class wire_cst_node_definition_api extends ffi.Struct {
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> id;
 
@@ -19723,6 +20085,8 @@ final class wire_cst_fits_write_header_rich extends ffi.Struct {
   external ffi.Pointer<ffi.Double> photometry_fwhm_arcsec;
 
   external ffi.Pointer<ffi.Double> photometry_snr;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> rig_label;
 }
 
 final class wire_cst_api_defect_map_status extends ffi.Struct {
@@ -22594,6 +22958,40 @@ final class wire_cst_rotator_status extends ffi.Struct {
 
   @ffi.Bool()
   external bool can_reverse;
+}
+
+final class wire_cst_secondary_rig_status_api extends ffi.Struct {
+  @ffi.Bool()
+  external bool armed;
+
+  @ffi.Bool()
+  external bool running;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> camera_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> rig_label;
+
+  @ffi.Uint32()
+  external int frames_captured;
+
+  @ffi.Uint32()
+  external int frames_aborted;
+
+  external ffi.Pointer<ffi.Uint32> planned_frames;
+
+  @ffi.Bool()
+  external bool waiting_for_dither;
+
+  @ffi.Bool()
+  external bool exposing;
+
+  @ffi.Bool()
+  external bool dither_pending;
+
+  @ffi.Uint32()
+  external int forced_proceeds;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> last_error;
 }
 
 final class wire_cst_sequencer_state extends ffi.Struct {

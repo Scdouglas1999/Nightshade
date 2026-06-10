@@ -902,6 +902,13 @@ pub struct TriggerState {
     pub current_target_name: Option<String>,
     /// Legacy field - Unix timestamp for flip (deprecated, use current_hour_angle instead)
     pub next_meridian_flip_time: Option<i64>,
+    /// Threshold (minutes past meridian) of the active MinutesPastMeridian
+    /// flip trigger, propagated by [`TriggerManager::sync_state_from_config`]
+    /// on every evaluation tick. The exposure instruction's pre-frame
+    /// meridian gate reads this to hold frames that would still be exposing
+    /// when the flip fires. None when no MinutesPastMeridian flip trigger
+    /// is enabled (other trigger methods are not predictable in advance).
+    pub meridian_flip_minutes_past: Option<f64>,
 
     // Guiding
     pub guiding_rms_history: Option<Vec<(Instant, f64)>>,
@@ -1099,6 +1106,7 @@ impl Default for TriggerState {
             has_flipped_this_target: false,
             current_target_name: None,
             next_meridian_flip_time: None,
+            meridian_flip_minutes_past: None,
             guiding_rms_history: None,
             guiding_enabled: false,
             guide_star_lost: false,
@@ -1764,6 +1772,8 @@ impl TriggerManager {
     /// behind an immutable borrow.
     pub async fn sync_state_from_config(&self) {
         let mut retention: Option<u64> = None;
+        let mut meridian_method: Option<crate::MeridianTriggerMethod> = None;
+        let mut meridian_minutes: Option<f64> = None;
         for trigger in &self.triggers {
             if !trigger.enabled {
                 continue;
@@ -1772,14 +1782,45 @@ impl TriggerManager {
                 rms_retention_secs, ..
             } = &trigger.trigger_type
             {
-                retention = Some(*rms_retention_secs);
-                break;
+                if retention.is_none() {
+                    retention = Some(*rms_retention_secs);
+                }
+            }
+            // Stamp the active flip trigger's method + threshold so (a) the
+            // MountTrackingLost evaluator's defer-to-OnTrackingLimitHit
+            // heuristic actually sees the configured method (it previously
+            // stayed None in production and the deferral never engaged) and
+            // (b) the exposure instruction's pre-frame meridian gate can
+            // predict when the flip will fire.
+            if let TriggerType::MeridianFlip { config } = &trigger.trigger_type {
+                if meridian_method.is_none() {
+                    meridian_method = Some(config.trigger_method);
+                    if config.trigger_method
+                        == crate::MeridianTriggerMethod::MinutesPastMeridian
+                    {
+                        meridian_minutes = Some(config.minutes_past_meridian);
+                    }
+                }
             }
         }
-        if let Some(secs) = retention {
+        let retention_changed = if let Some(secs) = retention {
+            let state = self.state.read().await;
+            state.guiding_rms_retention_secs != secs
+        } else {
+            false
+        };
+        {
             let mut state = self.state.write().await;
-            if state.guiding_rms_retention_secs != secs {
-                state.set_guiding_rms_retention_secs(secs);
+            if retention_changed {
+                if let Some(secs) = retention {
+                    state.set_guiding_rms_retention_secs(secs);
+                }
+            }
+            if state.meridian_trigger_method != meridian_method {
+                state.meridian_trigger_method = meridian_method;
+            }
+            if state.meridian_flip_minutes_past != meridian_minutes {
+                state.meridian_flip_minutes_past = meridian_minutes;
             }
         }
     }
@@ -2481,6 +2522,105 @@ mod tests {
         assert!(
             !trigger.check(&state).await,
             "abstain (None) with safe hardware must not fire"
+        );
+    }
+
+    /// Architecture-unification 2026-06-05 (Subsystem 2 step 1) — EXHAUSTIVE
+    /// gate matrix: Dart verdict {Some(true), Some(false), None} × hardware
+    /// {safe, unsafe, unavailable}. "Unavailable" is what the executor's
+    /// safety poll resolves through the shared fail-mode truth table
+    /// (`safety_fail_mode_no_data_resolution`) BEFORE the gate sees
+    /// `weather_safe`, so the unavailable rows are exercised once per fail
+    /// mode here exactly the way the poll loop maps them.
+    ///
+    /// Invariants pinned:
+    ///   1. The gate is `!weather_safe || verdict == Some(true)` — a pure OR
+    ///      of unsafe sources.
+    ///   2. `None` (abstain) NEVER suppresses an unsafe: every row that fires
+    ///      with `Some(false)` or `Some(true)` also fires with `None` swapped
+    ///      in only if the hardware term alone fires — i.e. None contributes
+    ///      nothing in either direction.
+    ///   3. The disabled-safety landmine is closed: a Dart side that opted out
+    ///      (pushes `None`, never `Some(false)`) cannot make any unsafe row go
+    ///      safe — including the unavailable+FailClosed row — even if a future
+    ///      refactor made Rust "trust" the verdict, because there is no SAFE
+    ///      assertion to trust.
+    #[tokio::test]
+    async fn weather_unsafe_gate_full_matrix_verdict_x_hardware() {
+        use crate::{safety_fail_mode_no_data_resolution, NoDataResolution, SafetyFailMode};
+
+        let mut trigger = Trigger::new(
+            "weather_unsafe",
+            "Weather Unsafe",
+            TriggerType::WeatherUnsafe,
+            RecoveryAction::ParkAndAbort,
+        );
+
+        // Map the "unavailable" hardware axis through the shared fail-mode
+        // truth table exactly as the executor poll loop does. `prior` is the
+        // last good reading (the value WarnOnly preserves).
+        fn resolve_unavailable(mode: SafetyFailMode, prior: bool) -> bool {
+            match safety_fail_mode_no_data_resolution(mode) {
+                NoDataResolution::Unsafe => false,
+                NoDataResolution::Safe => true,
+                NoDataResolution::Preserve => prior,
+            }
+        }
+
+        let verdicts: [Option<bool>; 3] = [Some(true), Some(false), None];
+
+        for verdict in verdicts {
+            // --- Hardware SAFE ---------------------------------------------
+            let mut state = TriggerState::new();
+            state.weather_safe = true;
+            state.update_weather_verdict(verdict);
+            assert_eq!(
+                trigger.check(&state).await,
+                verdict == Some(true),
+                "hardware-safe: gate must fire iff verdict is Some(true) (verdict={verdict:?})"
+            );
+
+            // --- Hardware UNSAFE -------------------------------------------
+            let mut state = TriggerState::new();
+            state.weather_safe = false;
+            state.update_weather_verdict(verdict);
+            assert!(
+                trigger.check(&state).await,
+                "hardware-unsafe must ALWAYS fire; verdict={verdict:?} must never suppress it"
+            );
+
+            // --- Hardware UNAVAILABLE (per fail mode) ----------------------
+            for (mode, prior) in [
+                (SafetyFailMode::FailClosed, true),
+                (SafetyFailMode::FailOpen, false),
+                (SafetyFailMode::WarnOnly, true),
+                (SafetyFailMode::WarnOnly, false),
+            ] {
+                let resolved = resolve_unavailable(mode, prior);
+                let mut state = TriggerState::new();
+                state.weather_safe = resolved;
+                state.update_weather_verdict(verdict);
+                let expected = !resolved || verdict == Some(true);
+                assert_eq!(
+                    trigger.check(&state).await,
+                    expected,
+                    "hardware-unavailable mode={mode:?} prior={prior} verdict={verdict:?}: \
+                     gate must be the pure OR of resolved-hardware-unsafe and Some(true)"
+                );
+            }
+        }
+
+        // Landmine regression (disabled safety + a hypothetical verdict-trusting
+        // Rust): the Dart opt-out contract is `None`, never `Some(false)`. With
+        // `None` pushed there is no SAFE assertion in the channel at all, so no
+        // unsafe hardware state — including unavailable under FailClosed — can
+        // be declared safe via the verdict.
+        let mut state = TriggerState::new();
+        state.weather_safe = resolve_unavailable(SafetyFailMode::FailClosed, true);
+        state.update_weather_verdict(None);
+        assert!(
+            trigger.check(&state).await,
+            "disabled-safety abstain must not clear a FailClosed unavailable device"
         );
     }
 

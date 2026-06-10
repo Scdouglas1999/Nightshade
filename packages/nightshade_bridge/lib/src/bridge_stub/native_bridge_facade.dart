@@ -466,6 +466,33 @@ abstract final class NativeBridge {
       _nativeBridge.sequencerGetCheckpointInfo();
   static Future<void> sequencerResumeFromCheckpoint() =>
       _nativeBridge.sequencerResumeFromCheckpoint();
+  static Future<void> performMeridianFlip({
+    required String mountId,
+    String? cameraId,
+    String? focuserId,
+    String? coverCalibratorId,
+    required String targetName,
+    required double targetRaHours,
+    required double targetDecDegrees,
+    required bool pauseGuiding,
+    required bool autoCenter,
+    required bool refocusAfter,
+    required bool resumeGuiding,
+    required double settleTimeSecs,
+  }) => _nativeBridge.performMeridianFlip(
+    mountId: mountId,
+    cameraId: cameraId,
+    focuserId: focuserId,
+    coverCalibratorId: coverCalibratorId,
+    targetName: targetName,
+    targetRaHours: targetRaHours,
+    targetDecDegrees: targetDecDegrees,
+    pauseGuiding: pauseGuiding,
+    autoCenter: autoCenter,
+    refocusAfter: refocusAfter,
+    resumeGuiding: resumeGuiding,
+    settleTimeSecs: settleTimeSecs,
+  );
   static Future<void> sequencerDiscardCheckpoint() =>
       _nativeBridge.sequencerDiscardCheckpoint();
   static Future<void> sequencerSaveCheckpoint() =>

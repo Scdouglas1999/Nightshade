@@ -13,6 +13,9 @@ pub mod checkpoint;
 // and system event).
 pub mod decision;
 mod device_ops;
+// Dual-rig / multi-camera synchronized imaging: dither-coordination barrier
+// + secondary capture-loop driver.
+pub mod dual_rig;
 mod executor;
 // Wave 4: Variables / expression interpolation engine. Powers user-authored
 // templates in node names, notification text, RunScript args, and FITS save
@@ -51,6 +54,10 @@ pub use decision::{
     DEFAULT_DECISION_CHANNEL_CAPACITY,
 };
 pub use device_ops::*;
+pub use dual_rig::{
+    DitherBarrier, InFlightDitherPolicy, SecondaryFrameMeta, SecondaryRig, SecondaryRigConfig,
+    SecondaryRigState, SecondaryRigStatus, DEFAULT_DITHER_MAX_WAIT_SECS,
+};
 pub use executor::*;
 // Wave 4: interpolation engine — surface the most common entry points so
 // callers outside the sequencer (bridge, integration tests) can build

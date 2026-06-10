@@ -3078,6 +3078,8 @@ mod tests {
                 last_successful_comm: None,
                 heartbeat_active: false,
                 api_version: None,
+                desired_cooler: None,
+                desired_tracking: None,
             },
         );
         invalidate_capability_cache_for_device(id).await;

@@ -33,7 +33,12 @@ impl DeviceManager {
     // Mount Control
     // =========================================================================
 
-    pub async fn mount_slew(&self, device_id: &str, ra: f64, dec: f64) -> Result<(), DeviceOpError> {
+    pub async fn mount_slew(
+        &self,
+        device_id: &str,
+        ra: f64,
+        dec: f64,
+    ) -> Result<(), DeviceOpError> {
         tracing::debug!(
             "mount_slew called: device_id={}, ra={}, dec={}",
             device_id,
@@ -55,6 +60,28 @@ impl DeviceManager {
             "mount_slew: Found device with driver_type={:?}",
             info.driver_type
         );
+
+        // Catalog/solver coordinates are J2000; real mounts (ASCOM default
+        // equTopocentric, INDI EQUATORIAL_EOD_COORD, native LX200-protocol)
+        // expect of-date coordinates — ~22′ apart in 2026. Convert at this
+        // single choke point so every caller (sequencer, planetarium GOTO,
+        // centering) lands on target. The Simulator stores whatever it is
+        // sent and is read back by epoch-agnostic tests, so it stays raw.
+        // See `device_manager::epoch` for the direction policy.
+        let (ra, dec) = match info.driver_type {
+            DriverType::Simulator => (ra, dec),
+            _ => {
+                let (ra_now, dec_now) = crate::device_manager::epoch::j2000_to_jnow(ra, dec);
+                tracing::debug!(
+                    "mount_slew: J2000 ({:.5}h, {:.4}°) -> JNOW ({:.5}h, {:.4}°)",
+                    ra,
+                    dec,
+                    ra_now,
+                    dec_now
+                );
+                (ra_now, dec_now)
+            }
+        };
 
         match info.driver_type {
             DriverType::Ascom => {
@@ -90,7 +117,10 @@ impl DeviceManager {
                         );
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM mount not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
@@ -116,7 +146,10 @@ impl DeviceManager {
                     });
                 }
                 tracing::error!("mount_slew: Alpaca mount {} not connected", device_id);
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca mount {} not connected", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca mount {} not connected", device_id),
+                ))
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
@@ -154,9 +187,15 @@ impl DeviceManager {
                         });
                     }
                     tracing::error!("mount_slew: INDI client not connected for {}", server_key);
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id(format!("Invalid INDI device ID format: {}", device_id)))
+                Err(DeviceOpError::invalid_device_id(format!(
+                    "Invalid INDI device ID format: {}",
+                    device_id
+                )))
             }
             DriverType::Native => {
                 let mut native_mounts = self.native_mounts.write().await;
@@ -181,13 +220,19 @@ impl DeviceManager {
                     });
                 }
                 tracing::error!("mount_slew: Native mount {} not connected", device_id);
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native mount not connected",
+                ))
             }
             DriverType::Simulator => {
                 let m = crate::api::devices::simulation::get_sim_mount();
                 let mut m = m.write().await;
                 if !m.status.connected {
-                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_mount()));
+                    return Err(DeviceOpError::not_connected(
+                        None,
+                        crate::device_manager::ops::sim_gate::not_connected_mount(),
+                    ));
                 }
                 m.status.right_ascension = ra;
                 m.status.declination = dec;
@@ -197,12 +242,26 @@ impl DeviceManager {
         }
     }
 
-    pub async fn mount_sync(&self, device_id: &str, ra: f64, dec: f64) -> Result<(), DeviceOpError> {
+    pub async fn mount_sync(
+        &self,
+        device_id: &str,
+        ra: f64,
+        dec: f64,
+    ) -> Result<(), DeviceOpError> {
         let devices = self.devices.read().await;
         let info = devices
             .get(device_id)
             .map(|d| d.info.clone())
             .ok_or_else(|| DeviceOpError::device_not_found(device_id))?;
+
+        // Same J2000 -> of-date conversion as mount_slew, and it MUST match:
+        // sync and slew feeding the mount from different frames would skew
+        // the pointing model by the precession offset on every centering
+        // iteration. See `device_manager::epoch`.
+        let (ra, dec) = match info.driver_type {
+            DriverType::Simulator => (ra, dec),
+            _ => crate::device_manager::epoch::j2000_to_jnow(ra, dec),
+        };
 
         match info.driver_type {
             DriverType::Ascom => {
@@ -212,21 +271,33 @@ impl DeviceManager {
                     if let Some(mount) = mounts.get(device_id) {
                         let mut mount = mount.write().await;
                         return mount.sync_to_coordinates(ra, dec).await.map_err(|e| {
-                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                                "Failed to sync ASCOM mount {} to RA={:.4} Dec={:.4}: {}",
-                                device_id, ra, dec, e
-                            ))
+                            DeviceOpError::hardware(
+                                Some(device_id.to_string()),
+                                format!(
+                                    "Failed to sync ASCOM mount {} to RA={:.4} Dec={:.4}: {}",
+                                    device_id, ra, dec, e
+                                ),
+                            )
                         });
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM mount not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
                 if let Some(mount) = mounts.get(device_id) {
-                    return mount.sync_to_coordinates(ra, dec).await.map_err(DeviceOpError::driver);
+                    return mount
+                        .sync_to_coordinates(ra, dec)
+                        .await
+                        .map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca mount {} not connected", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca mount {} not connected", device_id),
+                ))
             }
             DriverType::Indi => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -237,33 +308,51 @@ impl DeviceManager {
                     if let Some(client) = clients.get(&server_key) {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
                         return mount.sync_to_coordinates(ra, dec).await.map_err(|e| {
-                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                                "Failed to sync INDI mount {} to RA={:.4} Dec={:.4}: {}",
-                                device_name, ra, dec, e
-                            ))
+                            DeviceOpError::hardware(
+                                Some(device_id.to_string()),
+                                format!(
+                                    "Failed to sync INDI mount {} to RA={:.4} Dec={:.4}: {}",
+                                    device_name, ra, dec, e
+                                ),
+                            )
                         });
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id(format!("Invalid INDI device ID format: {}", device_id)))
+                Err(DeviceOpError::invalid_device_id(format!(
+                    "Invalid INDI device ID format: {}",
+                    device_id
+                )))
             }
             DriverType::Native => {
                 let mut native_mounts = self.native_mounts.write().await;
                 if let Some(mount) = native_mounts.get_mut(device_id) {
                     return mount.sync_to_coordinates(ra, dec).await.map_err(|e| {
-                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                            "Failed to sync native mount {} to RA={:.4} Dec={:.4}: {}",
-                            device_id, ra, dec, e
-                        ))
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!(
+                                "Failed to sync native mount {} to RA={:.4} Dec={:.4}: {}",
+                                device_id, ra, dec, e
+                            ),
+                        )
                     });
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native mount not connected",
+                ))
             }
             DriverType::Simulator => {
                 let m = crate::api::devices::simulation::get_sim_mount();
                 let mut m = m.write().await;
                 if !m.status.connected {
-                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_mount()));
+                    return Err(DeviceOpError::not_connected(
+                        None,
+                        crate::device_manager::ops::sim_gate::not_connected_mount(),
+                    ));
                 }
                 m.status.right_ascension = ra;
                 m.status.declination = dec;
@@ -287,18 +376,27 @@ impl DeviceManager {
                     if let Some(mount) = mounts.get(device_id) {
                         let mut mount = mount.write().await;
                         return mount.park().await.map_err(|e| {
-                            DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to park ASCOM mount {}: {}", device_id, e))
+                            DeviceOpError::hardware(
+                                Some(device_id.to_string()),
+                                format!("Failed to park ASCOM mount {}: {}", device_id, e),
+                            )
                         });
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM mount not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
                 if let Some(mount) = mounts.get(device_id) {
                     return mount.park().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca mount {} not connected", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca mount {} not connected", device_id),
+                ))
             }
             DriverType::Indi => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -309,28 +407,45 @@ impl DeviceManager {
                     if let Some(client) = clients.get(&server_key) {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
                         return mount.park().await.map_err(|e| {
-                            DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to park INDI mount {}: {}", device_name, e))
+                            DeviceOpError::hardware(
+                                Some(device_id.to_string()),
+                                format!("Failed to park INDI mount {}: {}", device_name, e),
+                            )
                         });
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id(format!("Invalid INDI device ID format: {}", device_id)))
+                Err(DeviceOpError::invalid_device_id(format!(
+                    "Invalid INDI device ID format: {}",
+                    device_id
+                )))
             }
             DriverType::Native => {
                 let mut native_mounts = self.native_mounts.write().await;
                 if let Some(mount) = native_mounts.get_mut(device_id) {
-                    return mount
-                        .park()
-                        .await
-                        .map_err(|e| DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to park native mount {}: {}", device_id, e)));
+                    return mount.park().await.map_err(|e| {
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!("Failed to park native mount {}: {}", device_id, e),
+                        )
+                    });
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native mount not connected",
+                ))
             }
             DriverType::Simulator => {
                 let m = crate::api::devices::simulation::get_sim_mount();
                 let mut m = m.write().await;
                 if !m.status.connected {
-                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_mount()));
+                    return Err(DeviceOpError::not_connected(
+                        None,
+                        crate::device_manager::ops::sim_gate::not_connected_mount(),
+                    ));
                 }
                 m.status.parked = true;
                 m.status.tracking = false;
@@ -356,14 +471,20 @@ impl DeviceManager {
                         return mount.unpark().await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM mount not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
                 if let Some(mount) = mounts.get(device_id) {
                     return mount.unpark().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca mount {} not connected", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca mount {} not connected", device_id),
+                ))
             }
             DriverType::Indi => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -375,22 +496,34 @@ impl DeviceManager {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
                         return mount.unpark().await.map_err(DeviceOpError::driver);
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id(format!("Invalid INDI device ID format: {}", device_id)))
+                Err(DeviceOpError::invalid_device_id(format!(
+                    "Invalid INDI device ID format: {}",
+                    device_id
+                )))
             }
             DriverType::Native => {
                 let mut native_mounts = self.native_mounts.write().await;
                 if let Some(mount) = native_mounts.get_mut(device_id) {
                     return mount.unpark().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native mount not connected",
+                ))
             }
             DriverType::Simulator => {
                 let m = crate::api::devices::simulation::get_sim_mount();
                 let mut m = m.write().await;
                 if !m.status.connected {
-                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_mount()));
+                    return Err(DeviceOpError::not_connected(
+                        None,
+                        crate::device_manager::ops::sim_gate::not_connected_mount(),
+                    ));
                 }
                 m.status.parked = false;
                 Ok(())
@@ -435,7 +568,10 @@ impl DeviceManager {
                         });
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM mount not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
@@ -452,7 +588,10 @@ impl DeviceManager {
                         DeviceOpError::driver(e)
                     });
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca mount {} not connected", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca mount {} not connected", device_id),
+                ))
             }
             DriverType::Indi => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -482,20 +621,31 @@ impl DeviceManager {
                             DeviceOpError::driver(e)
                         });
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id(format!("Invalid INDI device ID format: {}", device_id)))
+                Err(DeviceOpError::invalid_device_id(format!(
+                    "Invalid INDI device ID format: {}",
+                    device_id
+                )))
             }
             DriverType::Native => {
                 // Native mounts (SkyWatcher, iOptron, etc.) are equatorial; alt/az slew is not
                 // natively supported. Return an error rather than silently failing.
-                Err(DeviceOpError::unsupported("Alt/Az slew is not supported for native serial mounts"))
+                Err(DeviceOpError::unsupported(
+                    "Alt/Az slew is not supported for native serial mounts",
+                ))
             }
             DriverType::Simulator => {
                 let m = crate::api::devices::simulation::get_sim_mount();
                 let mut m = m.write().await;
                 if !m.status.connected {
-                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_mount()));
+                    return Err(DeviceOpError::not_connected(
+                        None,
+                        crate::device_manager::ops::sim_gate::not_connected_mount(),
+                    ));
                 }
                 m.status.altitude = Some(altitude);
                 m.status.azimuth = Some(azimuth);
@@ -525,7 +675,10 @@ impl DeviceManager {
                         });
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM mount not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
@@ -535,7 +688,10 @@ impl DeviceManager {
                         DeviceOpError::driver(e)
                     });
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca mount {} not connected", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca mount {} not connected", device_id),
+                ))
             }
             DriverType::Indi => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -553,19 +709,30 @@ impl DeviceManager {
                             DeviceOpError::driver(e)
                         });
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id(format!("Invalid INDI device ID format: {}", device_id)))
+                Err(DeviceOpError::invalid_device_id(format!(
+                    "Invalid INDI device ID format: {}",
+                    device_id
+                )))
             }
             DriverType::Native => {
                 // Native serial mounts don't have a standardized find-home command
-                Err(DeviceOpError::unsupported("Find home is not supported for native serial mounts"))
+                Err(DeviceOpError::unsupported(
+                    "Find home is not supported for native serial mounts",
+                ))
             }
             DriverType::Simulator => {
                 let m = crate::api::devices::simulation::get_sim_mount();
                 let mut m = m.write().await;
                 if !m.status.connected {
-                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_mount()));
+                    return Err(DeviceOpError::not_connected(
+                        None,
+                        crate::device_manager::ops::sim_gate::not_connected_mount(),
+                    ));
                 }
                 m.status.at_home = Some(true);
                 m.status.parked = false;
@@ -574,7 +741,10 @@ impl DeviceManager {
         }
     }
 
-    pub async fn mount_get_coordinates(&self, device_id: &str) -> Result<(f64, f64), DeviceOpError> {
+    pub async fn mount_get_coordinates(
+        &self,
+        device_id: &str,
+    ) -> Result<(f64, f64), DeviceOpError> {
         let devices = self.devices.read().await;
         let info = devices
             .get(device_id)
@@ -591,23 +761,35 @@ impl DeviceManager {
                         return mount.get_coordinates().await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM mount not connected",
+                ))
             }
             DriverType::Native => {
                 let native_mounts = self.native_mounts.read().await;
                 if let Some(mount) = native_mounts.get(device_id) {
                     return mount.get_coordinates().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native mount not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
                 if let Some(mount) = mounts.get(device_id) {
-                    let ra = mount.right_ascension().await.map_err(DeviceOpError::driver)?;
+                    let ra = mount
+                        .right_ascension()
+                        .await
+                        .map_err(DeviceOpError::driver)?;
                     let dec = mount.declination().await.map_err(DeviceOpError::driver)?;
                     return Ok((ra, dec));
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca mount {} not connected", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca mount {} not connected", device_id),
+                ))
             }
             DriverType::Indi => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -619,9 +801,15 @@ impl DeviceManager {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
                         return mount.get_coordinates().await.map_err(DeviceOpError::driver);
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id(format!("Invalid INDI device ID format: {}", device_id)))
+                Err(DeviceOpError::invalid_device_id(format!(
+                    "Invalid INDI device ID format: {}",
+                    device_id
+                )))
             }
             DriverType::Simulator => {
                 let sim = crate::device_manager::ops::sim_gate::read_mount_status().await?;
@@ -647,21 +835,30 @@ impl DeviceManager {
                         return mount.abort_slew().await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM mount not connected",
+                ))
             }
             DriverType::Native => {
                 let mut native_mounts = self.native_mounts.write().await;
                 if let Some(mount) = native_mounts.get_mut(device_id) {
                     return mount.abort_slew().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native mount not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
                 if let Some(mount) = mounts.get(device_id) {
                     return mount.abort_slew().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca mount {} not connected", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca mount {} not connected", device_id),
+                ))
             }
             DriverType::Indi => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -673,15 +870,24 @@ impl DeviceManager {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
                         return mount.abort_slew().await.map_err(DeviceOpError::driver);
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id(format!("Invalid INDI device ID format: {}", device_id)))
+                Err(DeviceOpError::invalid_device_id(format!(
+                    "Invalid INDI device ID format: {}",
+                    device_id
+                )))
             }
             DriverType::Simulator => {
                 let m = crate::api::devices::simulation::get_sim_mount();
                 let mut m = m.write().await;
                 if !m.status.connected {
-                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_mount()));
+                    return Err(DeviceOpError::not_connected(
+                        None,
+                        crate::device_manager::ops::sim_gate::not_connected_mount(),
+                    ));
                 }
                 m.status.slewing = false;
                 Ok(())
@@ -706,21 +912,30 @@ impl DeviceManager {
                         return mount.stop().await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM mount not connected",
+                ))
             }
             DriverType::Native => {
                 let mut native_mounts = self.native_mounts.write().await;
                 if let Some(mount) = native_mounts.get_mut(device_id) {
                     return mount.abort_slew().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native mount not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
                 if let Some(mount) = mounts.get(device_id) {
                     return mount.abort_slew().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca mount {} not connected", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca mount {} not connected", device_id),
+                ))
             }
             DriverType::Indi => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -732,15 +947,24 @@ impl DeviceManager {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
                         return mount.abort_slew().await.map_err(DeviceOpError::driver);
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id(format!("Invalid INDI device ID format: {}", device_id)))
+                Err(DeviceOpError::invalid_device_id(format!(
+                    "Invalid INDI device ID format: {}",
+                    device_id
+                )))
             }
             DriverType::Simulator => {
                 let m = crate::api::devices::simulation::get_sim_mount();
                 let mut m = m.write().await;
                 if !m.status.connected {
-                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_mount()));
+                    return Err(DeviceOpError::not_connected(
+                        None,
+                        crate::device_manager::ops::sim_gate::not_connected_mount(),
+                    ));
                 }
                 m.status.slewing = false;
                 m.status.tracking = false;
@@ -749,7 +973,36 @@ impl DeviceManager {
         }
     }
 
-    pub async fn mount_set_tracking(&self, device_id: &str, enabled: bool) -> Result<(), DeviceOpError> {
+    pub async fn mount_set_tracking(
+        &self,
+        device_id: &str,
+        enabled: bool,
+    ) -> Result<(), DeviceOpError> {
+        let result = self.mount_set_tracking_dispatch(device_id, enabled).await;
+
+        // Record the commanded tracking state so an unplanned reconnect (USB /
+        // serial yank mid-run) can re-apply it. A mount that comes back from a
+        // reconnect is parked / not tracking; without this the sequence would
+        // "resume" while the mount sits still. Only record on success so a
+        // failed command does not clobber the last known good desired state.
+        if result.is_ok() {
+            let mut devices = self.devices.write().await;
+            if let Some(dev) = devices.get_mut(device_id) {
+                dev.desired_tracking = Some(enabled);
+            }
+        }
+
+        result
+    }
+
+    /// Driver dispatch for `mount_set_tracking`. Split out so the public method
+    /// can record the desired tracking state (for reconnect re-application)
+    /// without holding the `devices` read lock across the per-driver calls.
+    async fn mount_set_tracking_dispatch(
+        &self,
+        device_id: &str,
+        enabled: bool,
+    ) -> Result<(), DeviceOpError> {
         let devices = self.devices.read().await;
         let info = devices
             .get(device_id)
@@ -764,38 +1017,56 @@ impl DeviceManager {
                     if let Some(mount) = mounts.get(device_id) {
                         let mut mount = mount.write().await;
                         return mount.set_tracking(enabled).await.map_err(|e| {
-                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                                "Failed to set ASCOM mount {} tracking={}: {}",
-                                device_id, enabled, e
-                            ))
+                            DeviceOpError::hardware(
+                                Some(device_id.to_string()),
+                                format!(
+                                    "Failed to set ASCOM mount {} tracking={}: {}",
+                                    device_id, enabled, e
+                                ),
+                            )
                         });
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM mount not connected",
+                ))
             }
             DriverType::Native => {
                 let mut native_mounts = self.native_mounts.write().await;
                 if let Some(mount) = native_mounts.get_mut(device_id) {
                     return mount.set_tracking(enabled).await.map_err(|e| {
-                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                            "Failed to set native mount {} tracking={}: {}",
-                            device_id, enabled, e
-                        ))
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!(
+                                "Failed to set native mount {} tracking={}: {}",
+                                device_id, enabled, e
+                            ),
+                        )
                     });
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native mount not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
                 if let Some(mount) = mounts.get(device_id) {
                     return mount.set_tracking(enabled).await.map_err(|e| {
-                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                            "Failed to set Alpaca mount {} tracking={}: {}",
-                            device_id, enabled, e
-                        ))
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!(
+                                "Failed to set Alpaca mount {} tracking={}: {}",
+                                device_id, enabled, e
+                            ),
+                        )
                     });
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca mount {} not connected", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca mount {} not connected", device_id),
+                ))
             }
             DriverType::Indi => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -806,21 +1077,33 @@ impl DeviceManager {
                     if let Some(client) = clients.get(&server_key) {
                         let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
                         return mount.set_tracking(enabled).await.map_err(|e| {
-                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                                "Failed to set INDI mount {} tracking={}: {}",
-                                device_name, enabled, e
-                            ))
+                            DeviceOpError::hardware(
+                                Some(device_id.to_string()),
+                                format!(
+                                    "Failed to set INDI mount {} tracking={}: {}",
+                                    device_name, enabled, e
+                                ),
+                            )
                         });
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id(format!("Invalid INDI device ID format: {}", device_id)))
+                Err(DeviceOpError::invalid_device_id(format!(
+                    "Invalid INDI device ID format: {}",
+                    device_id
+                )))
             }
             DriverType::Simulator => {
                 let m = crate::api::devices::simulation::get_sim_mount();
                 let mut m = m.write().await;
                 if !m.status.connected {
-                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_mount()));
+                    return Err(DeviceOpError::not_connected(
+                        None,
+                        crate::device_manager::ops::sim_gate::not_connected_mount(),
+                    ));
                 }
                 m.status.tracking = enabled;
                 Ok(())
@@ -846,7 +1129,12 @@ impl DeviceManager {
             "south" | "s" => nightshade_native::traits::GuideDirection::South,
             "east" | "e" => nightshade_native::traits::GuideDirection::East,
             "west" | "w" => nightshade_native::traits::GuideDirection::West,
-            _ => return Err(DeviceOpError::invalid_parameter(format!("Invalid direction: {}", direction))),
+            _ => {
+                return Err(DeviceOpError::invalid_parameter(format!(
+                    "Invalid direction: {}",
+                    direction
+                )))
+            }
         };
 
         match info.driver_type {
@@ -862,7 +1150,10 @@ impl DeviceManager {
                             .map_err(DeviceOpError::driver);
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM mount not connected",
+                ))
             }
             DriverType::Native => {
                 let mut native_mounts = self.native_mounts.write().await;
@@ -872,7 +1163,10 @@ impl DeviceManager {
                         .await
                         .map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native mount not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
@@ -898,7 +1192,10 @@ impl DeviceManager {
                         .await
                         .map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca mount {} not connected", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca mount {} not connected", device_id),
+                ))
             }
             DriverType::Indi => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -927,9 +1224,15 @@ impl DeviceManager {
                             .await
                             .map_err(DeviceOpError::driver);
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id(format!("Invalid INDI device ID format: {}", device_id)))
+                Err(DeviceOpError::invalid_device_id(format!(
+                    "Invalid INDI device ID format: {}",
+                    device_id
+                )))
             }
             DriverType::Simulator => {
                 // Pulse guide on the simulator is a timing-only op; the
@@ -960,7 +1263,10 @@ impl DeviceManager {
                         return mount.can_park().await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM mount not connected",
+                ))
             }
             DriverType::Native => {
                 let native_mounts = self.native_mounts.read().await;
@@ -968,20 +1274,29 @@ impl DeviceManager {
                     return match mount.is_parked().await {
                         Ok(_) => Ok(true),
                         Err(nightshade_native::traits::NativeError::NotSupported) => Ok(false),
-                        Err(e) => Err(DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                            "Failed to determine native mount park capability for {}: {}",
-                            device_id, e
-                        ))),
+                        Err(e) => Err(DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!(
+                                "Failed to determine native mount park capability for {}: {}",
+                                device_id, e
+                            ),
+                        )),
                     };
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native mount {} not connected", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Native mount {} not connected", device_id),
+                ))
             }
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
                 if let Some(mount) = mounts.get(device_id) {
                     return mount.can_park().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca mount {} not connected", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca mount {} not connected", device_id),
+                ))
             }
             DriverType::Indi => {
                 let parts: Vec<&str> = device_id.split(':').collect();
@@ -1001,9 +1316,15 @@ impl DeviceManager {
                                 .is_some();
                         return Ok(supports_park);
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id(format!("Invalid INDI device ID format: {}", device_id)))
+                Err(DeviceOpError::invalid_device_id(format!(
+                    "Invalid INDI device ID format: {}",
+                    device_id
+                )))
             }
             DriverType::Simulator => {
                 let sim = crate::device_manager::ops::sim_gate::read_mount_status().await?;
@@ -1028,7 +1349,10 @@ impl DeviceManager {
                         let mount = mount.read().await;
 
                         // Required fields propagate read failures — these are not optional.
-                        let (ra, dec) = mount.get_coordinates().await.map_err(DeviceOpError::driver)?;
+                        let (ra, dec) = mount
+                            .get_coordinates()
+                            .await
+                            .map_err(DeviceOpError::driver)?;
                         let tracking = mount.get_tracking().await.map_err(DeviceOpError::driver)?;
                         let slewing = mount.is_slewing().await.map_err(DeviceOpError::driver)?;
                         let parked = mount.is_parked().await.map_err(DeviceOpError::driver)?;
@@ -1149,23 +1473,32 @@ impl DeviceManager {
                         });
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM mount not connected",
+                ))
             }
             DriverType::Native => {
                 let native_mounts = self.native_mounts.read().await;
                 if let Some(mount) = native_mounts.get(device_id) {
                     // Required fields propagate read failures — these are not optional.
-                    let (ra, dec) = mount.get_coordinates().await.map_err(DeviceOpError::driver)?;
+                    let (ra, dec) = mount
+                        .get_coordinates()
+                        .await
+                        .map_err(DeviceOpError::driver)?;
                     let tracking = mount.get_tracking().await.map_err(DeviceOpError::driver)?;
                     let slewing = mount.is_slewing().await.map_err(DeviceOpError::driver)?;
                     let (parked, can_park) = match mount.is_parked().await {
                         Ok(p) => (p, true),
                         Err(nightshade_native::traits::NativeError::NotSupported) => (false, false),
                         Err(e) => {
-                            return Err(DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                                "Failed to read native mount parked state for {}: {}",
-                                device_id, e
-                            )));
+                            return Err(DeviceOpError::hardware(
+                                Some(device_id.to_string()),
+                                format!(
+                                    "Failed to read native mount parked state for {}: {}",
+                                    device_id, e
+                                ),
+                            ));
                         }
                     };
 
@@ -1273,35 +1606,53 @@ impl DeviceManager {
                         availability,
                     });
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native mount not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
                 if let Some(mount) = mounts.get(device_id) {
                     // Required fields propagate read failures.
                     let ra = mount.right_ascension().await.map_err(|e| {
-                        DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to read Alpaca mount RA for {}: {}", device_id, e))
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!("Failed to read Alpaca mount RA for {}: {}", device_id, e),
+                        )
                     })?;
                     let dec = mount.declination().await.map_err(|e| {
-                        DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to read Alpaca mount Dec for {}: {}", device_id, e))
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!("Failed to read Alpaca mount Dec for {}: {}", device_id, e),
+                        )
                     })?;
                     let tracking = mount.tracking().await.map_err(|e| {
-                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                            "Failed to read Alpaca mount tracking for {}: {}",
-                            device_id, e
-                        ))
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!(
+                                "Failed to read Alpaca mount tracking for {}: {}",
+                                device_id, e
+                            ),
+                        )
                     })?;
                     let slewing = mount.slewing().await.map_err(|e| {
-                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                            "Failed to read Alpaca mount slewing for {}: {}",
-                            device_id, e
-                        ))
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!(
+                                "Failed to read Alpaca mount slewing for {}: {}",
+                                device_id, e
+                            ),
+                        )
                     })?;
                     let parked = mount.at_park().await.map_err(|e| {
-                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                            "Failed to read Alpaca mount at_park for {}: {}",
-                            device_id, e
-                        ))
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!(
+                                "Failed to read Alpaca mount at_park for {}: {}",
+                                device_id, e
+                            ),
+                        )
                     })?;
 
                     let mut availability = Self::mount_status_availability_map();
@@ -1430,7 +1781,10 @@ impl DeviceManager {
                         availability,
                     });
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Alpaca mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Alpaca mount not connected",
+                ))
             }
             DriverType::Indi => {
                 let (host, port, device_name) = Self::parse_indi_device_id(device_id)?;
@@ -1439,25 +1793,37 @@ impl DeviceManager {
                 if let Some(client) = clients.get(&server_key) {
                     let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
                     let (ra, dec) = mount.get_coordinates().await.map_err(|e| {
-                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                            "Failed to read INDI mount coordinates for {}: {}",
-                            device_id, e
-                        ))
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!(
+                                "Failed to read INDI mount coordinates for {}: {}",
+                                device_id, e
+                            ),
+                        )
                     })?;
                     let tracking = mount.try_is_tracking().await.map_err(|e| {
-                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                            "Failed to read INDI mount tracking for {}: {}",
-                            device_id, e
-                        ))
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!(
+                                "Failed to read INDI mount tracking for {}: {}",
+                                device_id, e
+                            ),
+                        )
                     })?;
                     let slewing = mount.try_is_slewing().await.map_err(|e| {
-                        DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to read INDI mount slewing for {}: {}", device_id, e))
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!("Failed to read INDI mount slewing for {}: {}", device_id, e),
+                        )
                     })?;
                     let parked = mount.try_is_parked().await.map_err(|e| {
-                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                            "Failed to read INDI mount parked state for {}: {}",
-                            device_id, e
-                        ))
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!(
+                                "Failed to read INDI mount parked state for {}: {}",
+                                device_id, e
+                            ),
+                        )
                     })?;
 
                     let mut availability = Self::mount_status_availability_map();
@@ -1592,13 +1958,14 @@ impl DeviceManager {
                         availability,
                     });
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("INDI client not connected for {}", server_key),
+                ))
             }
-            DriverType::Simulator => {
-                crate::device_manager::ops::sim_gate::read_mount_status()
-                    .await
-                    .map_err(DeviceOpError::driver)
-            }
+            DriverType::Simulator => crate::device_manager::ops::sim_gate::read_mount_status()
+                .await
+                .map_err(DeviceOpError::driver),
         }
     }
 
@@ -1693,7 +2060,11 @@ impl DeviceManager {
         }
     }
 
-    pub async fn mount_set_tracking_rate(&self, device_id: &str, rate: i32) -> Result<(), DeviceOpError> {
+    pub async fn mount_set_tracking_rate(
+        &self,
+        device_id: &str,
+        rate: i32,
+    ) -> Result<(), DeviceOpError> {
         let devices = self.devices.read().await;
         let info = devices
             .get(device_id)
@@ -1713,7 +2084,10 @@ impl DeviceManager {
                             .map_err(DeviceOpError::driver);
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM mount not connected",
+                ))
             }
             DriverType::Native => {
                 let mut native_mounts = self.native_mounts.write().await;
@@ -1725,16 +2099,26 @@ impl DeviceManager {
                         2 => nightshade_native::traits::TrackingRate::Solar,
                         3 => nightshade_native::traits::TrackingRate::King,
                         4 => nightshade_native::traits::TrackingRate::Custom,
-                        _ => return Err(DeviceOpError::invalid_parameter(format!("Invalid tracking rate: {}", rate))),
+                        _ => {
+                            return Err(DeviceOpError::invalid_parameter(format!(
+                                "Invalid tracking rate: {}",
+                                rate
+                            )))
+                        }
                     };
                     return mount
                         .set_tracking_rate(tracking_rate)
                         .await
                         .map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native mount not connected",
+                ))
             }
-            _ => Err(DeviceOpError::unsupported("Setting tracking rate is not supported by this driver type")),
+            _ => Err(DeviceOpError::unsupported(
+                "Setting tracking rate is not supported by this driver type",
+            )),
         }
     }
 
@@ -1758,18 +2142,27 @@ impl DeviceManager {
                             .map_err(DeviceOpError::driver);
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM mount not connected",
+                ))
             }
             DriverType::Native => {
                 let native_mounts = self.native_mounts.read().await;
                 if let Some(mount) = native_mounts.get(device_id) {
-                    let rate = mount.get_tracking_rate().await.map_err(DeviceOpError::driver)?;
+                    let rate = mount
+                        .get_tracking_rate()
+                        .await
+                        .map_err(DeviceOpError::driver)?;
                     // Why (audit-rust §1.4): `TrackingRate` is a C-like enum
                     // (Sidereal=0, Lunar=1, Solar=2, King=3); `as i32`
                     // extracts the discriminant — SAFE narrowing.
                     return Ok(rate as i32);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native mount not connected",
+                ))
             }
             DriverType::Simulator => {
                 let sim = crate::device_manager::ops::sim_gate::read_mount_status().await?;
@@ -1785,7 +2178,9 @@ impl DeviceManager {
                     None => 0,
                 })
             }
-            _ => Err(DeviceOpError::unsupported("Getting tracking rate is not supported by this driver type")),
+            _ => Err(DeviceOpError::unsupported(
+                "Getting tracking rate is not supported by this driver type",
+            )),
         }
     }
 
@@ -1845,7 +2240,10 @@ impl DeviceManager {
                         );
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM mount not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM mount not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let mounts = self.alpaca_mounts.read().await;
@@ -1857,7 +2255,10 @@ impl DeviceManager {
                     });
                 }
                 tracing::error!("mount_move_axis: Alpaca mount {} not connected", device_id);
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca mount {} not connected", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca mount {} not connected", device_id),
+                ))
             }
             DriverType::Indi => {
                 // INDI uses directional movement (NSEW) instead of axis rates
@@ -1934,19 +2335,30 @@ impl DeviceManager {
                         "mount_move_axis: INDI client not connected for {}",
                         server_key
                     );
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id(format!("Invalid INDI device ID format: {}", device_id)))
+                Err(DeviceOpError::invalid_device_id(format!(
+                    "Invalid INDI device ID format: {}",
+                    device_id
+                )))
             }
             DriverType::Native => {
                 tracing::warn!("mount_move_axis: Native SDK does not support mount axis movement");
-                Err(DeviceOpError::unsupported("Native SDK does not support mount axis movement"))
+                Err(DeviceOpError::unsupported(
+                    "Native SDK does not support mount axis movement",
+                ))
             }
             DriverType::Simulator => {
                 let m = crate::api::devices::simulation::get_sim_mount();
                 let mut m = m.write().await;
                 if !m.status.connected {
-                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_mount()));
+                    return Err(DeviceOpError::not_connected(
+                        None,
+                        crate::device_manager::ops::sim_gate::not_connected_mount(),
+                    ));
                 }
                 // The simulator has no axis-rate state model — just gate on
                 // connection and record `slewing` so subsequent

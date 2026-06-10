@@ -19,6 +19,7 @@
 
 pub(crate) mod api_version;
 pub(crate) mod connection;
+pub(crate) mod epoch;
 pub(crate) mod heartbeat;
 pub(crate) mod ops;
 
@@ -375,6 +376,19 @@ pub struct ManagedDevice {
     pub heartbeat_active: bool,
     /// Cached API version information for the device
     pub api_version: Option<DeviceApiVersion>,
+    /// Last commanded camera cooler state `(enabled, target_temp_c)`, recorded
+    /// whenever `camera_set_cooler` succeeds. Re-applied after an unplanned
+    /// reconnect so a USB yank mid-run does not silently leave the sensor
+    /// warming up (the driver comes back with the cooler off / setpoint
+    /// cleared). `None` until the cooler has been commanded at least once;
+    /// cameras only.
+    pub desired_cooler: Option<(bool, Option<f64>)>,
+    /// Last commanded mount tracking state, recorded whenever
+    /// `mount_set_tracking` succeeds. Re-applied after an unplanned reconnect
+    /// so a mount that was tracking before the disconnect resumes tracking
+    /// instead of sitting parked while the sequence "resumes". `None` until
+    /// tracking has been commanded at least once; mounts only.
+    pub desired_tracking: Option<bool>,
 }
 
 /// The Device Manager handles all device connections
@@ -1465,6 +1479,8 @@ mod tests {
                 last_successful_comm: None,
                 heartbeat_active: false,
                 api_version: None,
+                desired_cooler: None,
+                desired_tracking: None,
             },
         );
 
@@ -2308,7 +2324,9 @@ mod tests {
             .await
             .expect_err("simulator switch has no singleton; must loud-error");
         assert!(
-            err.to_string().contains("simulator") || err.to_string().contains("Simulator") || err.to_string().contains("disabled"),
+            err.to_string().contains("simulator")
+                || err.to_string().contains("Simulator")
+                || err.to_string().contains("disabled"),
             "error must mention the missing simulator implementation: {}",
             err
         );
@@ -2321,5 +2339,192 @@ mod tests {
             .await
             .expect_err("connect_simulator must reject unsupported sim device types");
         assert!(connect_err.contains("no simulator implementation"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Hot-plug reconnect: re-apply essential device state.
+    //
+    // After an *unplanned* reconnect (the device's connection_state was Error,
+    // i.e. heartbeat-lost / report_error), `connect_device_internal` must
+    // re-apply the last commanded camera cooling setpoint and mount tracking
+    // state — the driver comes back in power-on defaults and would otherwise
+    // silently warm the sensor / leave the mount parked while the sequence
+    // "resumes". A *fresh* connect (from Disconnected) must NOT re-apply.
+    // -------------------------------------------------------------------------
+
+    /// Setting tracking records `desired_tracking`; an Error->reconnect replays it.
+    #[tokio::test]
+    async fn reconnect_reapplies_mount_tracking() {
+        use crate::api::devices::simulation::get_sim_mount;
+
+        let _guard = simulator_singleton_test_lock().lock().await;
+        let manager = Arc::new(build_device_manager());
+        let device_id = "sim_mount_reapply";
+        let info = build_sim_info(device_id, DeviceType::Mount);
+        manager.register_device(info.clone(), false).await;
+        manager
+            .connect_device(device_id)
+            .await
+            .expect("initial connect should succeed");
+
+        // Operator/sequencer commands tracking on; this records desired state.
+        manager
+            .mount_set_tracking(device_id, true)
+            .await
+            .expect("set_tracking should succeed on connected sim mount");
+        assert_eq!(
+            manager
+                .devices
+                .read()
+                .await
+                .get(device_id)
+                .unwrap()
+                .desired_tracking,
+            Some(true),
+            "successful set_tracking must record desired_tracking"
+        );
+
+        // Simulate a heartbeat-lost disconnect: device goes to Error and the
+        // driver loses tracking (sim singleton flipped off).
+        manager
+            .handle_heartbeat_lost(device_id, true, 5, "simulated yank")
+            .await;
+        get_sim_mount().write().await.status.tracking = false;
+        assert_eq!(
+            manager
+                .devices
+                .read()
+                .await
+                .get(device_id)
+                .unwrap()
+                .connection_state,
+            ConnectionState::Error
+        );
+
+        // Reconnect via the public path (routes through connect_device_internal).
+        manager
+            .connect_device(device_id)
+            .await
+            .expect("reconnect should succeed");
+
+        // Essential state must have been replayed onto the driver.
+        assert!(
+            get_sim_mount().read().await.status.tracking,
+            "reconnect must re-apply mount tracking that was active before the disconnect"
+        );
+
+        get_sim_mount().write().await.status.tracking = false;
+        get_sim_mount().write().await.status.connected = false;
+    }
+
+    /// Setting the cooler records `desired_cooler`; an Error->reconnect replays it.
+    #[tokio::test]
+    async fn reconnect_reapplies_camera_cooler() {
+        use crate::api::devices::simulation::get_sim_camera;
+
+        let _guard = simulator_singleton_test_lock().lock().await;
+        let manager = Arc::new(build_device_manager());
+        let device_id = "sim_camera_reapply";
+        let info = build_sim_info(device_id, DeviceType::Camera);
+        manager.register_device(info.clone(), false).await;
+        manager
+            .connect_device(device_id)
+            .await
+            .expect("initial connect should succeed");
+
+        manager
+            .camera_set_cooler(device_id, true, Some(-12.0))
+            .await
+            .expect("set_cooler should succeed on connected sim camera");
+        assert_eq!(
+            manager
+                .devices
+                .read()
+                .await
+                .get(device_id)
+                .unwrap()
+                .desired_cooler,
+            Some((true, Some(-12.0))),
+            "successful set_cooler must record desired_cooler"
+        );
+
+        // Heartbeat-lost: Error state + driver loses cooler (sim defaults).
+        manager
+            .handle_heartbeat_lost(device_id, true, 3, "simulated yank")
+            .await;
+        {
+            let mut cam = get_sim_camera().write().await;
+            cam.status.cooler_on = false;
+            cam.status.target_temp = None;
+        }
+
+        manager
+            .connect_device(device_id)
+            .await
+            .expect("reconnect should succeed");
+
+        {
+            let cam = get_sim_camera().read().await;
+            assert!(cam.status.cooler_on, "reconnect must re-enable the cooler");
+            assert_eq!(
+                cam.status.target_temp,
+                Some(-12.0),
+                "reconnect must restore the cooling setpoint"
+            );
+        }
+
+        let mut cam = get_sim_camera().write().await;
+        cam.status.connected = false;
+    }
+
+    /// A *fresh* connect (state was Disconnected, not Error) must NOT replay any
+    /// recorded desired state — only an unplanned reconnect re-applies.
+    #[tokio::test]
+    async fn fresh_connect_does_not_reapply_state() {
+        use crate::api::devices::simulation::get_sim_mount;
+
+        let _guard = simulator_singleton_test_lock().lock().await;
+        let manager = Arc::new(build_device_manager());
+        let device_id = "sim_mount_fresh";
+        let info = build_sim_info(device_id, DeviceType::Mount);
+        manager.register_device(info.clone(), false).await;
+        manager
+            .connect_device(device_id)
+            .await
+            .expect("initial connect should succeed");
+        manager
+            .mount_set_tracking(device_id, true)
+            .await
+            .expect("set_tracking should succeed");
+
+        // A clean disconnect (NOT an error): state goes to Disconnected.
+        manager
+            .disconnect_device(device_id)
+            .await
+            .expect("disconnect should succeed");
+        assert_ne!(
+            manager
+                .devices
+                .read()
+                .await
+                .get(device_id)
+                .unwrap()
+                .connection_state,
+            ConnectionState::Error,
+            "a clean disconnect must not leave the device in Error"
+        );
+        get_sim_mount().write().await.status.tracking = false;
+
+        // Fresh connect from Disconnected — must NOT auto-resume tracking.
+        manager
+            .connect_device(device_id)
+            .await
+            .expect("fresh connect should succeed");
+        assert!(
+            !get_sim_mount().read().await.status.tracking,
+            "a fresh connect must not silently re-apply tracking the user did not re-request"
+        );
+
+        get_sim_mount().write().await.status.connected = false;
     }
 }

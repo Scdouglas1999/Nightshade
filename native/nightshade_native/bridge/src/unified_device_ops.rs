@@ -500,15 +500,15 @@ impl DeviceOps for UnifiedDeviceOps {
         // each driver branch so the setter is genuinely skipped (rather than
         // the old `unwrap_or(0)` which silently commanded gain/offset 0).
         mgr.camera_start_exposure(camera_id, duration_secs, gain, offset, bin_x, bin_y)
-        .await
-        .inspect_err(|_e| {
-            // Publish failure event
-            self.app_state.publish_imaging_event(
-                ImagingEvent::ExposureComplete { success: false },
-                EventSeverity::Error,
-            );
-        })
-        .map_err(|e| format!("Exposure failed: {}", e))?;
+            .await
+            .inspect_err(|_e| {
+                // Publish failure event
+                self.app_state.publish_imaging_event(
+                    ImagingEvent::ExposureComplete { success: false },
+                    EventSeverity::Error,
+                );
+            })
+            .map_err(|e| format!("Exposure failed: {}", e))?;
 
         wait_for_camera_exposure_complete(
             camera_id,

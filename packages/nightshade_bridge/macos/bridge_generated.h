@@ -160,6 +160,34 @@ typedef struct wire_cst_list_record_string_string {
   int32_t len;
 } wire_cst_list_record_string_string;
 
+typedef struct wire_cst_secondary_rig_config_api {
+  struct wire_cst_list_prim_u_8_strict *camera_id;
+  double exposure_secs;
+  int32_t *gain;
+  int32_t *offset;
+  int32_t bin_x;
+  int32_t bin_y;
+  uint32_t *frame_count;
+  struct wire_cst_list_prim_u_8_strict *filter_name;
+  double *target_temp_c;
+  struct wire_cst_list_prim_u_8_strict *rig_label;
+  struct wire_cst_list_prim_u_8_strict *camera_make;
+  struct wire_cst_list_prim_u_8_strict *camera_model;
+  struct wire_cst_list_prim_u_8_strict *telescope_name;
+  double *telescope_focal_length_mm;
+  double *telescope_aperture_mm;
+  double dither_max_wait_secs;
+  struct wire_cst_list_prim_u_8_strict *in_flight_policy;
+  struct wire_cst_list_prim_u_8_strict *save_base_path;
+  struct wire_cst_list_prim_u_8_strict *target_name;
+  double *target_ra_hours;
+  double *target_dec_degrees;
+  struct wire_cst_list_prim_u_8_strict *observer_name;
+  double *site_latitude_deg;
+  double *site_longitude_deg;
+  double *site_elevation_m;
+} wire_cst_secondary_rig_config_api;
+
 typedef struct wire_cst_node_definition_api {
   struct wire_cst_list_prim_u_8_strict *id;
   struct wire_cst_list_prim_u_8_strict *name;
@@ -319,6 +347,7 @@ typedef struct wire_cst_fits_write_header_rich {
   double *photometry_differential_mag;
   double *photometry_fwhm_arcsec;
   double *photometry_snr;
+  struct wire_cst_list_prim_u_8_strict *rig_label;
 } wire_cst_fits_write_header_rich;
 
 typedef struct wire_cst_api_defect_map_status {
@@ -1972,6 +2001,21 @@ typedef struct wire_cst_rotator_status {
   bool can_reverse;
 } wire_cst_rotator_status;
 
+typedef struct wire_cst_secondary_rig_status_api {
+  bool armed;
+  bool running;
+  struct wire_cst_list_prim_u_8_strict *camera_id;
+  struct wire_cst_list_prim_u_8_strict *rig_label;
+  uint32_t frames_captured;
+  uint32_t frames_aborted;
+  uint32_t *planned_frames;
+  bool waiting_for_dither;
+  bool exposing;
+  bool dither_pending;
+  uint32_t forced_proceeds;
+  struct wire_cst_list_prim_u_8_strict *last_error;
+} wire_cst_secondary_rig_status_api;
+
 typedef struct wire_cst_sequencer_state {
   struct wire_cst_list_prim_u_8_strict *state;
   struct wire_cst_list_prim_u_8_strict *current_node_id;
@@ -2735,6 +2779,20 @@ void frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_mount_s
 void frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_mount_unpark(int64_t port_,
                                                                                       struct wire_cst_list_prim_u_8_strict *device_id);
 
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_perform_meridian_flip(int64_t port_,
+                                                                                     struct wire_cst_list_prim_u_8_strict *mount_id,
+                                                                                     struct wire_cst_list_prim_u_8_strict *camera_id,
+                                                                                     struct wire_cst_list_prim_u_8_strict *focuser_id,
+                                                                                     struct wire_cst_list_prim_u_8_strict *cover_calibrator_id,
+                                                                                     struct wire_cst_list_prim_u_8_strict *target_name,
+                                                                                     double target_ra_hours,
+                                                                                     double target_dec_degrees,
+                                                                                     bool pause_guiding,
+                                                                                     bool auto_center,
+                                                                                     bool refocus_after,
+                                                                                     bool resume_guiding,
+                                                                                     double settle_time_secs);
+
 void frbgen_nightshade_bridge_wire__crate__api__phd2__api_phd2_clear_calibration(int64_t port_,
                                                                                  struct wire_cst_list_prim_u_8_strict *which);
 
@@ -2919,6 +2977,15 @@ void frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_xisf_file(int6
                                                                             uint32_t height,
                                                                             struct wire_cst_list_prim_u_16_loose *data,
                                                                             struct wire_cst_list_record_string_string *properties);
+
+void frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_get_status(int64_t port_);
+
+void frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_is_armed(int64_t port_);
+
+void frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_start(int64_t port_,
+                                                                                       struct wire_cst_secondary_rig_config_api *config);
+
+void frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_stop(int64_t port_);
 
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_sequencer_apply_defect_map(int64_t port_,
                                                                                         struct wire_cst_list_prim_u_8_strict *camera_id,
@@ -3390,6 +3457,8 @@ void frbgen_nightshade_bridge_wire__crate__api__imaging__save_fits_file_rich(int
                                                                              struct wire_cst_list_prim_u_16_loose *data,
                                                                              struct wire_cst_fits_write_header_rich *header_data);
 
+void frbgen_nightshade_bridge_wire__crate__api__secondary_rig__secondary_rig_status_api_default(int64_t port_);
+
 void frbgen_nightshade_bridge_wire__crate__api__devices__camera__set_camera_cooler(int64_t port_,
                                                                                    struct wire_cst_list_prim_u_8_strict *device_id,
                                                                                    uint8_t enabled,
@@ -3513,6 +3582,8 @@ struct wire_cst_rotator_capabilities *frbgen_nightshade_bridge_cst_new_box_autoa
 struct wire_cst_safety_event *frbgen_nightshade_bridge_cst_new_box_autoadd_safety_event(void);
 
 struct wire_cst_safety_monitor_capabilities *frbgen_nightshade_bridge_cst_new_box_autoadd_safety_monitor_capabilities(void);
+
+struct wire_cst_secondary_rig_config_api *frbgen_nightshade_bridge_cst_new_box_autoadd_secondary_rig_config_api(void);
 
 struct wire_cst_sequence_definition_api *frbgen_nightshade_bridge_cst_new_box_autoadd_sequence_definition_api(void);
 
@@ -3640,6 +3711,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_rotator_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_safety_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_safety_monitor_capabilities);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_secondary_rig_config_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_sequence_definition_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_sequencer_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_shutter_status);
@@ -3968,6 +4040,11 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__post_session__api_integrate_session);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__post_session__api_master_accumulate);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__post_session__api_save_fits_master);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_get_status);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_is_armed);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_start);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__secondary_rig__api_secondary_rig_stop);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__secondary_rig__secondary_rig_status_api_default);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_broadcast_deactivate);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_broadcast_get_active);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_build_sequence);
@@ -3993,6 +4070,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_wait_time_node);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_warm_camera_node);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_estimate_mosaic_time);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_perform_meridian_flip);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_clear_checkpoint);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_clear_default_adaptive_exposure);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_active_sequence_run_id);

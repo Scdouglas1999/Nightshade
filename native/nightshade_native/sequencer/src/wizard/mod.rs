@@ -653,6 +653,7 @@ mod tests {
             // Wave 8 Replay Debug — test contexts don't emit decisions.
             decision_tx: None,
             active_sequence_run_id: Arc::new(parking_lot::RwLock::new(None)),
+            dither_barrier: None,
         }
     }
 

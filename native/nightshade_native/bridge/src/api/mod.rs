@@ -138,11 +138,11 @@ pub(crate) mod api_version;
 pub(crate) mod connection;
 pub mod devices;
 pub mod diagnostics;
+pub mod discovery;
+pub mod event_stream;
 pub mod finishing_analyze;
 pub mod finishing_combine;
 pub mod finishing_enhance;
-pub mod discovery;
-pub mod event_stream;
 pub(crate) mod heartbeat;
 // `pub(crate)` not `pub`: keep this submodule's name out of the crate-root
 // glob (`pub use api::*` in lib.rs) so it doesn't shadow `crate::hotplug`,
@@ -156,6 +156,7 @@ pub mod phd2;
 pub mod plate_solve;
 pub mod polar_alignment;
 pub mod post_session;
+pub mod secondary_rig;
 pub mod sequencer;
 pub mod session;
 pub(crate) mod storage;
@@ -164,11 +165,11 @@ pub use api_version::*;
 pub use connection::*;
 pub use devices::*;
 pub use diagnostics::*;
+pub use discovery::*;
+pub use event_stream::*;
 pub use finishing_analyze::*;
 pub use finishing_combine::*;
 pub use finishing_enhance::*;
-pub use discovery::*;
-pub use event_stream::*;
 pub use heartbeat::*;
 // Re-export the hotplug FFI function explicitly rather than glob-importing
 // the submodule — `crate::hotplug` (the listener / poll implementation) is
@@ -182,6 +183,7 @@ pub use phd2::*;
 pub use plate_solve::*;
 pub use polar_alignment::*;
 pub use post_session::*;
+pub use secondary_rig::*;
 pub use sequencer::*;
 pub use session::*;
 pub use storage::*;

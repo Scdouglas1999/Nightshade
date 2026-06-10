@@ -46,39 +46,59 @@ impl DeviceManager {
                     if let Some(wheel) = wheels.get(device_id) {
                         let mut wheel = wheel.write().await;
                         return wheel.move_to_position(position).await.map_err(|e| {
-                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                                "Failed to move ASCOM filter wheel {} to slot {}: {}",
-                                device_id, position, e
-                            ))
+                            DeviceOpError::hardware(
+                                Some(device_id.to_string()),
+                                format!(
+                                    "Failed to move ASCOM filter wheel {} to slot {}: {}",
+                                    device_id, position, e
+                                ),
+                            )
                         });
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM filter wheel not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM filter wheel not connected",
+                ))
             }
             DriverType::Native => {
                 let mut native_filter_wheels = self.native_filter_wheels.write().await;
                 if let Some(wheel) = native_filter_wheels.get_mut(device_id) {
                     return wheel.move_to_position(position).await.map_err(|e| {
-                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                            "Failed to move native filter wheel {} to slot {}: {}",
-                            device_id, position, e
-                        ))
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!(
+                                "Failed to move native filter wheel {} to slot {}: {}",
+                                device_id, position, e
+                            ),
+                        )
                     });
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native filter wheel not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native filter wheel not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let wheels = self.alpaca_filter_wheels.read().await;
                 if let Some(wheel) = wheels.get(device_id) {
-                    return wheel.set_position(position).await.map_err(DeviceOpError::driver);
+                    return wheel
+                        .set_position(position)
+                        .await
+                        .map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca filter wheel {} not found", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca filter wheel {} not found", device_id),
+                ))
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID format"));
+                    return Err(DeviceOpError::invalid_device_id(
+                        "Invalid INDI device ID format",
+                    ));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -87,19 +107,28 @@ impl DeviceManager {
                 if let Some(client) = clients.get(&server_key) {
                     let wheel = IndiFilterWheel::new(client.clone(), &device_name);
                     return wheel.set_position(position).await.map_err(|e| {
-                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                            "Failed to set INDI filter wheel {} to slot {}: {}",
-                            device_name, position, e
-                        ))
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!(
+                                "Failed to set INDI filter wheel {} to slot {}: {}",
+                                device_name, position, e
+                            ),
+                        )
                     });
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI filter wheel not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "INDI filter wheel not connected",
+                ))
             }
             DriverType::Simulator => {
                 let fw = crate::api::devices::simulation::get_sim_filterwheel();
                 let mut fw = fw.write().await;
                 if !fw.status.connected {
-                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_filterwheel()));
+                    return Err(DeviceOpError::not_connected(
+                        None,
+                        crate::device_manager::ops::sim_gate::not_connected_filterwheel(),
+                    ));
                 }
                 fw.status.position = position;
                 Ok(())
@@ -127,27 +156,38 @@ impl DeviceManager {
                         return wheel.get_position().await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM filter wheel not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM filter wheel not connected",
+                ))
             }
             DriverType::Native => {
                 let native_filter_wheels = self.native_filter_wheels.read().await;
                 if let Some(wheel) = native_filter_wheels.get(device_id) {
                     return wheel.get_position().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native filter wheel not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native filter wheel not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let wheels = self.alpaca_filter_wheels.read().await;
                 if let Some(wheel) = wheels.get(device_id) {
                     return wheel.position().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca filter wheel {} not found", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca filter wheel {} not found", device_id),
+                ))
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID format"));
+                    return Err(DeviceOpError::invalid_device_id(
+                        "Invalid INDI device ID format",
+                    ));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -157,7 +197,10 @@ impl DeviceManager {
                     let wheel = IndiFilterWheel::new(client.clone(), &device_name);
                     return wheel.get_position().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI filter wheel not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "INDI filter wheel not connected",
+                ))
             }
             DriverType::Simulator => {
                 let sim = crate::device_manager::ops::sim_gate::read_filterwheel_status().await?;
@@ -186,14 +229,20 @@ impl DeviceManager {
                         return wheel.is_moving().await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM filter wheel not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM filter wheel not connected",
+                ))
             }
             DriverType::Native => {
                 let native_filter_wheels = self.native_filter_wheels.read().await;
                 if let Some(wheel) = native_filter_wheels.get(device_id) {
                     return wheel.is_moving().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native filter wheel not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native filter wheel not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let wheels = self.alpaca_filter_wheels.read().await;
@@ -202,13 +251,18 @@ impl DeviceManager {
                     let pos = wheel.position().await?;
                     return Ok(pos == -1);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca filter wheel {} not found", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca filter wheel {} not found", device_id),
+                ))
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID format"));
+                    return Err(DeviceOpError::invalid_device_id(
+                        "Invalid INDI device ID format",
+                    ));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -219,7 +273,10 @@ impl DeviceManager {
                     // INDI uses property busy state to indicate movement
                     return Ok(locked.is_property_busy(&device_name, "FILTER_SLOT").await);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI filter wheel not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "INDI filter wheel not connected",
+                ))
             }
             DriverType::Simulator => {
                 let sim = crate::device_manager::ops::sim_gate::read_filterwheel_status().await?;
@@ -268,13 +325,19 @@ impl DeviceManager {
 
                     if let Some(wheel) = wheels.get(device_id) {
                         let wheel = wheel.read().await;
-                        let names = wheel.get_filter_names().await.map_err(DeviceOpError::driver)?;
+                        let names = wheel
+                            .get_filter_names()
+                            .await
+                            .map_err(DeviceOpError::driver)?;
                         let count = names.len() as i32;
                         return Ok((count, names));
                     }
                     tracing::error!("filter_wheel_get_config: ASCOM filter wheel '{}' not found in ascom_filter_wheels map!", device_id);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM filter wheel not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM filter wheel not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let wheels = self.alpaca_filter_wheels.read().await;
@@ -283,14 +346,19 @@ impl DeviceManager {
                     let count = names.len() as i32;
                     return Ok((count, names));
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca filter wheel {} not found", device_id)))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    format!("Alpaca filter wheel {} not found", device_id),
+                ))
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() >= 4 {
                     let host = parts[1];
-                    let port: u16 = parts[2].parse().map_err(|_| DeviceOpError::invalid_device_id("Invalid port"))?;
+                    let port: u16 = parts[2]
+                        .parse()
+                        .map_err(|_| DeviceOpError::invalid_device_id("Invalid port"))?;
                     let device_name = parts[3..].join(":");
                     let server_key = format!("{}:{}", host, port);
 
@@ -302,7 +370,10 @@ impl DeviceManager {
                         return Ok((count, names));
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI filter wheel not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "INDI filter wheel not connected",
+                ))
             }
             DriverType::Native => {
                 let native_filter_wheels = self.native_filter_wheels.read().await;
@@ -315,7 +386,10 @@ impl DeviceManager {
 
                 if let Some(wheel) = native_filter_wheels.get(device_id) {
                     let count = wheel.get_filter_count();
-                    let names = wheel.get_filter_names().await.map_err(DeviceOpError::driver)?;
+                    let names = wheel
+                        .get_filter_names()
+                        .await
+                        .map_err(DeviceOpError::driver)?;
                     tracing::info!(
                         "filter_wheel_get_config: Returning {} filter names: {:?}",
                         count,
@@ -324,7 +398,10 @@ impl DeviceManager {
                     return Ok((count, names));
                 }
                 tracing::error!("filter_wheel_get_config: Native filter wheel '{}' not found in native_filter_wheels map!", device_id);
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native filter wheel not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native filter wheel not connected",
+                ))
             }
             DriverType::Simulator => {
                 let sim = crate::device_manager::ops::sim_gate::read_filterwheel_status().await?;
@@ -369,7 +446,10 @@ impl DeviceManager {
                     );
                     return Ok(());
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native filter wheel not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native filter wheel not connected",
+                ))
             }
             DriverType::Ascom => {
                 // ASCOM filter names are typically stored in the driver's configuration
@@ -394,7 +474,10 @@ impl DeviceManager {
                 let fw = crate::api::devices::simulation::get_sim_filterwheel();
                 let mut fw = fw.write().await;
                 if !fw.status.connected {
-                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_filterwheel()));
+                    return Err(DeviceOpError::not_connected(
+                        None,
+                        crate::device_manager::ops::sim_gate::not_connected_filterwheel(),
+                    ));
                 }
                 // Only overwrite up to the existing slot count — matches the
                 // simulator-side semantics in

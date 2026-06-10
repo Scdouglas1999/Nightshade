@@ -316,6 +316,12 @@ pub async fn api_sequencer_stop() -> Result<(), NightshadeError> {
         tracing::info!("LiveStacking broadcast deactivated on sequence stop");
     }
 
+    // Dual-rig — stop any piggybacking secondary capture loop so a stopped
+    // primary sequence doesn't leave the secondary camera exposing forever.
+    if let Err(e) = crate::api::secondary_rig::api_secondary_rig_stop().await {
+        tracing::warn!("Failed to stop secondary rig on sequence stop: {}", e);
+    }
+
     get_state().publish_event(create_event_auto_id(
         EventSeverity::Info,
         EventCategory::Sequencer,
@@ -1256,6 +1262,114 @@ pub async fn api_sequencer_resume_from_checkpoint() -> Result<(), NightshadeErro
         .resume_from_checkpoint()
         .await
         .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+/// Standalone meridian flip — runs the canonical [`MeridianFlipExecutor`]
+/// OUTSIDE any running sequence.
+///
+/// Why this exists: the Dart-side standalone meridian monitor previously
+/// could only alert (the flip engine was reachable solely through the
+/// sequencer's trigger path), so an attended non-sequencer session got a
+/// notification while the mount tracked into the pier. This API gives that
+/// monitor a real flip with the exact same engine, timeouts, altitude
+/// check, re-center and refocus semantics as the in-sequence path.
+///
+/// Refuses while the sequence executor is Running/Paused/Stopping/
+/// Recovering — two engines commanding one mount is how pier crashes
+/// happen; the in-sequence trigger owns flips there.
+#[allow(clippy::too_many_arguments)]
+pub async fn api_perform_meridian_flip(
+    mount_id: String,
+    camera_id: Option<String>,
+    focuser_id: Option<String>,
+    cover_calibrator_id: Option<String>,
+    target_name: String,
+    target_ra_hours: f64,
+    target_dec_degrees: f64,
+    pause_guiding: bool,
+    auto_center: bool,
+    refocus_after: bool,
+    resume_guiding: bool,
+    settle_time_secs: f64,
+) -> Result<(), NightshadeError> {
+    {
+        let executor = get_sequence_executor().read().await;
+        let state = executor.get_state().await;
+        match state {
+            ExecutorState::Idle
+            | ExecutorState::Completed
+            | ExecutorState::Failed
+            | ExecutorState::Cancelled => {}
+            ExecutorState::Running
+            | ExecutorState::Paused
+            | ExecutorState::Stopping
+            | ExecutorState::Recovering => {
+                return Err(NightshadeError::OperationFailed(format!(
+                    "Cannot run a standalone meridian flip while the sequencer is {:?} — \
+                     the in-sequence meridian trigger owns flips during a sequence.",
+                    state
+                )));
+            }
+        }
+    }
+
+    tracing::info!(
+        "[MERIDIAN] Standalone flip requested for '{}' (RA {:.4}h, Dec {:.4}°, mount {})",
+        target_name,
+        target_ra_hours,
+        target_dec_degrees,
+        mount_id
+    );
+
+    let config = nightshade_sequencer::MeridianFlipConfig {
+        pause_guiding,
+        auto_center,
+        refocus_after,
+        resume_guiding,
+        settle_time: settle_time_secs,
+        ..Default::default()
+    };
+
+    let ctx = nightshade_sequencer::FlipContext {
+        target_name: target_name.clone(),
+        target_ra_hours,
+        target_dec_degrees,
+        mount_id,
+        camera_id,
+        focuser_id,
+        cover_calibrator_id,
+        cancellation_token: None,
+        trigger_state: None,
+        autofocus_config: None,
+        simulate: false,
+    };
+
+    let ops = create_unified_device_ops();
+    let mut flip_executor = nightshade_sequencer::MeridianFlipExecutor::new(config, ops);
+    match flip_executor.execute(&ctx).await {
+        nightshade_sequencer::FlipResult::Success {
+            new_pier_side,
+            duration_secs,
+        } => {
+            tracing::info!(
+                "[MERIDIAN] Standalone flip for '{}' completed: pier {:?}, {:.1}s",
+                target_name,
+                new_pier_side,
+                duration_secs
+            );
+            Ok(())
+        }
+        nightshade_sequencer::FlipResult::Failed {
+            error,
+            action_taken,
+        } => Err(NightshadeError::OperationFailed(format!(
+            "Meridian flip failed: {} (configured failure action: {:?})",
+            error, action_taken
+        ))),
+        nightshade_sequencer::FlipResult::Aborted { reason } => Err(
+            NightshadeError::OperationFailed(format!("Meridian flip aborted: {}", reason)),
+        ),
+    }
 }
 
 /// Save current execution state as checkpoint

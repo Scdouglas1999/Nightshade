@@ -648,10 +648,7 @@ pub mod ascom_connections {
         Err(unavailable("read ASCOM focuser position"))
     }
 
-    pub async fn move_ascom_focuser(
-        _prog_id: &str,
-        _position: i32,
-    ) -> Result<(), NightshadeError> {
+    pub async fn move_ascom_focuser(_prog_id: &str, _position: i32) -> Result<(), NightshadeError> {
         Err(unavailable("move ASCOM focuser"))
     }
 }

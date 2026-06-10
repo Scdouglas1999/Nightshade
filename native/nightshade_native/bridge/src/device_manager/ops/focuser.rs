@@ -17,7 +17,11 @@ impl DeviceManager {
     // Focuser Control
     // =========================================================================
 
-    pub async fn focuser_move_abs(&self, device_id: &str, position: i32) -> Result<(), DeviceOpError> {
+    pub async fn focuser_move_abs(
+        &self,
+        device_id: &str,
+        position: i32,
+    ) -> Result<(), DeviceOpError> {
         let devices = self.devices.read().await;
         let info = devices
             .get(device_id)
@@ -54,14 +58,20 @@ impl DeviceManager {
                         )
                         .await
                         .map_err(|e| {
-                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                                "Failed to move ASCOM focuser {} to position {}: {}",
-                                device_id, position, e
-                            ))
+                            DeviceOpError::hardware(
+                                Some(device_id.to_string()),
+                                format!(
+                                    "Failed to move ASCOM focuser {} to position {}: {}",
+                                    device_id, position, e
+                                ),
+                            )
                         });
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM focuser not connected",
+                ))
             }
             DriverType::Native => {
                 let mut native_focusers = self.native_focusers.write().await;
@@ -80,13 +90,19 @@ impl DeviceManager {
                     )
                     .await
                     .map_err(|e| {
-                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                            "Failed to move native focuser {} to position {}: {}",
-                            device_id, position, e
-                        ))
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!(
+                                "Failed to move native focuser {} to position {}: {}",
+                                device_id, position, e
+                            ),
+                        )
                     });
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native focuser not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let alpaca_focusers = self.alpaca_focusers.read().await;
@@ -105,22 +121,28 @@ impl DeviceManager {
                     )
                     .await
                     .map_err(|e| {
-                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                            "Failed to move Alpaca focuser {} to position {}: {}",
-                            device_id, position, e
-                        ))
+                        DeviceOpError::hardware(
+                            Some(device_id.to_string()),
+                            format!(
+                                "Failed to move Alpaca focuser {} to position {}: {}",
+                                device_id, position, e
+                            ),
+                        )
                     });
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Alpaca focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Alpaca focuser not connected",
+                ))
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() >= 4 {
                     let host = parts[1];
-                    let port: u16 = parts[2]
-                        .parse()
-                        .map_err(|_| DeviceOpError::invalid_device_id("Invalid port in INDI device ID"))?;
+                    let port: u16 = parts[2].parse().map_err(|_| {
+                        DeviceOpError::invalid_device_id("Invalid port in INDI device ID")
+                    })?;
                     let device_name = parts[3..].join(":");
                     let server_key = format!("{}:{}", host, port);
 
@@ -142,21 +164,32 @@ impl DeviceManager {
                         )
                         .await
                         .map_err(|e| {
-                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
-                                "Failed to move INDI focuser {} to position {}: {}",
-                                device_name, position, e
-                            ))
+                            DeviceOpError::hardware(
+                                Some(device_id.to_string()),
+                                format!(
+                                    "Failed to move INDI focuser {} to position {}: {}",
+                                    device_name, position, e
+                                ),
+                            )
                         });
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id("Invalid INDI device ID format"))
+                Err(DeviceOpError::invalid_device_id(
+                    "Invalid INDI device ID format",
+                ))
             }
             DriverType::Simulator => {
                 let f = crate::api::devices::simulation::get_sim_focuser();
                 let mut f = f.write().await;
                 if !f.status.connected {
-                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_focuser()));
+                    return Err(DeviceOpError::not_connected(
+                        None,
+                        crate::device_manager::ops::sim_gate::not_connected_focuser(),
+                    ));
                 }
                 f.status.position = position;
                 Ok(())
@@ -199,7 +232,10 @@ impl DeviceManager {
                         .map_err(DeviceOpError::driver);
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM focuser not connected",
+                ))
             }
             DriverType::Native => {
                 let mut native_focusers = self.native_focusers.write().await;
@@ -218,7 +254,10 @@ impl DeviceManager {
                     .await
                     .map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native focuser not connected",
+                ))
             }
             DriverType::Alpaca => {
                 // Alpaca focusers only support absolute positioning, so we compute target position
@@ -241,16 +280,19 @@ impl DeviceManager {
                     .await
                     .map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Alpaca focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Alpaca focuser not connected",
+                ))
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() >= 4 {
                     let host = parts[1];
-                    let port: u16 = parts[2]
-                        .parse()
-                        .map_err(|_| DeviceOpError::invalid_device_id("Invalid port in INDI device ID"))?;
+                    let port: u16 = parts[2].parse().map_err(|_| {
+                        DeviceOpError::invalid_device_id("Invalid port in INDI device ID")
+                    })?;
                     let device_name = parts[3..].join(":");
                     let server_key = format!("{}:{}", host, port);
 
@@ -272,15 +314,23 @@ impl DeviceManager {
                         .await
                         .map_err(DeviceOpError::driver);
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id("Invalid INDI device ID format"))
+                Err(DeviceOpError::invalid_device_id(
+                    "Invalid INDI device ID format",
+                ))
             }
             DriverType::Simulator => {
                 let f = crate::api::devices::simulation::get_sim_focuser();
                 let mut f = f.write().await;
                 if !f.status.connected {
-                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_focuser()));
+                    return Err(DeviceOpError::not_connected(
+                        None,
+                        crate::device_manager::ops::sim_gate::not_connected_focuser(),
+                    ));
                 }
                 f.status.position += steps;
                 Ok(())
@@ -306,30 +356,39 @@ impl DeviceManager {
                         return focuser.halt().await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM focuser not connected",
+                ))
             }
             DriverType::Native => {
                 let mut native_focusers = self.native_focusers.write().await;
                 if let Some(focuser) = native_focusers.get_mut(device_id) {
                     return focuser.halt().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native focuser not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let alpaca_focusers = self.alpaca_focusers.read().await;
                 if let Some(focuser) = alpaca_focusers.get(device_id) {
                     return focuser.halt().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Alpaca focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Alpaca focuser not connected",
+                ))
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() >= 4 {
                     let host = parts[1];
-                    let port: u16 = parts[2]
-                        .parse()
-                        .map_err(|_| DeviceOpError::invalid_device_id("Invalid port in INDI device ID"))?;
+                    let port: u16 = parts[2].parse().map_err(|_| {
+                        DeviceOpError::invalid_device_id("Invalid port in INDI device ID")
+                    })?;
                     let device_name = parts[3..].join(":");
                     let server_key = format!("{}:{}", host, port);
 
@@ -339,15 +398,23 @@ impl DeviceManager {
                             nightshade_indi::IndiFocuser::new(client.clone(), &device_name);
                         return focuser.abort_motion().await.map_err(DeviceOpError::driver);
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id("Invalid INDI device ID format"))
+                Err(DeviceOpError::invalid_device_id(
+                    "Invalid INDI device ID format",
+                ))
             }
             DriverType::Simulator => {
                 let f = crate::api::devices::simulation::get_sim_focuser();
                 let mut f = f.write().await;
                 if !f.status.connected {
-                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_focuser()));
+                    return Err(DeviceOpError::not_connected(
+                        None,
+                        crate::device_manager::ops::sim_gate::not_connected_focuser(),
+                    ));
                 }
                 f.status.moving = false;
                 Ok(())
@@ -372,30 +439,39 @@ impl DeviceManager {
                         return focuser.get_position().await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM focuser not connected",
+                ))
             }
             DriverType::Native => {
                 let native_focusers = self.native_focusers.read().await;
                 if let Some(focuser) = native_focusers.get(device_id) {
                     return focuser.get_position().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native focuser not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let alpaca_focusers = self.alpaca_focusers.read().await;
                 if let Some(focuser) = alpaca_focusers.get(device_id) {
                     return focuser.position().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Alpaca focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Alpaca focuser not connected",
+                ))
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() >= 4 {
                     let host = parts[1];
-                    let port: u16 = parts[2]
-                        .parse()
-                        .map_err(|_| DeviceOpError::invalid_device_id("Invalid port in INDI device ID"))?;
+                    let port: u16 = parts[2].parse().map_err(|_| {
+                        DeviceOpError::invalid_device_id("Invalid port in INDI device ID")
+                    })?;
                     let device_name = parts[3..].join(":");
                     let server_key = format!("{}:{}", host, port);
 
@@ -405,9 +481,14 @@ impl DeviceManager {
                             nightshade_indi::IndiFocuser::new(client.clone(), &device_name);
                         return focuser.get_position().await.map_err(DeviceOpError::driver);
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id("Invalid INDI device ID format"))
+                Err(DeviceOpError::invalid_device_id(
+                    "Invalid INDI device ID format",
+                ))
             }
             DriverType::Simulator => {
                 let sim = crate::device_manager::ops::sim_gate::read_focuser_status().await?;
@@ -433,28 +514,39 @@ impl DeviceManager {
                         return focuser.is_moving().await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM focuser not connected",
+                ))
             }
             DriverType::Native => {
                 let native_focusers = self.native_focusers.read().await;
                 if let Some(focuser) = native_focusers.get(device_id) {
                     return focuser.is_moving().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native focuser not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let alpaca_focusers = self.alpaca_focusers.read().await;
                 if let Some(focuser) = alpaca_focusers.get(device_id) {
                     return focuser.is_moving().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Alpaca focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Alpaca focuser not connected",
+                ))
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() >= 4 {
                     let host = parts[1];
-                    let port: u16 = parts[2].parse().map_err(|_| DeviceOpError::invalid_device_id("Invalid port"))?;
+                    let port: u16 = parts[2]
+                        .parse()
+                        .map_err(|_| DeviceOpError::invalid_device_id("Invalid port"))?;
                     let device_name = parts[3..].join(":");
                     let server_key = format!("{}:{}", host, port);
 
@@ -464,9 +556,14 @@ impl DeviceManager {
                             nightshade_indi::IndiFocuser::new(client.clone(), &device_name);
                         return Ok(focuser.is_moving().await);
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id("Invalid INDI device ID format"))
+                Err(DeviceOpError::invalid_device_id(
+                    "Invalid INDI device ID format",
+                ))
             }
             DriverType::Simulator => {
                 let sim = crate::device_manager::ops::sim_gate::read_focuser_status().await?;
@@ -493,7 +590,10 @@ impl DeviceManager {
                         return focuser.is_absolute().await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM focuser not connected",
+                ))
             }
             DriverType::Native => Ok(true),
             DriverType::Alpaca => {
@@ -501,14 +601,19 @@ impl DeviceManager {
                 if let Some(focuser) = alpaca_focusers.get(device_id) {
                     return focuser.absolute().await.map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Alpaca focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Alpaca focuser not connected",
+                ))
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() >= 4 {
                     let host = parts[1];
-                    let port: u16 = parts[2].parse().map_err(|_| DeviceOpError::invalid_device_id("Invalid port"))?;
+                    let port: u16 = parts[2]
+                        .parse()
+                        .map_err(|_| DeviceOpError::invalid_device_id("Invalid port"))?;
                     let device_name = parts[3..].join(":");
                     let server_key = format!("{}:{}", host, port);
 
@@ -520,9 +625,14 @@ impl DeviceManager {
                             .await
                             .is_some());
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id("Invalid INDI device ID format"))
+                Err(DeviceOpError::invalid_device_id(
+                    "Invalid INDI device ID format",
+                ))
             }
             DriverType::Simulator => {
                 let sim = crate::device_manager::ops::sim_gate::read_focuser_status().await?;
@@ -545,34 +655,53 @@ impl DeviceManager {
                     let focusers = self.ascom_focusers.read().await;
                     if let Some(focuser) = focusers.get(device_id) {
                         let focuser = focuser.read().await;
-                        return focuser.get_temperature().await.map_err(DeviceOpError::driver);
+                        return focuser
+                            .get_temperature()
+                            .await
+                            .map_err(DeviceOpError::driver);
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM focuser not connected",
+                ))
             }
             DriverType::Native => {
                 let native_focusers = self.native_focusers.read().await;
                 if let Some(focuser) = native_focusers.get(device_id) {
-                    return focuser.get_temperature().await.map_err(DeviceOpError::driver);
+                    return focuser
+                        .get_temperature()
+                        .await
+                        .map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native focuser not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let alpaca_focusers = self.alpaca_focusers.read().await;
                 if let Some(focuser) = alpaca_focusers.get(device_id) {
                     // Alpaca temperature() returns f64, wrap in Some for consistency
-                    return focuser.temperature().await.map(Some).map_err(DeviceOpError::driver);
+                    return focuser
+                        .temperature()
+                        .await
+                        .map(Some)
+                        .map_err(DeviceOpError::driver);
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Alpaca focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Alpaca focuser not connected",
+                ))
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() >= 4 {
                     let host = parts[1];
-                    let port: u16 = parts[2]
-                        .parse()
-                        .map_err(|_| DeviceOpError::invalid_device_id("Invalid port in INDI device ID"))?;
+                    let port: u16 = parts[2].parse().map_err(|_| {
+                        DeviceOpError::invalid_device_id("Invalid port in INDI device ID")
+                    })?;
                     let device_name = parts[3..].join(":");
                     let server_key = format!("{}:{}", host, port);
 
@@ -605,9 +734,14 @@ impl DeviceManager {
                             }
                         }
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id("Invalid INDI device ID format"))
+                Err(DeviceOpError::invalid_device_id(
+                    "Invalid INDI device ID format",
+                ))
             }
             DriverType::Simulator => {
                 let sim = crate::device_manager::ops::sim_gate::read_focuser_status().await?;
@@ -633,14 +767,20 @@ impl DeviceManager {
                         return Ok((focuser.get_max_position(), focuser.get_step_size()));
                     }
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "ASCOM focuser not connected",
+                ))
             }
             DriverType::Native => {
                 let native_focusers = self.native_focusers.read().await;
                 if let Some(focuser) = native_focusers.get(device_id) {
                     return Ok((focuser.get_max_position(), focuser.get_step_size()));
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Native focuser not connected",
+                ))
             }
             DriverType::Alpaca => {
                 let alpaca_focusers = self.alpaca_focusers.read().await;
@@ -655,16 +795,19 @@ impl DeviceManager {
                     };
                     return Ok((max_step, step_size));
                 }
-                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Alpaca focuser not connected"))
+                Err(DeviceOpError::not_connected(
+                    Some(device_id.to_string()),
+                    "Alpaca focuser not connected",
+                ))
             }
             DriverType::Indi => {
                 // Parse INDI device ID: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() >= 4 {
                     let host = parts[1];
-                    let port: u16 = parts[2]
-                        .parse()
-                        .map_err(|_| DeviceOpError::invalid_device_id("Invalid port in INDI device ID"))?;
+                    let port: u16 = parts[2].parse().map_err(|_| {
+                        DeviceOpError::invalid_device_id("Invalid port in INDI device ID")
+                    })?;
                     let device_name = parts[3..].join(":");
                     let server_key = format!("{}:{}", host, port);
 
@@ -712,9 +855,14 @@ impl DeviceManager {
 
                         return Ok((max_position, step_size));
                     }
-                    return Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI client not connected for {}", server_key)));
+                    return Err(DeviceOpError::not_connected(
+                        Some(device_id.to_string()),
+                        format!("INDI client not connected for {}", server_key),
+                    ));
                 }
-                Err(DeviceOpError::invalid_device_id("Invalid INDI device ID format"))
+                Err(DeviceOpError::invalid_device_id(
+                    "Invalid INDI device ID format",
+                ))
             }
             DriverType::Simulator => {
                 let sim = crate::device_manager::ops::sim_gate::read_focuser_status().await?;

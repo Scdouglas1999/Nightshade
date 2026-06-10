@@ -385,7 +385,10 @@ fn detect_stars_photometry_impl(
     };
     stars.truncate(keep);
 
-    let radius = args.aperture.filter(|&r| r > 0).unwrap_or(DEFAULT_APERTURE_RADIUS);
+    let radius = args
+        .aperture
+        .filter(|&r| r > 0)
+        .unwrap_or(DEFAULT_APERTURE_RADIUS);
 
     let star_dtos: Vec<StarPhotometryDto> = stars
         .iter()
@@ -482,8 +485,8 @@ struct ColorCalibrateResult {
 /// `args_json` is a [`ColorCalibrateArgs`]; the result is a
 /// [`ColorCalibrateResult`].
 pub fn api_color_calibrate(args_json: String) -> Result<String, String> {
-    let args: ColorCalibrateArgs =
-        serde_json::from_str(&args_json).map_err(|e| format!("invalid color-calibrate args: {e}"))?;
+    let args: ColorCalibrateArgs = serde_json::from_str(&args_json)
+        .map_err(|e| format!("invalid color-calibrate args: {e}"))?;
     let result = color_calibrate_impl(args)?;
     serde_json::to_string(&result).map_err(|e| format!("failed to encode result: {e}"))
 }

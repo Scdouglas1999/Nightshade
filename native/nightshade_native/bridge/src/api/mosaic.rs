@@ -392,7 +392,10 @@ fn ensure_parent_dir(path: &Path) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
             std::fs::create_dir_all(parent).map_err(|e| {
-                format!("failed to create output directory '{}': {e}", parent.display())
+                format!(
+                    "failed to create output directory '{}': {e}",
+                    parent.display()
+                )
             })?;
         }
     }
@@ -554,7 +557,10 @@ mod tests {
         // Output WCS should be near the explicit centre, not the wrong header.
         let (_img, hdr) = read_fits(&master_out).unwrap();
         let out_ra = hdr.get_float("CRVAL1").unwrap();
-        assert!((out_ra - 250.0).abs() < 1.0, "out RA {out_ra} should be ~250");
+        assert!(
+            (out_ra - 250.0).abs() < 1.0,
+            "out RA {out_ra} should be ~250"
+        );
 
         for p in [path, master_out] {
             let _ = std::fs::remove_file(p);

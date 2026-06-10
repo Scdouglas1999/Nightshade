@@ -257,9 +257,7 @@ pub fn api_combine_channels(args_json: String) -> Result<String, String> {
 // api_drizzle_integrate implementation
 // =============================================================================
 
-fn drizzle_integrate_impl(
-    args: DrizzleIntegrateArgs,
-) -> Result<DrizzleIntegrateResult, String> {
+fn drizzle_integrate_impl(args: DrizzleIntegrateArgs) -> Result<DrizzleIntegrateResult, String> {
     if args.frames.is_empty() {
         return Err("no frames to drizzle".to_string());
     }
@@ -295,8 +293,7 @@ fn drizzle_integrate_impl(
     let mut buffers: Vec<Vec<f64>> = Vec::with_capacity(args.frames.len());
     let mut transforms: Vec<TransformModel> = Vec::with_capacity(args.frames.len());
     let mut dims: Vec<(u32, u32, u32)> = Vec::with_capacity(args.frames.len());
-    let mut patterns: Vec<nightshade_imaging::BayerPattern> =
-        Vec::with_capacity(args.frames.len());
+    let mut patterns: Vec<nightshade_imaging::BayerPattern> = Vec::with_capacity(args.frames.len());
 
     for fa in &args.frames {
         if fa.fits_path.trim().is_empty() {
@@ -357,14 +354,16 @@ fn drizzle_integrate_impl(
             .zip(transforms.iter())
             .zip(patterns.iter())
             .zip(args.frames.iter())
-            .map(|((((mosaic, &(w, h, _c)), transform), &pattern), fa)| BayerDrizzleFrame {
-                mosaic,
-                width: w,
-                height: h,
-                pattern,
-                transform,
-                weight: fa.weight,
-            })
+            .map(
+                |((((mosaic, &(w, h, _c)), transform), &pattern), fa)| BayerDrizzleFrame {
+                    mosaic,
+                    width: w,
+                    height: h,
+                    pattern,
+                    transform,
+                    weight: fa.weight,
+                },
+            )
             .collect();
         bayer_drizzle_integrate(&frames, args.ref_w, args.ref_h, &cfg)
             .map_err(|e| format!("Bayer drizzle failed: {e}"))?
@@ -508,11 +507,7 @@ fn transform_from_row_major(m: &[f64]) -> Result<TransformModel, String> {
     if !m.iter().all(|v| v.is_finite()) {
         return Err("transform contains a non-finite element".to_string());
     }
-    let matrix = [
-        [m[0], m[1], m[2]],
-        [m[3], m[4], m[5]],
-        [m[6], m[7], m[8]],
-    ];
+    let matrix = [[m[0], m[1], m[2]], [m[3], m[4], m[5]], [m[6], m[7], m[8]]];
     Ok(TransformModel {
         matrix,
         kind: TransformKind::Homography,
@@ -544,9 +539,7 @@ fn decode_image_f64(image: &ImageData, path: &str) -> Result<Vec<f64>, String> {
 // api_combine_channels implementation
 // =============================================================================
 
-fn combine_channels_impl(
-    args: CombineChannelsArgs,
-) -> Result<CombineChannelsResult, String> {
+fn combine_channels_impl(args: CombineChannelsArgs) -> Result<CombineChannelsResult, String> {
     if args.inputs.is_empty() {
         return Err("no input channels supplied to combine".to_string());
     }
@@ -597,17 +590,13 @@ fn combine_channels_impl(
     } else {
         match args.weights {
             Some(w) if !w.is_empty() => w,
-            _ => {
-                return Err(
-                    "either palette or a non-empty weights table is required".to_string()
-                )
-            }
+            _ => return Err("either palette or a non-empty weights table is required".to_string()),
         }
     };
 
     let refs: Vec<&ImageData> = images.iter().collect();
-    let composite = combine_channels(&refs, &weights)
-        .map_err(|e| format!("channel combine failed: {e}"))?;
+    let composite =
+        combine_channels(&refs, &weights).map_err(|e| format!("channel combine failed: {e}"))?;
 
     let out_path = Path::new(&args.output_fits);
     ensure_parent_dir(out_path)?;
@@ -659,8 +648,12 @@ fn load_optional_master(path: &Option<String>, label: &str) -> Result<Option<Ima
 fn ensure_parent_dir(path: &Path) -> Result<(), String> {
     if let Some(parent) = path.parent() {
         if !parent.as_os_str().is_empty() {
-            std::fs::create_dir_all(parent)
-                .map_err(|e| format!("failed to create output directory '{}': {e}", parent.display()))?;
+            std::fs::create_dir_all(parent).map_err(|e| {
+                format!(
+                    "failed to create output directory '{}': {e}",
+                    parent.display()
+                )
+            })?;
         }
     }
     Ok(())
@@ -760,7 +753,10 @@ mod tests {
 
         let f0 = render_mono_f32(size, &stars, 200.0);
         // Second frame physically shifted; its transform maps it back to the ref.
-        let shifted: Vec<(f64, f64, f64)> = stars.iter().map(|&(x, y, p)| (x + 2.0, y - 1.0, p)).collect();
+        let shifted: Vec<(f64, f64, f64)> = stars
+            .iter()
+            .map(|&(x, y, p)| (x + 2.0, y - 1.0, p))
+            .collect();
         let f1 = render_mono_f32(size, &shifted, 200.0);
 
         let p0 = temp_path("drizzle_integrate_mono_round_trip_f0", "fits");
@@ -794,7 +790,10 @@ mod tests {
         assert_eq!(result.out_width, (ref_w as f64 * scale).ceil() as u32);
         assert_eq!(result.out_height, (ref_h as f64 * scale).ceil() as u32);
         assert_eq!(result.channels, 1, "mono warp stays single-channel");
-        assert_eq!(result.coverage_path.as_deref(), Some(cov_path.to_string_lossy().as_ref()));
+        assert_eq!(
+            result.coverage_path.as_deref(),
+            Some(cov_path.to_string_lossy().as_ref())
+        );
         // The drizzled master's stretched preview PNG was written and surfaced.
         assert_eq!(
             result.preview_png_path.as_deref(),
@@ -947,15 +946,27 @@ mod tests {
         // Raw drizzle reconstructs the uncalibrated sky (~1000) in BOTH bands.
         let raw_top = interior_band_mean(&raw_master, top_lo, top_hi);
         let raw_bot = interior_band_mean(&raw_master, bot_lo, bot_hi);
-        assert!((raw_top - 1000.0).abs() < 1.0, "raw top band ~= 1000, got {raw_top}");
-        assert!((raw_bot - 1000.0).abs() < 1.0, "raw bottom band ~= 1000, got {raw_bot}");
+        assert!(
+            (raw_top - 1000.0).abs() < 1.0,
+            "raw top band ~= 1000, got {raw_top}"
+        );
+        assert!(
+            (raw_bot - 1000.0).abs() < 1.0,
+            "raw bottom band ~= 1000, got {raw_bot}"
+        );
 
         // Calibrated drizzle removed the 200 pedestal and applied the non-uniform
         // flat: top ~600, bottom ~1200 — provably different from the raw deposit.
         let cal_top = interior_band_mean(&cal_master, top_lo, top_hi);
         let cal_bot = interior_band_mean(&cal_master, bot_lo, bot_hi);
-        assert!((cal_top - 600.0).abs() < 1.0, "calibrated top band ~= 600, got {cal_top}");
-        assert!((cal_bot - 1200.0).abs() < 1.0, "calibrated bottom band ~= 1200, got {cal_bot}");
+        assert!(
+            (cal_top - 600.0).abs() < 1.0,
+            "calibrated top band ~= 600, got {cal_top}"
+        );
+        assert!(
+            (cal_bot - 1200.0).abs() < 1.0,
+            "calibrated bottom band ~= 1200, got {cal_bot}"
+        );
 
         // The decisive regression guard: the calibrated master is NOT the raw
         // deposit (the BLOCKER-#4 silent-corruption symptom).
@@ -1079,7 +1090,10 @@ mod tests {
         let resp = api_drizzle_integrate(args.to_string()).expect("bayer drizzle");
         let result: DrizzleIntegrateResult = serde_json::from_str(&resp).unwrap();
 
-        assert_eq!(result.channels, 3, "Bayer drizzle always yields a 3-channel RGB master");
+        assert_eq!(
+            result.channels, 3,
+            "Bayer drizzle always yields a 3-channel RGB master"
+        );
         assert_eq!(result.out_width, (ref_w as f64 * scale).ceil() as u32);
         assert_eq!(result.out_height, (ref_h as f64 * scale).ceil() as u32);
         assert!(result.coverage_path.is_none(), "no coverage requested");
@@ -1194,10 +1208,10 @@ mod tests {
             r#"{"frames":[],"refW":10,"refH":10,"outputFits":"x.fits"}"#.to_string()
         )
         .is_err());
-        assert!(
-            api_combine_channels(r#"{"inputs":[],"palette":"sho","outputFits":"x.fits"}"#.to_string())
-                .is_err()
-        );
+        assert!(api_combine_channels(
+            r#"{"inputs":[],"palette":"sho","outputFits":"x.fits"}"#.to_string()
+        )
+        .is_err());
 
         // Nonexistent input frame to drizzle.
         let missing = temp_path("combine_error_paths_missing", "fits");

@@ -229,6 +229,8 @@ impl DeviceManager {
                 last_successful_comm: None,
                 heartbeat_active: false,
                 api_version: None,
+                desired_cooler: None,
+                desired_tracking: None,
             },
         );
     }
@@ -275,13 +277,24 @@ impl DeviceManager {
             }
         }
 
-        // Update state to connecting
-        {
+        // Update state to connecting. Capture the prior state first: a connect
+        // arriving from `ConnectionState::Error` is an *unplanned reconnect*
+        // (heartbeat-lost or report_error path), and on success we must
+        // re-apply the essential device state the driver loses across a
+        // physical reconnect (camera cooling setpoint, mount tracking). A
+        // fresh user-initiated connect from Disconnected does NOT re-apply —
+        // there is no prior desired state worth restoring and the user is
+        // about to drive the device anyway.
+        let was_error_before_connect = {
             let mut devices = self.devices.write().await;
             if let Some(dev) = devices.get_mut(device_id) {
+                let prior = dev.connection_state == ConnectionState::Error;
                 dev.connection_state = ConnectionState::Connecting;
+                prior
+            } else {
+                false
             }
-        }
+        };
 
         // Publish connecting event
         self.app_state.publish_equipment_event(
@@ -365,6 +378,18 @@ impl DeviceManager {
                     tracing::warn!("Failed to start heartbeat for {}: {}", device_id, e);
                 } else {
                     tracing::info!("Auto-started heartbeat for device {}", device_id);
+                }
+
+                // Reconnect-only: re-apply the essential device state the
+                // driver drops across a physical reconnect. We deliberately
+                // gate on `was_error_before_connect` so a fresh user connect
+                // does not silently command cooling / tracking the user did
+                // not ask for. Failures here are non-fatal — the reconnect
+                // itself succeeded; a re-apply failure is logged + surfaced as
+                // a warning so the operator can intervene, but it does not
+                // turn a recovered device back into an error.
+                if was_error_before_connect {
+                    self.reapply_essential_state_after_reconnect(info).await;
                 }
             }
             Err(e) => {
@@ -943,6 +968,98 @@ impl DeviceManager {
             .await;
 
         Some(info)
+    }
+
+    /// Re-apply the essential device state that a physical reconnect drops.
+    ///
+    /// Drivers come back from a USB / serial reconnect in their power-on
+    /// defaults: a camera's cooler is off and its setpoint cleared, a mount is
+    /// parked / not tracking. After an unplanned reconnect we replay the last
+    /// state the user / sequencer commanded (recorded in `camera_set_cooler` /
+    /// `mount_set_tracking`) so an unattended run does not silently warm the
+    /// sensor or leave the mount stationary while the sequence "resumes".
+    ///
+    /// Only camera cooling and mount tracking are replayed — these are the two
+    /// pieces of state that (a) are commanded ahead of time and persist, and
+    /// (b) materially break the session if lost. Position / filter / focus are
+    /// re-established by the recovery loop and the next instruction's own
+    /// centering / filter-change steps, so we do not duplicate them here.
+    ///
+    /// Errors are non-fatal: the reconnect already succeeded, so a replay
+    /// failure is surfaced as a `Warning` event for operator visibility but
+    /// does NOT flip the device back into an error state.
+    async fn reapply_essential_state_after_reconnect(&self, info: &DeviceInfo) {
+        let device_id = &info.id;
+
+        let (desired_cooler, desired_tracking) = {
+            let devices = self.devices.read().await;
+            match devices.get(device_id) {
+                Some(dev) => (dev.desired_cooler, dev.desired_tracking),
+                None => return,
+            }
+        };
+
+        match info.device_type {
+            DeviceType::Camera => {
+                if let Some((enabled, target_temp)) = desired_cooler {
+                    tracing::info!(
+                        "Reconnect: re-applying camera {} cooler (enabled={}, target={:?})",
+                        device_id,
+                        enabled,
+                        target_temp
+                    );
+                    if let Err(e) = self
+                        .camera_set_cooler(device_id, enabled, target_temp)
+                        .await
+                    {
+                        tracing::warn!(
+                            "Reconnect: failed to re-apply camera {} cooler: {}",
+                            device_id,
+                            e
+                        );
+                        self.app_state.publish_equipment_event(
+                            EquipmentEvent::Error {
+                                device_type: info.device_type.as_str().to_string(),
+                                device_id: device_id.clone(),
+                                message: format!(
+                                    "Reconnected but could not restore cooling setpoint: {}",
+                                    e
+                                ),
+                            },
+                            EventSeverity::Warning,
+                        );
+                    }
+                }
+            }
+            DeviceType::Mount => {
+                if let Some(enabled) = desired_tracking {
+                    tracing::info!(
+                        "Reconnect: re-applying mount {} tracking={}",
+                        device_id,
+                        enabled
+                    );
+                    if let Err(e) = self.mount_set_tracking(device_id, enabled).await {
+                        tracing::warn!(
+                            "Reconnect: failed to re-apply mount {} tracking: {}",
+                            device_id,
+                            e
+                        );
+                        self.app_state.publish_equipment_event(
+                            EquipmentEvent::Error {
+                                device_type: info.device_type.as_str().to_string(),
+                                device_id: device_id.clone(),
+                                message: format!(
+                                    "Reconnected but could not restore mount tracking: {}",
+                                    e
+                                ),
+                            },
+                            EventSeverity::Warning,
+                        );
+                    }
+                }
+            }
+            _ => {}
+        }
     }
 
     /// Stop the reconnection background task

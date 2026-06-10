@@ -1099,6 +1099,10 @@ impl MeridianFlipExecutor {
             // decisions; sender starts None.
             decision_tx: None,
             active_sequence_run_id: std::sync::Arc::new(parking_lot::RwLock::new(None)),
+            // Dual-rig — meridian flip is not gated by the secondary barrier in
+            // v1 (documented gap); the flip's own dither/recenter runs without
+            // secondary coordination.
+            dither_barrier: None,
         };
 
         tracing::info!(
