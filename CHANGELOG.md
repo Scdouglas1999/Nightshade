@@ -17,6 +17,29 @@ finished, diagnosed, and labelled by morning. See
 `docs/4.0-activation-checklist.md` for the three external steps (iOS publish,
 cellular-push keys, on-sky tuning) that flip the gated bits live.
 
+### Release hardening (2026-06-10)
+
+- **Fleet UI/UX audit.** ~60 fixes across every screen: narrow-width and
+  phone overflow bugs (app-shell SafeArea, dialog viewport constraints,
+  bottom-nav labels, panel toolbars), ~25 raw-exception error states
+  replaced with clean themed messages, icon-button tooltips, an
+  autofocus-overlay crash on sub-360dp phones, a cooling-panel temperature
+  parse that never matched, and a sweep of 483 corrupted UTF-8 sequences
+  across 57 files.
+- **Relay connections persist.** "Connect via Relay" now saves to the
+  mobile saved-servers list (RELAY badge) and reconnects with the stored
+  token — no nightly re-pairing. Tokens stay in secure storage.
+- **Guider knobs explained.** Every built-in guider tuning setting carries
+  a plain-language description of what it does on a bad-seeing night.
+- **Android release APK builds again.** The desktop→mobile e2e seam test
+  moved to a test-only `apps/mobile_e2e` package; the desktop dev-dependency
+  no longer leaks a desktop plugin into the Android release registrant.
+- **Trustworthy test baseline.** The 12 long-standing imaging_service_test
+  failures are fixed (test-lifecycle issue, not pipeline bugs); golden
+  pixel tests are tag-gated out of default CI runs with an opt-in
+  `melos run test:golden` (baselines are Windows-rendered); CI pins Flutter
+  3.44.1 everywhere and the repo is formatted with the Dart 3.12 formatter.
+
 ### Couch-release feature expansion (2026-06-10)
 
 - **Turnkey appliance packaging.** Hardened systemd unit + installer,
